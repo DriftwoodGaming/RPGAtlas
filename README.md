@@ -108,7 +108,7 @@ Triggers: Action button, Player touch, Autorun, Parallel. Commands include:
 
 Show Text · Show Choices · Conditional Branch · Control Switch / Self-Switch / Variable ·
 Transfer Player · Change Gold / Items / Party · Heal · Start Battle · Open Shop · Set Move Route ·
-Change Transparency · Wait · Play Sound · Change Music · Erase Event · Save Screen · Game Over ·
+Camera Zoom · Change Transparency · Wait · Play Sound · Change Music · Erase Event · Save Screen · Game Over ·
 Return to Title · Script (JS)
 
 ## The player (`play.html`)

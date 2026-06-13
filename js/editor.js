@@ -10,6 +10,7 @@ import {
   loadStoredProject,
   saveProject,
 } from "./editor/project-io.js";
+import { PATCH_NOTES } from "./patch-notes.js";
 
 const { Assets, AtlasBuiltins, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
 
@@ -1730,6 +1731,7 @@ const { Assets, AtlasBuiltins, DataDefaults, GLRender, Music, RA, Sfx } = window
       case "se": return "Sound: " + c.name;
       case "music": return "Music: " + c.theme;
       case "move": return "Move " + (c.target === "player" ? "Player" : "This Event") + ": " + c.steps.join(", ").slice(0, 40) + (c.wait ? " (wait)" : "");
+      case "cameraZoom": return "Camera Zoom: " + Math.round((c.zoom || 1) * 100) + "% over " + (c.frames || 0) + " frames";
       case "transparency": return "Player Transparency: " + (c.val ? "hidden" : "visible");
       case "erase": return "Erase This Event";
       case "save": return "Open Save Screen";
@@ -2030,6 +2032,16 @@ const { Assets, AtlasBuiltins, DataDefaults, GLRender, Music, RA, Sfx } = window
         box.appendChild(h("div", { class: "fld" }, h("span", null, "Steps (click a chip to remove)"), chipBox));
         return () => { c.target = w.target; c.wait = w.wait; c.steps = steps; };
       } },
+    { t: "cameraZoom", label: "Camera Zoom", make: () => ({ t: "cameraZoom", zoom: 1, frames: 30 }),
+      form(c, box) {
+        const w = { zoom: c.zoom == null ? 1 : c.zoom, frames: c.frames || 0 };
+        box.appendChild(row(
+          field("Zoom (0.25 = out, 1 = normal, 4 = in)", nIn(w, "zoom", 0.25, 4, 0.05)),
+          field("Duration (frames)", nIn(w, "frames", 0, 6000)),
+        ));
+        box.appendChild(h("div", { class: "dim" }, "The camera stays centered on the player. Use 1.0 to return to the normal view."));
+        return () => { c.zoom = Math.max(0.25, Math.min(4, w.zoom || 1)); c.frames = Math.max(0, Math.floor(w.frames || 0)); };
+      } },
     { t: "transparency", label: "Change Transparency", make: () => ({ t: "transparency", val: true }),
       form(c, box) {
         const w = { val: String(c.val !== false) };
@@ -2065,11 +2077,89 @@ const { Assets, AtlasBuiltins, DataDefaults, GLRender, Music, RA, Sfx } = window
     });
   }
   function pickCommand(onPicked) {
+    const PAGE_SIZE = 24;
+    const tabs = h("div", { class: "cmdtabs" });
     const grid = h("div", { class: "cmdgrid" });
-    const m = modal({ title: "Add Command", content: grid, buttons: [{ label: "Cancel" }] });
-    for (const def of CMD_DEFS) {
-      grid.appendChild(h("button", { onclick() { m.close(); onPicked(def.make()); } }, def.label));
+    const m = modal({ title: "Add Command", content: h("div", null, tabs, grid), buttons: [{ label: "Cancel" }] });
+    let page = 0;
+
+    function editPreset(preset) {
+      const draft = { name: preset ? preset.name : "", code: preset ? preset.code : "" };
+      const nameInput = tIn(draft, "name");
+      const codeInput = h("textarea", { rows: 8, spellcheck: "false" }, draft.code);
+      const buttons = [
+        { label: "Save", primary: true, onClick(close) {
+          const name = nameInput.value.trim();
+          if (!name) { nameInput.focus(); return; }
+          draft.name = name;
+          draft.code = codeInput.value;
+          if (preset) Object.assign(preset, draft);
+          else {
+            proj.commandPresets.push({
+              id: RA.nextId(proj.commandPresets),
+              name: draft.name,
+              code: draft.code,
+            });
+          }
+          touch();
+          close();
+          page = Math.max(0, Math.ceil((CMD_DEFS.length + proj.commandPresets.length + 1) / PAGE_SIZE) - 1);
+          redraw();
+        } },
+        { label: "Cancel" },
+      ];
+      if (preset) buttons.unshift({ label: "Delete", onClick(close) {
+        confirmBox("Delete the saved command button \"" + preset.name + "\"?", () => {
+          proj.commandPresets = proj.commandPresets.filter((p) => p.id !== preset.id);
+          touch();
+          close();
+          redraw();
+        });
+      } });
+      modal({
+        title: preset ? "Edit Command Button" : "Add Command Button",
+        content: h("div", null,
+          field("Button name", nameInput),
+          field("JavaScript (runs as an event Script command; API is available as game)", codeInput),
+          preset ? h("div", { class: "dim" }, "Saved command buttons are stored with this project.") : null),
+        buttons,
+        dismissable: false,
+      });
     }
+
+    function items() {
+      return CMD_DEFS.map((def) => ({ kind: "builtin", def }))
+        .concat(proj.commandPresets.map((preset) => ({ kind: "preset", preset })))
+        .concat({ kind: "add" });
+    }
+    function redraw() {
+      const all = items();
+      const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+      page = Math.max(0, Math.min(page, pages - 1));
+      tabs.innerHTML = "";
+      for (let i = 0; i < pages; i++) {
+        tabs.appendChild(h("button", {
+          class: "mini" + (i === page ? " sel" : ""),
+          onclick() { page = i; redraw(); },
+        }, "Page " + (i + 1)));
+      }
+      grid.innerHTML = "";
+      all.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).forEach((item) => {
+        if (item.kind === "builtin") {
+          grid.appendChild(h("button", { onclick() { m.close(); onPicked(item.def.make()); } }, item.def.label));
+        } else if (item.kind === "preset") {
+          grid.appendChild(h("button", {
+            class: "cmdpreset",
+            title: "Insert saved script. Right-click to edit or delete.",
+            onclick() { m.close(); onPicked({ t: "script", code: item.preset.code || "" }); },
+            oncontextmenu(e) { e.preventDefault(); editPreset(item.preset); },
+          }, item.preset.name));
+        } else {
+          grid.appendChild(h("button", { class: "cmdaddnew", onclick() { editPreset(null); } }, "+Add New"));
+        }
+      });
+    }
+    redraw();
   }
 
   // ============================ command list widget ============================
@@ -3203,6 +3293,25 @@ atlas.onMapLoad((map) => {
   }
 
   // ============================ help / about ============================
+  function openPatchNotes() {
+    const list = h("div", { class: "patch-notes" });
+    PATCH_NOTES.forEach((note) => {
+      const items = h("ul");
+      (note.items || []).forEach((item) => items.appendChild(h("li", null, item)));
+      list.appendChild(h("article", { class: "patch-note" },
+        h("div", { class: "patch-note-head" },
+          h("h3", null, note.title),
+          h("time", null, note.date)),
+        h("p", null, note.summary),
+        items));
+    });
+    modal({
+      title: "RPGAtlas - Patch Notes",
+      wide: true,
+      content: list,
+      buttons: [{ label: "Close", primary: true }],
+    });
+  }
   function openHelp() {
     modal({
       title: "RPGAtlas — Quick Help",
@@ -3389,6 +3498,7 @@ atlas.onMapLoad((map) => {
   act("search", { label: "Event Searcher…", icon: "search", tip: "Event Searcher — find text / switches / variables across maps", run: openEventSearcher });
   act("resources", { label: "Resource Manager…", icon: "resources", tip: "Resource Manager — browse and export generated assets", run: openResourceManager });
   act("chargen", { label: "Character Generator…", icon: "chargen", tip: "Character Generator — build original walking sprites", run: openCharGenerator });
+  act("patchnotes", { label: "Patch Notes", run: openPatchNotes });
   act("help", { label: "Quick Help", run: openHelp });
   act("about", { label: "About RPGAtlas", run: openAbout });
 
@@ -3440,7 +3550,7 @@ atlas.onMapLoad((map) => {
     { label: "Scale", items: ["zoomin", "zoomout", "zoom1", "zoomfit"] },
     { label: "Tools", items: ["db", "plugins", "audio", "search", "resources", "chargen"] },
     { label: "Game", items: ["play", "build", "-", "mapprops", "hdpreview", "mode-start"] },
-    { label: "Help", items: ["help", "about"] },
+    { label: "Help", items: ["patchnotes", "help", "about"] },
   ];
   let menuOpenRef = null;
   function closeMenus() {

@@ -18,7 +18,7 @@ This page is your map of the map-maker.
 | **Scale** | Zoom level for the canvas |
 | **Tools** | The big managers: Database, Plugin Manager, Audio Manager, Event Searcher, Resource Manager, Character Generator |
 | **Game** | Set Start Position, Playtest, and game-wide settings |
-| **Help** | In-app help and reference |
+| **Help** | Newest-first Patch Notes, Quick Help, and About RPGAtlas |
 
 The **icon toolbar** duplicates the most common actions so they're always one click away, including
 the **▶ Playtest** button.

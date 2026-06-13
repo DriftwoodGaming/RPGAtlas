@@ -133,6 +133,7 @@ const RA = {
     p.meta.version = 3;
     p.plugins = p.plugins || [];
     p.customChars = p.customChars || [];
+    p.commandPresets = Array.isArray(p.commandPresets) ? p.commandPresets : [];
     p.assets = p.assets || {};
     p.assets.tiles = p.assets.tiles || {};
     p.system = p.system || {};
@@ -506,6 +507,7 @@ const DataDefaults = (() => {
       meta: { engine: "rpgatlas", version: 3, builtinsSeeded: true },
       plugins: typeof AtlasBuiltins !== "undefined" ? AtlasBuiltins.seed(1) : [],
       customChars: [],
+      commandPresets: [],
       assets: { tiles: {} },
       system: {
         title: "Atlas Quest",

@@ -16,6 +16,7 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
   let stage, canvas, ctx, uiLayer, fader;
   let scene = "boot"; // boot | title | map | battle | gameover
   let menuOpen = false;
+  let cameraZoom = 1;
 
   // ============================ utils ============================
   function el(tag, cls, html) {
@@ -539,6 +540,22 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
           }
           break;
         }
+        case "cameraZoom": {
+          const start = cameraZoom;
+          const target = clamp(Number(c.zoom) || 1, 0.25, 4);
+          const frames = Math.max(0, Math.floor(Number(c.frames) || 0));
+          if (!frames) {
+            cameraZoom = target;
+          } else {
+            for (let i = 1; i <= frames; i++) {
+              const t = i / frames;
+              cameraZoom = start + (target - start) * (t * t * (3 - 2 * t));
+              await frameWait();
+            }
+          }
+          cameraZoom = target;
+          break;
+        }
         case "transparency": if (G.player) G.player.transparent = !!c.val; break;
         case "erase": if (this.evRT) this.evRT.erased = true; break;
         case "save": await saveLoadMenu("save"); break;
@@ -577,6 +594,8 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
     addGold(n) { G.gold = clamp(G.gold + n, 0, 9999999); },
     party() { return G.party; },
     state() { return G; },
+    setCameraZoom(zoom) { cameraZoom = clamp(Number(zoom) || 1, 0.25, 4); },
+    getCameraZoom() { return cameraZoom; },
   };
 
   // ============================ plugins ============================
@@ -793,8 +812,9 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
     if (scene !== "map" && scene !== "battle") return;
     if (!map || !G.player) return;
     const p = G.player;
-    const camX = clamp(p.rx * TILE + TILE / 2 - SCREEN_W / 2, 0, Math.max(0, map.width * TILE - SCREEN_W));
-    const camY = clamp(p.ry * TILE + TILE / 2 - SCREEN_H / 2, 0, Math.max(0, map.height * TILE - SCREEN_H));
+    const viewW = SCREEN_W / cameraZoom, viewH = SCREEN_H / cameraZoom;
+    const camX = clamp(p.rx * TILE + TILE / 2 - viewW / 2, 0, Math.max(0, map.width * TILE - viewW));
+    const camY = clamp(p.ry * TILE + TILE / 2 - viewH / 2, 0, Math.max(0, map.height * TILE - viewH));
     const drawables = [];
     for (const rt of evRTs) {
       if (rt.erased || !rt.page || rt.charsetIdx < 0) continue;
@@ -827,19 +847,25 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
         }
       }
       const frame = GLRender.renderFrame(SCREEN_W, SCREEN_H, camX, camY, sprites,
-        { focus: { rx: p.rx, ry: p.ry }, lights: lights });
+        { focus: { rx: p.rx, ry: p.ry }, lights: lights, zoom: cameraZoom });
       if (frame) ctx.drawImage(frame, 0, 0);
       else hdActive = false; // GL context lost mid-game — finish on Canvas 2D
     }
     if (!hdActive) {
+      ctx.save();
+      ctx.scale(cameraZoom, cameraZoom);
       ctx.drawImage(lowerBuf, -camX, -camY);
       for (const d of drawables) {
         const idx = d === p ? p.charsetIdx : d.charsetIdx;
         Assets.drawChar(ctx, idx, d.dir, walkFrame(d), Math.round(d.rx * TILE - camX), Math.round(d.ry * TILE - 8 - camY));
       }
       ctx.drawImage(upperBuf, -camX, -camY);
+      ctx.restore();
     }
-    if (scene === "map") Plugins.fireRender(ctx, { w: SCREEN_W, h: SCREEN_H, t: globalT, map: map, camX: camX, camY: camY });
+    if (scene === "map") Plugins.fireRender(ctx, {
+      w: SCREEN_W, h: SCREEN_H, t: globalT, map: map,
+      camX: camX, camY: camY, cameraZoom: cameraZoom,
+    });
   }
 
   function loop() {
@@ -1054,6 +1080,7 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
         data: {
           switches: G.switches, vars: G.vars, selfSw: G.selfSw,
           party: G.party, inv: G.inv, gold: G.gold, steps: G.steps,
+          cameraZoom: cameraZoom,
           mapId: G.mapId, player: { x: G.player.x, y: G.player.y, dir: G.player.dir, transparent: !!G.player.transparent },
         },
       };
@@ -1078,6 +1105,7 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
       a.mp = Math.min(a.mp, param(a, "mmp"));
     });
     G.gold = d.gold || 0; G.steps = d.steps || 0;
+    cameraZoom = clamp(Number(d.cameraZoom) || 1, 0.25, 4);
     initPlayer(d.player.x, d.player.y, d.player.dir);
     G.player.transparent = !!d.player.transparent;
     loadMap(d.mapId);
@@ -1760,6 +1788,7 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
     G.party = (proj.system.party || []).slice(0, 4).map(makeActor).filter(Boolean);
     if (!G.party.length && proj.actors.length) G.party = [makeActor(proj.actors[0].id)];
     G.steps = 0;
+    cameraZoom = 1;
     initPlayer(proj.system.startX, proj.system.startY, proj.system.startDir);
     G.player.transparent = !!proj.system.startTransparent;
     loadMap(proj.system.startMapId);

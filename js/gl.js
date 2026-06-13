@@ -476,9 +476,10 @@ const GLRender = (() => {
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
 
     const pitch = cfg.tilt * Math.PI / 180;
-    const dist = (h / 2) / Math.tan(FOV / 2);
+    const zoom = Math.max(0.25, Math.min(4, Number(extra && extra.zoom) || 1));
+    const dist = (h / 2) / Math.tan(FOV / 2) / zoom;
     const near = dist / 10, far = dist * 2 + mapDiag;
-    const tX = camX + w / 2, tZ = camY + h / 2;
+    const tX = camX + w / zoom / 2, tZ = camY + h / zoom / 2;
     const eye = [tX, dist * Math.sin(pitch), tZ + dist * Math.cos(pitch)];
     const mvp = mul(perspective(FOV, w / h, near, far), lookAt(eye[0], eye[1], eye[2], tX, 0, tZ));
 

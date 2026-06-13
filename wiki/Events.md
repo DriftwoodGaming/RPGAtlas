@@ -59,7 +59,12 @@ A is ON. A drawbridge lowers once switch `12` is ON. A boss vanishes once `BossD
 
 ## Command reference
 
-Add commands with **+** inside a page. Commands run top to bottom.
+Add commands with **+** inside a page. Each picker page holds up to 24 command buttons; use the
+numbered page tabs across the top to jump directly between pages. Commands run top to bottom.
+
+The final picker page includes **+Add New**. It creates a named, project-saved JavaScript button for
+tasks you reuse across many events. Clicking a saved button inserts its script command; right-click
+the button to edit or delete it.
 
 ### Messages & flow
 | Command | What it does |
@@ -90,6 +95,7 @@ Add commands with **+** inside a page. Commands run top to bottom.
 |---|---|
 | **Transfer Player** | Move the player to a tile on any map (with a facing direction). |
 | **Set Move Route** | Make the player *or* this event walk a scripted path. |
+| **Camera Zoom** | Zoom the map camera out or in over a chosen number of frames. `1.0` is normal, lower values zoom out, and higher values zoom in. |
 | **Change Transparency** | Hide or show the player sprite (the player still moves and triggers events). |
 | **Erase Event** | Remove this event for the rest of the play session. |
 
