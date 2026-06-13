@@ -319,6 +319,7 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
   function makeEvRT(evData) {
     const rt = {
       ev: evData, x: evData.x, y: evData.y, rx: evData.x, ry: evData.y,
+      prx: evData.x, pry: evData.y, // previous-tick render pos (for interpolation)
       dir: 0, frame: 1, animT: 0, moving: false, tx: 0, ty: 0,
       page: null, pageIndex: -1, erased: false, locked: false,
       moveT: 30 + rnd(90), route: null, speed: 0.05, charsetIdx: -1, kind: "",
@@ -535,7 +536,7 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
         }
         case "shop": await Shop.run(c.goods || []); break;
         case "wait": {
-          for (let i = 0; i < (c.frames || 30); i++) await frameWait();
+          await waitFrames(c.frames || 30);
           break;
         }
         case "se": Sfx.play(c.name); break;
@@ -557,11 +558,9 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
           if (!frames) {
             cameraZoom = target;
           } else {
-            for (let i = 1; i <= frames; i++) {
-              const t = i / frames;
+            await tickTween(frames, (t) => {
               cameraZoom = start + (target - start) * (t * t * (3 - 2 * t));
-              await frameWait();
-            }
+            });
           }
           cameraZoom = target;
           break;
@@ -711,6 +710,27 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
 
   let frameWaiters = [];
   function frameWait() { return new Promise((r) => frameWaiters.push(r)); }
+  // Tick-accurate timers: counted in update(), so event waits/tweens advance by ticks even
+  // when several ticks run in one rendered frame. (frameWait above is per-rendered-frame.)
+  let tickTimers = [];
+  function waitFrames(n) {
+    return new Promise((resolve) => tickTimers.push({ left: Math.max(1, n | 0), resolve }));
+  }
+  function tickTween(n, step) {
+    const total = Math.max(1, n | 0);
+    return new Promise((resolve) => tickTimers.push({ left: total, total, step, resolve }));
+  }
+  function pumpTickTimers() {
+    if (!tickTimers.length) return;
+    const timers = tickTimers; tickTimers = [];
+    const done = [];
+    for (const tm of timers) {
+      tm.left--;
+      if (tm.step) tm.step((tm.total - tm.left) / tm.total);
+      if (tm.left <= 0) done.push(tm); else tickTimers.push(tm);
+    }
+    done.forEach((tm) => tm.resolve());
+  }
 
   async function runEventBlocking(rt) {
     if (blockingRun) return;
@@ -735,7 +755,7 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
     if (tr && tr.out) await tr.out(); else await fadeTo(1, 250);
     loadMap(mapId);
     const p = G.player;
-    p.x = p.tx = x; p.y = p.ty = y; p.rx = x; p.ry = y; p.moving = false;
+    p.x = p.tx = x; p.y = p.ty = y; p.rx = x; p.ry = y; p.prx = x; p.pry = y; p.moving = false;
     if (dir != null) p.dir = dir;
     render();
     if (tr && tr.in) await tr.in(); else await fadeTo(0, 250);
@@ -754,17 +774,24 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
     if (flashTimer > 0) flashTimer--;
     const waiters = frameWaiters; frameWaiters = [];
     waiters.forEach((r) => r());
+    pumpTickTimers(); // advance tick-accurate event timers (wait / camera-zoom)
     if (scene === "map") Plugins.fire("update");
     if (scene !== "map" || menuOpen) return;
 
     const p = G.player;
-    // player motion
+    // snapshot start-of-tick positions so render() can interpolate between ticks
+    p.prx = p.rx; p.pry = p.ry;
+    for (const rt of evRTs) { rt.prx = rt.rx; rt.pry = rt.ry; }
+    // player motion — advance the current step, then (if it finished this tick) start the
+    // next one immediately, so there's no dead frame at each tile. activePlayerControl()
+    // stays false during events/battles, so chaining can't spawn a spurious move.
     if (p.moving) {
       const arrived = updateEntityMotion(p, held.dash ? 0.13 : 0.085);
       if (arrived) onPlayerStep();
-    } else if (p.route) {
+    }
+    if (!p.moving && p.route) {
       updateRoute(p);
-    } else if (activePlayerControl()) {
+    } else if (!p.moving && activePlayerControl()) {
       const d = held.down ? 0 : held.left ? 1 : held.right ? 2 : held.up ? 3 : -1;
       if (d >= 0) {
         p.dir = d;
@@ -787,11 +814,14 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
     // events
     for (const rt of evRTs) {
       if (rt.erased || !rt.page) continue;
+      // Same no-dead-frame pattern as the player above: a finished step chains into the next
+      // route/random step this same tick instead of pausing a frame at each tile.
       if (rt.moving) {
         updateEntityMotion(rt, rt.speed);
-      } else if (rt.route) {
+      }
+      if (!rt.moving && rt.route) {
         updateRoute(rt);
-      } else if (rt.page.moveType === "random" && !rt.locked && !blockingRun) {
+      } else if (!rt.moving && rt.page.moveType === "random" && !rt.locked && !blockingRun) {
         if (--rt.moveT <= 0) {
           rt.moveT = 40 + rnd(100);
           const d = rnd(4);
@@ -866,9 +896,14 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
       shakeX = Math.sin(globalT * freq) * amp;
       shakeY = Math.cos(globalT * freq * 0.85) * amp;
     }
+    // blend between the previous and current tick by the loop's leftover time, so motion is
+    // smooth on any refresh rate. Identity when an entity didn't move (prx == rx).
+    const alpha = clamp(loopAcc / TICK_MS, 0, 1);
+    const ip = (pv, cv) => (pv == null ? cv : pv + (cv - pv) * alpha);
+    const pix = ip(p.prx, p.rx), piy = ip(p.pry, p.ry);
     const viewW = SCREEN_W / cameraZoom, viewH = SCREEN_H / cameraZoom;
-    const camX = clamp(p.rx * TILE + TILE / 2 - viewW / 2, 0, Math.max(0, map.width * TILE - viewW));
-    const camY = clamp(p.ry * TILE + TILE / 2 - viewH / 2, 0, Math.max(0, map.height * TILE - viewH));
+    const camX = clamp(pix * TILE + TILE / 2 - viewW / 2, 0, Math.max(0, map.width * TILE - viewW));
+    const camY = clamp(piy * TILE + TILE / 2 - viewH / 2, 0, Math.max(0, map.height * TILE - viewH));
     const drawables = [];
     for (const rt of evRTs) {
       if (rt.erased || !rt.page || rt.charsetIdx < 0) continue;
@@ -890,18 +925,18 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
         const pri = d.page ? d.page.priority : "same";
         sprites.push({
           canvas: Assets.charFrameCanvas(idx, d.dir, walkFrame(d)),
-          rx: d.rx, ry: d.ry,
+          rx: ip(d.prx, d.rx), ry: ip(d.pry, d.ry),
           pr: pri === "below" ? 0 : pri === "above" ? 2 : 1,
         });
       }
       const lights = [];
       for (const rt of evRTs) {
         if (rt.light && !rt.erased && rt.page) {
-          lights.push({ rx: rt.rx, ry: rt.ry, color: rt.light.color, radius: rt.light.radius });
+          lights.push({ rx: ip(rt.prx, rt.rx), ry: ip(rt.pry, rt.ry), color: rt.light.color, radius: rt.light.radius });
         }
       }
       const frame = GLRender.renderFrame(SCREEN_W, SCREEN_H, camX, camY, sprites,
-        { focus: { rx: p.rx, ry: p.ry }, lights: lights, zoom: cameraZoom });
+        { focus: { rx: pix, ry: piy }, lights: lights, zoom: cameraZoom });
       if (frame) ctx.drawImage(frame, Math.round(shakeX), Math.round(shakeY));
       else hdActive = false; // GL context lost mid-game — finish on Canvas 2D
     }
@@ -912,7 +947,7 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
       ctx.drawImage(lowerBuf, -camX, -camY);
       for (const d of drawables) {
         const idx = d === p ? p.charsetIdx : d.charsetIdx;
-        Assets.drawChar(ctx, idx, d.dir, walkFrame(d), Math.round(d.rx * TILE - camX), Math.round(d.ry * TILE - 8 - camY));
+        Assets.drawChar(ctx, idx, d.dir, walkFrame(d), Math.round(ip(d.prx, d.rx) * TILE - camX), Math.round(ip(d.pry, d.ry) * TILE - 8 - camY));
       }
       ctx.drawImage(upperBuf, -camX, -camY);
       ctx.restore();
@@ -928,11 +963,21 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
     if (scene === "map") Plugins.fireRender(ctx, {
       w: SCREEN_W, h: SCREEN_H, t: globalT, map: map,
       camX: camX, camY: camY, cameraZoom: cameraZoom,
+      playerX: pix, playerY: piy, alpha: alpha, // interpolated player pos + blend factor
     });
   }
 
-  function loop() {
-    update();
+  // Fixed-timestep loop: update() runs at a steady 60 ticks/sec regardless of refresh rate,
+  // render() once per frame (every frame, at full refresh). Keeps the tick-based engine in
+  // sync without per-system delta time, and stops fast displays from running in fast-forward.
+  let loopLast = 0, loopAcc = 0;
+  const TICK_MS = 1000 / 60;
+  function loop(now) {
+    if (loopLast === 0) loopLast = now;   // first frame: establish baseline, no delta
+    loopAcc += now - loopLast;
+    loopLast = now;
+    if (loopAcc > 250) loopAcc = 250;     // clamp after a stall / tab switch (avoid spiral)
+    while (loopAcc >= TICK_MS) { update(); loopAcc -= TICK_MS; }
     render();
     requestAnimationFrame(loop);
   }
@@ -1833,7 +1878,7 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
   // ============================ title / gameover ============================
   function initPlayer(x, y, dir) {
     G.player = {
-      x, y, rx: x, ry: y, tx: x, ty: y, dir: dir == null ? 0 : dir,
+      x, y, rx: x, ry: y, prx: x, pry: y, tx: x, ty: y, dir: dir == null ? 0 : dir,
       moving: false, animT: 0, frame: 1, route: null, kind: "human",
       charsetIdx: 0, page: null,
     };
@@ -2027,7 +2072,7 @@ const { Assets, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
     document.title = (proj.system.title || "RPGAtlas") + " — RPGAtlas Player";
     scene = "title";
     showTitle();
-    loop();
+    requestAnimationFrame(loop);   // kick off via rAF so loop() receives a real timestamp
 
     // unlock audio on first interaction
     const unlock = () => { Sfx.play("cursor"); document.removeEventListener("pointerdown", unlock); };

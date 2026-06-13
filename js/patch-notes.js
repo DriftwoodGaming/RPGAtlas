@@ -5,6 +5,17 @@
 export const PATCH_NOTES = [
   {
     date: "June 13, 2026",
+    title: "Smoother Movement",
+    summary: "Reworked the play-test movement loop so walking is fluid and runs at a consistent speed on every display.",
+    items: [
+      "Removed the brief pause that occurred at each tile during grid movement, for both the player and NPCs.",
+      "Game logic now runs on a fixed timestep, so movement speed is identical on 60 Hz, 120 Hz, and high-refresh screens (no more fast-forward on fast monitors).",
+      "Added frame interpolation so motion stays smooth on high-refresh displays.",
+      "Event 'Wait' and camera-zoom timing is now frame-rate independent, matching real time even when the frame rate dips.",
+    ],
+  },
+  {
+    date: "June 13, 2026",
     title: "Cinematic and Control Event Command Expansion",
     summary: "Added new visual effects commands and advanced branching controls to map events.",
     items: [

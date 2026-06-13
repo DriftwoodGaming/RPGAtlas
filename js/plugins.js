@@ -12,6 +12,8 @@
      atlas    — engine bridge: atlas.project, atlas.map, atlas.player, atlas.scene, atlas.Assets,
              atlas.Sfx, atlas.Music, atlas.SCREEN_W/H, atlas.TILE, atlas.fader, atlas.stage,
              atlas.onMapLoad(fn) atlas.onUpdate(fn) atlas.onRender(fn(ctx,info))
+                 (info.camX/camY and info.playerX/playerY are inter-tick interpolated;
+                  info.alpha is the 0..1 blend factor — anchor overlays to these, not atlas.player.rx)
              atlas.onMessageText(fn(html)->html) atlas.setTransition({out,in})
              atlas.registerCommand(type, fn(cmd, interp))
              atlas.startBattle(troopId, canEscape) -> Promise<"win"|"lose"|"escape">
