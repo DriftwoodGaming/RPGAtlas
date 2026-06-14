@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "June 14, 2026",
+    title: "Name & Manage Event Pages",
+    summary: "Name an event's pages and reorder, duplicate, or jump between them by drag, right-click menu, or number keys.",
+    items: [
+      "Name a page: double-click its tab (or right-click → Rename) to label it, e.g. “Greeting” instead of “Page 3”. Clear the name to return to the default.",
+      "Drag a page tab left or right to reorder it.",
+      "Right-click a page tab for Add page, Rename, Move, Copy, Paste, and Delete.",
+      "Copy a page and paste it — within an event or into another event — as a full duplicate.",
+      "Press 1–9 to jump straight to that page.",
+    ],
+  },
+  {
+    date: "June 14, 2026",
     title: "Undo, Redo & Delete-Key for Event Commands",
     summary: "The event editor gains its own undo/redo and Delete-key shortcuts — conveniences RPG Maker never offered inside event editing.",
     items: [

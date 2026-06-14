@@ -50,6 +50,7 @@ const editorI18n = createEditorI18n({
   let clipTiles = null;      // tile clipboard {w,h,layers,shadows}
   let clipEvent = null;      // event clipboard (cloned event)
   let clipCmd = null;        // event-command clipboard (array of cloned commands) — shared across event editors
+  let clipPage = null;       // event-page clipboard (cloned page) — shared across event editors
   let pasteMode = null;      // null | "tiles" | "event"
   const undoStack = [];
   const redoStack = [];
@@ -2549,23 +2550,28 @@ const editorI18n = createEditorI18n({
       undo: () => cmdStep("undo", "redo"),
       redo: () => cmdStep("redo", "undo"),
     };
-    // Editor-wide keys (selection ≠ focus): Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z undo/redo commands,
-    // and Delete removes the highlighted page (the command list handles its own Delete). Defers
-    // to native field editing and stays inert while a nested Add/Edit dialog is the topmost modal.
+    // Editor-wide keys (selection ≠ focus): Ctrl+Z/Y/Shift+Z undo/redo commands, Delete removes
+    // the highlighted page (the command list handles its own Delete), and 1–9 jump to a page.
+    // Defers to native field editing; inert while a nested Add/Edit dialog is the topmost modal.
     let evOverlay = null;
     function onEvKey(e) {
       if (modalRoot().lastElementChild !== evOverlay) return;
+      if (pageMenuEl) return;                    // a page context menu is open — let it own the keys
       const t = e.target;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+      const inCmdList = t && t.closest && t.closest(".cmdlist");   // the command list owns its own Delete/keys
       if (e.ctrlKey || e.metaKey) {
         if (e.code === "KeyZ" && e.shiftKey) { e.preventDefault(); if (undoApi.redo()) redrawPage(); }
         else if (e.code === "KeyZ") { e.preventDefault(); if (undoApi.undo()) redrawPage(); }
         else if (e.code === "KeyY") { e.preventDefault(); if (undoApi.redo()) redrawPage(); }
         return;
       }
-      if (e.code === "Delete" && !(t && t.closest && t.closest(".cmdlist"))) {
-        e.preventDefault();
-        deletePage(pageIdx);
+      if (e.code === "Delete" && !inCmdList) {
+        e.preventDefault(); deletePage(pageIdx); return;
+      }
+      if (e.key >= "1" && e.key <= "9" && !inCmdList) {   // jump to page 1–9 if it exists
+        const p = +e.key - 1;
+        if (p < ev.pages.length) { e.preventDefault(); pageIdx = p; redrawTabs(); redrawPage(); }
       }
     }
     document.addEventListener("keydown", onEvKey);
@@ -2586,12 +2592,99 @@ const editorI18n = createEditorI18n({
       if (n) confirmBox("This page has " + n + " command" + (n === 1 ? "" : "s") + " that will be permanently lost. Delete this page?", del);
       else del();
     }
+    function addPageAt(i) { ev.pages.splice(i, 0, DataDefaults.newPage()); pageIdx = i; redrawTabs(); redrawPage(); }
+    function copyPage(i) { clipPage = RA.clone(ev.pages[i]); flashStatus("Copied page " + (i + 1)); }
+    function pastePage(i) { if (!clipPage) return; ev.pages.splice(i + 1, 0, RA.clone(clipPage)); pageIdx = i + 1; redrawTabs(); redrawPage(); }
+    function movePage(i, d) {
+      const j = i + d;
+      if (j < 0 || j >= ev.pages.length) return;
+      ev.pages.splice(j, 0, ev.pages.splice(i, 1)[0]);
+      pageIdx = j; redrawTabs(); redrawPage();
+    }
+
+    // Page tabs: rename (double-click or menu), right-click menu, and drag-reorder.
+    let pageMenuEl = null, dragPageFrom = null, editingPage = null;
+    function startRename(i) { editingPage = i; redrawTabs(); }
+    function commitRename(i, value) { ev.pages[i].name = value.trim(); editingPage = null; touch(); redrawTabs(); redrawPage(); }
+    function closePageMenu() {
+      if (!pageMenuEl) return;
+      pageMenuEl.remove(); pageMenuEl = null;
+      document.removeEventListener("mousedown", onPageMenuOutside, true);
+      document.removeEventListener("keydown", onPageMenuKey, true);
+    }
+    function onPageMenuOutside(e) { if (pageMenuEl && !pageMenuEl.contains(e.target)) closePageMenu(); }
+    function onPageMenuKey(e) { if (e.key === "Escape") { e.preventDefault(); closePageMenu(); } }
+    function openPageMenu(e, i) {
+      e.preventDefault();
+      const x = e.clientX, y = e.clientY, last = ev.pages.length - 1;
+      pageIdx = i; redrawTabs(); redrawPage();   // right-click selects the tab first
+      closePageMenu();
+      const menu = h("div", { class: "menu-drop" });
+      const item = (label, on, fn) => menu.appendChild(h("div", {
+        class: "menu-item" + (on ? "" : " disabled"),
+        onclick() { if (!on) return; closePageMenu(); fn(); },
+      }, h("span", { class: "mi-label" }, label)));
+      const sep = () => menu.appendChild(h("div", { class: "menu-sep" }));
+      item("Add page", true, () => addPageAt(i + 1));   // to the right, like Paste
+      item("Rename", true, () => startRename(i));
+      item("Move left", i > 0, () => movePage(i, -1));
+      item("Move right", i < last, () => movePage(i, 1));
+      sep();
+      item("Copy", true, () => copyPage(i));
+      item("Paste", !!clipPage, () => pastePage(i));
+      item("Delete", ev.pages.length > 1, () => deletePage(i));
+      document.body.appendChild(menu);
+      menu.style.left = Math.max(4, Math.min(x, window.innerWidth - menu.offsetWidth - 4)) + "px";
+      menu.style.top = Math.max(4, Math.min(y, window.innerHeight - menu.offsetHeight - 4)) + "px";
+      pageMenuEl = menu;
+      document.addEventListener("mousedown", onPageMenuOutside, true);
+      document.addEventListener("keydown", onPageMenuKey, true);
+    }
+    function clearTabDrops() { tabs.querySelectorAll(".drop-left, .drop-right").forEach((b) => b.classList.remove("drop-left", "drop-right")); }
     function redrawTabs() {
       tabs.innerHTML = "";
       ev.pages.forEach((_, i) => {
-        tabs.appendChild(h("button", { class: i === pageIdx ? "sel" : "", onclick() { pageIdx = i; redrawTabs(); redrawPage(); } }, "Page " + (i + 1)));
+        if (editingPage === i) {                  // inline rename: an input replaces the tab button
+          const inp = h("input", { class: "tab-rename", value: ev.pages[i].name || "",
+            onkeydown(e) {
+              if (e.key === "Enter") { e.preventDefault(); commitRename(i, inp.value); }
+              else if (e.key === "Escape") { e.preventDefault(); editingPage = null; redrawTabs(); }
+            },
+            onblur() { if (editingPage === i) commitRename(i, inp.value); },
+          });
+          tabs.appendChild(inp);
+          setTimeout(() => { inp.focus(); inp.select(); }, 0);
+          return;
+        }
+        const btn = h("button", {
+          class: i === pageIdx ? "sel" : "",
+          onclick() { pageIdx = i; redrawTabs(); redrawPage(); },
+          ondblclick() { startRename(i); },
+          oncontextmenu(e) { openPageMenu(e, i); },
+        }, ev.pages[i].name || ("Page " + (i + 1)));
+        btn.draggable = true;
+        btn.addEventListener("dragstart", (e) => { dragPageFrom = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", "page"); btn.classList.add("dragging"); });
+        btn.addEventListener("dragend", () => { btn.classList.remove("dragging"); clearTabDrops(); dragPageFrom = null; });
+        btn.addEventListener("dragover", (e) => {
+          if (dragPageFrom === null || dragPageFrom === i) return;
+          e.preventDefault(); e.dataTransfer.dropEffect = "move"; clearTabDrops();
+          const r = btn.getBoundingClientRect();
+          btn.classList.add(e.clientX - r.left < r.width / 2 ? "drop-left" : "drop-right");
+        });
+        btn.addEventListener("dragleave", () => btn.classList.remove("drop-left", "drop-right"));
+        btn.addEventListener("drop", (e) => {
+          if (dragPageFrom === null || dragPageFrom === i) return;
+          e.preventDefault();
+          const r = btn.getBoundingClientRect();
+          let to = e.clientX - r.left < r.width / 2 ? i : i + 1;
+          const from = dragPageFrom; dragPageFrom = null; clearTabDrops();
+          if (from < to) to--;                   // the removed page shifts later indices down
+          ev.pages.splice(to, 0, ev.pages.splice(from, 1)[0]);
+          pageIdx = to; redrawTabs(); redrawPage();
+        });
+        tabs.appendChild(btn);
       });
-      tabs.appendChild(h("button", { class: "mini", onclick() { ev.pages.push(DataDefaults.newPage()); pageIdx = ev.pages.length - 1; redrawTabs(); redrawPage(); } }, "+"));
+      tabs.appendChild(h("button", { class: "mini", title: "Add a page", onclick() { ev.pages.push(DataDefaults.newPage()); pageIdx = ev.pages.length - 1; redrawTabs(); redrawPage(); } }, "+"));
       tabs.appendChild(h("button", { class: "mini", title: "Delete this page", onclick() { deletePage(pageIdx); } }, "−"));
     }
     function redrawPage() {
@@ -2640,7 +2733,7 @@ const editorI18n = createEditorI18n({
       content: head,
       wide: true,
       dismissable: false,
-      onClose() { document.removeEventListener("keydown", onEvKey); },
+      onClose() { closePageMenu(); document.removeEventListener("keydown", onEvKey); },
       buttons: [
         { label: "OK", primary: true, onClick(close) {
           pushUndo();

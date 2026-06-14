@@ -164,6 +164,10 @@ input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold-edge);
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
 .tabs button { padding: 4px 10px; border-radius: 5px 5px 0 0; }
 .tabs button.sel { background: var(--accent); color: #fff; }
+.tabs button.dragging { opacity: .45; }
+.tabs button.drop-left { box-shadow: inset 3px 0 0 0 #ffd86a; }
+.tabs button.drop-right { box-shadow: inset -3px 0 0 0 #ffd86a; }
+.tabs input.tab-rename { padding: 4px 8px; border-radius: 5px 5px 0 0; width: 9em; font: inherit; }
 
 /* ---------- database ---------- */
 .modal.db-modal { width: 1040px; }
