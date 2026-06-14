@@ -50,6 +50,7 @@ const editorI18n = createEditorI18n({
   let clipTiles = null;      // tile clipboard {w,h,layers,shadows}
   let clipEvent = null;      // event clipboard (cloned event)
   let clipCmd = null;        // event-command clipboard (array of cloned commands) — shared across event editors
+  let clipPage = null;       // event-page clipboard (cloned page) — shared across event editors
   let pasteMode = null;      // null | "tiles" | "event"
   const undoStack = [];
   const redoStack = [];
@@ -2151,7 +2152,7 @@ const editorI18n = createEditorI18n({
   ];
   const cmdDef = (t) => CMD_DEFS.find((d) => d.t === t);
 
-  function editCommand(c, onDone) {
+  function editCommand(c, onDone, skipSnapshot, snapFn) {
     const def = cmdDef(c.t);
     const box = h("div");
     const apply = def.form(c, box) || (() => {});
@@ -2159,7 +2160,7 @@ const editorI18n = createEditorI18n({
       title: def.label,
       content: box,
       buttons: [
-        { label: "OK", primary: true, onClick(close) { apply(); close(); touch(); onDone(); } },
+        { label: "OK", primary: true, onClick(close) { if (!skipSnapshot && snapFn) snapFn(); apply(); close(); touch(); onDone(); } },
         { label: "Cancel", onClick(close) { close(); onDone(); } },
       ],
       dismissable: false,
@@ -2271,9 +2272,10 @@ const editorI18n = createEditorI18n({
       }
     });
   }
-  function cmdListWidget(getList) {
+  function cmdListWidget(getList, undoApi) {
     const wrap = h("div", { class: "cmdlist-wrap" });
     const listEl = h("div", { class: "cmdlist", tabindex: "0" });
+    const snap = undoApi.snapshot;             // snapshot before a mutation
     let selRow = null, anchorRow = null, rows = [], dragFromIdx = null, cmdMenuEl = null;
     let dragBlock = null, dragFromArr = null, dragFrom = 0, dragCount = 0;
     function clearDropMarks() {
@@ -2361,6 +2363,7 @@ const editorI18n = createEditorI18n({
           }
           clearDropMarks();
           if (dragFromArr === toArr && to >= dragFrom && to <= dragFrom + dragCount) { dragBlock = null; dragFromIdx = null; return; } // lands inside itself
+          snap();
           dragFromArr.splice(dragFrom, dragCount);
           if (dragFromArr === toArr && to > dragFrom) to -= dragCount; // adjust for the gap we just removed
           toArr.splice(to, 0, ...dragBlock);
@@ -2385,20 +2388,22 @@ const editorI18n = createEditorI18n({
       let target = r2 || cur();
       if (!target || (!target.slot && !target.cmd)) target = { arr: getList(), idx: getList().length };
       pickCommand((nc) => {
+        snap();
         target.arr.splice(target.idx, 0, nc);
         touch();
-        editCommand(nc, redraw);
+        editCommand(nc, redraw, true);   // suppress: this snapshot already covers the whole add
         redraw(nc);
       });
     }
     function editAt(r2) {
       const target = r2 || cur();
       if (!target || !target.cmd) return;
-      editCommand(target.cmd, redraw);
+      editCommand(target.cmd, redraw, false, snap);   // edit path snapshots on OK (before apply)
     }
     function delAt() {
       const b = selBlock();
       if (!b) return;
+      snap();
       b.arr.splice(b.lo, b.count);
       touch();
       const survivor = b.arr.length ? b.arr[Math.min(b.lo, b.arr.length - 1)] : null;
@@ -2410,6 +2415,7 @@ const editorI18n = createEditorI18n({
       if (!b) return;
       if (d < 0 && b.lo <= 0) return;
       if (d > 0 && b.hi >= b.arr.length - 1) return;
+      snap();
       const blk = b.arr.splice(b.lo, b.count);
       b.arr.splice(b.lo + d, 0, ...blk);
       touch();
@@ -2421,6 +2427,7 @@ const editorI18n = createEditorI18n({
       clipCmd = b.cmds.map((c) => RA.clone(c));
       flashStatus((cut ? "Cut " : "Copied ") + b.count + (b.count > 1 ? " commands" : " command"));
       if (cut) {
+        snap();
         b.arr.splice(b.lo, b.count);
         touch();
         const survivor = b.arr.length ? b.arr[Math.min(b.lo, b.arr.length - 1)] : null;
@@ -2437,6 +2444,7 @@ const editorI18n = createEditorI18n({
       else if (target && target.slot) { arr = target.arr; idx = target.idx; } // at the insertion slot
       else { arr = getList(); idx = getList().length; }                       // nothing selected → end of list
       const clones = block.map((c) => RA.clone(c));
+      snap();
       arr.splice(idx, 0, ...clones);
       touch(); redraw(clones); // select the pasted block so repeated Ctrl+V stacks
     }
@@ -2495,9 +2503,10 @@ const editorI18n = createEditorI18n({
       h("button", { onclick: () => moveSel(-1) }, "↑"),
       h("button", { onclick: () => moveSel(1) }, "↓"),
     );
-    // Ctrl+C/X/V work when the command list has focus. The global editor shortcuts are
-    // suppressed while a modal is open, so there's no collision with map copy/paste.
+    // Ctrl+C/X/V and Delete work when the command list has focus. The global editor shortcuts
+    // are suppressed while a modal is open, so there's no collision with map copy/paste.
     listEl.addEventListener("keydown", (e) => {
+      if (e.code === "Delete") { e.preventDefault(); delAt(); return; }
       if (!(e.ctrlKey || e.metaKey)) return;
       if (e.code === "KeyC") { e.preventDefault(); copySel(false); }
       else if (e.code === "KeyX") { e.preventDefault(); copySel(true); }
@@ -2513,22 +2522,170 @@ const editorI18n = createEditorI18n({
   function openEventEditor(evOriginal) {
     const ev = RA.clone(evOriginal);
     let pageIdx = 0;
+
+    // Per-page command undo/redo, keyed by page object; discarded with `ev` when the editor closes.
+    const cmdHist = new Map();                 // page -> { undo, redo }
+    function histFor(p) {
+      let hst = cmdHist.get(p);
+      if (!hst) { hst = { undo: [], redo: [] }; cmdHist.set(p, hst); }
+      return hst;
+    }
+    const curPage = () => ev.pages[pageIdx];
+    function cmdSnapshot() {                    // call before mutating the current page's commands
+      const hst = histFor(curPage());
+      hst.undo.push(RA.clone(curPage().commands));
+      if (hst.undo.length > 60) hst.undo.shift();
+      hst.redo.length = 0;
+    }
+    function cmdStep(from, to) {
+      const hst = histFor(curPage());
+      if (!hst[from].length) { flashStatus(from === "undo" ? "Nothing to undo" : "Nothing to redo"); return false; }
+      hst[to].push(RA.clone(curPage().commands));
+      curPage().commands = RA.clone(hst[from].pop());   // re-clone so the archived entry stays immutable
+      touch();
+      return true;
+    }
+    const undoApi = {
+      snapshot: cmdSnapshot,
+      undo: () => cmdStep("undo", "redo"),
+      redo: () => cmdStep("redo", "undo"),
+    };
+    // Editor-wide keys (selection ≠ focus): Ctrl+Z/Y/Shift+Z undo/redo commands, Delete removes
+    // the highlighted page (the command list handles its own Delete), and 1–9 jump to a page.
+    // Defers to native field editing; inert while a nested Add/Edit dialog is the topmost modal.
+    let evOverlay = null;
+    function onEvKey(e) {
+      if (modalRoot().lastElementChild !== evOverlay) return;
+      if (pageMenuEl) return;                    // a page context menu is open — let it own the keys
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+      const inCmdList = t && t.closest && t.closest(".cmdlist");   // the command list owns its own Delete/keys
+      if (e.ctrlKey || e.metaKey) {
+        if (e.code === "KeyZ" && e.shiftKey) { e.preventDefault(); if (undoApi.redo()) redrawPage(); }
+        else if (e.code === "KeyZ") { e.preventDefault(); if (undoApi.undo()) redrawPage(); }
+        else if (e.code === "KeyY") { e.preventDefault(); if (undoApi.redo()) redrawPage(); }
+        return;
+      }
+      if (e.code === "Delete" && !inCmdList) {
+        e.preventDefault(); deletePage(pageIdx); return;
+      }
+      if (e.key >= "1" && e.key <= "9" && !inCmdList) {   // jump to page 1–9 if it exists
+        const p = +e.key - 1;
+        if (p < ev.pages.length) { e.preventDefault(); pageIdx = p; redrawTabs(); redrawPage(); }
+      }
+    }
+    document.addEventListener("keydown", onEvKey);
+
     const head = h("div");
     const tabs = h("div", { class: "tabs" });
     const pageBox = h("div");
 
+    function deletePage(i) {
+      if (ev.pages.length <= 1) return;
+      const del = () => {
+        ev.pages.splice(i, 1);
+        if (pageIdx > i) pageIdx--;
+        pageIdx = Math.min(pageIdx, ev.pages.length - 1);
+        redrawTabs(); redrawPage();
+      };
+      const n = ev.pages[i].commands.length;   // confirm only if there are commands to lose (can't be undone)
+      if (n) confirmBox("This page has " + n + " command" + (n === 1 ? "" : "s") + " that will be permanently lost. Delete this page?", del);
+      else del();
+    }
+    function addPageAt(i) { ev.pages.splice(i, 0, DataDefaults.newPage()); pageIdx = i; redrawTabs(); redrawPage(); }
+    function copyPage(i) { clipPage = RA.clone(ev.pages[i]); flashStatus("Copied page " + (i + 1)); }
+    function pastePage(i) { if (!clipPage) return; ev.pages.splice(i + 1, 0, RA.clone(clipPage)); pageIdx = i + 1; redrawTabs(); redrawPage(); }
+    function movePage(i, d) {
+      const j = i + d;
+      if (j < 0 || j >= ev.pages.length) return;
+      ev.pages.splice(j, 0, ev.pages.splice(i, 1)[0]);
+      pageIdx = j; redrawTabs(); redrawPage();
+    }
+
+    // Page tabs: rename (double-click or menu), right-click menu, and drag-reorder.
+    let pageMenuEl = null, dragPageFrom = null, editingPage = null;
+    function startRename(i) { editingPage = i; redrawTabs(); }
+    function commitRename(i, value) { ev.pages[i].name = value.trim(); editingPage = null; touch(); redrawTabs(); redrawPage(); }
+    function closePageMenu() {
+      if (!pageMenuEl) return;
+      pageMenuEl.remove(); pageMenuEl = null;
+      document.removeEventListener("mousedown", onPageMenuOutside, true);
+      document.removeEventListener("keydown", onPageMenuKey, true);
+    }
+    function onPageMenuOutside(e) { if (pageMenuEl && !pageMenuEl.contains(e.target)) closePageMenu(); }
+    function onPageMenuKey(e) { if (e.key === "Escape") { e.preventDefault(); closePageMenu(); } }
+    function openPageMenu(e, i) {
+      e.preventDefault();
+      const x = e.clientX, y = e.clientY, last = ev.pages.length - 1;
+      pageIdx = i; redrawTabs(); redrawPage();   // right-click selects the tab first
+      closePageMenu();
+      const menu = h("div", { class: "menu-drop" });
+      const item = (label, on, fn) => menu.appendChild(h("div", {
+        class: "menu-item" + (on ? "" : " disabled"),
+        onclick() { if (!on) return; closePageMenu(); fn(); },
+      }, h("span", { class: "mi-label" }, label)));
+      const sep = () => menu.appendChild(h("div", { class: "menu-sep" }));
+      item("Add page", true, () => addPageAt(i + 1));   // to the right, like Paste
+      item("Rename", true, () => startRename(i));
+      item("Move left", i > 0, () => movePage(i, -1));
+      item("Move right", i < last, () => movePage(i, 1));
+      sep();
+      item("Copy", true, () => copyPage(i));
+      item("Paste", !!clipPage, () => pastePage(i));
+      item("Delete", ev.pages.length > 1, () => deletePage(i));
+      document.body.appendChild(menu);
+      menu.style.left = Math.max(4, Math.min(x, window.innerWidth - menu.offsetWidth - 4)) + "px";
+      menu.style.top = Math.max(4, Math.min(y, window.innerHeight - menu.offsetHeight - 4)) + "px";
+      pageMenuEl = menu;
+      document.addEventListener("mousedown", onPageMenuOutside, true);
+      document.addEventListener("keydown", onPageMenuKey, true);
+    }
+    function clearTabDrops() { tabs.querySelectorAll(".drop-left, .drop-right").forEach((b) => b.classList.remove("drop-left", "drop-right")); }
     function redrawTabs() {
       tabs.innerHTML = "";
       ev.pages.forEach((_, i) => {
-        tabs.appendChild(h("button", { class: i === pageIdx ? "sel" : "", onclick() { pageIdx = i; redrawTabs(); redrawPage(); } }, "Page " + (i + 1)));
+        if (editingPage === i) {                  // inline rename: an input replaces the tab button
+          const inp = h("input", { class: "tab-rename", value: ev.pages[i].name || "",
+            onkeydown(e) {
+              if (e.key === "Enter") { e.preventDefault(); commitRename(i, inp.value); }
+              else if (e.key === "Escape") { e.preventDefault(); editingPage = null; redrawTabs(); }
+            },
+            onblur() { if (editingPage === i) commitRename(i, inp.value); },
+          });
+          tabs.appendChild(inp);
+          setTimeout(() => { inp.focus(); inp.select(); }, 0);
+          return;
+        }
+        const btn = h("button", {
+          class: i === pageIdx ? "sel" : "",
+          onclick() { pageIdx = i; redrawTabs(); redrawPage(); },
+          ondblclick() { startRename(i); },
+          oncontextmenu(e) { openPageMenu(e, i); },
+        }, ev.pages[i].name || ("Page " + (i + 1)));
+        btn.draggable = true;
+        btn.addEventListener("dragstart", (e) => { dragPageFrom = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", "page"); btn.classList.add("dragging"); });
+        btn.addEventListener("dragend", () => { btn.classList.remove("dragging"); clearTabDrops(); dragPageFrom = null; });
+        btn.addEventListener("dragover", (e) => {
+          if (dragPageFrom === null || dragPageFrom === i) return;
+          e.preventDefault(); e.dataTransfer.dropEffect = "move"; clearTabDrops();
+          const r = btn.getBoundingClientRect();
+          btn.classList.add(e.clientX - r.left < r.width / 2 ? "drop-left" : "drop-right");
+        });
+        btn.addEventListener("dragleave", () => btn.classList.remove("drop-left", "drop-right"));
+        btn.addEventListener("drop", (e) => {
+          if (dragPageFrom === null || dragPageFrom === i) return;
+          e.preventDefault();
+          const r = btn.getBoundingClientRect();
+          let to = e.clientX - r.left < r.width / 2 ? i : i + 1;
+          const from = dragPageFrom; dragPageFrom = null; clearTabDrops();
+          if (from < to) to--;                   // the removed page shifts later indices down
+          ev.pages.splice(to, 0, ev.pages.splice(from, 1)[0]);
+          pageIdx = to; redrawTabs(); redrawPage();
+        });
+        tabs.appendChild(btn);
       });
-      tabs.appendChild(h("button", { class: "mini", onclick() { ev.pages.push(DataDefaults.newPage()); pageIdx = ev.pages.length - 1; redrawTabs(); redrawPage(); } }, "+"));
-      tabs.appendChild(h("button", { class: "mini", onclick() {
-        if (ev.pages.length <= 1) return;
-        ev.pages.splice(pageIdx, 1);
-        pageIdx = Math.min(pageIdx, ev.pages.length - 1);
-        redrawTabs(); redrawPage();
-      } }, "−"));
+      tabs.appendChild(h("button", { class: "mini", title: "Add a page", onclick() { ev.pages.push(DataDefaults.newPage()); pageIdx = ev.pages.length - 1; redrawTabs(); redrawPage(); } }, "+"));
+      tabs.appendChild(h("button", { class: "mini", title: "Delete this page", onclick() { deletePage(pageIdx); } }, "−"));
     }
     function redrawPage() {
       const pg = ev.pages[pageIdx];
@@ -2560,7 +2717,7 @@ const editorI18n = createEditorI18n({
       redrawPreview();
       pageBox.appendChild(condBox);
       pageBox.appendChild(appBox);
-      const cw = cmdListWidget(() => ev.pages[pageIdx].commands);
+      const cw = cmdListWidget(() => ev.pages[pageIdx].commands, undoApi);
       pageBox.appendChild(h("div", { class: "subhead" }, "Commands"));
       pageBox.appendChild(cw.el);
     }
@@ -2571,11 +2728,12 @@ const editorI18n = createEditorI18n({
     head.appendChild(pageBox);
     redrawTabs(); redrawPage();
 
-    modal({
+    const evModal = modal({
       title: "Event — " + esc(evOriginal.name),
       content: head,
       wide: true,
       dismissable: false,
+      onClose() { closePageMenu(); document.removeEventListener("keydown", onEvKey); },
       buttons: [
         { label: "OK", primary: true, onClick(close) {
           pushUndo();
@@ -2594,6 +2752,7 @@ const editorI18n = createEditorI18n({
         { label: "Cancel" },
       ],
     });
+    evOverlay = evModal.el.parentElement;
   }
 
   // ============================ database ============================

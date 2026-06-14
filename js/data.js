@@ -242,6 +242,7 @@ const DataDefaults = (() => {
 
   function newPage() {
     return {
+      name: "",
       cond: { switchId: 0, varId: 0, varVal: 0, selfSw: "" },
       charset: "", dir: 0,
       moveType: "fixed", trigger: "action", priority: "same", through: false,
