@@ -10,6 +10,7 @@ import {
   loadStoredProject,
   saveProject,
 } from "./editor/project-io.js";
+import * as host from "./editor/host.js";
 import { createEditorI18n } from "./editor/i18n.js";
 import { PATCH_NOTES } from "./patch-notes.js";
 
@@ -224,6 +225,12 @@ const editorI18n = createEditorI18n({
     return loadStoredProject(localStorage, (project) => RA.migrateProject(project));
   }
   function exportProject() {
+    if (host.isTauri) {
+      host.saveProjectToFile(proj)
+        .then((path) => { if (path) flashStatus("Project saved"); })
+        .catch((e) => alert("Save failed: " + e.message));
+      return;
+    }
     exportProjectFile(proj);
   }
   function openStandaloneExport() {
@@ -3911,7 +3918,11 @@ atlas.onMapLoad((map) => {
   act("build", { label: "Export Standalone Game…", run: openStandaloneExport });
   act("play", { label: "Playtest", icon: "play", tip: "Save and run the game", run() {
     saveNow();
-    window.open("play.html", "rpgatlas_play");
+    if (host.isTauri) {
+      host.openPlaytest().catch((e) => alert("Could not open play-test window: " + e.message));
+    } else {
+      window.open("play.html", "rpgatlas_play");
+    }
   } });
   act("mapprops", { label: "Map Properties…", run: openMapProps });
   act("hdpreview", { label: "HD-2D Preview", icon: "hd2d", tip: "Toggle the live HD-2D preview panel (uses this map's HD-2D settings)", active: () => !!hdPanel, run: toggleHdPreview });

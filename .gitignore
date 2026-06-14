@@ -1,0 +1,8 @@
+# Node / Tauri desktop wrapper
+node_modules/
+src-tauri/target/
+src-tauri/dist/
+src-tauri/gen/
+
+# Build artifacts
+*.log

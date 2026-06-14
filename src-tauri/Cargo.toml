@@ -1,0 +1,30 @@
+[package]
+name = "rpgatlas"
+version = "0.1.0"
+description = "RPGAtlas desktop editor"
+authors = ["RPGAtlas contributors"]
+license = "GPL-3.0-or-later"
+edition = "2021"
+rust-version = "1.77.2"
+
+# The library holds the app logic so the same code can power desktop and
+# (future) mobile entry points; main.rs is a thin shim over it.
+[lib]
+name = "rpgatlas_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true
