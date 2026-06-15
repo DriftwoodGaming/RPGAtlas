@@ -11,10 +11,16 @@
   <div id="stage">
     <canvas id="gamecanvas"></canvas>
   </div>
-  <script src="js/assets.js?v=9"></script>
-  <script src="js/sfx.js?v=7"></script>
-  <script src="js/plugins.js?v=7"></script>
-  <script src="js/data.js?v=12"></script>
-  <script src="js/engine.js?v=12"></script>
+  <script src="js/vendor/pixi.min.js?v=8.19.0"></script>
+  <script src="js/assets.js?v=10"></script>
+  <script src="js/renderer.js?v=1"></script>
+  <script src="js/runtime/messages.js?v=1"></script>
+  <script src="js/sfx.js?v=8"></script>
+  <script src="js/plugins.js?v=8"></script>
+  <script src="js/data.js?v=15"></script>
+  <script>
+    window.RPGAtlasDeps = { Assets, AtlasBuiltins: window.AtlasBuiltins, DataDefaults: window.DataDefaults, Renderer, GLRender: Renderer, Music: window.Music, RA: window.RA, Sfx: window.Sfx };
+  </script>
+  <script src="js/engine.js?v=18"></script>
 </body>
 </html>

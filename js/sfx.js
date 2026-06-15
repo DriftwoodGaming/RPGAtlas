@@ -146,3 +146,7 @@ const Sfx = (() => {
   return { play, tone, noise, Music, THEMES: Object.keys(THEMES) };
 })();
 const Music = Sfx.Music;
+if (typeof window !== "undefined") {
+  window.Sfx = Sfx;
+  window.Music = Music;
+}

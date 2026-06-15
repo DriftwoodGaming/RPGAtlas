@@ -164,6 +164,10 @@ input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold-edge);
 .tabs { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px; }
 .tabs button { padding: 4px 10px; border-radius: 5px 5px 0 0; }
 .tabs button.sel { background: var(--accent); color: #fff; }
+.tabs button.dragging { opacity: .45; }
+.tabs button.drop-left { box-shadow: inset 3px 0 0 0 #ffd86a; }
+.tabs button.drop-right { box-shadow: inset -3px 0 0 0 #ffd86a; }
+.tabs input.tab-rename { padding: 4px 8px; border-radius: 5px 5px 0 0; width: 9em; font: inherit; }
 
 /* ---------- database ---------- */
 .modal.db-modal { width: 1040px; }
@@ -246,13 +250,28 @@ input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold-edge);
 .cmdlist-wrap { border: 1px solid #2c2f44; border-radius: 6px; overflow: hidden; }
 .cmdbtns { display: flex; gap: 5px; padding: 6px; background: #1a1c28; border-bottom: 1px solid #2c2f44; }
 .cmdlist { max-height: 260px; overflow-y: auto; font-family: Consolas, monospace; font-size: 12px; }
+.cmdlist:focus { outline: none; } /* focusable for Ctrl+C/V; the selected-row highlight shows the active row */
 .cmdrow { padding: 3px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmdrow:hover { background: #2a2d40; }
 .cmdrow.sel { background: var(--accent); color: #fff; }
+.cmdrow.cmd-selected { background: rgba(52, 96, 140, .40); } /* rest of a multi-selection; focus row keeps the strong .sel */
 .cmdrow.branch { color: #8fae6f; }
 .cmdrow.slot { color: #6a6d84; }
-.cmdgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.cmdrow[draggable="true"] { cursor: grab; }
+.cmdrow.dragging { opacity: .45; }
+/* amber (matches the icon-choice highlight) so the line reads against both dark
+   rows and the accent-filled selected row */
+.cmdrow.drop-before { box-shadow: inset 0 3px 0 0 #ffd86a; }
+.cmdrow.drop-after { box-shadow: inset 0 -3px 0 0 #ffd86a; }
+.cmdtabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 9px; }
+.cmdtabs button.sel { background: var(--accent); border-color: var(--accent-edge); color: #fff; }
+.cmdgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .cmdgrid button { text-align: left; }
+.cmdgrid .cmdpreset { border-color: #536c9d; background: #263652; }
+.cmdgrid .cmdaddnew { border-style: dashed; color: #9fd7ad; }
+@media (max-width: 680px) {
+  .cmdgrid { grid-template-columns: repeat(3, 1fr); }
+}
 
 .helpbox h3 { color: #e8cfa0; margin: 12px 0 4px; }
 .helpbox ul { margin: 4px 0; padding-left: 20px; }
@@ -261,6 +280,14 @@ input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold-edge);
   background: #2a2d40; border: 1px solid #44485f; border-bottom-width: 2px;
   border-radius: 4px; padding: 0 5px; font: 11px Consolas, monospace;
 }
+.patch-notes { display: flex; flex-direction: column; gap: 12px; }
+.patch-note { background: #1a1c28; border: 1px solid #30344b; border-radius: 7px; padding: 10px 12px; }
+.patch-note-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.patch-note h3 { color: #e8cfa0; margin: 0; }
+.patch-note time { color: #8a8da4; font-size: 11px; white-space: nowrap; }
+.patch-note p { margin: 7px 0; }
+.patch-note ul { margin: 6px 0 0; padding-left: 20px; }
+.patch-note li { margin: 4px 0; }
 
 /* ---------- plugin manager ---------- */
 .plug-wrap { display: flex; gap: 12px; min-height: 380px; }

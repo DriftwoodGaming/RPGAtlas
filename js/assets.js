@@ -123,8 +123,12 @@ const Assets = (() => {
           }
         }
         return listed;
+      } else if (res.status !== 404) {
+          console.warn("Asset manifest fetch failed with status " + res.status);
       }
-    } catch (e) { console.warn("Custom asset manifest is unreadable.", e); }
+    } catch (e) { 
+        // Silenciar erro de rede ou parse
+    }
     const groups = await Promise.all(Object.keys(external).map(discoverFolder));
     return groups.flat().sort((a, b) => (a.type + "/" + a.name).localeCompare(b.type + "/" + b.name));
   }
@@ -1186,7 +1190,25 @@ const Assets = (() => {
   function collectUsedExternalKeys(project) {
     const used = new Set();
     const use = (key) => { if (externalByKey.has(key)) used.add(key); };
-    for (const actor of project.actors || []) use(actor.charset);
+    const useCharacterWithFace = (key) => {
+      use(key);
+      const character = externalByKey.get(key);
+      if (!character || character.type !== "characters") return;
+      const face = external.facesets.find((item) => item.name === character.name);
+      if (face) use(face.key);
+    };
+    const scanCommands = (commands) => {
+      for (const command of commands || []) {
+        if (command.t === "text" && command.face) useCharacterWithFace(command.face);
+        if (command.t === "choices") {
+          for (const branch of command.branches || []) scanCommands(branch);
+        } else if (command.t === "if") {
+          scanCommands(command.then);
+          scanCommands(command.else);
+        }
+      }
+    };
+    for (const actor of project.actors || []) useCharacterWithFace(actor.charset);
     for (const map of project.maps || []) {
       for (const layer of Object.values(map.layers || {})) {
         for (const id of layer || []) {
@@ -1195,17 +1217,13 @@ const Assets = (() => {
         }
       }
       for (const event of map.events || []) {
-        for (const page of event.pages || []) use(page.charset);
+        for (const page of event.pages || []) {
+          use(page.charset);
+          scanCommands(page.commands);
+        }
       }
     }
     for (const enemy of project.enemies || []) use(enemy.sprite);
-    for (const actor of project.actors || []) {
-      const cs = externalByKey.get(actor.charset);
-      if (cs) {
-        const face = external.facesets.find((item) => item.name === cs.name);
-        if (face) use(face.key);
-      }
-    }
     return used;
   }
   function blobDataUrl(blob) {
@@ -1240,3 +1258,5 @@ const Assets = (() => {
     ICON_SIZE, ICON_COUNT, loadIconSet, iconSpan, iconHtml, iconCanvas,
   };
 })();
+
+if (typeof window !== "undefined") window.Assets = Assets;

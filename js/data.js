@@ -134,6 +134,7 @@ const RA = {
     p.plugins = p.plugins || [];
     p.quests = p.quests || [];
     p.customChars = p.customChars || [];
+    p.commandPresets = Array.isArray(p.commandPresets) ? p.commandPresets : [];
     p.assets = p.assets || {};
     p.assets.tiles = p.assets.tiles || {};
     p.system = p.system || {};
@@ -234,6 +235,7 @@ const RA = {
       if (!m.layers.decor2 || m.layers.decor2.length !== n) m.layers.decor2 = new Array(n).fill(0);
       if (!m.shadows || m.shadows.length !== n) m.shadows = new Array(n).fill(0);
       if (!m.passOv || m.passOv.length !== n) m.passOv = new Array(n).fill(0);
+      if (!m.heights || m.heights.length !== n) m.heights = new Array(n).fill(0);
     }
     // Pre-rebrand projects carry Drift_* built-ins: rename them to Atlas_* and
     // refresh their engine-maintained code (Atlas_Core keeps a window.Drift
@@ -279,12 +281,14 @@ const DataDefaults = (() => {
       },
       shadows: new Array(n).fill(0),   // 4-bit quadrant mask per tile: 1=TL 2=TR 4=BL 8=BR
       passOv: new Array(n).fill(0),    // passability override: 0=auto 1=force pass 2=force block
+      heights: new Array(n).fill(0),   // HD-2D elevation in tile units (visual only; 0 = flat)
       events: [],
     };
   }
 
   function newPage() {
     return {
+      name: "",
       cond: {
         switchId: 0, varId: 0, varVal: 0, selfSw: "",
         questId: 0, questStatus: "active",
@@ -373,6 +377,11 @@ const DataDefaults = (() => {
     set(m, "decor", 18, 12, T.tree); set(m, "decor", 19, 13, T.tree); set(m, "decor", 17, 14, T.pine);
     set(m, "decor", 9, 12, T.pine);
 
+    // HD-2D config (enable PIXI rendering path)
+    m.hd2d = { enabled: true, tilt: 50, bloom: false, dof: false, fog: false, lights: true, ambient: 0.45 };
+    // Light test
+    m.lights = [{ rx: 12, ry: 8, color: "#FFFF00", radius: 64 }];
+
     // ---- events ----
     ev(m, 13, 8, "Elder", (e) => {
       e.pages[0] = page({ charset: "elder", moveType: "fixed", trigger: "action" }, [
@@ -395,9 +404,7 @@ const DataDefaults = (() => {
     });
     ev(m, 10, 11, "Villager", (e) => {
       e.pages[0] = page({ charset: "villager_m", moveType: "random", trigger: "action" }, [
-        { t: "text", name: "Hunter Vale", text: "The pond is lovely this time of year, but the road north is dangerous.\nCould you thin out two dusk wolves in the cave?" },
-        { t: "questStart", questId: 3 },
-        { t: "text", name: "", text: "Started quest: Wolf Hunt" },
+        { t: "text", name: "Villager", face: "villager_m", text: "The pond is lovely this time of year.\nJust don't fall in \\i[15]!" },
       ]);
       e.pages.push(page({ cond: { questId: 3, questStatus: "active" }, charset: "villager_m", moveType: "random", trigger: "action" }, [
         { t: "text", name: "Hunter Vale", text: "Have you dealt with two dusk wolves in the cave yet?" },
@@ -690,6 +697,7 @@ const DataDefaults = (() => {
         },
       ],
       customChars: [],
+      commandPresets: [],
       assets: { tiles: {} },
       system: {
         title: "Atlas Quest",
@@ -829,3 +837,7 @@ const DataDefaults = (() => {
 
   return { newProject, newMap, newEvent, newPage };
 })();
+if (typeof window !== "undefined") {
+  window.RA = RA;
+  window.DataDefaults = DataDefaults;
+}

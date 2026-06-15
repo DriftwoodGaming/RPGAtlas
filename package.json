@@ -1,0 +1,17 @@
+{
+  "name": "rpgatlas-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tauri desktop wrapper for the RPGAtlas editor",
+  "license": "GPL-3.0-or-later",
+  "scripts": {
+    "stage": "node scripts/stage-frontend.mjs",
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "package:exe": "node scripts/package-exe.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

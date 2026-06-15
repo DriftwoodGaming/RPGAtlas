@@ -3,7 +3,26 @@
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
 "use strict";
 
+import {
+  exportProjectFile,
+  exportStandaloneHtml as writeStandaloneHtml,
+  exportWindowsExecutable as writeWindowsExecutable,
+  loadStoredProject,
+  saveProject,
+} from "./editor/project-io.js";
+import * as host from "./editor/host.js";
+import { createEditorI18n } from "./editor/i18n.js";
+import { PATCH_NOTES } from "./patch-notes.js";
+
+const { Assets, AtlasBuiltins, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
+const editorI18n = createEditorI18n({
+  storage: window.localStorage,
+  document,
+  browserLocale: navigator.language,
+});
+
 (() => {
+  const t = editorI18n.t;
   const TILE = Assets.TILE;
   const LAYER_ORDER = ["ground", "decor", "decor2", "over"];
   const LAYER_LABELS = { auto: "Auto layer", ground: "Layer 1 (Ground)", decor: "Layer 2 (Decor)", decor2: "Layer 3 (Decor 2)", over: "Layer 4 (Overhead)" };
@@ -13,8 +32,9 @@
   let curMapId = 1;
   let layer = "auto";        // auto | ground | decor | decor2 | over
   let tool = "pen";          // pen | erase | rect | circle | fill | shadow
-  let mode = "map";          // map | event | pass | start
+  let mode = "map";          // map | event | pass | start | height
   let selectedTile = 1;
+  let heightVal = 1;         // HD-2D elevation value painted in height mode (0–9)
   let zoom = 0.75;
   let selectedEvent = null;
   let hoverCell = null;
@@ -30,6 +50,8 @@
   let selection = null;      // {x1,y1,x2,y2} inclusive (map mode)
   let clipTiles = null;      // tile clipboard {w,h,layers,shadows}
   let clipEvent = null;      // event clipboard (cloned event)
+  let clipCmd = null;        // event-command clipboard (array of cloned commands) — shared across event editors
+  let clipPage = null;       // event-page clipboard (cloned page) — shared across event editors
   let pasteMode = null;      // null | "tiles" | "event"
   const undoStack = [];
   const redoStack = [];
@@ -87,7 +109,7 @@
     return h("span", { class: "rangewrap" }, r, out);
   }
   function field(label, input) {
-    return h("label", { class: "fld" }, h("span", null, label), input);
+    return h("label", { class: "fld" }, h("span", null, t(label)), input);
   }
   function row(...kids) { return h("div", { class: "frow" }, ...kids); }
 
@@ -155,7 +177,7 @@
   function modal(opts) {
     const overlay = h("div", { class: "overlay" });
     const win = h("div", { class: "modal " + (opts.wide ? "wide " : "") + (opts.class || "") });
-    win.appendChild(h("div", { class: "modal-title" }, opts.title || ""));
+    win.appendChild(h("div", { class: "modal-title" }, t(opts.title || "")));
     const body = h("div", { class: "modal-body" });
     if (opts.content) body.appendChild(opts.content);
     win.appendChild(body);
@@ -168,7 +190,7 @@
       btnrow.appendChild(h("button", {
         class: b.primary ? "primary" : "",
         onclick() { if (b.onClick) b.onClick(close); else close(); },
-      }, b.label));
+      }, t(b.label)));
     });
     win.appendChild(btnrow);
     overlay.appendChild(win);
@@ -190,134 +212,45 @@
   // ============================ persistence ============================
   let saveTimer = null;
   function touch() {
-    $("save-ind").textContent = "● unsaved";
+    $("save-ind").textContent = "● " + t("unsaved");
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveNow, 700);
+    hdMarkDirty(); // keep the HD-2D preview in sync with edits
   }
   function saveNow() {
     try {
-      localStorage.setItem("rpgatlas_project", JSON.stringify(proj));
-      $("save-ind").textContent = "✓ saved";
+      saveProject(localStorage, proj);
+      $("save-ind").textContent = "✓ " + t("saved");
     } catch (e) {
-      $("save-ind").textContent = "⚠ save failed";
+      $("save-ind").textContent = "⚠ " + t("save failed");
       console.error(e);
     }
   }
   function loadStored() {
+    return loadStoredProject(localStorage, (project) => RA.migrateProject(project));
+  }
+  // Desktop: the .json file the project is bound to. Save (Ctrl+S) writes here
+  // silently once set; the first save — or Export (Save As) — prompts for it.
+  let currentProjectPath = null;
+  function baseName(p) { return String(p).replace(/^.*[\\/]/, ""); }
+  async function desktopSave(saveAs) {
+    saveNow(); // keep the local autosave as a crash-recovery copy
     try {
-      const legacy = !localStorage.getItem("rpgatlas_project");
-      const raw = localStorage.getItem("rpgatlas_project") || localStorage.getItem("driftwood_project");
-      if (raw) {
-        const p = JSON.parse(raw);
-        if (p && p.meta && (p.meta.engine === "rpgatlas" || p.meta.engine === "driftwood")) {
-          const migrated = RA.migrateProject(p);
-          if (legacy) { // adopt a pre-rebrand autosave under the new key
-            try {
-              localStorage.setItem("rpgatlas_project", JSON.stringify(migrated));
-              localStorage.removeItem("driftwood_project");
-            } catch (e2) { console.warn(e2); }
-          }
-          return migrated;
-        }
+      if (saveAs || !currentProjectPath) {
+        const path = await host.saveProjectToFile(proj); // native Save dialog
+        if (!path) { flashStatus("Saved locally — file save cancelled"); return; }
+        currentProjectPath = path;
+      } else {
+        await host.saveProjectToPath(currentProjectPath, proj); // silent overwrite
       }
-    } catch (e) { console.warn(e); }
-    return null;
+      flashStatus("Project saved to " + baseName(currentProjectPath));
+    } catch (e) {
+      flashStatus("Save failed: " + e.message);
+    }
   }
   function exportProject() {
-    const blob = new Blob([JSON.stringify(proj, null, 1)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = (proj.system.title || "rpgatlas-project").replace(/[^\w\- ]+/g, "").trim().replace(/ +/g, "_") + ".json";
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  }
-  function safeFileName(name, fallback) {
-    return (name || fallback).replace(/[^\w\- ]+/g, "").trim().replace(/ +/g, "_") || fallback;
-  }
-  function htmlText(s) {
-    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-  }
-  function scriptText(s) {
-    return String(s).replace(/<\/script/gi, "<\\/script");
-  }
-  async function fetchBuildSource(path) {
-    const res = await fetch(path);
-    if (!res.ok) throw new Error("Could not load " + path + " (" + res.status + ").");
-    return res.text();
-  }
-  function blobDataUrl(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(reader.error);
-      reader.readAsDataURL(blob);
-    });
-  }
-  async function fetchDataUrl(path) {
-    const res = await fetch(path, { cache: "no-store" });
-    if (!res.ok) throw new Error("Could not load " + path + " (" + res.status + ").");
-    return blobDataUrl(await res.blob());
-  }
-  function downloadBlob(blob, fileName) {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = fileName;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  }
-  async function buildStandaloneGame() {
-    const paths = ["css/play.css", "js/assets.js", "js/sfx.js", "js/data.js", "js/engine.js"];
-    const [files, usedAssets, iconSet] = await Promise.all([
-      Promise.all(paths.map(fetchBuildSource)),
-      Assets.exportUsedExternalAssets(proj),
-      fetchDataUrl("img/system/icon_set.png"),
-    ]);
-    const title = proj.system.title || "RPGAtlas Game";
-    const baseName = safeFileName(title, "RPGAtlas_Game");
-    const gameId = safeFileName(title, "rpgatlas-game").toLowerCase();
-    const projectJson = JSON.stringify(proj).replace(/</g, "\\u003c");
-    const assetsJson = JSON.stringify(usedAssets).replace(/</g, "\\u003c");
-    const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${htmlText(title)}</title>
-<style>${scriptText(files[0])}</style>
-</head>
-<body>
-  <div id="stage"><canvas id="gamecanvas"></canvas></div>
-  <script id="rpgatlas-project" type="application/json">${projectJson}</script>
-  <script id="rpgatlas-assets" type="application/json">${assetsJson}</script>
-  <script>
-window.RPGATLAS_PROJECT = JSON.parse(document.getElementById("rpgatlas-project").textContent);
-window.RPGATLAS_ASSETS = JSON.parse(document.getElementById("rpgatlas-assets").textContent);
-window.RPGATLAS_ICON_SET = ${JSON.stringify(iconSet)};
-window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
-  <\/script>
-  <script>${scriptText(files[1])}<\/script>
-  <script>${scriptText(files[2])}<\/script>
-  <script>${scriptText(files[3])}<\/script>
-  <script>${scriptText(files[4])}<\/script>
-</body>
-</html>
-`;
-    return { html, baseName };
-  }
-  async function exportStandaloneHtml() {
-    const game = await buildStandaloneGame();
-    downloadBlob(new Blob([game.html], { type: "text/html;charset=utf-8" }), game.baseName + ".html");
-  }
-  async function exportWindowsExecutable() {
-    const [game, launcherRes] = await Promise.all([
-      buildStandaloneGame(),
-      fetch("bin/RPGAtlasLauncher.exe"),
-    ]);
-    if (!launcherRes.ok) throw new Error("Could not load the Windows launcher (" + launcherRes.status + ").");
-    const marker = new TextEncoder().encode("RPGATLAS_GAME_PAYLOAD_V1\n");
-    const payload = new TextEncoder().encode(game.html);
-    downloadBlob(new Blob([await launcherRes.arrayBuffer(), marker, payload],
-      { type: "application/vnd.microsoft.portable-executable" }), game.baseName + ".exe");
+    if (host.isTauri) { desktopSave(true); return; } // Export = Save As on desktop
+    exportProjectFile(proj);
   }
   function openStandaloneExport() {
     const content = h("div", null,
@@ -331,7 +264,7 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
       buttons: [
         { label: "Windows EXE", primary: true, async onClick(close) {
           try {
-            await exportWindowsExecutable();
+            await writeWindowsExecutable(proj, Assets);
             close();
             flashStatus("Windows game executable exported");
           } catch (e) {
@@ -340,7 +273,7 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
         } },
         { label: "Standalone HTML", async onClick(close) {
           try {
-            await exportStandaloneHtml();
+            await writeStandaloneHtml(proj, Assets);
             close();
             flashStatus("Standalone HTML game exported");
           } catch (e) {
@@ -427,6 +360,20 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
       }
     }
   }
+  function drawHeightOverlay(g, m) {
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "bold 18px monospace";
+    for (let y = 0; y < m.height; y++) {
+      for (let x = 0; x < m.width; x++) {
+        const hv = (m.heights && m.heights[y * m.width + x]) || 0;
+        if (!hv) continue;
+        g.fillStyle = "rgba(110,160,255," + Math.min(0.16 + hv * 0.09, 0.55) + ")";
+        g.fillRect(x * TILE, y * TILE, TILE, TILE);
+        g.fillStyle = "#eaf2ff";
+        g.fillText(String(hv), x * TILE + TILE / 2, y * TILE + TILE / 2 + 1);
+      }
+    }
+  }
   function renderMap() {
     const m = curMap();
     if (!m) return;
@@ -460,6 +407,7 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
     for (let y = 0; y <= m.height; y++) { g.moveTo(0, y * TILE); g.lineTo(m.width * TILE, y * TILE); }
     g.stroke();
     if (mode === "pass") drawPassOverlay(g, m);
+    if (mode === "height") drawHeightOverlay(g, m);
     // events
     if (mode === "event" || mode === "start") {
       for (const ev of m.events) {
@@ -513,7 +461,7 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
     }
     // hover / drag previews
     if (hoverCell && !pasteMode) {
-      if ((tool === "rect" || tool === "circle") && rectStart && painting && mode === "map") {
+      if ((tool === "rect" || tool === "circle") && rectStart && painting && (mode === "map" || mode === "height")) {
         const r2 = normRect(rectStart, hoverCell);
         g.strokeStyle = "#ffd86a";
         g.lineWidth = 2 / zoom;
@@ -577,12 +525,12 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
   // ---- undo / redo (full map snapshots: tiles, shadows, passability, events) ----
   function snapshotOf(mapId) {
     const m = RA.byId(proj.maps, mapId);
-    return { mapId, layers: RA.clone(m.layers), shadows: m.shadows.slice(), passOv: m.passOv.slice(), events: RA.clone(m.events) };
+    return { mapId, layers: RA.clone(m.layers), shadows: m.shadows.slice(), passOv: m.passOv.slice(), heights: heightsOf(m).slice(), events: RA.clone(m.events) };
   }
   function applySnapshot(s) {
     const m = RA.byId(proj.maps, s.mapId);
     if (!m) return;
-    m.layers = s.layers; m.shadows = s.shadows; m.passOv = s.passOv; m.events = s.events;
+    m.layers = s.layers; m.shadows = s.shadows; m.passOv = s.passOv; m.heights = s.heights; m.events = s.events;
     if (curMapId !== s.mapId) { curMapId = s.mapId; rebuildMapList(); }
     selectedEvent = null;
     touch(); renderMap(); refreshToolbar();
@@ -666,6 +614,32 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
     m.passOv[cell.y * m.width + cell.x] = val;
     touch(); renderMap();
   }
+  // HD-2D elevation layer (projects from before the heights layer existed may
+  // lack the array until their next load runs the migration)
+  function heightsOf(m) {
+    const n = m.width * m.height;
+    if (!m.heights || m.heights.length !== n) m.heights = new Array(n).fill(0);
+    return m.heights;
+  }
+  function paintHeight(cell, val) {
+    const m = curMap();
+    heightsOf(m)[cell.y * m.width + cell.x] = val;
+    touch(); renderMap();
+  }
+  function floodFillHeight(x, y, val) {
+    const m = curMap(), arr = heightsOf(m);
+    const target = arr[y * m.width + x] || 0;
+    if (target === val) return;
+    const stack = [[x, y]];
+    while (stack.length) {
+      const [cx, cy] = stack.pop();
+      if (cx < 0 || cy < 0 || cx >= m.width || cy >= m.height) continue;
+      const i = cy * m.width + cx;
+      if ((arr[i] || 0) !== target) continue;
+      arr[i] = val;
+      stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    }
+  }
 
   // ---- clipboard ----
   function canCopy() {
@@ -690,13 +664,15 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
     if (mode !== "map" || !selection) { flashStatus("Shift+drag on the map to select an area first"); return; }
     const m = curMap(), r = selection;
     const w = r.x2 - r.x1 + 1, h2 = r.y2 - r.y1 + 1;
-    const clip = { w, h: h2, layers: {}, shadows: [] };
+    const clip = { w, h: h2, layers: {}, shadows: [], heights: [] };
     for (const ln of LAYER_ORDER) clip.layers[ln] = [];
+    const hts = heightsOf(m);
     for (let y = r.y1; y <= r.y2; y++) {
       for (let x = r.x1; x <= r.x2; x++) {
         const i = y * m.width + x;
         for (const ln of LAYER_ORDER) clip.layers[ln].push(m.layers[ln][i]);
         clip.shadows.push(m.shadows[i]);
+        clip.heights.push(hts[i] || 0);
       }
     }
     clipTiles = clip;
@@ -708,6 +684,7 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
           const i = y * m.width + x;
           for (const ln of LAYER_ORDER) m.layers[ln][i] = 0;
           m.shadows[i] = 0;
+          heightsOf(m)[i] = 0;
         }
       }
       touch(); renderMap();
@@ -740,6 +717,7 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
           const si = dy * clipTiles.w + dx, di = y * m.width + x;
           for (const ln of LAYER_ORDER) m.layers[ln][di] = clipTiles.layers[ln][si];
           m.shadows[di] = clipTiles.shadows[si];
+          heightsOf(m)[di] = (clipTiles.heights && clipTiles.heights[si]) || 0;
         }
       }
       touch(); renderMap();
@@ -783,6 +761,11 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
         paintShadow(cell, quadFromMouse(e), false);
         return;
       }
+      if (mode === "height") { // eyedropper: pick up the elevation under the cursor
+        heightVal = heightsOf(curMap())[cell.y * curMap().width + cell.x] || 0;
+        setStatus();
+        return;
+      }
       if (mode === "map") { // eyedropper from the topmost visible tile
         const ln = layer === "auto" ? topLayerAt(cell.x, cell.y) : layer;
         const t = getCell(cell.x, cell.y, ln) || getCell(cell.x, cell.y, "ground");
@@ -806,6 +789,14 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
       passVal = cur === 0 ? 2 : cur === 2 ? 1 : 0; // auto → force block → force pass → auto
       painting = true;
       paintPass(cell, passVal);
+      return;
+    }
+    if (mode === "height") {
+      pushUndo();
+      painting = true;
+      if (tool === "rect" || tool === "circle") { rectStart = cell; renderMap(); }
+      else if (tool === "fill") { floodFillHeight(cell.x, cell.y, heightVal); touch(); renderMap(); }
+      else paintHeight(cell, tool === "erase" ? 0 : heightVal);
       return;
     }
     if (mode === "event") {
@@ -844,6 +835,8 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
       paintShadow(cell, q, shadowSet);
     } else if (mode === "pass" && painting) {
       paintPass(cell, passVal);
+    } else if (mode === "height" && painting && tool !== "rect" && tool !== "circle" && tool !== "fill") {
+      paintHeight(cell, tool === "erase" ? 0 : heightVal);
     } else if (mode === "event" && dragEvent && (dragEvent.x !== cell.x || dragEvent.y !== cell.y)) {
       if (!eventAt(cell.x, cell.y)) {
         if (!dragPushed) { dragPushed = true; pushUndo(); dragEvent = curMap().events.find((ev) => ev.id === dragEvent.id); selectedEvent = dragEvent; }
@@ -861,7 +854,8 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
       selecting = false; selAnchor = null;
       refreshToolbar(); renderMap();
     }
-    if (mode === "map" && painting && (tool === "rect" || tool === "circle") && rectStart && hoverCell) {
+    if ((mode === "map" || mode === "height") && painting && (tool === "rect" || tool === "circle") && rectStart && hoverCell) {
+      const m = curMap();
       const r = normRect(rectStart, hoverCell);
       const cx = (r.x1 + r.x2 + 1) / 2, cy = (r.y1 + r.y2 + 1) / 2;
       const rx = (r.x2 - r.x1 + 1) / 2, ry = (r.y2 - r.y1 + 1) / 2;
@@ -871,7 +865,8 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
             const nx = (x + 0.5 - cx) / rx, ny = (y + 0.5 - cy) / ry;
             if (nx * nx + ny * ny > 1) continue;
           }
-          setCell(x, y, selectedTile, resolvePaintLayer(selectedTile, x, y));
+          if (mode === "height") heightsOf(m)[y * m.width + x] = heightVal;
+          else setCell(x, y, selectedTile, resolvePaintLayer(selectedTile, x, y));
         }
       }
       touch();
@@ -898,10 +893,14 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
   function setStatus() {
     const m = curMap();
     let s = m ? m.name + " (" + m.width + "×" + m.height + ")" : "";
-    s += "  ·  " + (mode === "map" ? TOOL_LABELS[tool] + " / " + LAYER_LABELS[layer]
-      : mode === "event" ? "Event mode (double-click = new/edit, drag = move)"
-      : mode === "pass" ? "Passability (click cycles auto → ✕ block → ○ pass)"
-      : "Click the map to set the start position");
+    s += "  ·  " + (mode === "map" ? t(TOOL_LABELS[tool]) + " / " + t(LAYER_LABELS[layer])
+      : mode === "event" ? t("Event mode (double-click = new/edit, drag = move)")
+      : mode === "pass" ? t("Passability (click cycles auto → ✕ block → ○ pass)")
+      : mode === "height" ? t("Heights — painting {value} with {tool} (keys 0–9 set the value, right-click picks, Eraser clears)", {
+        value: heightVal,
+        tool: t(TOOL_LABELS[tool]),
+      })
+      : t("Click the map to set the start position"));
     if (hoverCell && m) {
       s += "  ·  " + hoverCell.x + "," + hoverCell.y;
       if (mode === "map") {
@@ -910,14 +909,14 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
         s += "  ·  " + ln + ": " + (Assets.tiles[t] ? Assets.tiles[t].name : "?");
       }
       if (mode === "pass") {
-        s += "  ·  " + (effectivePass(hoverCell.x, hoverCell.y) ? "○ passable" : "✕ blocked") +
-          (m.passOv[hoverCell.y * m.width + hoverCell.x] ? " (override)" : "");
+        s += "  ·  " + (effectivePass(hoverCell.x, hoverCell.y) ? "○ " + t("passable") : "✕ " + t("blocked")) +
+          (m.passOv[hoverCell.y * m.width + hoverCell.x] ? " (" + t("override") + ")" : "");
       }
       const ev = mode !== "map" && eventAt(hoverCell.x, hoverCell.y);
       if (ev) s += "  ·  " + ev.name;
     }
-    if (mode === "map" && selection) s += "  ·  selection " + (selection.x2 - selection.x1 + 1) + "×" + (selection.y2 - selection.y1 + 1);
-    if (mode === "map") s += "  ·  brush: " + (Assets.tiles[selectedTile] ? Assets.tiles[selectedTile].name : "?");
+    if (mode === "map" && selection) s += "  ·  " + t("selection") + " " + (selection.x2 - selection.x1 + 1) + "×" + (selection.y2 - selection.y1 + 1);
+    if (mode === "map") s += "  ·  " + t("brush") + ": " + (Assets.tiles[selectedTile] ? Assets.tiles[selectedTile].name : "?");
     $("status-text").textContent = s;
     $("zoom-ind").textContent = Math.round(zoom * 100) + "%";
   }
@@ -1539,12 +1538,29 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
         h("button", { class: "mini", onclick() { if (pick.id) { encTroops.push(pick.id); redrawTroops(); } } }, "+ add")));
     }
     redrawTroops();
+    const hd = m.hd2d || {};
+    const hdW = {
+      enabled: !!hd.enabled,
+      tilt: Math.min(89, Math.max(25, Number(hd.tilt) || 50)),
+      bloom: !!hd.bloom, dof: !!hd.dof, fog: !!hd.fog,
+      fogColor: (hd.fog && hd.fog.color) || "#101018",
+      lights: !!hd.lights,
+      ambient: hd.ambient == null ? 0.45 : Number(hd.ambient),
+    };
+    const fogColorIn = h("input", { type: "color", value: hdW.fogColor,
+      oninput(e) { hdW.fogColor = e.target.value; } });
     const content = h("div", null,
       field("Name", tIn(work, "name")),
       row(field("Width", nIn(work, "width", 5, 200)), field("Height", nIn(work, "height", 5, 200))),
       field("Music", sel(work, "music", MUSIC_OPTS())),
       field("Encounter rate (steps, 0 = off)", nIn(work, "rate", 0, 999)),
       h("div", { class: "fld" }, h("span", null, "Encounter troops"), troopBox),
+      h("div", { class: "fld" }, h("span", null, "HD-2D (3D perspective rendering)")),
+      row(field("Enabled", chk(hdW, "enabled")), field("Camera tilt (25–89°)", nIn(hdW, "tilt", 25, 89))),
+      row(field("Bloom", chk(hdW, "bloom")), field("Depth of field", chk(hdW, "dof"))),
+      row(field("Distance fog", chk(hdW, "fog")), field("Fog color", fogColorIn)),
+      row(field("Point lights", chk(hdW, "lights")), field("Ambient light (0–2)", nIn(hdW, "ambient", 0, 2, 0.05))),
+      h("div", { class: "dim" }, "Paint elevation in Height mode (H). Lights are events named “light #rrggbb radius”. Preview with Game ▸ HD-2D Preview."),
     );
     modal({
       title: "Map Properties",
@@ -1554,8 +1570,15 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
           m.name = work.name;
           m.music = work.music;
           m.encounters = { rate: work.rate, troops: encTroops };
+          m.hd2d = {
+            enabled: hdW.enabled, tilt: hdW.tilt,
+            bloom: hdW.bloom, dof: hdW.dof,
+            fog: hdW.fog ? { color: hdW.fogColor } : false,
+            lights: hdW.lights, ambient: hdW.ambient,
+          };
           if (work.width !== m.width || work.height !== m.height) resizeMap(m, work.width, work.height);
           close(); rebuildMapList(); renderMap(); touch();
+          hdMarkDirty();
         } },
         { label: "Cancel" },
       ],
@@ -1573,8 +1596,158 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
     for (const ln of LAYER_ORDER) m.layers[ln] = remap(m.layers[ln], ln === "ground" ? Assets.T.grass : 0);
     m.shadows = remap(m.shadows, 0);
     m.passOv = remap(m.passOv, 0);
+    m.heights = remap(heightsOf(m), 0);
     m.width = w; m.height = h2;
     m.events = m.events.filter((e) => e.x < w && e.y < h2);
+  }
+
+  // ============================ HD-2D live preview ============================
+  // A floating panel that renders the current map through the game's WebGL2
+  // renderer (js/gl.js) using the map's own hd2d settings. It rebuilds after
+  // edits (debounced — touch() marks it dirty) and re-renders every frame.
+  let hdPanel = null, hdCanvas = null, hdDirty = true, hdMapId = 0, hdLastBuild = 0, hdRAF = 0;
+  let hdCamX = 0, hdCamY = 0; // camera look-at center, world px
+  let hdKick = null;          // one-shot refresh timer (covers rAF pauses in hidden windows)
+
+  function hdMarkDirty() {
+    hdDirty = true;
+    if (!hdPanel) return;
+    clearTimeout(hdKick);
+    hdKick = setTimeout(hdRenderOnce, 400);
+  }
+
+  function hdParseLight(name) { // mirrors the engine's light-event convention
+    if (!/^light\b/i.test(name || "")) return null;
+    const light = { color: "#ffcc88", radius: 180 };
+    for (const tok of String(name).slice(5).trim().split(/\s+/)) {
+      if (/^#[0-9a-fA-F]{6}$/.test(tok)) light.color = tok;
+      else if (/^\d+$/.test(tok)) light.radius = Number(tok);
+    }
+    return light;
+  }
+  function hdBuildBuffers(m) { // same composition as the engine's prerenderMap
+    const lower = document.createElement("canvas");
+    lower.width = m.width * TILE; lower.height = m.height * TILE;
+    const upper = document.createElement("canvas");
+    upper.width = lower.width; upper.height = lower.height;
+    const lg = lower.getContext("2d"), ug = upper.getContext("2d");
+    lg.fillStyle = "#101018"; lg.fillRect(0, 0, lower.width, lower.height);
+    for (let y = 0; y < m.height; y++) {
+      for (let x = 0; x < m.width; x++) {
+        const i = y * m.width + x;
+        Assets.drawTile(lg, m.layers.ground[i], x * TILE, y * TILE);
+        Assets.drawTile(lg, m.layers.decor[i], x * TILE, y * TILE);
+        Assets.drawTile(lg, m.layers.decor2[i], x * TILE, y * TILE);
+        Assets.drawTile(ug, m.layers.over[i], x * TILE, y * TILE);
+      }
+    }
+    if (m.shadows) {
+      const H = TILE / 2;
+      lg.fillStyle = "rgba(10,10,26,0.35)";
+      for (let y = 0; y < m.height; y++) {
+        for (let x = 0; x < m.width; x++) {
+          const mask = m.shadows[y * m.width + x];
+          if (!mask) continue;
+          if (mask & 1) lg.fillRect(x * TILE, y * TILE, H, H);
+          if (mask & 2) lg.fillRect(x * TILE + H, y * TILE, H, H);
+          if (mask & 4) lg.fillRect(x * TILE, y * TILE + H, H, H);
+          if (mask & 8) lg.fillRect(x * TILE + H, y * TILE + H, H, H);
+        }
+      }
+    }
+    return { lower, upper };
+  }
+  function hdRenderOnce() {
+    if (!hdPanel) return;
+    const m = curMap();
+    if (!m) return;
+    const now = performance.now();
+    if ((hdDirty || hdMapId !== m.id) && now - hdLastBuild > 300) {
+      if (hdMapId !== m.id) { hdCamX = m.width * TILE / 2; hdCamY = m.height * TILE / 2; }
+      const b = hdBuildBuffers(m);
+      GLRender.setMap(b.lower, b.upper, m);
+      hdMapId = m.id; hdDirty = false; hdLastBuild = now;
+    }
+    const w = hdCanvas.width, hgt = hdCanvas.height;
+    const camX = Math.max(0, Math.min(hdCamX - w / 2, m.width * TILE - w));
+    const camY = Math.max(0, Math.min(hdCamY - hgt / 2, m.height * TILE - hgt));
+    const sprites = [], lights = [];
+    for (const ev of m.events) {
+      const pg = ev.pages[0];
+      const L = hdParseLight(ev.name);
+      if (L) lights.push({ rx: ev.x, ry: ev.y, color: L.color, radius: L.radius });
+      if (pg && pg.charset) {
+        const ci = Assets.charsetIndex(pg.charset);
+        if (ci >= 0) sprites.push({ canvas: Assets.charFrameCanvas(ci, pg.dir || 0, 1), rx: ev.x, ry: ev.y, pr: 1 });
+      }
+    }
+    const hd2d = m.hd2d || {};
+    const ambient = hd2d.ambient != null ? Number(hd2d.ambient) : 0.45;
+    const frame = GLRender.renderFrame(w, hgt, camX, camY, sprites,
+      { lights, ambient, focus: { rx: (camX + w / 2) / TILE, ry: (camY + hgt / 2) / TILE } });
+    if (frame) hdCanvas.getContext("2d").drawImage(frame, 0, 0);
+  }
+  function hdFrame() {
+    if (!hdPanel) return;
+    hdRenderOnce();
+    hdRAF = requestAnimationFrame(hdFrame);
+  }
+  function closeHdPreview() {
+    if (!hdPanel) return;
+    cancelAnimationFrame(hdRAF);
+    clearTimeout(hdKick);
+    window.removeEventListener("mousemove", hdPanel._move);
+    window.removeEventListener("mouseup", hdPanel._up);
+    hdPanel.remove();
+    hdPanel = null; hdCanvas = null;
+    refreshToolbar();
+  }
+  function toggleHdPreview() {
+    if (hdPanel) { closeHdPreview(); return; }
+    // The in-editor HD-2D live preview was built on the old synchronous GLRender. The new
+    // PIXI renderer (Renderer, aliased to GLRender) is async and renders to its own canvas,
+    // so this preview needs a PIXI rewrite — disable it gracefully until then rather than
+    // throwing every frame. (The in-game HD-2D rendering uses the new renderer fully.)
+    const asyncRenderer = typeof GLRender !== "undefined" && GLRender.available &&
+      GLRender.available.constructor && GLRender.available.constructor.name === "AsyncFunction";
+    if (typeof GLRender === "undefined" || asyncRenderer) {
+      flashStatus("HD-2D live preview is being rebuilt on the new PIXI renderer — unavailable for now");
+      return;
+    }
+    if (!GLRender.available()) {
+      flashStatus("HD-2D preview needs WebGL2, which is unavailable in this browser");
+      return;
+    }
+    hdCanvas = h("canvas", { width: 480, height: 360, style: "display:block;cursor:grab" });
+    hdPanel = h("div", {
+      style: "position:fixed;right:18px;bottom:38px;z-index:90;border:1px solid #3a3a4a;border-radius:6px;" +
+        "overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,0.5);background:#101018",
+    },
+      h("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 8px;background:#22222e;color:#cfd2e0;font:12px system-ui" },
+        h("span", null, "HD-2D Preview — drag to pan"),
+        h("button", { class: "mini", onclick: closeHdPreview }, "✕")),
+      hdCanvas);
+    let drag = null;
+    hdCanvas.addEventListener("mousedown", (e) => {
+      drag = { x: e.clientX, y: e.clientY };
+      hdCanvas.style.cursor = "grabbing";
+      e.preventDefault();
+    });
+    hdPanel._move = (e) => {
+      if (!drag) return;
+      hdCamX -= e.clientX - drag.x;
+      hdCamY -= (e.clientY - drag.y) * 1.6; // the tilt foreshortens the z axis
+      drag = { x: e.clientX, y: e.clientY };
+    };
+    hdPanel._up = () => { drag = null; if (hdCanvas) hdCanvas.style.cursor = "grab"; };
+    window.addEventListener("mousemove", hdPanel._move);
+    window.addEventListener("mouseup", hdPanel._up);
+    document.body.appendChild(hdPanel);
+    const m = curMap();
+    hdCamX = m.width * TILE / 2; hdCamY = m.height * TILE / 2;
+    hdMapId = 0; hdDirty = true; hdLastBuild = 0;
+    hdFrame();
+    refreshToolbar();
   }
 
   // ============================ command definitions ============================
@@ -1589,7 +1762,7 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
       return obj ? (obj.label || obj.kind || ("Objective " + (objIndex + 1))) : ("Objective " + (objIndex + 1));
     };
     switch (c.t) {
-      case "text": return "Text" + (c.name ? " [" + c.name + "]" : "") + ": " + c.text.split("\n")[0].slice(0, 42);
+      case "text": return "Text" + (c.name ? " [" + c.name + "]" : "") + (c.face ? " (face)" : "") + ": " + c.text.split("\n")[0].slice(0, 42);
       case "choices": return "Show Choices: " + c.options.join(" / ");
       case "switch": return "Switch " + swName(c.id) + " = " + (c.val ? "ON" : "OFF");
       case "selfsw": return "Self-Switch " + c.key + " = " + (c.val ? "ON" : "OFF");
@@ -1620,6 +1793,7 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
       case "se": return "Sound: " + c.name;
       case "music": return "Music: " + c.theme;
       case "move": return "Move " + (c.target === "player" ? "Player" : "This Event") + ": " + c.steps.join(", ").slice(0, 40) + (c.wait ? " (wait)" : "");
+      case "cameraZoom": return "Camera Zoom: " + Math.round((c.zoom || 1) * 100) + "% over " + (c.frames || 0) + " frames";
       case "transparency": return "Player Transparency: " + (c.val ? "hidden" : "visible");
       case "erase": return "Erase This Event";
       case "save": return "Open Save Screen";
@@ -1700,13 +1874,21 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
 
   // each entry: label, make(), form(c, box) -> apply()
   const CMD_DEFS = [
-    { t: "text", label: "Show Text", make: () => ({ t: "text", name: "", text: "" }),
+    { t: "text", label: "Show Text", make: () => ({ t: "text", name: "", face: "", text: "" }),
       form(c, box) {
-        const w = { name: c.name, text: c.text };
+        const w = { name: c.name, face: c.face || "", text: c.text };
+        const preview = h("span", { class: "char-preview" });
+        function redrawFace() {
+          preview.innerHTML = "";
+          const ci = Assets.charsetIndex(w.face);
+          if (ci >= 0) preview.appendChild(Assets.faceCanvas(ci));
+        }
         const ta = h("textarea", { rows: 4, oninput(e) { w.text = e.target.value; } }, c.text);
-        box.appendChild(field("Speaker name (optional)", tIn(w, "name")));
-        box.appendChild(field("Text  (\\v[n]=variable, \\n[id]=actor name, \\g=gold)", ta));
-        return () => { c.name = w.name; c.text = w.text; };
+        box.appendChild(row(field("Speaker name (optional)", tIn(w, "name")),
+          field("Face (optional)", sel(w, "face", charsetOpts(true), redrawFace)), preview));
+        box.appendChild(field("Text  (\\v[n]=variable, \\n[id]=actor name, \\g=gold, \\i[n]=icon)", ta));
+        redrawFace();
+        return () => { c.name = w.name; c.face = w.face; c.text = w.text; };
       } },
     { t: "choices", label: "Show Choices", make: () => ({ t: "choices", options: ["Yes", "No"], branches: [[], []] }),
       form(c, box) {
@@ -1747,13 +1929,40 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
               span.innerHTML = "";
               span.appendChild(sel(w, "id", dbOpts(arr)));
             }
+          } else if (w.kind === "actor") {
+            if (!w.actorId) w.actorId = proj.actors[0] ? proj.actors[0].id : 1;
+            if (!w.check) w.check = "inParty";
+            if (w.itemId == null) w.itemId = 0;
+            const checkSel = sel(w, "check", [
+              { v: "inParty", l: "Is in Party" },
+              { v: "weapon", l: "Has Weapon Equipped" },
+              { v: "armor", l: "Has Armor Equipped" }
+            ], redrawActorCheck);
+            const itemSpan = h("span", { id: "actoritem" });
+            sub.appendChild(row(
+              field("Actor", sel(w, "actorId", dbOpts(proj.actors))),
+              field("Check", checkSel),
+              field("Equipment", itemSpan)
+            ));
+            redrawActorCheck();
+            function redrawActorCheck() {
+              const span = sub.querySelector("#actoritem") || itemSpan;
+              span.innerHTML = "";
+              if (w.check === "weapon") {
+                span.appendChild(sel(w, "itemId", dbOpts(proj.weapons, "(none)")));
+              } else if (w.check === "armor") {
+                span.appendChild(sel(w, "itemId", dbOpts(proj.armors, "(none)")));
+              } else {
+                span.appendChild(h("span", { class: "dim" }, "N/A"));
+              }
+            }
           } else {
             sub.appendChild(row(field("Gold", sel(w, "cmp", [{ v: ">=", l: "≥" }, { v: "<=", l: "≤" }])), field("Value", nIn(w, "val"))));
           }
         }
         box.appendChild(field("Condition type", sel(w, "kind", [
           { v: "switch", l: "Switch" }, { v: "var", l: "Variable" }, { v: "selfsw", l: "Self-Switch" },
-          { v: "quest", l: "Quest Status" }, { v: "item", l: "Has item" }, { v: "gold", l: "Gold" },
+          { v: "quest", l: "Quest Status" }, { v: "item", l: "Has item" }, { v: "gold", l: "Gold" }, { v: "actor", l: "Actor" }
         ], redraw)));
         if (w.kind === "item" && !w.itemKind) w.itemKind = "item";
         if (w.kind === "selfsw" && !w.key) w.key = "A";
@@ -1965,12 +2174,73 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
         box.appendChild(h("div", { class: "fld" }, h("span", null, "Steps (click a chip to remove)"), chipBox));
         return () => { c.target = w.target; c.wait = w.wait; c.steps = steps; };
       } },
+    { t: "cameraZoom", label: "Camera Zoom", make: () => ({ t: "cameraZoom", zoom: 1, frames: 30 }),
+      form(c, box) {
+        const w = { zoom: c.zoom == null ? 1 : c.zoom, frames: c.frames || 0 };
+        box.appendChild(row(
+          field("Zoom (0.25 = out, 1 = normal, 4 = in)", nIn(w, "zoom", 0.25, 4, 0.05)),
+          field("Duration (frames)", nIn(w, "frames", 0, 6000)),
+        ));
+        box.appendChild(h("div", { class: "dim" }, "The camera stays centered on the player. Use 1.0 to return to the normal view."));
+        return () => { c.zoom = Math.max(0.25, Math.min(4, w.zoom || 1)); c.frames = Math.max(0, Math.floor(w.frames || 0)); };
+      } },
     { t: "transparency", label: "Change Transparency", make: () => ({ t: "transparency", val: true }),
       form(c, box) {
         const w = { val: String(c.val !== false) };
         box.appendChild(field("Player becomes", sel(w, "val", [{ v: "true", l: "Transparent (hidden)" }, { v: "false", l: "Visible" }])));
         box.appendChild(h("div", { class: "dim" }, "A transparent player still moves and triggers events — only the sprite is hidden. Pair with “Start transparent” in Database ▸ System for cutscene intros."));
         return () => { c.val = w.val === "true"; };
+      } },
+    { t: "shake", label: "Shake Screen", make: () => ({ t: "shake", power: 5, speed: 5, duration: 30, wait: true }),
+      form(c, box) {
+        const w = { power: c.power || 5, speed: c.speed || 5, duration: c.duration || 30, wait: c.wait !== false };
+        box.appendChild(row(
+          field("Power (1-9)", nIn(w, "power", 1, 9)),
+          field("Speed (1-9)", nIn(w, "speed", 1, 9)),
+          field("Duration (frames)", nIn(w, "duration", 1, 600)),
+          field("Wait for completion", chk(w, "wait"))
+        ));
+        return () => {
+          c.power = Number(w.power);
+          c.speed = Number(w.speed);
+          c.duration = Number(w.duration);
+          c.wait = w.wait;
+        };
+      } },
+    { t: "weather", label: "Change Weather", make: () => ({ t: "weather", kind: "none", power: 5 }),
+      form(c, box) {
+        const w = { kind: c.kind || "none", power: c.power || 5 };
+        box.appendChild(row(
+          field("Type", sel(w, "kind", [
+            { v: "none", l: "None (clear)" },
+            { v: "rain", l: "Rain" },
+            { v: "storm", l: "Storm" },
+            { v: "snow", l: "Snow" },
+            { v: "fog", l: "Fog" }
+          ])),
+          field("Power (1-9)", nIn(w, "power", 1, 9))
+        ));
+        return () => {
+          c.kind = w.kind;
+          c.power = Number(w.power);
+        };
+      } },
+    { t: "flash", label: "Flash Screen", make: () => ({ t: "flash", color: "#ffffff", opacity: 0.5, duration: 15, wait: false }),
+      form(c, box) {
+        const w = { color: c.color || "#ffffff", opacity: c.opacity || 0.5, duration: c.duration || 15, wait: !!c.wait };
+        const colorIn = h("input", { type: "color", value: w.color, oninput(e) { w.color = e.target.value; } });
+        box.appendChild(row(
+          field("Color", colorIn),
+          field("Opacity (0.1-1.0)", nIn(w, "opacity", 0.1, 1.0, 0.1)),
+          field("Duration (frames)", nIn(w, "duration", 1, 300)),
+          field("Wait for completion", chk(w, "wait"))
+        ));
+        return () => {
+          c.color = w.color;
+          c.opacity = Number(w.opacity);
+          c.duration = Number(w.duration);
+          c.wait = w.wait;
+        };
       } },
     { t: "erase", label: "Erase This Event", make: () => ({ t: "erase" }), form: () => () => {} },
     { t: "save", label: "Open Save Screen", make: () => ({ t: "save" }), form: () => () => {} },
@@ -1985,7 +2255,7 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
   ];
   const cmdDef = (t) => CMD_DEFS.find((d) => d.t === t);
 
-  function editCommand(c, onDone) {
+  function editCommand(c, onDone, skipSnapshot, snapFn) {
     const def = cmdDef(c.t);
     const box = h("div");
     const apply = def.form(c, box) || (() => {});
@@ -1993,18 +2263,96 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
       title: def.label,
       content: box,
       buttons: [
-        { label: "OK", primary: true, onClick(close) { apply(); close(); touch(); onDone(); } },
+        { label: "OK", primary: true, onClick(close) { if (!skipSnapshot && snapFn) snapFn(); apply(); close(); touch(); onDone(); } },
         { label: "Cancel", onClick(close) { close(); onDone(); } },
       ],
       dismissable: false,
     });
   }
   function pickCommand(onPicked) {
+    const PAGE_SIZE = 24;
+    const tabs = h("div", { class: "cmdtabs" });
     const grid = h("div", { class: "cmdgrid" });
-    const m = modal({ title: "Add Command", content: grid, buttons: [{ label: "Cancel" }] });
-    for (const def of CMD_DEFS) {
-      grid.appendChild(h("button", { onclick() { m.close(); onPicked(def.make()); } }, def.label));
+    const m = modal({ title: "Add Command", content: h("div", null, tabs, grid), buttons: [{ label: "Cancel" }] });
+    let page = 0;
+
+    function editPreset(preset) {
+      const draft = { name: preset ? preset.name : "", code: preset ? preset.code : "" };
+      const nameInput = tIn(draft, "name");
+      const codeInput = h("textarea", { rows: 8, spellcheck: "false" }, draft.code);
+      const buttons = [
+        { label: "Save", primary: true, onClick(close) {
+          const name = nameInput.value.trim();
+          if (!name) { nameInput.focus(); return; }
+          draft.name = name;
+          draft.code = codeInput.value;
+          if (preset) Object.assign(preset, draft);
+          else {
+            proj.commandPresets.push({
+              id: RA.nextId(proj.commandPresets),
+              name: draft.name,
+              code: draft.code,
+            });
+          }
+          touch();
+          close();
+          page = Math.max(0, Math.ceil((CMD_DEFS.length + proj.commandPresets.length + 1) / PAGE_SIZE) - 1);
+          redraw();
+        } },
+        { label: "Cancel" },
+      ];
+      if (preset) buttons.unshift({ label: "Delete", onClick(close) {
+        confirmBox("Delete the saved command button \"" + preset.name + "\"?", () => {
+          proj.commandPresets = proj.commandPresets.filter((p) => p.id !== preset.id);
+          touch();
+          close();
+          redraw();
+        });
+      } });
+      modal({
+        title: preset ? "Edit Command Button" : "Add Command Button",
+        content: h("div", null,
+          field("Button name", nameInput),
+          field("JavaScript (runs as an event Script command; API is available as game)", codeInput),
+          preset ? h("div", { class: "dim" }, "Saved command buttons are stored with this project.") : null),
+        buttons,
+        dismissable: false,
+      });
     }
+
+    function items() {
+      return CMD_DEFS.map((def) => ({ kind: "builtin", def }))
+        .concat(proj.commandPresets.map((preset) => ({ kind: "preset", preset })))
+        .concat({ kind: "add" });
+    }
+    function redraw() {
+      const all = items();
+      const pages = Math.max(1, Math.ceil(all.length / PAGE_SIZE));
+      page = Math.max(0, Math.min(page, pages - 1));
+      tabs.innerHTML = "";
+      for (let i = 0; i < pages; i++) {
+        tabs.appendChild(h("button", {
+          class: "mini" + (i === page ? " sel" : ""),
+          onclick() { page = i; redraw(); },
+        }, "Page " + (i + 1)));
+      }
+      grid.innerHTML = "";
+      all.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).forEach((item) => {
+        if (item.kind === "builtin") {
+          grid.appendChild(h("button", { onclick() { m.close(); onPicked(item.def.make()); } }, item.def.label));
+        } else if (item.kind === "preset") {
+          grid.appendChild(h("button", {
+            class: "cmdpreset",
+            title: "Insert saved script. Right-click to edit or delete.",
+            onclick() { m.close(); onPicked({ t: "script", code: item.preset.code || "" }); },
+            oncontextmenu(e) { e.preventDefault(); editPreset(item.preset); },
+          }, item.preset.name));
+        } else {
+          grid.appendChild(h("button", { class: "cmdaddnew", onclick() { editPreset(null); } }, "+Add New"));
+        }
+      });
+    }
+    redraw();
   }
 
   // ============================ command list widget ============================
@@ -2027,65 +2375,246 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
       }
     });
   }
-  function cmdListWidget(getList) {
+  function cmdListWidget(getList, undoApi) {
     const wrap = h("div", { class: "cmdlist-wrap" });
-    const listEl = h("div", { class: "cmdlist" });
-    let selRow = null, rows = [];
-    function redraw() {
+    const listEl = h("div", { class: "cmdlist", tabindex: "0" });
+    const snap = undoApi.snapshot;             // snapshot before a mutation
+    let selRow = null, anchorRow = null, rows = [], dragFromIdx = null, cmdMenuEl = null;
+    let dragBlock = null, dragFromArr = null, dragFrom = 0, dragCount = 0;
+    function clearDropMarks() {
+      listEl.querySelectorAll(".drop-before, .drop-after").forEach((d) => d.classList.remove("drop-before", "drop-after"));
+    }
+    // True when `arr` is one of cmd's own branch arrays, or nested inside one —
+    // so a container command (if/choices) is never dropped into its own subtree.
+    function ownsArray(cmd, arr) {
+      if (!cmd) return false;
+      const branches = cmd.t === "if" ? [cmd.then, cmd.else]
+        : cmd.t === "choices" ? (cmd.branches || []) : [];
+      for (const b of branches) {
+        if (b === arr) return true;
+        for (const c of b) if (ownsArray(c, arr)) return true;
+      }
+      return false;
+    }
+    // A command may be dropped onto any command row or end-of-branch slot, at any
+    // nesting level in this event — except onto itself or inside its own subtree.
+    function dropOk(target) {
+      if (!dragBlock) return false;
+      if (!target.arr || !(target.cmd || target.slot)) return false;
+      if (dragBlock.includes(target.cmd)) return false;            // not onto a member of the dragged block
+      return !dragBlock.some((c) => ownsArray(c, target.arr));     // not into any block member's own subtree
+    }
+    function redraw(reselect) {
       rows = [];
       buildCmdRows(getList(), 0, rows);
       rows.push({ arr: getList(), idx: getList().length, depth: 0, slot: true });
+      if (reselect) { // re-find the moved/pasted command(s) by identity so the selection follows them
+        const cmds = Array.isArray(reselect) ? reselect : [reselect];
+        let first = -1, last = -1;
+        rows.forEach((r3, i) => { if (r3.cmd && cmds.indexOf(r3.cmd) >= 0) { if (first < 0) first = i; last = i; } });
+        if (first >= 0) { anchorRow = first; selRow = last; } // focus = last → repeated paste/move stacks
+      }
       listEl.innerHTML = "";
+      const blk = selBlock(); // the contiguous multi-selection (or the single focused command)
       rows.forEach((r2, i) => {
+        const inBlk = blk && r2.cmd && r2.arr === blk.arr && r2.idx >= blk.lo && r2.idx <= blk.hi;
         const div = h("div", {
-          class: "cmdrow" + (r2.label ? " branch" : "") + (r2.slot ? " slot" : "") + (selRow === i ? " sel" : ""),
+          class: "cmdrow" + (r2.label ? " branch" : "") + (r2.slot ? " slot" : "")
+            + (i === selRow ? " sel" : (inBlk ? " cmd-selected" : "")),
           style: "padding-left:" + (8 + r2.depth * 18) + "px",
-          onclick() { selRow = i; redraw(); },
-          ondblclick() { selRow = i; if (r2.slot) addAt(r2); else if (r2.cmd) editAt(r2); },
+          onclick(e) {
+            if (e.shiftKey && anchorRow != null && rows[anchorRow] && r2.cmd && r2.arr === rows[anchorRow].arr)
+              selRow = i;                    // extend the range within one sibling list
+            else anchorRow = selRow = i;     // plain click / re-anchor (foreign branch, label, slot, ctrl)
+            redraw(); listEl.focus({ preventScroll: true });
+          },
+          ondblclick() { anchorRow = selRow = i; if (r2.slot) addAt(r2); else if (r2.cmd) editAt(r2); },
+          oncontextmenu(e) { openCmdMenu(e, i); },
         }, r2.label ? r2.label : r2.slot ? "◇ …" : "◆ " + cmdSummary(r2.cmd));
+        if (r2.cmd) {
+          div.draggable = true;
+          div.addEventListener("dragstart", (e) => {
+            const b = selBlock();
+            const inB = b && r2.arr === b.arr && r2.idx >= b.lo && r2.idx <= b.hi;
+            if (inB) { dragBlock = b.cmds; dragFromArr = b.arr; dragFrom = b.lo; dragCount = b.count; }
+            else { anchorRow = selRow = i; dragBlock = [r2.cmd]; dragFromArr = r2.arr; dragFrom = r2.idx; dragCount = 1; }
+            dragFromIdx = i;
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", "cmd"); // Firefox needs data to start a drag
+            div.classList.add("dragging");
+          });
+          div.addEventListener("dragend", () => { div.classList.remove("dragging"); clearDropMarks(); dragFromIdx = null; dragBlock = null; });
+        }
+        div.addEventListener("dragover", (e) => {
+          if (!dropOk(r2)) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          clearDropMarks();
+          if (r2.slot) { div.classList.add("drop-before"); return; } // slot = drop at end of level
+          const rect = div.getBoundingClientRect();
+          div.classList.add(e.clientY - rect.top < rect.height / 2 ? "drop-before" : "drop-after");
+        });
+        div.addEventListener("dragleave", () => div.classList.remove("drop-before", "drop-after"));
+        div.addEventListener("drop", (e) => {
+          if (!dropOk(r2)) return;
+          e.preventDefault();
+          const toArr = r2.arr;
+          let to = r2.idx; // slot => end of branch (idx == length)
+          if (!r2.slot) {
+            const rect = div.getBoundingClientRect();
+            to = e.clientY - rect.top < rect.height / 2 ? r2.idx : r2.idx + 1;
+          }
+          clearDropMarks();
+          if (dragFromArr === toArr && to >= dragFrom && to <= dragFrom + dragCount) { dragBlock = null; dragFromIdx = null; return; } // lands inside itself
+          snap();
+          dragFromArr.splice(dragFrom, dragCount);
+          if (dragFromArr === toArr && to > dragFrom) to -= dragCount; // adjust for the gap we just removed
+          toArr.splice(to, 0, ...dragBlock);
+          const moved = dragBlock; dragBlock = null; dragFromIdx = null;
+          touch(); redraw(moved); // keep the moved block selected
+        });
         listEl.appendChild(div);
       });
     }
     function cur() { return selRow != null ? rows[selRow] : null; }
+    // The current selection as a contiguous block within ONE sibling array: the run between
+    // anchorRow and the focused row, or just the focused command. Null if nothing usable is selected.
+    function selBlock() {
+      const a = rows[anchorRow], f = cur();
+      if (a && f && a.cmd && f.cmd && a.arr === f.arr) {
+        const arr = a.arr, lo = Math.min(a.idx, f.idx), hi = Math.max(a.idx, f.idx);
+        return { arr, lo, hi, count: hi - lo + 1, cmds: arr.slice(lo, hi + 1) };
+      }
+      return (f && f.cmd) ? { arr: f.arr, lo: f.idx, hi: f.idx, count: 1, cmds: [f.cmd] } : null;
+    }
     function addAt(r2) {
       let target = r2 || cur();
       if (!target || (!target.slot && !target.cmd)) target = { arr: getList(), idx: getList().length };
       pickCommand((nc) => {
+        snap();
         target.arr.splice(target.idx, 0, nc);
         touch();
-        editCommand(nc, redraw);
-        redraw();
+        editCommand(nc, redraw, true);   // suppress: this snapshot already covers the whole add
+        redraw(nc);
       });
     }
     function editAt(r2) {
       const target = r2 || cur();
       if (!target || !target.cmd) return;
-      editCommand(target.cmd, redraw);
+      editCommand(target.cmd, redraw, false, snap);   // edit path snapshots on OK (before apply)
     }
     function delAt() {
-      const target = cur();
-      if (!target || !target.cmd) return;
-      target.arr.splice(target.idx, 1);
-      touch(); redraw();
+      const b = selBlock();
+      if (!b) return;
+      snap();
+      b.arr.splice(b.lo, b.count);
+      touch();
+      const survivor = b.arr.length ? b.arr[Math.min(b.lo, b.arr.length - 1)] : null;
+      anchorRow = selRow = null;
+      redraw(survivor || undefined);
     }
     function moveSel(d) {
-      const target = cur();
-      if (!target || !target.cmd) return;
-      const ni = target.idx + d;
-      if (ni < 0 || ni >= target.arr.length) return;
-      const [c] = target.arr.splice(target.idx, 1);
-      target.arr.splice(ni, 0, c);
+      const b = selBlock();
+      if (!b) return;
+      if (d < 0 && b.lo <= 0) return;
+      if (d > 0 && b.hi >= b.arr.length - 1) return;
+      snap();
+      const blk = b.arr.splice(b.lo, b.count);
+      b.arr.splice(b.lo + d, 0, ...blk);
       touch();
-      selRow += 0; // selection follows roughly; rebuild
-      redraw();
+      redraw(blk); // the whole block follows so ↑/↓ can be tapped repeatedly
+    }
+    function copySel(cut) {
+      const b = selBlock();
+      if (!b) return;
+      clipCmd = b.cmds.map((c) => RA.clone(c));
+      flashStatus((cut ? "Cut " : "Copied ") + b.count + (b.count > 1 ? " commands" : " command"));
+      if (cut) {
+        snap();
+        b.arr.splice(b.lo, b.count);
+        touch();
+        const survivor = b.arr.length ? b.arr[Math.min(b.lo, b.arr.length - 1)] : null;
+        anchorRow = selRow = null;
+        redraw(survivor || undefined);
+      }
+    }
+    function pasteSel() {
+      const block = Array.isArray(clipCmd) ? clipCmd : (clipCmd ? [clipCmd] : null);
+      if (!block || !block.length) { flashStatus("Clipboard is empty — copy a command first"); return; }
+      const target = cur();
+      let arr, idx;
+      if (target && target.cmd) { arr = target.arr; idx = target.idx + 1; }   // after the focused command
+      else if (target && target.slot) { arr = target.arr; idx = target.idx; } // at the insertion slot
+      else { arr = getList(); idx = getList().length; }                       // nothing selected → end of list
+      const clones = block.map((c) => RA.clone(c));
+      snap();
+      arr.splice(idx, 0, ...clones);
+      touch(); redraw(clones); // select the pasted block so repeated Ctrl+V stacks
+    }
+    function closeCmdMenu() {
+      if (!cmdMenuEl) return;
+      cmdMenuEl.remove(); cmdMenuEl = null;
+      document.removeEventListener("mousedown", onCmdMenuOutside, true);
+      document.removeEventListener("keydown", onCmdMenuKey, true);
+    }
+    function onCmdMenuOutside(ev) { if (cmdMenuEl && !cmdMenuEl.contains(ev.target)) closeCmdMenu(); }
+    function onCmdMenuKey(ev) { if (ev.key === "Escape") { ev.preventDefault(); closeCmdMenu(); } }
+    // Right-click a command (or insertion slot) for the same actions as the toolbar buttons.
+    function openCmdMenu(e, i) {
+      e.preventDefault();
+      if (!rows[i] || (!rows[i].cmd && !rows[i].slot)) return; // labels: just suppress the native menu
+      const x = e.clientX, y = e.clientY;
+      const b0 = selBlock(); // keep an existing multi-selection if the right-click lands inside it
+      const inBlk = b0 && rows[i].cmd && rows[i].arr === b0.arr && rows[i].idx >= b0.lo && rows[i].idx <= b0.hi;
+      if (!inBlk) anchorRow = selRow = i;
+      redraw(); listEl.focus({ preventScroll: true });
+      closeCmdMenu();
+      const b = selBlock(), isCmd = !!b, n = b ? b.count : 0, sfx = n > 1 ? " " + n : "";
+      const canPaste = Array.isArray(clipCmd) ? clipCmd.length > 0 : !!clipCmd;
+      const canUp = !!b && b.lo > 0, canDown = !!b && b.hi < b.arr.length - 1;
+      const menu = h("div", { class: "menu-drop" });
+      const item = (label, key, on, fn) => menu.appendChild(h("div", {
+        class: "menu-item" + (on ? "" : " disabled"),
+        onclick() { if (!on) return; closeCmdMenu(); fn(); },
+      }, h("span", { class: "mi-label" }, label), key ? h("span", { class: "mi-key" }, key) : null));
+      const sep = () => menu.appendChild(h("div", { class: "menu-sep" }));
+      item("Add…", "", true, () => addAt());
+      item("Edit", "", isCmd, () => editAt());
+      sep();
+      item("Cut" + sfx, "Ctrl+X", isCmd, () => copySel(true));
+      item("Copy" + sfx, "Ctrl+C", isCmd, () => copySel(false));
+      item("Paste", "Ctrl+V", canPaste, () => pasteSel());
+      item("Delete" + sfx, "", isCmd, () => delAt());
+      sep();
+      item("Move Up", "", canUp, () => moveSel(-1));
+      item("Move Down", "", canDown, () => moveSel(1));
+      menu.style.left = x + "px"; menu.style.top = y + "px";
+      document.body.appendChild(menu);
+      menu.style.left = Math.max(4, Math.min(x, window.innerWidth - menu.offsetWidth - 4)) + "px";
+      menu.style.top = Math.max(4, Math.min(y, window.innerHeight - menu.offsetHeight - 4)) + "px";
+      cmdMenuEl = menu;
+      document.addEventListener("mousedown", onCmdMenuOutside, true);
+      document.addEventListener("keydown", onCmdMenuKey, true);
     }
     const btns = h("div", { class: "cmdbtns" },
       h("button", { onclick: () => addAt() }, "+ Add"),
       h("button", { onclick: () => editAt() }, "Edit"),
       h("button", { onclick: delAt }, "Delete"),
+      h("button", { title: "Copy command (Ctrl+C)", onclick: () => copySel(false) }, "Copy"),
+      h("button", { title: "Cut command (Ctrl+X)", onclick: () => copySel(true) }, "Cut"),
+      h("button", { title: "Paste command (Ctrl+V)", onclick: () => pasteSel() }, "Paste"),
       h("button", { onclick: () => moveSel(-1) }, "↑"),
       h("button", { onclick: () => moveSel(1) }, "↓"),
     );
+    // Ctrl+C/X/V and Delete work when the command list has focus. The global editor shortcuts
+    // are suppressed while a modal is open, so there's no collision with map copy/paste.
+    listEl.addEventListener("keydown", (e) => {
+      if (e.code === "Delete") { e.preventDefault(); delAt(); return; }
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.code === "KeyC") { e.preventDefault(); copySel(false); }
+      else if (e.code === "KeyX") { e.preventDefault(); copySel(true); }
+      else if (e.code === "KeyV") { e.preventDefault(); pasteSel(); }
+    });
     wrap.appendChild(btns);
     wrap.appendChild(listEl);
     redraw();
@@ -2096,22 +2625,170 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
   function openEventEditor(evOriginal) {
     const ev = RA.clone(evOriginal);
     let pageIdx = 0;
+
+    // Per-page command undo/redo, keyed by page object; discarded with `ev` when the editor closes.
+    const cmdHist = new Map();                 // page -> { undo, redo }
+    function histFor(p) {
+      let hst = cmdHist.get(p);
+      if (!hst) { hst = { undo: [], redo: [] }; cmdHist.set(p, hst); }
+      return hst;
+    }
+    const curPage = () => ev.pages[pageIdx];
+    function cmdSnapshot() {                    // call before mutating the current page's commands
+      const hst = histFor(curPage());
+      hst.undo.push(RA.clone(curPage().commands));
+      if (hst.undo.length > 60) hst.undo.shift();
+      hst.redo.length = 0;
+    }
+    function cmdStep(from, to) {
+      const hst = histFor(curPage());
+      if (!hst[from].length) { flashStatus(from === "undo" ? "Nothing to undo" : "Nothing to redo"); return false; }
+      hst[to].push(RA.clone(curPage().commands));
+      curPage().commands = RA.clone(hst[from].pop());   // re-clone so the archived entry stays immutable
+      touch();
+      return true;
+    }
+    const undoApi = {
+      snapshot: cmdSnapshot,
+      undo: () => cmdStep("undo", "redo"),
+      redo: () => cmdStep("redo", "undo"),
+    };
+    // Editor-wide keys (selection ≠ focus): Ctrl+Z/Y/Shift+Z undo/redo commands, Delete removes
+    // the highlighted page (the command list handles its own Delete), and 1–9 jump to a page.
+    // Defers to native field editing; inert while a nested Add/Edit dialog is the topmost modal.
+    let evOverlay = null;
+    function onEvKey(e) {
+      if (modalRoot().lastElementChild !== evOverlay) return;
+      if (pageMenuEl) return;                    // a page context menu is open — let it own the keys
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+      const inCmdList = t && t.closest && t.closest(".cmdlist");   // the command list owns its own Delete/keys
+      if (e.ctrlKey || e.metaKey) {
+        if (e.code === "KeyZ" && e.shiftKey) { e.preventDefault(); if (undoApi.redo()) redrawPage(); }
+        else if (e.code === "KeyZ") { e.preventDefault(); if (undoApi.undo()) redrawPage(); }
+        else if (e.code === "KeyY") { e.preventDefault(); if (undoApi.redo()) redrawPage(); }
+        return;
+      }
+      if (e.code === "Delete" && !inCmdList) {
+        e.preventDefault(); deletePage(pageIdx); return;
+      }
+      if (e.key >= "1" && e.key <= "9" && !inCmdList) {   // jump to page 1–9 if it exists
+        const p = +e.key - 1;
+        if (p < ev.pages.length) { e.preventDefault(); pageIdx = p; redrawTabs(); redrawPage(); }
+      }
+    }
+    document.addEventListener("keydown", onEvKey);
+
     const head = h("div");
     const tabs = h("div", { class: "tabs" });
     const pageBox = h("div");
 
+    function deletePage(i) {
+      if (ev.pages.length <= 1) return;
+      const del = () => {
+        ev.pages.splice(i, 1);
+        if (pageIdx > i) pageIdx--;
+        pageIdx = Math.min(pageIdx, ev.pages.length - 1);
+        redrawTabs(); redrawPage();
+      };
+      const n = ev.pages[i].commands.length;   // confirm only if there are commands to lose (can't be undone)
+      if (n) confirmBox("This page has " + n + " command" + (n === 1 ? "" : "s") + " that will be permanently lost. Delete this page?", del);
+      else del();
+    }
+    function addPageAt(i) { ev.pages.splice(i, 0, DataDefaults.newPage()); pageIdx = i; redrawTabs(); redrawPage(); }
+    function copyPage(i) { clipPage = RA.clone(ev.pages[i]); flashStatus("Copied page " + (i + 1)); }
+    function pastePage(i) { if (!clipPage) return; ev.pages.splice(i + 1, 0, RA.clone(clipPage)); pageIdx = i + 1; redrawTabs(); redrawPage(); }
+    function movePage(i, d) {
+      const j = i + d;
+      if (j < 0 || j >= ev.pages.length) return;
+      ev.pages.splice(j, 0, ev.pages.splice(i, 1)[0]);
+      pageIdx = j; redrawTabs(); redrawPage();
+    }
+
+    // Page tabs: rename (double-click or menu), right-click menu, and drag-reorder.
+    let pageMenuEl = null, dragPageFrom = null, editingPage = null;
+    function startRename(i) { editingPage = i; redrawTabs(); }
+    function commitRename(i, value) { ev.pages[i].name = value.trim(); editingPage = null; touch(); redrawTabs(); redrawPage(); }
+    function closePageMenu() {
+      if (!pageMenuEl) return;
+      pageMenuEl.remove(); pageMenuEl = null;
+      document.removeEventListener("mousedown", onPageMenuOutside, true);
+      document.removeEventListener("keydown", onPageMenuKey, true);
+    }
+    function onPageMenuOutside(e) { if (pageMenuEl && !pageMenuEl.contains(e.target)) closePageMenu(); }
+    function onPageMenuKey(e) { if (e.key === "Escape") { e.preventDefault(); closePageMenu(); } }
+    function openPageMenu(e, i) {
+      e.preventDefault();
+      const x = e.clientX, y = e.clientY, last = ev.pages.length - 1;
+      pageIdx = i; redrawTabs(); redrawPage();   // right-click selects the tab first
+      closePageMenu();
+      const menu = h("div", { class: "menu-drop" });
+      const item = (label, on, fn) => menu.appendChild(h("div", {
+        class: "menu-item" + (on ? "" : " disabled"),
+        onclick() { if (!on) return; closePageMenu(); fn(); },
+      }, h("span", { class: "mi-label" }, label)));
+      const sep = () => menu.appendChild(h("div", { class: "menu-sep" }));
+      item("Add page", true, () => addPageAt(i + 1));   // to the right, like Paste
+      item("Rename", true, () => startRename(i));
+      item("Move left", i > 0, () => movePage(i, -1));
+      item("Move right", i < last, () => movePage(i, 1));
+      sep();
+      item("Copy", true, () => copyPage(i));
+      item("Paste", !!clipPage, () => pastePage(i));
+      item("Delete", ev.pages.length > 1, () => deletePage(i));
+      document.body.appendChild(menu);
+      menu.style.left = Math.max(4, Math.min(x, window.innerWidth - menu.offsetWidth - 4)) + "px";
+      menu.style.top = Math.max(4, Math.min(y, window.innerHeight - menu.offsetHeight - 4)) + "px";
+      pageMenuEl = menu;
+      document.addEventListener("mousedown", onPageMenuOutside, true);
+      document.addEventListener("keydown", onPageMenuKey, true);
+    }
+    function clearTabDrops() { tabs.querySelectorAll(".drop-left, .drop-right").forEach((b) => b.classList.remove("drop-left", "drop-right")); }
     function redrawTabs() {
       tabs.innerHTML = "";
       ev.pages.forEach((_, i) => {
-        tabs.appendChild(h("button", { class: i === pageIdx ? "sel" : "", onclick() { pageIdx = i; redrawTabs(); redrawPage(); } }, "Page " + (i + 1)));
+        if (editingPage === i) {                  // inline rename: an input replaces the tab button
+          const inp = h("input", { class: "tab-rename", value: ev.pages[i].name || "",
+            onkeydown(e) {
+              if (e.key === "Enter") { e.preventDefault(); commitRename(i, inp.value); }
+              else if (e.key === "Escape") { e.preventDefault(); editingPage = null; redrawTabs(); }
+            },
+            onblur() { if (editingPage === i) commitRename(i, inp.value); },
+          });
+          tabs.appendChild(inp);
+          setTimeout(() => { inp.focus(); inp.select(); }, 0);
+          return;
+        }
+        const btn = h("button", {
+          class: i === pageIdx ? "sel" : "",
+          onclick() { pageIdx = i; redrawTabs(); redrawPage(); },
+          ondblclick() { startRename(i); },
+          oncontextmenu(e) { openPageMenu(e, i); },
+        }, ev.pages[i].name || ("Page " + (i + 1)));
+        btn.draggable = true;
+        btn.addEventListener("dragstart", (e) => { dragPageFrom = i; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", "page"); btn.classList.add("dragging"); });
+        btn.addEventListener("dragend", () => { btn.classList.remove("dragging"); clearTabDrops(); dragPageFrom = null; });
+        btn.addEventListener("dragover", (e) => {
+          if (dragPageFrom === null || dragPageFrom === i) return;
+          e.preventDefault(); e.dataTransfer.dropEffect = "move"; clearTabDrops();
+          const r = btn.getBoundingClientRect();
+          btn.classList.add(e.clientX - r.left < r.width / 2 ? "drop-left" : "drop-right");
+        });
+        btn.addEventListener("dragleave", () => btn.classList.remove("drop-left", "drop-right"));
+        btn.addEventListener("drop", (e) => {
+          if (dragPageFrom === null || dragPageFrom === i) return;
+          e.preventDefault();
+          const r = btn.getBoundingClientRect();
+          let to = e.clientX - r.left < r.width / 2 ? i : i + 1;
+          const from = dragPageFrom; dragPageFrom = null; clearTabDrops();
+          if (from < to) to--;                   // the removed page shifts later indices down
+          ev.pages.splice(to, 0, ev.pages.splice(from, 1)[0]);
+          pageIdx = to; redrawTabs(); redrawPage();
+        });
+        tabs.appendChild(btn);
       });
-      tabs.appendChild(h("button", { class: "mini", onclick() { ev.pages.push(DataDefaults.newPage()); pageIdx = ev.pages.length - 1; redrawTabs(); redrawPage(); } }, "+"));
-      tabs.appendChild(h("button", { class: "mini", onclick() {
-        if (ev.pages.length <= 1) return;
-        ev.pages.splice(pageIdx, 1);
-        pageIdx = Math.min(pageIdx, ev.pages.length - 1);
-        redrawTabs(); redrawPage();
-      } }, "−"));
+      tabs.appendChild(h("button", { class: "mini", title: "Add a page", onclick() { ev.pages.push(DataDefaults.newPage()); pageIdx = ev.pages.length - 1; redrawTabs(); redrawPage(); } }, "+"));
+      tabs.appendChild(h("button", { class: "mini", title: "Delete this page", onclick() { deletePage(pageIdx); } }, "−"));
     }
     function redrawPage() {
       const pg = ev.pages[pageIdx];
@@ -2164,7 +2841,7 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
       redrawPreview();
       pageBox.appendChild(condBox);
       pageBox.appendChild(appBox);
-      const cw = cmdListWidget(() => ev.pages[pageIdx].commands);
+      const cw = cmdListWidget(() => ev.pages[pageIdx].commands, undoApi);
       pageBox.appendChild(h("div", { class: "subhead" }, "Commands"));
       pageBox.appendChild(cw.el);
     }
@@ -2175,11 +2852,12 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
     head.appendChild(pageBox);
     redrawTabs(); redrawPage();
 
-    modal({
+    const evModal = modal({
       title: "Event — " + esc(evOriginal.name),
       content: head,
       wide: true,
       dismissable: false,
+      onClose() { closePageMenu(); document.removeEventListener("keydown", onEvKey); },
       buttons: [
         { label: "OK", primary: true, onClick(close) {
           pushUndo();
@@ -2198,6 +2876,7 @@ window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
         { label: "Cancel" },
       ],
     });
+    evOverlay = evModal.el.parentElement;
   }
 
   // ============================ database ============================
@@ -3450,6 +4129,57 @@ atlas.onMapLoad((map) => {
   }
 
   // ============================ help / about ============================
+  function refreshLocalizedChrome() {
+    editorI18n.localizeStatic();
+    buildMenubar();
+    buildToolbar();
+    refreshToolbar();
+    setStatus();
+    const saveIndicator = $("save-ind");
+    if (saveIndicator.textContent.startsWith("●")) saveIndicator.textContent = "● " + t("unsaved");
+    else if (saveIndicator.textContent.startsWith("⚠")) saveIndicator.textContent = "⚠ " + t("save failed");
+    else saveIndicator.textContent = "✓ " + t("saved");
+  }
+  function openLanguageSettings() {
+    let selectedLocale = editorI18n.locale;
+    const languageSelect = h("select", {
+      onchange(e) { selectedLocale = e.target.value; },
+    }, ...editorI18n.locales().map((locale) =>
+      h("option", { value: locale.id, ...(locale.id === selectedLocale ? { selected: "" } : {}) }, locale.label)));
+    modal({
+      title: "Interface Language",
+      content: h("div", null,
+        h("p", null, t("Choose the language used by the editor. Project content is not translated.")),
+        field("Language", languageSelect)),
+      buttons: [
+        { label: "Apply", primary: true, onClick(close) {
+          editorI18n.setLocale(selectedLocale);
+          close();
+          refreshLocalizedChrome();
+        } },
+        { label: "Cancel" },
+      ],
+    });
+  }
+  function openPatchNotes() {
+    const list = h("div", { class: "patch-notes" });
+    PATCH_NOTES.forEach((note) => {
+      const items = h("ul");
+      (note.items || []).forEach((item) => items.appendChild(h("li", null, item)));
+      list.appendChild(h("article", { class: "patch-note" },
+        h("div", { class: "patch-note-head" },
+          h("h3", null, note.title),
+          h("time", null, note.date)),
+        h("p", null, note.summary),
+        items));
+    });
+    modal({
+      title: "RPGAtlas - Patch Notes",
+      wide: true,
+      content: list,
+      buttons: [{ label: "Close", primary: true }],
+    });
+  }
   function openHelp() {
     modal({
       title: "RPGAtlas — Quick Help",
@@ -3460,6 +4190,8 @@ atlas.onMapLoad((map) => {
 <li><b>Tools</b>: Pen <kbd>B</kbd>, Eraser <kbd>E</kbd>, Rectangle <kbd>R</kbd>, Circle <kbd>O</kbd>, Fill <kbd>F</kbd>, Shadow Pen <kbd>S</kbd>. Right-click = pick tile from the map.</li>
 <li><b>Layers</b>: Auto <kbd>0</kbd> places terrain on Layer 1 and stacks decorations on Layers 2–3 automatically. <kbd>1</kbd>–<kbd>4</kbd> select Ground / Decor / Decor&nbsp;2 / Overhead directly (Overhead draws above the player).</li>
 <li><b>Shadow Pen</b>: left-click paints a half-tile shadow quadrant, right-click erases it.</li>
+<li><b>Height Mode</b> <kbd>H</kbd>: paint HD-2D elevation with Pen / Rectangle / Circle / Fill. Keys <kbd>0</kbd>–<kbd>9</kbd> set the value, right-click picks it up, Eraser clears. Raised tiles become 3D blocks when the map's HD-2D rendering is on.</li>
+<li><b>HD-2D</b>: enable per map in Game ▸ Map Properties (camera tilt, bloom, depth of field, fog, point lights). Game ▸ HD-2D Preview opens a live panel that follows your edits — drag it to pan. Lights are events named “light #rrggbb radius”.</li>
 <li><b>Selection</b>: Shift+drag selects an area. Cut <kbd>Ctrl+X</kbd> / Copy <kbd>Ctrl+C</kbd> / Paste <kbd>Ctrl+V</kbd>, then click to stamp (Esc cancels). Works for events too.</li>
 <li>Undo <kbd>Ctrl+Z</kbd> · Redo <kbd>Ctrl+Y</kbd> · Zoom <kbd>+</kbd>/<kbd>−</kbd>, <kbd>Ctrl</kbd>+wheel, <kbd>Ctrl+0</kbd> = 100%.</li>
 </ul>
@@ -3540,6 +4272,8 @@ atlas.onMapLoad((map) => {
     circle: svgIcon('<ellipse cx="10" cy="10" rx="6.6" ry="5.2"/>'),
     fill: svgIcon('<path d="M8.2 2.2v2.6"/><path d="M8.2 3.8l6.2 6.2L9 15.4 3.4 9.8z"/><path d="M16.2 12.8s1.7 2.1 1.7 3.3a1.7 1.7 0 1 1-3.4 0c0-1.2 1.7-3.3 1.7-3.3z"/>'),
     shadow: svgIcon('<rect x="3.5" y="3.5" width="13" height="13"/><path d="M16.5 3.5 3.5 16.5"/><path d="M16.5 3.5v13h-13z" fill="currentColor" stroke="none" opacity="0.45"/>'),
+    height: svgIcon('<path d="M3 16.5h4v-4h4v-4h4v-5"/><path d="M12.5 6 15 3.5 17.5 6"/>'),
+    hd2d: svgIcon('<path d="M2.5 14.5l5-8 4 6 2-3 4 5"/><path d="M2.5 17h15"/>'),
     zoomin: svgIcon('<circle cx="8.8" cy="8.8" r="5.6"/><path d="M13 13l4.3 4.3"/><path d="M6.3 8.8h5M8.8 6.3v5"/>'),
     zoomout: svgIcon('<circle cx="8.8" cy="8.8" r="5.6"/><path d="M13 13l4.3 4.3"/><path d="M6.3 8.8h5"/>'),
     zoom1: svgIcon('<circle cx="8.8" cy="8.8" r="5.6"/><path d="M13 13l4.3 4.3"/><text x="8.8" y="10.9" font-size="5.6" font-weight="bold" text-anchor="middle" fill="currentColor" stroke="none" font-family="monospace">1:1</text>'),
@@ -3558,7 +4292,13 @@ atlas.onMapLoad((map) => {
 
   // ============================ actions / menus / toolbar ============================
   const ACT = {};
-  function act(id, def) { ACT[id] = def; }
+  function act(id, def) {
+    def.labelKey = def.label;
+    def.tipKey = def.tip;
+    ACT[id] = def;
+  }
+  function actionLabel(action) { return t(action.labelKey); }
+  function actionTip(action) { return t(action.tipKey || action.labelKey); }
   function runAct(id) {
     const a = ACT[id];
     if (!a || (a.enabled && !a.enabled())) return;
@@ -3578,17 +4318,25 @@ atlas.onMapLoad((map) => {
     });
   } });
   act("open", { label: "Open Project (.json)…", icon: "open", tip: "Open / import a project file", run() { $("import-file").click(); } });
-  act("save", { label: "Save Project", icon: "save", key: "Ctrl+S", tip: "Save the project to this browser now", run() {
-    saveNow();
-    flashStatus("Project saved to this browser — use File ▸ Export for a backup file");
-  } });
+  act("save", { label: "Save Project", icon: "save", key: "Ctrl+S",
+    tip: host.isTauri ? "Save the project to its file (Ctrl+S)" : "Save the project to this browser now",
+    run() {
+      if (host.isTauri) { desktopSave(false); return; }
+      saveNow();
+      flashStatus("Project saved to this browser — use File ▸ Export for a backup file");
+    } });
   act("export", { label: "Export Project As File…", run: exportProject });
   act("build", { label: "Export Standalone Game…", run: openStandaloneExport });
   act("play", { label: "Playtest", icon: "play", tip: "Save and run the game", run() {
     saveNow();
-    window.open("play.html", "rpgatlas_play");
+    if (host.isTauri) {
+      host.openPlaytest().catch((e) => alert("Could not open play-test window: " + e.message));
+    } else {
+      window.open("play.html", "rpgatlas_play");
+    }
   } });
   act("mapprops", { label: "Map Properties…", run: openMapProps });
+  act("hdpreview", { label: "HD-2D Preview", icon: "hd2d", tip: "Toggle the live HD-2D preview panel (uses this map's HD-2D settings)", active: () => !!hdPanel, run: toggleHdPreview });
 
   act("undo", { label: "Undo", icon: "undo", key: "Ctrl+Z", enabled: () => undoStack.length > 0, run: undo });
   act("redo", { label: "Redo", icon: "redo", key: "Ctrl+Y", enabled: () => redoStack.length > 0, run: redo });
@@ -3600,6 +4348,9 @@ atlas.onMapLoad((map) => {
   act("mode-map", { label: "Map (Tile) Mode", icon: "map", tip: "Tile layer — draw the map", active: () => mode === "map", run: () => setMode("map") });
   act("mode-event", { label: "Event Mode", icon: "event", tip: "Event layer — place and edit events", active: () => mode === "event", run: () => setMode("event") });
   act("mode-pass", { label: "Passability Mode", icon: "pass", tip: "Passability — click tiles to cycle auto → ✕ block → ○ pass", active: () => mode === "pass", run: () => setMode("pass") });
+  act("mode-height", { label: "Height Mode (HD-2D)", icon: "height", key: "H",
+    tip: "Heights — paint HD-2D elevation with the Pen / Rectangle / Circle / Fill tools (keys 0–9 set the value)",
+    active: () => mode === "height", run: () => setMode("height") });
   act("mode-start", { label: "Set Start Position…", active: () => mode === "start", run() {
     setMode("start");
     flashStatus("Click the map to set the player start position");
@@ -3613,8 +4364,8 @@ atlas.onMapLoad((map) => {
   [["pen", "B"], ["erase", "E"], ["rect", "R"], ["circle", "O"], ["fill", "F"], ["shadow", "S"]].forEach(([t, key]) => {
     act("tool-" + t, { label: TOOL_LABELS[t], icon: t, key,
       tip: t === "shadow" ? "Shadow Pen — left paints a shadow quadrant, right erases" : TOOL_LABELS[t],
-      active: () => tool === t && mode === "map",
-      run() { if (mode !== "map") setMode("map"); setTool(t); } });
+      active: () => tool === t && (mode === "map" || mode === "height"),
+      run() { if (mode !== "map" && mode !== "height") setMode("map"); setTool(t); } });
   });
 
   act("zoomin", { label: "Zoom In", icon: "zoomin", key: "+", run: () => zoomStep(1) });
@@ -3628,6 +4379,8 @@ atlas.onMapLoad((map) => {
   act("search", { label: "Event Searcher…", icon: "search", tip: "Event Searcher — find text / switches / variables across maps", run: openEventSearcher });
   act("resources", { label: "Resource Manager…", icon: "resources", tip: "Resource Manager — browse and export generated assets", run: openResourceManager });
   act("chargen", { label: "Character Generator…", icon: "chargen", tip: "Character Generator — build original walking sprites", run: openCharGenerator });
+  act("language", { label: "Interface Language…", run: openLanguageSettings });
+  act("patchnotes", { label: "Patch Notes", run: openPatchNotes });
   act("help", { label: "Quick Help", run: openHelp });
   act("about", { label: "About RPGAtlas", run: openAbout });
 
@@ -3635,12 +4388,12 @@ atlas.onMapLoad((map) => {
     ["new", "open", "save"],
     ["cut", "copy", "paste"],
     ["undo", "redo"],
-    ["mode-map", "mode-event", "mode-pass"],
+    ["mode-map", "mode-event", "mode-pass", "mode-height"],
     ["layer-auto", "layer-ground", "layer-decor", "layer-decor2", "layer-over"],
     ["tool-pen", "tool-erase", "tool-rect", "tool-circle", "tool-fill", "tool-shadow"],
     ["zoomin", "zoomout", "zoom1"],
     ["db", "plugins", "audio", "search", "resources", "chargen"],
-    ["play"],
+    ["hdpreview", "play"],
   ];
   function buildToolbar() {
     const bar = $("toolbar");
@@ -3651,11 +4404,11 @@ atlas.onMapLoad((map) => {
         const a = ACT[id];
         const btn = h("button", {
           class: "tbtn" + (id === "play" ? " play-btn" : ""),
-          title: (a.tip || a.label) + (a.key ? "  (" + a.key + ")" : ""),
+          title: actionTip(a) + (a.key ? "  (" + a.key + ")" : ""),
           onclick: () => runAct(id),
         });
         btn.innerHTML = ICONS[a.icon] || "";
-        if (id === "play") btn.appendChild(document.createTextNode("Playtest"));
+        if (id === "play") btn.appendChild(document.createTextNode(actionLabel(a)));
         a.btn = btn;
         bar.appendChild(btn);
       }
@@ -3673,15 +4426,16 @@ atlas.onMapLoad((map) => {
   const MENUS = [
     { label: "File", items: ["new", "open", "save", "export", "build", "-", "play"] },
     { label: "Edit", items: ["undo", "redo", "-", "cut", "copy", "paste", "-", "deselect"] },
-    { label: "Mode", items: ["mode-map", "mode-event", "mode-pass", "-", "mode-start"] },
+    { label: "Mode", items: ["mode-map", "mode-event", "mode-pass", "mode-height", "-", "mode-start"] },
     { label: "Draw", items: ["tool-pen", "tool-erase", "tool-rect", "tool-circle", "tool-fill", "tool-shadow"] },
     { label: "Layer", items: ["layer-auto", "layer-ground", "layer-decor", "layer-decor2", "layer-over"] },
     { label: "Scale", items: ["zoomin", "zoomout", "zoom1", "zoomfit"] },
     { label: "Tools", items: ["db", "plugins", "audio", "search", "resources", "chargen"] },
-    { label: "Game", items: ["play", "build", "-", "mapprops", "mode-start"] },
-    { label: "Help", items: ["help", "about"] },
+    { label: "Game", items: ["play", "build", "-", "mapprops", "hdpreview", "mode-start"] },
+    { label: "Help", items: ["language", "-", "patchnotes", "help", "about"] },
   ];
   let menuOpenRef = null;
+  let menuDismissBound = false;
   function closeMenus() {
     if (!menuOpenRef) return;
     menuOpenRef.drop.remove();
@@ -3700,7 +4454,7 @@ atlas.onMapLoad((map) => {
         onclick() { if (dis) return; closeMenus(); a.run(); refreshToolbar(); },
       },
         h("span", { class: "mi-check" }, a.active && a.active() ? "✓" : ""),
-        h("span", { class: "mi-label" }, a.label),
+        h("span", { class: "mi-label" }, actionLabel(a)),
         a.key ? h("span", { class: "mi-key" }, a.key) : null));
     }
     const r = lab.getBoundingClientRect();
@@ -3714,7 +4468,7 @@ atlas.onMapLoad((map) => {
     const nav = $("menus");
     nav.innerHTML = "";
     for (const menu of MENUS) {
-      const lab = h("span", { class: "menu-label" }, menu.label);
+      const lab = h("span", { class: "menu-label" }, t(menu.label));
       lab.addEventListener("mousedown", (e) => {
         e.preventDefault(); e.stopPropagation();
         if (menuOpenRef && menuOpenRef.lab === lab) closeMenus();
@@ -3725,9 +4479,12 @@ atlas.onMapLoad((map) => {
       });
       nav.appendChild(lab);
     }
-    document.addEventListener("mousedown", (e) => {
-      if (menuOpenRef && !menuOpenRef.drop.contains(e.target)) closeMenus();
-    });
+    if (!menuDismissBound) {
+      document.addEventListener("mousedown", (e) => {
+        if (menuOpenRef && !menuOpenRef.drop.contains(e.target)) closeMenus();
+      });
+      menuDismissBound = true;
+    }
   }
 
   // ============================ modes / zoom ============================
@@ -3779,7 +4536,7 @@ atlas.onMapLoad((map) => {
     setStatus();
   }
 
-  window.addEventListener("DOMContentLoaded", async () => {
+  async function boot() {
     proj = loadStored() || DataDefaults.newProject();
     Assets.registerCustomChars(proj.customChars);
     await Promise.all([Assets.loadIconSet(), Assets.loadExternalAssets(proj)]);
@@ -3787,6 +4544,7 @@ atlas.onMapLoad((map) => {
     mapCtx = mapCanvas.getContext("2d");
     palCanvas = $("palette");
 
+    editorI18n.localizeStatic();
     buildMenubar();
     buildToolbar();
 
@@ -3849,6 +4607,11 @@ atlas.onMapLoad((map) => {
         }
         return;
       }
+      if (mode === "height" && /^Digit\d$/.test(e.code)) { // 0–9 set the painted elevation
+        heightVal = Number(e.code.slice(5));
+        setStatus();
+        return;
+      }
       switch (e.code) {
         case "KeyB": runAct("tool-pen"); break;
         case "KeyE": runAct("tool-erase"); break;
@@ -3856,6 +4619,7 @@ atlas.onMapLoad((map) => {
         case "KeyO": runAct("tool-circle"); break;
         case "KeyF": runAct("tool-fill"); break;
         case "KeyS": runAct("tool-shadow"); break;
+        case "KeyH": runAct("mode-height"); break;
         case "Digit0": runAct("layer-auto"); break;
         case "Digit1": runAct("layer-ground"); break;
         case "Digit2": runAct("layer-decor"); break;
@@ -3880,5 +4644,10 @@ atlas.onMapLoad((map) => {
     setMode("map");
     rebuildAll();
     saveNow();
-  });
+  }
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", boot, { once: true });
+  } else {
+    boot();
+  }
 })();

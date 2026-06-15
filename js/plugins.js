@@ -12,6 +12,8 @@
      atlas    — engine bridge: atlas.project, atlas.map, atlas.player, atlas.scene, atlas.Assets,
              atlas.Sfx, atlas.Music, atlas.SCREEN_W/H, atlas.TILE, atlas.fader, atlas.stage,
              atlas.onMapLoad(fn) atlas.onUpdate(fn) atlas.onRender(fn(ctx,info))
+                 (info.camX/camY and info.playerX/playerY are inter-tick interpolated;
+                  info.alpha is the 0..1 blend factor — anchor overlays to these, not atlas.player.rx)
              atlas.onMessageText(fn(html)->html) atlas.setTransition({out,in})
              atlas.registerCommand(type, fn(cmd, interp))
              atlas.startBattle(troopId, canEscape) -> Promise<"win"|"lose"|"escape">
@@ -86,6 +88,7 @@ const AtlasBuiltins = (() => {
   // ---- Atlas_TextCodes: colour + BBCode markup in message text ----
   function Atlas_TextCodes(atlas, game) {
     /* Atlas_TextCodes — rich text in Show Text / Show Choices.
+     *   \i[n]      inline icon from the system icon sheet (0..63)
      *   \c[n]      colour by palette index (\c[0] resets)
      *   \c[#f80]   colour by hex value
      *   [color=#f80]..[/color]  [b]..[/b]  [i]..[/i]  [size=20]..[/size]
@@ -106,6 +109,9 @@ const AtlasBuiltins = (() => {
       if (open) out += "</span>";
       return out;
     }
+    function iconCodes(s) {
+      return s.replace(/\\i\[(\d+)\]/gi, (m, n) => atlas.Assets.iconHtml(n, "msg-icon"));
+    }
     function bbcode(s) {
       return s
         .replace(/\[color=([^\]]+)\]/gi, (m, c) => '<span style="color:' + (/^#?[0-9a-f]{3,8}$/i.test(c) ? (c[0] === "#" ? c : "#" + c) : c) + '">')
@@ -116,8 +122,8 @@ const AtlasBuiltins = (() => {
         .replace(/\[\/size\]/gi, "</span>");
     }
     // Message text arrives already HTML-escaped, so the markup above is safe.
-    atlas.onMessageText((s) => bbcode(colorCodes(s)));
-    Atlas.register("Atlas_TextCodes", { colorCodes: colorCodes, bbcode: bbcode });
+    atlas.onMessageText((s) => iconCodes(bbcode(colorCodes(s))));
+    Atlas.register("Atlas_TextCodes", { iconCodes: iconCodes, colorCodes: colorCodes, bbcode: bbcode });
   }
 
   // ---- Atlas_Transitions: screen transition effects for Transfer Player ----
@@ -250,7 +256,7 @@ const AtlasBuiltins = (() => {
     { key: "Atlas_Core", fn: Atlas_Core, on: true,
       desc: "Shared library every other Atlas plugin builds on. Load first." },
     { key: "Atlas_TextCodes", fn: Atlas_TextCodes, on: true,
-      desc: "Colour codes (\\c[n]) and BBCode ([color] [b] [i] [size]) in messages." },
+      desc: "Inline icons (\\i[n]), colour codes (\\c[n]) and BBCode in messages." },
     { key: "Atlas_Transitions", fn: Atlas_Transitions, on: true,
       desc: "Transfer effects: fade, iris, curtain, slide." },
     { key: "Atlas_Weather", fn: Atlas_Weather, on: true,
@@ -276,3 +282,4 @@ const AtlasBuiltins = (() => {
 
   return { list: LIST, make, seed, missingFor, bodyOf, specByKey };
 })();
+if (typeof window !== "undefined") window.AtlasBuiltins = AtlasBuiltins;

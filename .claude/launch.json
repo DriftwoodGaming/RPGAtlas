@@ -4,8 +4,8 @@
     {
       "name": "rpgatlas-editor",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "http-server", "-p", "8777", "-c-1"],
-      "port": 8777
+      "runtimeArgs": ["--yes", "http-server", "-p", "8080", "-c-1"],
+      "port": 8080
     }
   ]
 }

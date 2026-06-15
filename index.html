@@ -5,7 +5,7 @@
 <title>RPGAtlas — Editor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="img/system/rpgatlas-logo.svg">
-<link rel="stylesheet" href="css/editor.css?v=12">
+<link rel="stylesheet" href="css/editor.css?v=17">
 </head>
 <body>
   <header id="menubar">
@@ -18,18 +18,18 @@
   <div id="main">
     <aside id="sidebar">
       <section>
-        <div class="side-head">Maps
+        <div class="side-head"><span data-i18n="Maps">Maps</span>
           <span class="side-tools">
-            <button id="map-add" class="mini" title="New map">＋</button>
-            <button id="map-del" class="mini" title="Delete map">−</button>
-            <button id="map-gen" class="mini" title="Generate random map">🎲</button>
+            <button id="map-add" class="mini" title="New map" data-i18n-title="New map">＋</button>
+            <button id="map-del" class="mini" title="Delete map" data-i18n-title="Delete map">−</button>
+            <button id="map-gen" class="mini" title="Generate random map" data-i18n-title="Generate random map">🎲</button>
           </span>
         </div>
         <ul id="maplist"></ul>
       </section>
 
       <section id="palette-section">
-        <div class="side-head">Tiles <span class="dim">(right-click map = pick)</span></div>
+        <div class="side-head"><span data-i18n="Tiles">Tiles</span> <span class="dim" data-i18n="(right-click map = pick)">(right-click map = pick)</span></div>
         <div id="palettewrap"><canvas id="palette"></canvas></div>
       </section>
     </aside>
@@ -40,18 +40,24 @@
   </div>
 
   <footer id="status">
-    <span id="status-text">Ready</span>
+    <span id="status-text" data-i18n="Ready">Ready</span>
     <span class="spacer"></span>
-    <span id="zoom-ind" title="Zoom">75%</span>
+    <span id="zoom-ind" title="Zoom" data-i18n-title="Zoom">75%</span>
     <span id="save-ind">✓ saved</span>
   </footer>
   <input id="import-file" type="file" accept=".json,application/json" hidden>
   <div id="modal-root"></div>
 
-  <script src="js/assets.js?v=9"></script>
-  <script src="js/sfx.js?v=7"></script>
-  <script src="js/plugins.js?v=7"></script>
-  <script src="js/data.js?v=12"></script>
-  <script src="js/editor.js?v=12"></script>
+  <script src="js/vendor/pixi.min.js?v=8.19.0"></script>
+  <script src="js/assets.js?v=10"></script>
+  <script src="js/renderer.js?v=1"></script>
+  <script src="js/runtime/messages.js?v=1"></script>
+  <script src="js/sfx.js?v=8"></script>
+  <script src="js/plugins.js?v=8"></script>
+  <script src="js/data.js?v=15"></script>
+  <script>
+    window.RPGAtlasDeps = { Assets, AtlasBuiltins: window.AtlasBuiltins, DataDefaults: window.DataDefaults, Renderer, GLRender: Renderer, Music: window.Music, RA: window.RA, Sfx: window.Sfx };
+  </script>
+  <script type="module" src="js/editor.js?v=25"></script>
 </body>
 </html>

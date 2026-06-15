@@ -13,22 +13,34 @@
 </p>
 
 **RPGAtlas** is a complete, original, **free and open source** RPG making engine in the spirit of
-classic 2D RPG makers. No copyrighted assets, no dependencies, no build step — everything (code,
+classic 2D RPG makers. No copyrighted assets, no build step — everything (code,
 tiles, sprites, monsters, sound effects, even the music) is generated procedurally in plain JavaScript.
 
 ## Quick start
 
-Because browsers restrict `localStorage`/file access on `file://` pages, serve the folder and open it:
+**Windows — just double-click `RPGAtlas.exe`.** It starts a tiny local server, opens the editor in your
+browser, and needs no Python, Node, install, or admin rights. Keep the little black window open while you
+work; close it to stop. (Windows may show an "unknown publisher" warning the first time — the launcher is
+unsigned; choose *More info → Run anyway*.)
+
+Want it on your Desktop? Double-click **`Create Desktop Shortcut.cmd`** once and an RPGAtlas icon appears
+on your Desktop — launch from there any time.
+
+Why a launcher at all? Browsers block `localStorage`/file access on `file://` pages, so the engine has to be
+served over `http://`. The `.exe` does exactly that for you.
+
+**Other platforms (or no `.exe`)** — serve the folder yourself and open it:
 
 ```
 cd RPGAtlas
 python -m http.server 8080
-or 
-python -m http.server 8777
 ```
 
-Then open **http://localhost:8080/** or **http://localhost:8777/**— that's the editor. Hit **▶ Playtest** to play your game
+Then open **http://localhost:8080/** — that's the editor. Either way, hit **▶ Playtest** to play your game
 (or open `play.html` directly to play the bundled sample, *Atlas Quest*).
+
+> Building the launcher from source: run `tools/build-engine-launcher.ps1` (uses the .NET Framework C#
+> compiler already present on Windows). This produces `RPGAtlas.exe` in the project root.
 
 ## The editor (`index.html`)
 
@@ -40,8 +52,10 @@ plus an icon toolbar with everything one click away.
 | **Map mode** | Paint tiles on 4 layers (Ground / Decor / Decor 2 / Overhead) with Pen, Eraser, Rectangle, Circle, Fill and Shadow Pen tools — or use the **Auto layer**, which sorts terrain vs. decorations for you |
 | **Event mode** | Double-click a cell to create/edit an event; drag events to move them |
 | **Passability mode** | See ○/✕ for every tile and click to override (auto → force block → force pass) |
-| **Cut / Copy / Paste** | Shift+drag selects a tile region (all layers + shadows); events copy/paste too |
-| **Undo / Redo** | Full-map history for tiles, shadows, passability and events |
+| **Height mode (HD-2D)** | Paint per-tile elevation with the same Pen/Rectangle/Circle/Fill tools (keys 0–9 set the value); raised tiles extrude into 3D blocks in HD-2D rendering |
+| **HD-2D rendering** | Per-map opt-in WebGL2 mode: tilted perspective camera, extruded terrain, billboard sprites, bloom, depth of field, distance fog and point lights (events named `light #rrggbb radius`); live preview panel in the editor; falls back to the classic 2D renderer automatically |
+| **Cut / Copy / Paste** | Shift+drag selects a tile region (all layers + shadows + heights); events copy/paste too |
+| **Undo / Redo** | Full-map history for tiles, shadows, heights, passability and events |
 | **Database** | Actors, Classes, Skills, Items, Weapons, Armors, Enemies, Troops, States, Switches, Variables, System |
 | **System tab** | Game screen width/height, UI area size, screen scale, message & menu fonts, font size, window opacity, remappable system sounds & music themes, side-view or front-view battles, start-transparent player |
 | **States** | Poison / stun / regen-style battle effects with per-turn HP %, act restriction, duration and battle-end removal; skills can inflict or cure them |
@@ -50,7 +64,7 @@ plus an icon toolbar with everything one click away.
 | **Event Searcher** | Find message text, event names, or switch/variable usage across all maps |
 | **Resource Manager** | Browse every generated tile/character/battler; export PNGs (incl. full sprite sheets) |
 | **Character Generator** | Compose original walking sprites (skin/hair/outfit/style) usable everywhere |
-| **Map Properties** | Rename/resize maps, set music, configure random encounters |
+| **Map Properties** | Rename/resize maps, set music, configure random encounters, enable HD-2D (camera tilt, bloom, depth of field, fog color, lights, ambient) |
 | **Open / Export** | Back up the project as `.json` or export a self-contained Windows `.exe` / playable `.html` |
 
 ## Custom assets
@@ -94,14 +108,14 @@ Triggers: Action button, Player touch, Autorun, Parallel. Commands include:
 
 Show Text · Show Choices · Conditional Branch · Control Switch / Self-Switch / Variable ·
 Transfer Player · Change Gold / Items / Party · Heal · Start Battle · Open Shop · Set Move Route ·
-Change Transparency · Wait · Play Sound · Change Music · Erase Event · Save Screen · Game Over ·
+Camera Zoom · Change Transparency · Wait · Play Sound · Change Music · Erase Event · Save Screen · Game Over ·
 Return to Title · Script (JS)
 
 ## The player (`play.html`)
 
 - Grid movement with smooth scrolling camera (Arrows/WASD, **Shift** to dash)
 - **Z/Enter** confirm/interact · **X/Esc** menu/cancel — mouse works everywhere too
-- Message windows with typewriter text (`\v[n]`, `\n[id]`, `\g` codes), choices
+- Message windows with typewriter text, optional speaker faces, inline `\i[n]` icons, and choices
 - Full pause menu: Items, Skills, Equip, Status, Save/Load (3 slots), Return to Title
 - Turn-based battles in **side view** (animated party sprites) or classic front view:
   Attack / Skills / Items / Guard / Escape, agility turn order, multi-target spells,
@@ -121,9 +135,20 @@ engine bridge (`atlas.onMapLoad`, `atlas.onRender`, `atlas.onMessageText`, `atla
 every new project:
 
 - **Atlas_Core** — shared plugin registry and helpers (colors, easing, tweens, RNG)
-- **Atlas_TextCodes** — `\c[n]` color codes and BBCode (`[b]`, `[i]`, `[color]`, `[size]`) in messages
+- **Atlas_TextCodes** — inline icons with `\i[n]`, `\c[n]` color codes, and BBCode (`[b]`, `[i]`, `[color]`, `[size]`) in messages
 - **Atlas_Transitions** — transfer effects: fade, iris, curtain, slide (`Atlas.transition = 'iris'`)
 - **Atlas_Weather** — rain, storm, snow and fog overlays, per-map or scripted (`Atlas.weather('rain', 6)`)
+
+## Code structure
+
+The editor and player use native JavaScript module entry points. Cohesive systems live
+under focused folders instead of accumulating in the entry files:
+
+- `js/editor/project-io.js` - project persistence and standalone build/export
+- `js/runtime/messages.js` - message conversion, rich text, typewriter behavior, faces and icons
+
+Shared engine services such as `Assets`, `RA`, and the plugin bridge remain stable globals
+for compatibility while additional systems are migrated incrementally.
 
 ## Publishing a game
 
@@ -166,8 +191,10 @@ automatically — autosaves, save slots, and bundled plugins are all carried for
 index.html        editor shell          js/assets.js   procedural tiles/sprites/battlers
 play.html         player shell          js/sfx.js      procedural SFX + generative music
 css/editor.css    editor theme          js/data.js     schema, defaults, sample game
-css/play.css      game windows          js/engine.js   game runtime
-                                        js/editor.js   editor logic
+css/play.css      game windows          js/engine.js              player module entry
+                                        js/runtime/messages.js    message subsystem
+                                        js/editor.js              editor module entry
+                                        js/editor/project-io.js   persistence and export
 ```
 
 ## License

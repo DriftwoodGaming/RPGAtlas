@@ -18,7 +18,8 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
   font-family: var(--font-text);
   font-size: var(--font-size);
 }
-#gamecanvas { position: absolute; inset: 0; image-rendering: pixelated; }
+#pixicanvas { position: absolute; inset: 0; z-index: 0; image-rendering: pixelated; }
+#gamecanvas { position: absolute; inset: 0; z-index: 1; image-rendering: pixelated; }
 .uilayer { position: absolute; inset: 0; pointer-events: none; }
 .uilayer > * { pointer-events: auto; }
 .fader {
@@ -73,6 +74,20 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
   font-weight: 700; color: #ffd86a; font-size: 14px;
 }
 .msg-text { white-space: pre-wrap; font-family: var(--font-text, inherit); font-size: calc(var(--font-size, 15px) + 2px); }
+.msgwin.has-face .msg-text { margin-left: 110px; }
+.msg-face {
+  position: absolute; left: 14px; top: 14px; width: 94px; height: 94px;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+  border: 1px solid rgba(200,212,240,0.55); border-radius: 8px;
+  background: rgba(5,8,18,0.42);
+}
+.msg-face canvas {
+  width: 94px; height: 94px; image-rendering: pixelated;
+}
+.msg-icon {
+  transform: scale(0.75); margin: -7px -2px -7px -4px;
+  vertical-align: middle;
+}
 .msgwin.msg-done::after {
   content: "▼"; position: absolute; bottom: 4px; left: 50%;
   color: #c8d4f0; font-size: 12px; animation: bob 0.8s infinite;
