@@ -1918,7 +1918,7 @@ const editorI18n = createEditorI18n({
             sub.appendChild(field("Self-Switch", sel(w, "key", [{ v: "A", l: "A" }, { v: "B", l: "B" }, { v: "C", l: "C" }, { v: "D", l: "D" }])));
           } else if (w.kind === "quest") {
             sub.appendChild(row(field("Quest", sel(w, "questId", dbOpts(proj.quests, "(none)"))),
-              field("Status", sel(w, "status", stringSelOpts(["inactive", "active", "completed", "failed"])))));
+              field("Status", sel(w, "status", stringSelOpts(["inactive", "active", "completed", "failed", "abandoned"])))));
           } else if (w.kind === "item") {
             const kindSel = sel(w, "itemKind", [{ v: "item", l: "Item" }, { v: "weapon", l: "Weapon" }, { v: "armor", l: "Armor" }], redrawItem);
             sub.appendChild(row(field("Kind", kindSel), field("Entry", h("span", { id: "ifitem" }))));
@@ -2800,7 +2800,7 @@ const editorI18n = createEditorI18n({
           field("Variable ≥", sel(pg.cond, "varId", varOpts())), field("…value", nIn(pg.cond, "varVal")),
           field("Self-Switch ON", sel(pg.cond, "selfSw", [{ v: "", l: "(none)" }, { v: "A", l: "A" }, { v: "B", l: "B" }, { v: "C", l: "C" }, { v: "D", l: "D" }]))),
         row(field("Quest", sel(pg.cond, "questId", dbOpts(proj.quests, "(none)"))),
-          field("Status", sel(pg.cond, "questStatus", stringSelOpts(["inactive", "active", "completed", "failed"])))),
+          field("Status", sel(pg.cond, "questStatus", stringSelOpts(["inactive", "active", "completed", "failed", "abandoned"])))),
       );
       const objectiveRow = h("div", { class: "frow" });
       function redrawObjectiveCond() {
@@ -3456,7 +3456,7 @@ const editorI18n = createEditorI18n({
                 if (rq.kind === "quest") {
                   const questOpts = [{ v: 0, l: "(none)" }].concat(proj.quests.filter((q) => q !== e).map((q) => ({ v: q.id, l: q.id + ": " + (q.name || "Quest") })));
                   rowEl.appendChild(sel(rq, "questId", questOpts));
-                  rowEl.appendChild(sel(rq, "status", stringSelOpts(["active", "completed", "failed"])));
+                  rowEl.appendChild(sel(rq, "status", stringSelOpts(["active", "completed", "failed", "abandoned"])));
                 } else if (rq.kind === "switch") {
                   rowEl.appendChild(sel(rq, "id", switchOpts()));
                   rowEl.appendChild(sel(rq, "val", [{ v: "true", l: "ON" }, { v: "false", l: "OFF" }]));

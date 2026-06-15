@@ -5,6 +5,27 @@
 export const PATCH_NOTES = [
    {
      date: "June 15, 2026",
+     title: "Abandoned Quest Tracking",
+     summary: "The Journal now separates abandoned quests from failed ones so players can review dropped quests independently.",
+     items: [
+       "Added an Abandoned Quests tab to the Journal.",
+       "Player-abandoned quests now use their own abandoned state instead of being mixed into Failed Quests.",
+       "Quest status pickers now include abandoned for page conditions and quest prerequisites.",
+     ],
+   },
+   {
+     date: "June 15, 2026",
+     title: "Split-Panel Quest Journal",
+     summary: "The in-game Journal now opens as a full-size split panel with quest browsing on the left and live details on the right.",
+     items: [
+       "Replaced the old Journal popup flow with a dedicated full-screen-style panel.",
+       "Browse Active, Completed, and Failed quests from tabs across the top of the Journal.",
+       "See the selected quest's title, description, objectives, and failure outcome in a persistent detail pane.",
+       "Opening the Journal now hides the party panel so the quest screen has room to breathe.",
+     ],
+   },
+   {
+     date: "June 15, 2026",
      title: "Built-In Quest System",
      summary: "Added a built-in quest framework with editor tools, runtime tracking, objective progress, branching outcomes, and an in-game Journal.",
      items: [
