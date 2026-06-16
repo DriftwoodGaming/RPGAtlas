@@ -118,6 +118,17 @@ const RA = {
     return o;
   },
   defaultMusic() { return { title: "title", battle: "battle" }; },
+  defaultActionCombat() {
+    return {
+      enabled: false,
+      enemyId: 0,
+      hp: 0,
+      touchDamage: 0,
+      knockbackTiles: 1,
+      invulnFrames: 24,
+      defeatSelfSwitch: "",
+    };
+  },
   defaultStates() {
     return [
       { id: 1, name: "Poison", icon: 12, color: "#a050d8", restrict: "none", hpTurn: -12, minTurns: 3, maxTurns: 5, removeAtEnd: true },
@@ -236,6 +247,20 @@ const RA = {
       if (!m.shadows || m.shadows.length !== n) m.shadows = new Array(n).fill(0);
       if (!m.passOv || m.passOv.length !== n) m.passOv = new Array(n).fill(0);
       if (!m.heights || m.heights.length !== n) m.heights = new Array(n).fill(0);
+      for (const ev of m.events || []) {
+        for (const page of ev.pages || []) {
+          page.combat = Object.assign(RA.defaultActionCombat(), page.combat || {});
+          page.combat.enabled = !!page.combat.enabled;
+          page.combat.enemyId = Number(page.combat.enemyId) || 0;
+          page.combat.hp = Math.max(0, Number(page.combat.hp) || 0);
+          page.combat.touchDamage = Math.max(0, Number(page.combat.touchDamage) || 0);
+          page.combat.knockbackTiles = Math.max(0, Number(page.combat.knockbackTiles) || 0);
+          page.combat.invulnFrames = Math.max(0, Number(page.combat.invulnFrames) || 0);
+          if (!["", "A", "B", "C", "D"].includes(page.combat.defeatSelfSwitch)) {
+            page.combat.defeatSelfSwitch = "";
+          }
+        }
+      }
     }
     // Pre-rebrand projects carry Drift_* built-ins: rename them to Atlas_* and
     // refresh their engine-maintained code (Atlas_Core keeps a window.Drift
@@ -296,6 +321,7 @@ const DataDefaults = (() => {
       },
       charset: "", dir: 0,
       moveType: "fixed", trigger: "action", priority: "same", through: false,
+      combat: RA.defaultActionCombat(),
       commands: [],
     };
   }

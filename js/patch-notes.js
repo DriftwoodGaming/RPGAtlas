@@ -4,6 +4,17 @@
 
 export const PATCH_NOTES = [
    {
+     date: "June 16, 2026",
+     title: "Map Action Combat",
+     summary: "Events can now become Zelda-style map enemies that take sword damage, flash, knock back, and update kill quests on defeat.",
+     items: [
+       "Added an Action Combat section to event pages for enabling map enemies, choosing an enemy, and tuning HP, touch damage, knockback, invulnerability frames, and defeat self-switches.",
+       "Press J during map play to swing the player's sword with a directional hit collider.",
+       "Sword hits damage each enemy once per swing, show slash and damage feedback, and apply tile knockback when space is available.",
+       "Defeated action-combat enemies erase or flip their configured self-switch and count toward matching Kill quest objectives.",
+     ],
+   },
+   {
      date: "June 15, 2026",
      title: "Abandoned Quest Tracking",
      summary: "The Journal now separates abandoned quests from failed ones so players can review dropped quests independently.",

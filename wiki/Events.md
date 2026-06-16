@@ -57,6 +57,23 @@ A is ON. A drawbridge lowers once switch `12` is ON. A boss vanishes once `BossD
 
 ---
 
+## Action Combat events
+
+Event pages can also act as real-time map enemies. In the page's **Action Combat** section:
+
+- Turn **Enabled** on.
+- Pick an **Enemy** from the Database. HP 0 uses that enemy's database HP.
+- Set optional **Touch damage**, **Knockback**, and **Invuln frames**.
+- Choose a **Defeat switch** if you want the event to change pages when defeated; otherwise it erases
+  for the current play session.
+
+During play, press **J** on the map to swing the sword. A swing checks the short-lived collider in
+front of the player, damages each enemy once, flashes the target, and applies knockback when the next
+tile is open. Defeated action-combat enemies also count for Kill quest objectives that target the
+same enemy.
+
+---
+
 ## Command reference
 
 Add commands with **+** inside a page. Each picker page holds up to 24 command buttons; use the

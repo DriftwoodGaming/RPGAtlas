@@ -76,7 +76,8 @@ const _createMessageSystem = window.createMessageSystem;
   // ============================ input / UI stack ============================
   const UIStack = [];
   let okTriggered = false,
-    cancelTriggered = false;
+    cancelTriggered = false,
+    attackTriggered = false;
   const held = {};
   function keyName(e) {
     switch (e.code) {
@@ -102,6 +103,8 @@ const _createMessageSystem = window.createMessageSystem;
       case "ShiftLeft":
       case "ShiftRight":
         return "dash";
+      case "KeyJ":
+        return "attack";
       default:
         return null;
     }
@@ -117,6 +120,7 @@ const _createMessageSystem = window.createMessageSystem;
     } else {
       if (k === "ok") okTriggered = true;
       if (k === "cancel") cancelTriggered = true;
+      if (k === "attack") attackTriggered = true;
     }
   });
   document.addEventListener("keyup", (e) => {
@@ -468,6 +472,7 @@ const _createMessageSystem = window.createMessageSystem;
       dir: 0, frame: 1, animT: 0, moving: false, tx: 0, ty: 0,
       page: null, pageIndex: -1, erased: false, locked: false,
       moveT: 30 + rnd(90), route: null, speed: 0.05, charsetIdx: -1, kind: "",
+      combat: null,
       light: parseLight(evData.name),
     };
     refreshPage(rt);
@@ -494,6 +499,7 @@ const _createMessageSystem = window.createMessageSystem;
       rt.charsetIdx = -1;
       rt.kind = "";
     }
+    refreshEventCombat(rt);
   }
   function refreshAllPages() {
     evRTs.forEach((rt) => {
@@ -547,6 +553,7 @@ const _createMessageSystem = window.createMessageSystem;
     if (!map) throw new Error("Map " + mapId + " not found");
     G.mapId = mapId;
     G.encSteps = 0;
+    mapFloatTexts.length = 0;
     evRTs = map.events.map(makeEvRT);
     parallels.clear();
     await prerenderMap();
@@ -593,6 +600,228 @@ const _createMessageSystem = window.createMessageSystem;
     return dy > 0 ? 0 : 3;
   }
   const DIRD = { 0: [0, 1], 1: [-1, 0], 2: [1, 0], 3: [0, -1] };
+  const mapFloatTexts = [];
+
+  function combatConfig(page) {
+    const cfg = page && page.combat;
+    return cfg && cfg.enabled ? cfg : null;
+  }
+  function combatEnemy(cfg) {
+    return RA.byId(proj.enemies || [], Number(cfg && cfg.enemyId) || 0);
+  }
+  function combatMaxHp(cfg, enemy) {
+    return Math.max(1, Number(cfg && cfg.hp) || Number(enemy && enemy.stats && enemy.stats.mhp) || 1);
+  }
+  function refreshEventCombat(rt) {
+    const cfg = combatConfig(rt.page);
+    const enemy = cfg && combatEnemy(cfg);
+    if (!cfg || !enemy) {
+      rt.combat = null;
+      return;
+    }
+    if (rt.combat && rt.combat.pageIndex === rt.pageIndex && rt.combat.enemyId === enemy.id) return;
+    rt.combat = {
+      pageIndex: rt.pageIndex,
+      enemyId: enemy.id,
+      hp: combatMaxHp(cfg, enemy),
+      invuln: 0,
+      hurtFlash: 0,
+      stagger: 0,
+      knockback: false,
+      dead: false,
+    };
+  }
+  function combatReady(rt) {
+    return !!(rt && rt.page && rt.combat && !rt.combat.dead && combatConfig(rt.page));
+  }
+  function rectsOverlap(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+  function entityHurtbox(ent) {
+    return { x: ent.rx + 0.12, y: ent.ry + 0.10, w: 0.76, h: 0.86 };
+  }
+  function swordHitboxAt(x, y, dir) {
+    if (dir === 3) return { x: x + 0.10, y: y - 0.48, w: 0.80, h: 0.62 };
+    if (dir === 1) return { x: x - 0.48, y: y + 0.14, w: 0.62, h: 0.78 };
+    if (dir === 2) return { x: x + 0.86, y: y + 0.14, w: 0.62, h: 0.78 };
+    return { x: x + 0.10, y: y + 0.86, w: 0.80, h: 0.62 };
+  }
+  function attackFrame(attack) {
+    return attack ? attack.total - attack.framesLeft : 999;
+  }
+  function attackIsActive(attack) {
+    const frame = attackFrame(attack);
+    return !!attack && frame >= 3 && frame <= 11;
+  }
+  function addMapFloatText(text, x, y, color) {
+    mapFloatTexts.push({
+      text,
+      x,
+      y,
+      color: color || "#ffffff",
+      life: 46,
+      total: 46,
+    });
+  }
+  function startPlayerAttack() {
+    const p = G.player;
+    if (!p || p.attack || p.moving) return false;
+    p.attack = { total: 18, framesLeft: 18, dir: p.dir, hitIds: new Set() };
+    p.animT = (p.animT || 0) + 1;
+    sysSe("miss");
+    return true;
+  }
+  function mapAttackDamage(enemy) {
+    const a = G.party[0];
+    const atk = a ? param(a, "atk") : 10;
+    const def = Number(enemy && enemy.stats && enemy.stats.def) || 0;
+    return Math.max(1, Math.floor(atk * 1.35 - def * 0.6));
+  }
+  function applyEnemyKnockback(rt, dir, tiles) {
+    if (!rt || rt.moving || tiles <= 0) return;
+    const [dx, dy] = DIRD[dir] || [0, 0];
+    const nx = rt.x + dx;
+    const ny = rt.y + dy;
+    if (!canEntityPass(rt, nx, ny)) return;
+    rt.combat.knockback = true;
+    rt.combat.stagger = Math.max(rt.combat.stagger || 0, 14);
+    startMove(rt, dir);
+  }
+  function defeatMapEnemy(rt, cfg) {
+    if (!combatReady(rt)) return;
+    rt.combat.dead = true;
+    rt.combat.hp = 0;
+    onEnemyKilled(rt.combat.enemyId);
+    addMapFloatText("DEFEATED", rt.rx + 0.5, rt.ry - 0.1, "#f6e27a");
+    sysSe("crit");
+    const sw = cfg.defeatSelfSwitch;
+    if (sw) {
+      G.selfSw[G.mapId + ":" + rt.ev.id + ":" + sw] = true;
+      refreshAllPages();
+    } else {
+      rt.erased = true;
+    }
+  }
+  function damageMapEnemy(rt) {
+    if (!combatReady(rt) || rt.combat.invuln > 0) return;
+    const cfg = combatConfig(rt.page);
+    const enemy = combatEnemy(cfg);
+    const dmg = mapAttackDamage(enemy);
+    rt.combat.hp = Math.max(0, rt.combat.hp - dmg);
+    rt.combat.invuln = Math.max(1, Number(cfg.invulnFrames) || 0);
+    rt.combat.hurtFlash = 12;
+    rt.combat.stagger = Math.max(rt.combat.stagger || 0, 10);
+    addMapFloatText("-" + dmg, rt.rx + 0.5, rt.ry - 0.15, "#ffd86a");
+    sysSe("hit");
+    if (rt.combat.hp <= 0) {
+      defeatMapEnemy(rt, cfg);
+    } else {
+      applyEnemyKnockback(rt, G.player.attack.dir, Number(cfg.knockbackTiles) || 0);
+    }
+  }
+  function damagePlayerFromEnemy(rt) {
+    const p = G.player;
+    const cfg = combatConfig(rt.page);
+    const dmg = Number(cfg && cfg.touchDamage) || 0;
+    const a = G.party[0];
+    if (!p || !a || dmg <= 0 || (p.hurtInvuln || 0) > 0) return;
+    if (!rectsOverlap(entityHurtbox(p), entityHurtbox(rt))) return;
+    a.hp = Math.max(0, a.hp - dmg);
+    p.hurtInvuln = 60;
+    addMapFloatText("-" + dmg, p.rx + 0.5, p.ry - 0.2, "#ff8a8a");
+    sysSe("hit");
+    shakePower = 3;
+    shakeSpeed = 6;
+    shakeTimer = 12;
+    shakeDuration = 12;
+    if (a.hp <= 0) {
+      (async () => { await gameOver(); })();
+    }
+  }
+  function updateMapCombat() {
+    const p = G.player;
+    if (p && p.hurtInvuln > 0) p.hurtInvuln--;
+    if (p && p.attack) {
+      if (attackIsActive(p.attack)) {
+        const hitbox = swordHitboxAt(p.rx, p.ry, p.attack.dir);
+        for (const rt of evRTs) {
+          if (!combatReady(rt) || p.attack.hitIds.has(rt.ev.id)) continue;
+          if (!rectsOverlap(hitbox, entityHurtbox(rt))) continue;
+          p.attack.hitIds.add(rt.ev.id);
+          damageMapEnemy(rt);
+        }
+      }
+      p.attack.framesLeft--;
+      if (p.attack.framesLeft <= 0) p.attack = null;
+    }
+    for (const rt of evRTs) {
+      if (!combatReady(rt)) continue;
+      if (rt.combat.invuln > 0) rt.combat.invuln--;
+      if (rt.combat.hurtFlash > 0) rt.combat.hurtFlash--;
+      if (rt.combat.stagger > 0) rt.combat.stagger--;
+      damagePlayerFromEnemy(rt);
+    }
+    for (let i = mapFloatTexts.length - 1; i >= 0; i--) {
+      mapFloatTexts[i].life--;
+      if (mapFloatTexts[i].life <= 0) mapFloatTexts.splice(i, 1);
+    }
+  }
+  function combatStaggered(rt) {
+    return !!(rt && rt.combat && rt.combat.stagger > 0);
+  }
+  function drawSwordSlash(g, hitbox, dir) {
+    const x = hitbox.x * TILE;
+    const y = hitbox.y * TILE;
+    const w = hitbox.w * TILE;
+    const h = hitbox.h * TILE;
+    g.save();
+    g.globalAlpha = 0.85;
+    g.strokeStyle = "#e8f6ff";
+    g.lineWidth = 5;
+    g.lineCap = "round";
+    g.beginPath();
+    if (dir === 3) {
+      g.arc(x + w / 2, y + h, w * 0.55, Math.PI * 1.12, Math.PI * 1.88);
+    } else if (dir === 0) {
+      g.arc(x + w / 2, y, w * 0.55, Math.PI * 0.12, Math.PI * 0.88);
+    } else if (dir === 1) {
+      g.arc(x + w, y + h / 2, h * 0.55, Math.PI * 0.62, Math.PI * 1.38);
+    } else {
+      g.arc(x, y + h / 2, h * 0.55, Math.PI * -0.38, Math.PI * 0.38);
+    }
+    g.stroke();
+    g.restore();
+  }
+  function drawMapCombatOverlay(g, camX, camY, shakeX, shakeY, alpha, playerX, playerY) {
+    g.save();
+    g.translate(Math.round(shakeX), Math.round(shakeY));
+    g.scale(cameraZoom, cameraZoom);
+    g.translate(-camX, -camY);
+    const p = G.player;
+    if (p && p.attack && attackIsActive(p.attack)) {
+      drawSwordSlash(g, swordHitboxAt(playerX, playerY, p.attack.dir), p.attack.dir);
+    }
+    for (const rt of evRTs) {
+      if (!combatReady(rt) || rt.combat.hurtFlash <= 0) continue;
+      const rx = (rt.prx == null ? rt.rx : rt.prx + (rt.rx - rt.prx) * alpha) * TILE;
+      const ry = (rt.pry == null ? rt.ry : rt.pry + (rt.ry - rt.pry) * alpha) * TILE;
+      g.fillStyle = "rgba(255,255,255,0.36)";
+      g.fillRect(rx + 6, ry - 6, TILE - 12, TILE);
+    }
+    g.font = "700 14px " + (proj.system.fontMenu || "sans-serif");
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    for (const ft of mapFloatTexts) {
+      const t = ft.life / ft.total;
+      g.globalAlpha = clamp(t * 1.4, 0, 1);
+      g.fillStyle = "rgba(0,0,0,0.75)";
+      g.fillText(ft.text, ft.x * TILE + 1, (ft.y - (1 - t) * 0.55) * TILE + 1);
+      g.fillStyle = ft.color;
+      g.fillText(ft.text, ft.x * TILE, (ft.y - (1 - t) * 0.55) * TILE);
+    }
+    g.restore();
+    g.globalAlpha = 1;
+  }
 
   function updateEntityMotion(ent, speed) {
     if (!ent.moving) return false;
@@ -1154,7 +1383,10 @@ const _createMessageSystem = window.createMessageSystem;
     waiters.forEach((r) => r());
     pumpTickTimers(); // advance tick-accurate event timers (wait / camera-zoom)
     if (scene === "map") Plugins.fire("update");
-    if (scene !== "map" || menuOpen) return;
+    if (scene !== "map" || menuOpen) {
+      attackTriggered = false;
+      return;
+    }
 
     const p = G.player;
     // snapshot start-of-tick positions so render() can interpolate between ticks
@@ -1171,7 +1403,9 @@ const _createMessageSystem = window.createMessageSystem;
       updateRoute(p);
     } else if (!p.moving && activePlayerControl()) {
       const d = held.down ? 0 : held.left ? 1 : held.right ? 2 : held.up ? 3 : -1;
-      if (d >= 0) {
+      if (attackTriggered) {
+        startPlayerAttack();
+      } else if (d >= 0) {
         p.dir = d;
         const [dx, dy] = DIRD[d];
         const nx = p.x + dx,
@@ -1197,7 +1431,9 @@ const _createMessageSystem = window.createMessageSystem;
     }
     okTriggered = false;
     cancelTriggered = false;
+    attackTriggered = false;
     if (p.moving) p.animT = (p.animT || 0) + 0; // animT advanced in motion fn
+    updateMapCombat();
 
     // events
     for (const rt of evRTs) {
@@ -1205,11 +1441,12 @@ const _createMessageSystem = window.createMessageSystem;
       // Same no-dead-frame pattern as the player above: a finished step chains into the next
       // route/random step this same tick instead of pausing a frame at each tile.
       if (rt.moving) {
-        updateEntityMotion(rt, rt.speed);
+        const arrived = updateEntityMotion(rt, rt.combat && rt.combat.knockback ? 0.18 : rt.speed);
+        if (arrived && rt.combat) rt.combat.knockback = false;
       }
       if (!rt.moving && rt.route) {
         updateRoute(rt);
-      } else if (!rt.moving && rt.page.moveType === "random" && !rt.locked && !blockingRun) {
+      } else if (!rt.moving && rt.page.moveType === "random" && !rt.locked && !blockingRun && !combatStaggered(rt)) {
         if (--rt.moveT <= 0) {
           rt.moveT = 40 + rnd(100);
           const d = rnd(4);
@@ -1382,6 +1619,7 @@ const _createMessageSystem = window.createMessageSystem;
       ctx.drawImage(upperBuf, -camX, -camY);
       ctx.restore();
     }
+    drawMapCombatOverlay(ctx, camX, camY, shakeX, shakeY, alpha, pix, piy);
     if (flashTimer > 0) {
       const decay = flashTimer / (flashDuration || 15);
       ctx.save();
@@ -2909,7 +3147,7 @@ const _createMessageSystem = window.createMessageSystem;
     G.player = {
       x, y, rx: x, ry: y, prx: x, pry: y, tx: x, ty: y, dir: dir == null ? 0 : dir,
       moving: false, animT: 0, frame: 1, route: null, kind: "human",
-      charsetIdx: 0, page: null,
+      charsetIdx: 0, page: null, attack: null, hurtInvuln: 0,
     };
     refreshPlayerCharset();
   }

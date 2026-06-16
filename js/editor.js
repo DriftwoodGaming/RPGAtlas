@@ -2952,8 +2952,28 @@ const editorI18n = createEditorI18n({
           propRow("Priority", sel(pg, "priority", [{ v: "below", l: "Below player" }, { v: "same", l: "Same as player" }, { v: "above", l: "Above player" }])),
           propRow("Through", chk(pg, "through"))),
       ]);
+      pg.combat = Object.assign(RA.defaultActionCombat(), pg.combat || {});
+      const combatBadge = h("span", { class: "ev-badge" }, pg.combat.enabled ? "enabled" : "");
+      combatBadge.style.display = pg.combat.enabled ? "" : "none";
+      const refreshCombatBadge = () => {
+        combatBadge.textContent = pg.combat.enabled ? "enabled" : "";
+        combatBadge.style.display = pg.combat.enabled ? "" : "none";
+      };
+      const combatSection = section("Action Combat", [
+        h("div", { class: "prop-rows" },
+          propRow("Enabled", chk(pg.combat, "enabled")),
+          propRow("Enemy", sel(pg.combat, "enemyId", dbOpts(proj.enemies, "(none)"))),
+          propRow("HP override", nIn(pg.combat, "hp", 0, 9999)),
+          propRow("Touch damage", nIn(pg.combat, "touchDamage", 0, 999)),
+          propRow("Knockback", nIn(pg.combat, "knockbackTiles", 0, 4)),
+          propRow("Invuln frames", nIn(pg.combat, "invulnFrames", 0, 180)),
+          propRow("Defeat switch", sel(pg.combat, "defeatSelfSwitch",
+            [{ v: "", l: "(erase event)" }, { v: "A", l: "Self-Switch A" }, { v: "B", l: "Self-Switch B" }, { v: "C", l: "Self-Switch C" }, { v: "D", l: "Self-Switch D" }])),
+          h("div", { class: "dim" }, "Press J on the map to swing. HP 0 uses the selected enemy's database HP.")),
+      ], combatBadge);
+      combatSection.addEventListener("change", refreshCombatBadge);
 
-      const left = h("div", { class: "event-ide-col event-ide-left" }, condSection, appSection, behSection);
+      const left = h("div", { class: "event-ide-col event-ide-left" }, condSection, appSection, behSection, combatSection);
 
       // ---- center pane: command list ----
       cw = cmdListWidget(() => ev.pages[pageIdx].commands, undoApi, onSelect);
