@@ -163,7 +163,7 @@ const RA = {
         // lstick_* names from the stick axes) so each is a visible, editable binding.
         up: ["dpad_up", "lstick_up"], down: ["dpad_down", "lstick_down"],
         left: ["dpad_left", "lstick_left"], right: ["dpad_right", "lstick_right"],
-        ok: ["face_south"], cancel: ["face_east", "start"], dash: ["face_west"], attack: ["face_north"],
+        ok: ["face_south"], cancel: ["face_east"], dash: ["face_west"], attack: ["face_north"],
       },
       stickDeadzone: 0.5,
     };
@@ -205,6 +205,9 @@ const RA = {
     }
     return null;
   },
+  // Actions that must never be left with no binding on a device, or the player could lock
+  // themselves out of the menus these drive (Confirm/Cancel). The rebinder enforces it per device.
+  INPUT_CRITICAL: ["ok", "cancel"],
   defaultStates() {
     return [
       { id: 1, name: "Poison", icon: 12, color: "#a050d8", restrict: "none", hpTurn: -12, minTurns: 3, maxTurns: 5, removeAtEnd: true },

@@ -1812,22 +1812,38 @@ const _createInputSystem = window.createInputSystem;
     while (true) {
       const i = await showList(
         [
-          { label: "Keyboard" },
-          { label: "Gamepad" },
           { label: "Music: " + (Music.enabled ? "On" : "Off") },
-          { label: "Reset to Defaults" },
+          { label: "Controls" },
           { label: "Back" },
         ],
         { title: "Options", className: "optionswin", start: idx },
       );
-      if (i < 0 || i === 4) return;
+      if (i < 0 || i === 2) return;
+      idx = i;
+      if (i === 0) setMusicEnabled(!Music.enabled);
+      else if (i === 1) await controlsMenu();
+    }
+  }
+  // Controls submenu (Options ▸ Controls): per-device rebinders + reset to author defaults.
+  async function controlsMenu() {
+    let idx = 0;
+    while (true) {
+      const i = await showList(
+        [
+          { label: "Keyboard" },
+          { label: "Gamepad" },
+          { label: "Reset to Defaults" },
+          { label: "Back" },
+        ],
+        { title: "Controls", className: "optionswin", start: idx },
+      );
+      if (i < 0 || i === 3) return;
       idx = i;
       if (i === 0) await controlsDevice("keyboard");
       else if (i === 1) await controlsDevice("gamepad");
-      else if (i === 2) setMusicEnabled(!Music.enabled);
-      else if (i === 3) {
+      else if (i === 2) {
         const c = await showList(
-          [{ label: "Reset all controls" }, { label: "Cancel" }],
+          [{ label: "Yes" }, { label: "Cancel" }],
           { title: "Reset controls to defaults?" },
         );
         if (c === 0) {
@@ -1885,7 +1901,7 @@ const _createInputSystem = window.createInputSystem;
           const code = await rebindCapture(device);
           if (code) await applyCapturedCode(device, action, code, i);
         } else if (c === 1) {
-          removeBinding(device, action, i);
+          await removeBinding(device, action, i);
         }
       }
     }
@@ -1914,6 +1930,13 @@ const _createInputSystem = window.createInputSystem;
     const merged = RA.mergeInputBindings(proj.system.input, playerOptions.input || null);
     const clash = RA.inputConflict(merged, device, code, action);
     if (clash) {
+      // Refuse a Replace that would orphan a menu-driving action (its last binding on this
+      // device) — otherwise unbinding Confirm/Cancel this way could lock the player out.
+      if (RA.INPUT_CRITICAL.indexOf(clash) !== -1 && merged[device][clash].length <= 1) {
+        sysSe("buzzer");
+        await showMessage("", actionLabel(clash) + " needs at least one binding — free it up first.");
+        return;
+      }
       const c = await showList(
         [{ label: "Replace" }, { label: "Cancel" }],
         { title: Input.codeLabel(device, code) + " is bound to " + actionLabel(clash) },
@@ -1928,8 +1951,15 @@ const _createInputSystem = window.createInputSystem;
     merged[device][action] = arr.filter((x, j) => x && arr.indexOf(x) === j);
     commitBindings(merged);
   }
-  function removeBinding(device, action, slot) {
+  async function removeBinding(device, action, slot) {
     const merged = RA.mergeInputBindings(proj.system.input, playerOptions.input || null);
+    // Don't let the last Confirm/Cancel binding on this device be removed — they drive every
+    // menu, so emptying them could lock the player out (recoverable only via mouse/reload).
+    if (RA.INPUT_CRITICAL.indexOf(action) !== -1 && merged[device][action].length <= 1) {
+      sysSe("buzzer");
+      await showMessage("", actionLabel(action) + " needs at least one binding.");
+      return;
+    }
     const arr = merged[device][action].slice();
     arr.splice(slot, 1);
     merged[device][action] = arr;

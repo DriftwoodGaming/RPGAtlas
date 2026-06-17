@@ -32,6 +32,11 @@ function createInputSystem(deps) {
   const ARR_RATE = 5;
   const NAV = { up: true, down: true, left: true, right: true };
 
+  // A rebind of an analog input (stick / trigger) needs a firm, deliberate press past this —
+  // well above the 0.5 gameplay deadzone — so feather/variable pressure or stick drift can't
+  // bind itself or instantly re-trigger. Capture-only; gameplay reads still use the deadzone.
+  const CAPTURE_PRESS = 0.8;
+
   // Current bindings. setBindings() swaps these and rebuilds the reverse lookups
   // (physical code/button-name -> action) the handlers and poller use.
   let bindings = cloneBindings(deps.defaultBindings) || emptyBindings();
@@ -95,6 +100,29 @@ function createInputSystem(deps) {
     kbReverse = buildReverse(bindings.keyboard);
     padReverse = buildReverse(bindings.gamepad);
     actionList = buildActionList();
+    // A rebind can remap a pad button the player is still holding (e.g. the one they just bound),
+    // so reseed each pad slot's held set from the live physical state under the NEW mapping — else
+    // that button fresh-edges its new action next poll and auto-confirms the menu/dialog open then.
+    reseedPadHeld();
+  }
+  // Mark every currently-held pad button as already-down under the current bindings so it can't
+  // produce a fresh edge until released and pressed again (used after a bindings swap).
+  function reseedPadHeld() {
+    if (!nav || !nav.getGamepads) return;
+    let list;
+    try {
+      list = nav.getGamepads();
+    } catch (err) {
+      return;
+    }
+    if (!list) return;
+    const dz = bindings.stickDeadzone != null ? bindings.stickDeadzone : 0.5;
+    for (let i = 0; i < list.length; i++) {
+      const gp = list[i];
+      if (!gp) continue;
+      const slot = padSlots[gp.index];
+      if (slot) slot.down = readPad(gp, dz);
+    }
   }
   function getBindings() {
     return bindings;
@@ -192,21 +220,32 @@ function createInputSystem(deps) {
   }
   // Like readPad, but returns the set of physical PAD_BUTTONS *names* asserted (not the
   // actions they map to) — what the rebinder needs to record a new gamepad binding.
-  function readPadRaw(gp, dz) {
+  function readPadRaw(gp) {
     const names = {};
     const btns = gp.buttons || [];
     for (let i = 0; i < btns.length && i < PAD_BUTTONS.length; i++) {
       const b = btns[i];
-      const isDown = b && (typeof b === "number" ? b > 0.5 : (b.pressed || b.value > 0.5));
-      if (isDown) names[PAD_BUTTONS[i]] = true;
+      if (!b) continue;
+      const name = PAD_BUTTONS[i];
+      // Triggers are analog: a rebind needs a firm pull past CAPTURE_PRESS so a feather/variable
+      // pull can't bind itself or instantly re-trigger. Digital buttons bind on a normal press.
+      const isDown =
+        name === "trigger_l" || name === "trigger_r"
+          ? (typeof b === "number" ? b : b.value) > CAPTURE_PRESS
+          : typeof b === "number"
+            ? b > 0.5
+            : b.pressed || b.value > 0.5;
+      if (isDown) names[name] = true;
     }
     const ax = gp.axes || [];
     const sx = ax[0] || 0;
     const sy = ax[1] || 0;
-    if (sx < -dz) names["lstick_left"] = true;
-    else if (sx > dz) names["lstick_right"] = true;
-    if (sy < -dz) names["lstick_up"] = true;
-    else if (sy > dz) names["lstick_down"] = true;
+    // The left stick likewise needs a deliberate push past CAPTURE_PRESS to bind (capture-only;
+    // gameplay still reads it at the deadzone via readPad).
+    if (sx < -CAPTURE_PRESS) names["lstick_left"] = true;
+    else if (sx > CAPTURE_PRESS) names["lstick_right"] = true;
+    if (sy < -CAPTURE_PRESS) names["lstick_up"] = true;
+    else if (sy > CAPTURE_PRESS) names["lstick_down"] = true;
     return names;
   }
 
@@ -281,18 +320,17 @@ function createInputSystem(deps) {
       return held;
     }
     if (!list) return held;
-    const dz = bindings.stickDeadzone != null ? bindings.stickDeadzone : 0.5;
     for (let i = 0; i < list.length; i++) {
       const gp = list[i];
       if (!gp) continue;
-      const names = readPadRaw(gp, dz);
+      const names = readPadRaw(gp);
       for (const n in names) held[n] = true;
     }
     return held;
   }
   function capturePadScan(gp, dz) {
     if (!capture || capture.device !== "gamepad") return;
-    const cur = readPadRaw(gp, dz);
+    const cur = readPadRaw(gp);
     for (const name in capture.ignorePad) if (!cur[name]) delete capture.ignorePad[name];
     for (const name in cur) {
       if (!capture.ignorePad[name]) {

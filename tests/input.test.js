@@ -28,9 +28,9 @@ assert.deepEqual(clone(projInput), clone(evaluate("RA.defaultInput()")), "newPro
 const def = clone(evaluate("RA.defaultInput()"));
 assert.deepEqual(def.keyboard.ok, ["KeyZ", "Enter", "Space"]);
 assert.deepEqual(def.keyboard.cancel, ["KeyX", "Escape"]);
-// Gamepad: START is the conventional menu/pause button — it shares the cancel action
-// (which opens the menu on the map and backs out in menus), alongside face_east.
-assert.deepEqual(def.gamepad.cancel, ["face_east", "start"]);
+// Gamepad cancel = face_east (B) only; it opens the menu on the map and backs out in menus.
+// START is intentionally left unbound by default (it used to share cancel).
+assert.deepEqual(def.gamepad.cancel, ["face_east"]);
 // Directions bind both the D-Pad and the left stick (poller synthesizes lstick_* names),
 // so each is a separately editable binding in the rebinder.
 assert.deepEqual(def.gamepad.up, ["dpad_up", "lstick_up"]);
@@ -97,6 +97,10 @@ assert.equal(evaluate(`RA.inputConflict(${m}, "keyboard", "KeyZ", null)`), "ok",
 assert.equal(evaluate(`RA.inputConflict(${m}, "keyboard", "KeyZ", "ok")`), null, "exceptAction ignores self");
 assert.equal(evaluate(`RA.inputConflict(${m}, "keyboard", "KeyQ", null)`), null, "unbound key is free");
 assert.equal(evaluate(`RA.inputConflict(${m}, "gamepad", "face_east", null)`), "cancel", "face_east is bound to cancel");
-assert.equal(evaluate(`RA.inputConflict(${m}, "gamepad", "start", null)`), "cancel", "start (menu/pause) is bound to cancel");
+assert.equal(evaluate(`RA.inputConflict(${m}, "gamepad", "start", null)`), null, "start is unbound by default (no longer shares cancel)");
+
+// 8. Critical actions (Confirm/Cancel) — the rebinder refuses to leave either of these with no
+//    binding on the device being edited (the guard itself lives in engine.js; this pins the set).
+assert.deepEqual(clone(evaluate("RA.INPUT_CRITICAL")), ["ok", "cancel"], "ok + cancel are the critical actions");
 
 console.log("Input binding tests passed.");

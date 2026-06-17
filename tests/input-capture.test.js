@@ -151,6 +151,35 @@ function makeInput() {
   assert.equal(t.Input.justPressed("ok"), false, "held captured button does not re-edge its action");
 }
 
+// 5d. Analog rebind needs a firm press: a left-stick lean past the deadzone but below the
+//     capture threshold does NOT bind; a near-full push binds the lstick_* direction.
+{
+  const t = makeInput();
+  const stickPad = (axes) => ({ index: 0, buttons: PAD_BUTTONS.map(() => ({ pressed: false, value: 0 })), axes });
+  let got;
+  t.Input.beginCapture("gamepad", (r) => { got = r; });
+  t.setPads([stickPad([0, -0.6])]); // a lean (already past the 0.5 deadzone) — too soft to bind
+  t.Input.poll();
+  assert.equal(got, undefined, "soft stick lean does not bind");
+  t.setPads([stickPad([0, -1])]); // a deliberate full push
+  t.Input.poll();
+  assert.deepEqual(norm(got), { device: "gamepad", code: "lstick_up" }, "firm stick push binds lstick_up");
+}
+
+// 5e. Same for an analog trigger: a light pull is ignored, a full pull binds.
+{
+  const t = makeInput();
+  const trigPad = (v) => ({ index: 0, buttons: PAD_BUTTONS.map((n) => ({ pressed: false, value: n === "trigger_r" ? v : 0 })), axes: [0, 0] });
+  let got;
+  t.Input.beginCapture("gamepad", (r) => { got = r; });
+  t.setPads([trigPad(0.6)]); // a light pull
+  t.Input.poll();
+  assert.equal(got, undefined, "light trigger pull does not bind");
+  t.setPads([trigPad(1)]); // a full pull
+  t.Input.poll();
+  assert.deepEqual(norm(got), { device: "gamepad", code: "trigger_r" }, "full trigger pull binds trigger_r");
+}
+
 // 6. Capture suppresses normal routing — the captured key does not also queue a map edge.
 {
   const t = makeInput();

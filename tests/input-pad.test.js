@@ -109,12 +109,12 @@ function makeInput() {
   assert.equal(t.Input.justPressed("up"), false, "menu nav is not queued as a map edge");
 }
 
-// 4b. START shares the cancel action: on the map it edges cancel (opens the menu).
+// 4b. START is unbound by default (it no longer shares cancel) — pressing it does nothing.
 {
   const t = makeInput();
   t.setPads([pad(["start"])]);
   t.Input.poll();
-  assert.equal(t.Input.consume("cancel"), true, "start -> cancel edge (opens menu on map)");
+  assert.equal(t.Input.consume("cancel"), false, "start is unbound by default");
 }
 
 // 5. ok/cancel/attack do not auto-repeat in menus (edge only).
@@ -145,6 +145,26 @@ function makeInput() {
   t.Input.poll();
   assert.deepEqual(t.navCalls, ["cancel"], "menu-open cancel -> onMenuNav");
   assert.equal(t.Input.justPressed("cancel"), false, "menu-open cancel is not a map edge");
+}
+
+// 8. After a bindings swap (a rebind), a still-held pad button must not fresh-edge its NEW action
+//    — otherwise the button just bound auto-confirms the menu/dialog that opens right after.
+{
+  const t = makeInput();
+  t.setPads([pad(["face_west"])]); // hold face_west (default action: dash)
+  t.Input.poll();
+  assert.equal(t.Input.justPressed("ok"), false, "face_west is not ok under defaults");
+  const b = defaultInput();
+  b.gamepad.ok = ["face_west"]; // rebind ok onto the held button...
+  b.gamepad.dash = [];          // ...and free it from dash so it maps solely to ok
+  t.Input.setBindings(b);
+  t.Input.poll();
+  assert.equal(t.Input.justPressed("ok"), false, "held button does not fresh-edge its new action after rebind");
+  t.setPads([pad([])]);            // release
+  t.Input.poll();
+  t.setPads([pad(["face_west"])]); // genuine re-press
+  t.Input.poll();
+  assert.equal(t.Input.justPressed("ok"), true, "re-press after release fires the rebound action");
 }
 
 console.log("Input gamepad-poller tests passed.");
