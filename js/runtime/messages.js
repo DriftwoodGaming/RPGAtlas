@@ -15,6 +15,13 @@ function createMessageSystem(deps) {
     removeUI,
   } = deps;
 
+  // Typewriter reveal speed (visible chars per 16ms tick), set from the Options menu's
+  // Text Speed row. A large value (e.g. 9999) reveals the whole line on the first tick.
+  let revealStep = 2;
+  function setTextSpeed(step) {
+    revealStep = step > 0 ? step : 2;
+  }
+
   function convertText(s) {
     const project = getProject();
     const state = getState();
@@ -102,7 +109,7 @@ function createMessageSystem(deps) {
       let pos = 0;
       let typing = true;
       const timer = setInterval(() => {
-        pos = Math.min(typewriter.total, pos + 2);
+        pos = Math.min(typewriter.total, pos + revealStep);
         typewriter.reveal(pos);
         if (pos >= typewriter.total) {
           typing = false;
@@ -135,7 +142,7 @@ function createMessageSystem(deps) {
     });
   }
 
-  return { convertText, richText, makeTypewriter, showMessage };
+  return { convertText, richText, makeTypewriter, showMessage, setTextSpeed };
 }
 
 window.createMessageSystem = createMessageSystem;

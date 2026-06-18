@@ -91,13 +91,15 @@ const _createInputSystem = window.createInputSystem;
   }
   let richText;
   let showMessage;
+  let setMsgSpeed = null; // message-system typewriter speed setter (captured at wiring)
 
   // generic selectable list. items: [{label|html, disabled, help}]
   function showList(items, opts) {
     opts = opts || {};
     return new Promise((resolve) => {
       const win = el("div", "win listwin " + (opts.className || ""));
-      if (opts.title) win.appendChild(el("div", "win-title", esc(opts.title)));
+      if (opts.titleHtml != null) win.appendChild(el("div", "win-title", opts.titleHtml));
+      else if (opts.title) win.appendChild(el("div", "win-title", esc(opts.title)));
       const ul = el(
         "ul",
         "menu-list" + (opts.cols > 1 ? " cols" + opts.cols : ""),
@@ -106,21 +108,83 @@ const _createInputSystem = window.createInputSystem;
       const help = el("div", "win-help");
       if (items.some((it) => it.help)) win.appendChild(help);
       let idx = Math.max(0, Math.min(opts.start || 0, items.length - 1));
+      let dragging = false; // true while click-dragging a slider — suppresses hover row-changes
+      // A "value row" carries an adjust(dir) fn + get() display string; left/right (and
+      // gamepad auto-repeat) change its value in place instead of selecting it. Rendered as
+      // label-left / value-right so sliders and cyclers line up in one column.
+      const isValueRow = (it) => it && typeof it.adjust === "function";
+      // Inner HTML of the .opt-cur cell: sliders split into a bar + percent (so a bar click can
+      // seek against the bar's own rect); cyclers show the centered word.
+      const curHtml = (it) =>
+        it.slider
+          ? "<span class='opt-bar'>" + esc(it.bar()) + "</span>" +
+            "<span class='opt-pct'>" + esc(it.pct()) + "</span>"
+          : esc(it.get());
+      const valueHtml = (it) =>
+        "<span class='opt-label'>" + esc(it.label) + "</span>" +
+        "<span class='opt-value'><span class='opt-arrow' data-d='-1'>◄</span>" +
+        "<span class='opt-cur'>" + curHtml(it) + "</span>" +
+        "<span class='opt-arrow' data-d='1'>►</span></span>";
       const lis = items.map((it, i) => {
+        let cls = "";
+        if (it.disabled) cls += " disabled";
+        if (it.nav) cls += " navrow";   // Controls / Back: centered "go somewhere" rows
+        if (it.divider) cls += " sep";  // separator rule above the first nav row
         const li = el(
           "li",
-          it.disabled ? "disabled" : "",
-          it.html != null ? it.html : esc(it.label),
+          cls.trim(),
+          isValueRow(it) ? valueHtml(it) : it.html != null ? it.html : esc(it.label),
         );
         li.addEventListener("mouseenter", () => {
+          if (dragging) return; // mid slider-drag: don't let vertical drift change the selected row
           idx = i;
-          refresh();
+          refresh(false); // hover never auto-scrolls (that caused the row-boundary bounce)
         });
         li.addEventListener("click", (e) => {
           e.stopPropagation();
           idx = i;
-          refresh();
-          ok();
+          refresh(false);
+          const it2 = items[i];
+          if (!isValueRow(it2)) { ok(); return; }
+          // Arrows step; cycler word advances. (Slider-bar seek/drag is handled on mousedown below.)
+          const arrow = e.target.closest(".opt-arrow");
+          if (arrow) { adjust(i, Number(arrow.dataset.d) || 1); return; }
+          if (!it2.slider) adjust(i, 1); // click the cycler word to advance; slider label = no-op
+        });
+        // Slider: press-and-drag along the bar to scrub the volume (a plain click jumps to that
+        // block). Move/up live on the document so the drag keeps tracking outside the bar; the bar
+        // is re-queried each step because updateValue() re-renders .opt-cur (the old node detaches).
+        li.addEventListener("mousedown", (e) => {
+          const it2 = items[i];
+          if (!it2 || !it2.slider || typeof it2.seek !== "function") return;
+          if (e.target.closest(".opt-arrow")) return; // arrows step via click
+          if (!e.target.closest(".opt-cur")) return;  // only the value cell scrubs
+          e.preventDefault();
+          idx = i;
+          refresh(false);
+          dragging = true;
+          let lastV = null;
+          const seekTo = (clientX) => {
+            const bar = li.querySelector(".opt-bar");
+            const r = bar && bar.getBoundingClientRect();
+            if (!r || r.width <= 0) return;
+            const frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+            const v = Math.ceil(frac * 10) / 10;
+            if (v === lastV) return; // same block → skip the re-render and SE
+            lastV = v;
+            it2.seek(frac);
+            updateValue(i);
+            sysSe("cursor");
+          };
+          const onMove = (ev) => seekTo(ev.clientX);
+          const onUp = () => {
+            dragging = false;
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+          };
+          document.addEventListener("mousemove", onMove);
+          document.addEventListener("mouseup", onUp);
+          seekTo(e.clientX);
         });
         ul.appendChild(li);
         return li;
@@ -129,18 +193,35 @@ const _createInputSystem = window.createInputSystem;
         e.preventDefault();
         cancel();
       });
-      function refresh() {
+      function refresh(scroll) {
         lis.forEach((li, i) => li.classList.toggle("sel", i === idx));
         if (help.parentNode)
           help.textContent = (items[idx] && items[idx].help) || "";
         const li = lis[idx];
-        if (li && li.scrollIntoView) li.scrollIntoView({ block: "nearest" });
+        // Only auto-scroll on keyboard/gamepad nav — never on mouse hover, or hovering a row
+        // edge would nudge the scroll and bounce the selection between neighboring rows.
+        if (scroll && li && li.scrollIntoView) li.scrollIntoView({ block: "nearest" });
       }
       function move(d) {
         if (!items.length) return;
         idx = (idx + d + items.length) % items.length;
         sysSe("cursor");
-        refresh();
+        refresh(true);
+      }
+      // Re-read just one value row's display (no full rebuild → no flicker on adjust).
+      function updateValue(i) {
+        const it = items[i];
+        const li = lis[i];
+        if (!it || !li) return;
+        const cur = li.querySelector(".opt-cur");
+        if (cur) cur.innerHTML = curHtml(it);
+      }
+      function adjust(i, dir) {
+        const it = items[i];
+        if (!it || it.disabled || typeof it.adjust !== "function") return;
+        it.adjust(dir);
+        sysSe("cursor");
+        updateValue(i);
       }
       function ok() {
         if (!items.length) return;
@@ -163,18 +244,29 @@ const _createInputSystem = window.createInputSystem;
       const cols = opts.cols || 1;
       const ui = {
         el: win,
-        onKey(k) {
+        onKey(k, repeat) {
+          const it = items[idx];
+          const valueRow = isValueRow(it) && !it.disabled;
+          // Cyclers (Text Speed / Dash / Screen Shake) change once per press: ignore auto-repeat so
+          // holding a direction can't blow through the options. Sliders still repeat (hold to ramp).
+          const blockRepeat = repeat && valueRow && !it.slider;
           if (k === "up") move(-cols);
           else if (k === "down") move(cols);
-          else if (k === "left") move(cols > 1 ? -1 : -1 * 0);
-          else if (k === "right") move(cols > 1 ? 1 : 0);
-          else if (k === "ok") ok();
-          else if (k === "cancel") cancel();
+          else if (k === "left") {
+            if (valueRow) { if (!blockRepeat) adjust(idx, -1); }
+            else if (cols > 1) move(-1);
+          } else if (k === "right") {
+            if (valueRow) { if (!blockRepeat) adjust(idx, 1); }
+            else if (cols > 1) move(1);
+          } else if (k === "ok") {
+            if (valueRow) { if (!blockRepeat) adjust(idx, 1); }
+            else ok();
+          } else if (k === "cancel") cancel();
         },
       };
       uiLayer.appendChild(win);
       pushUI(ui);
-      refresh();
+      refresh(true);
     });
   }
 
@@ -1279,7 +1371,7 @@ const _createInputSystem = window.createInputSystem;
     },
   };
 
-  ({ richText, showMessage } = createMessageSystem({
+  ({ richText, showMessage, setTextSpeed: setMsgSpeed } = createMessageSystem({
     Assets,
     el,
     esc,
@@ -1298,8 +1390,8 @@ const _createInputSystem = window.createInputSystem;
   Input = createInputSystem({
     defaultBindings: RA.defaultInput(),
     isMenuOpen: () => UIStack.length > 0,
-    onMenuNav: (action) => {
-      if (UIStack.length) UIStack[UIStack.length - 1].onKey(action);
+    onMenuNav: (action, repeat) => {
+      if (UIStack.length) UIStack[UIStack.length - 1].onKey(action, repeat);
     },
   });
   Input.attachDOM(document);
@@ -1441,6 +1533,13 @@ const _createInputSystem = window.createInputSystem;
     }
 
     const p = G.player;
+    // Dash "Toggle" mode: flip the latch on each rising edge of the dash button (tracked every
+    // tick so a tap while standing still registers). Hold/Always read live in wantsDash().
+    if ((playerOptions.dashMode || "hold") === "toggle") {
+      const dp = Input.pressed("dash");
+      if (dp && !dashPrev) dashLatch = !dashLatch;
+      dashPrev = dp;
+    }
     // snapshot start-of-tick positions so render() can interpolate between ticks
     p.prx = p.rx; p.pry = p.ry;
     for (const rt of evRTs) { rt.prx = rt.rx; rt.pry = rt.ry; }
@@ -1448,7 +1547,7 @@ const _createInputSystem = window.createInputSystem;
     // next one immediately, so there's no dead frame at each tile. activePlayerControl()
     // stays false during events/battles, so chaining can't spawn a spurious move.
     if (p.moving) {
-      const arrived = updateEntityMotion(p, Input.pressed("dash") ? 0.13 : 0.085);
+      const arrived = updateEntityMotion(p, wantsDash() ? 0.13 : 0.085);
       if (arrived) onPlayerStep();
     }
     if (!p.moving && p.route) {
@@ -1590,7 +1689,9 @@ const _createInputSystem = window.createInputSystem;
     if (shakeTimer > 0) {
       const freq = shakeSpeed * 0.5;
       const decay = shakeTimer / (shakeDuration || 30);
-      const amp = shakePower * 2.5 * decay;
+      const amp =
+        shakePower * 2.5 * decay *
+        (playerOptions.shakeScale == null ? 1 : playerOptions.shakeScale);
       shakeX = Math.sin(globalT * freq) * amp;
       shakeY = Math.cos(globalT * freq * 0.85) * amp;
     }
@@ -1857,7 +1958,7 @@ const _createInputSystem = window.createInputSystem;
     }
   }
 
-  // ---- player options (per-player overrides: input rebinds + music toggle) ----
+  // ---- player options (per-player overrides: input rebinds + audio/game settings) ----
   // Stored separately from the project so author defaults stay intact and a player's
   // remaps/preferences persist across sessions. Per-game namespaced like saveKey().
   let playerOptions = {};
@@ -1878,57 +1979,137 @@ const _createInputSystem = window.createInputSystem;
       localStorage.setItem(optionsKey(), JSON.stringify(playerOptions));
     } catch (e) {}
   }
-  function setMusicEnabled(on) {
-    Music.setEnabled(on);
-    playerOptions.music = { enabled: on };
+  // ---- player-option setters (mutate playerOptions + persist) ----
+  function audioVol(ch) {
+    const a = playerOptions.audio || {};
+    return a[ch] == null ? 1 : a[ch];
+  }
+  function setOptAudio(ch, v) {
+    v = clamp(v, 0, 1);
+    playerOptions.audio = playerOptions.audio || {};
+    playerOptions.audio[ch] = v;
+    if (ch === "master") Sfx.setMasterVolume(v);
+    else if (ch === "bgm") {
+      Sfx.setBgmVolume(v);
+      if (v > 0 && !Music.enabled) Music.setEnabled(true);
+    } else if (ch === "se") Sfx.setSeVolume(v);
     saveOptions();
+  }
+  function setOpt(key, v) {
+    playerOptions[key] = v;
+    saveOptions();
+  }
+  function setOptTextSpeed(v) {
+    playerOptions.textSpeed = v;
+    saveOptions();
+    if (setMsgSpeed) setMsgSpeed(v);
+  }
+  // Dash mode (Options): Hold = held button; Toggle = tap to latch; Always On = always run.
+  let dashLatch = false;
+  let dashPrev = false;
+  function wantsDash() {
+    const m = playerOptions.dashMode || "hold";
+    if (m === "always") return true;
+    if (m === "toggle") return dashLatch;
+    return Input.pressed("dash");
   }
 
   // In-game Options: rebind keyboard / gamepad per action (editable list — add / replace
-  // / remove), music toggle, reset. Built on showList/UIStack; capture uses
+  // / remove), audio mixer + game settings, reset. Built on showList/UIStack; capture uses
   // Input.beginCapture (ignore-held-until-release + conflict prompt). Player overrides
   // persist to the options store and apply live via Input.setBindings.
   function actionLabel(key) {
     const a = RA.INPUT_ACTIONS.find((x) => x.key === key);
     return a ? a.label : key;
   }
+  // Build a 10-segment volume bar like "▰▰▰▰▰▱▱▱▱▱".
+  function volBar(v) {
+    const n = Math.max(0, Math.min(10, Math.round(v * 10)));
+    return "▰".repeat(n) + "▱".repeat(10 - n);
+  }
+  const OPT_TEXT_SPEED = [["Slow", 1], ["Normal", 2], ["Fast", 4], ["Instant", 9999]];
+  const OPT_DASH = [["Hold", "hold"], ["Toggle", "toggle"], ["Always On", "always"]];
+  const OPT_SHAKE = [["Off", 0], ["Reduced", 0.5], ["Full", 1]];
+  // Registry-row builders: a slider (continuous 0..1) and a cycler (fixed [label,value] list).
+  // sliderRow exposes bar()/pct() for the split display and seek(frac) for click-to-seek.
+  function sliderRow(label, getVal, setVal) {
+    const set = (v) => setVal(Math.max(0, Math.min(1, v)));
+    return {
+      label,
+      slider: true,
+      get() {
+        return volBar(getVal()) + " " + Math.round(getVal() * 100) + "%";
+      },
+      bar() {
+        return volBar(getVal());
+      },
+      pct() {
+        return Math.round(getVal() * 100) + "%";
+      },
+      adjust(dir) {
+        set(getVal() + dir * 0.1);
+      },
+      seek(frac) {
+        set(Math.ceil(frac * 10) / 10); // fill up to the segment the cursor is over (click anywhere in it)
+      },
+    };
+  }
+  function choiceRow(label, list, getVal, setVal) {
+    return {
+      label,
+      get() {
+        const v = getVal();
+        const m = list.find((x) => x[1] === v);
+        return (m || list[0])[0];
+      },
+      adjust(dir) {
+        let i = list.findIndex((x) => x[1] === getVal());
+        if (i < 0) i = 0;
+        i = (i + dir + list.length) % list.length;
+        setVal(list[i][1]);
+      },
+    };
+  }
   async function optionsMenu() {
     let idx = 0;
     while (true) {
-      const i = await showList(
-        [
-          { label: "Music: " + (Music.enabled ? "On" : "Off") },
-          { label: "Controls" },
-          { label: "Back" },
-        ],
-        { title: "Options", className: "optionswin", start: idx },
-      );
-      if (i < 0 || i === 2) return;
+      const rows = [
+        sliderRow("Master Volume", () => audioVol("master"), (v) => setOptAudio("master", v)),
+        sliderRow("Music Volume", () => audioVol("bgm"), (v) => setOptAudio("bgm", v)),
+        sliderRow("SFX Volume", () => audioVol("se"), (v) => setOptAudio("se", v)),
+        choiceRow("Text Speed", OPT_TEXT_SPEED, () => playerOptions.textSpeed || 2, (v) => setOptTextSpeed(v)),
+        choiceRow("Dash", OPT_DASH, () => playerOptions.dashMode || "hold", (v) => setOpt("dashMode", v)),
+        choiceRow("Screen Shake", OPT_SHAKE, () => (playerOptions.shakeScale == null ? 1 : playerOptions.shakeScale), (v) => setOpt("shakeScale", v)),
+        { label: "Controls", nav: true },
+        { label: "Back", nav: true },
+      ];
+      const i = await showList(rows, { title: "Options", className: "optionswin optionswin-wide", start: idx });
+      if (i < 0 || i === rows.length - 1) return; // Back / cancel
       idx = i;
-      if (i === 0) setMusicEnabled(!Music.enabled);
-      else if (i === 1) await controlsMenu();
+      if (rows[i] && rows[i].label === "Controls") await controlsMenu();
     }
   }
   // Controls submenu (Options ▸ Controls): per-device rebinders + reset to author defaults.
   async function controlsMenu() {
     let idx = 0;
     while (true) {
-      const i = await showList(
-        [
-          { label: "Keyboard" },
-          { label: "Gamepad" },
-          { label: "Reset to Defaults" },
-          { label: "Back" },
-        ],
-        { title: "Controls", className: "optionswin", start: idx },
-      );
-      if (i < 0 || i === 3) return;
+      const items = [
+        { label: "Keyboard", nav: true },
+        { label: "Gamepad", nav: true },
+        { label: "Reset to Defaults", nav: true },
+        { label: "Back", nav: true },
+      ];
+      const i = await showList(items, {
+        title: "Controls",
+        start: idx,
+      });
+      if (i < 0 || i === items.length - 1) return;
       idx = i;
       if (i === 0) await controlsDevice("keyboard");
       else if (i === 1) await controlsDevice("gamepad");
       else if (i === 2) {
         const c = await showList(
-          [{ label: "Yes" }, { label: "Cancel" }],
+          [{ label: "Yes", nav: true }, { label: "Cancel", nav: true }],
           { title: "Reset controls to defaults?" },
         );
         if (c === 0) {
@@ -1955,14 +2136,14 @@ const _createInputSystem = window.createInputSystem;
         html:
           "<span>" + esc(a.label) + "</span>" +
           "<span class='bind'>" + bindGlyphsHtml(device, a.key) + "</span>",
-        help: "Press Confirm to edit " + a.label,
       }));
+      rows.push({ label: "Back", nav: true });
       const i = await showList(rows, {
         title: (device === "keyboard" ? "Keyboard" : "Gamepad") + " — pick an action",
         className: "optionswin",
         start: idx,
       });
-      if (i < 0) return;
+      if (i < 0 || i === rows.length - 1) return; // cancel or Back
       idx = i;
       await actionBindings(device, RA.INPUT_ACTIONS[i].key);
     }
@@ -1980,9 +2161,9 @@ const _createInputSystem = window.createInputSystem;
           "<span class='bind-name'>" + esc(Input.codeLabel(device, code)) + "</span>",
       }));
       items.push({ label: "+ Add binding" });
-      items.push({ label: "Back" });
+      items.push({ label: "Back", nav: true });
       const i = await showList(items, {
-        title: actionLabel(action) + " — " + (device === "keyboard" ? "Keyboard" : "Gamepad"),
+        title: actionLabel(action),
         start: idx,
       });
       if (i < 0 || i === items.length - 1) return; // cancel or Back
@@ -1992,8 +2173,16 @@ const _createInputSystem = window.createInputSystem;
         if (code) await applyCapturedCode(device, action, code, -1);
       } else {
         const c = await showList(
-          [{ label: "Replace" }, { label: "Remove" }, { label: "Cancel" }],
-          { title: Input.codeLabel(device, arr[i]) },
+          [
+            { label: "Replace", nav: true },
+            { label: "Remove", nav: true },
+            { label: "Back", nav: true },
+          ],
+          {
+            titleHtml:
+              Assets.inputGlyphHtml(device, arr[i], fam, "bind-icon") +
+              " " + esc(Input.codeLabel(device, arr[i])),
+          },
         );
         if (c === 0) {
           const code = await rebindCapture(device);
@@ -3679,8 +3868,25 @@ const _createInputSystem = window.createInputSystem;
     // Apply author-default bindings, with the player's saved per-device overrides merged
     // on top, and restore the persisted music preference (before any Music.play()).
     playerOptions = loadOptions();
+    // One-time migration: the old "Music: On/Off" toggle became the Music Volume slider, so a
+    // pre-mixer save with music disabled maps to BGM volume 0 (and we drop the dead `music` key).
+    // Runs before `av` is captured below — otherwise this boot would still apply BGM volume 1.
+    if (
+      playerOptions.music &&
+      playerOptions.music.enabled === false &&
+      (playerOptions.audio == null || playerOptions.audio.bgm == null)
+    ) {
+      playerOptions.audio = Object.assign({}, playerOptions.audio, { bgm: 0 });
+      delete playerOptions.music;
+      saveOptions();
+    }
     Input.setBindings(RA.mergeInputBindings(proj.system.input, playerOptions.input || null));
-    if (playerOptions.music && playerOptions.music.enabled === false) Music.setEnabled(false);
+    // Restore saved audio mix + text speed.
+    const av = playerOptions.audio || {};
+    Sfx.setMasterVolume(av.master == null ? 1 : av.master);
+    Sfx.setBgmVolume(av.bgm == null ? 1 : av.bgm);
+    Sfx.setSeVolume(av.se == null ? 1 : av.se);
+    if (setMsgSpeed && playerOptions.textSpeed) setMsgSpeed(playerOptions.textSpeed);
     applyScreenSettings();
     window.addEventListener("resize", fitStage);
     fitStage();

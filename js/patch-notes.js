@@ -35,6 +35,18 @@ export const PATCH_NOTES = [
     ],
   },
   {
+    date: "June 17, 2026",
+    title: "Options: Audio Mixer & Game Settings",
+    summary: "The in-game Options menu is now a full settings screen with separate volume sliders and gameplay/accessibility toggles.",
+    items: [
+      "Independent Master, Music, and Sound Effects volume sliders replace the old single Music on/off toggle.",
+      "New Text Speed setting (Slow / Normal / Fast / Instant) controls how quickly message text reveals.",
+      "New Dash setting: Hold to run, Toggle to latch running on/off, or Always On.",
+      "New Screen Shake setting (Off / Reduced / Full) scales combat and event camera shake.",
+      "Adjust any option with the mouse (click the arrows, or click along a volume bar), keyboard, or gamepad; settings persist per game.",
+    ],
+  },
+  {
     date: "June 16, 2026",
     title: "Quest Editor Validation Warnings",
     summary: "The Quests database tab now warns authors about broken quest references and other common setup mistakes while editing.",

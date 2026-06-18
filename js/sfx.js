@@ -4,13 +4,33 @@
 
 const Sfx = (() => {
   let actx = null;
+  // Mixer: each note's gain connects to a bus (bgm or se) -> master -> destination, so volume
+  // is controllable per channel. vols hold the last-set levels so they survive (re)creation.
+  let masterGain = null, bgmGain = null, seGain = null;
+  const vols = { master: 1, bgm: 1, se: 1 };
   function ctx() {
-    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (!actx) {
+      actx = new (window.AudioContext || window.webkitAudioContext)();
+      masterGain = actx.createGain();
+      bgmGain = actx.createGain();
+      seGain = actx.createGain();
+      bgmGain.connect(masterGain);
+      seGain.connect(masterGain);
+      masterGain.connect(actx.destination);
+      masterGain.gain.value = vols.master;
+      bgmGain.gain.value = vols.bgm;
+      seGain.gain.value = vols.se;
+    }
     if (actx.state === "suspended") actx.resume();
     return actx;
   }
+  const clamp01 = (v) => Math.max(0, Math.min(1, v));
+  function setMasterVolume(v) { vols.master = clamp01(v); if (masterGain) masterGain.gain.value = vols.master; }
+  function setBgmVolume(v) { vols.bgm = clamp01(v); if (bgmGain) bgmGain.gain.value = vols.bgm; }
+  function setSeVolume(v) { vols.se = clamp01(v); if (seGain) seGain.gain.value = vols.se; }
 
-  function tone(freq, dur, type, vol, slideTo) {
+  // bus defaults to the SE channel; music routes through bgmGain by passing it explicitly.
+  function tone(freq, dur, type, vol, slideTo, bus) {
     try {
       const a = ctx(), t = a.currentTime;
       const o = a.createOscillator(), g = a.createGain();
@@ -19,11 +39,11 @@ const Sfx = (() => {
       if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur);
       g.gain.setValueAtTime(vol || 0.08, t);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g); g.connect(a.destination);
+      o.connect(g); g.connect(bus || seGain);
       o.start(t); o.stop(t + dur + 0.02);
     } catch (e) { /* audio unavailable */ }
   }
-  function noise(dur, vol, lp) {
+  function noise(dur, vol, lp, bus) {
     try {
       const a = ctx(), t = a.currentTime;
       const len = Math.floor(a.sampleRate * dur);
@@ -39,7 +59,7 @@ const Sfx = (() => {
         const f = a.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = lp;
         src.connect(f); node = f;
       }
-      node.connect(g); g.connect(a.destination);
+      node.connect(g); g.connect(bus || seGain);
       src.start(t);
     } catch (e) { /* audio unavailable */ }
   }
@@ -98,12 +118,12 @@ const Sfx = (() => {
     if (beat % (th.bassEvery * 2) === 0) {
       const prog = [0, 0, -4, -2];                       // simple progression by bar
       const bar = Math.floor(stepIdx / 16) % 4;
-      tone(noteFreq(th.root - 12 + prog[bar]), 0.22, "triangle", 0.055);
+      tone(noteFreq(th.root - 12 + prog[bar]), 0.22, "triangle", 0.055, null, bgmGain);
     }
     // drums (battle)
     if (th.drums) {
-      if (beat % 4 === 0) noise(0.06, 0.07, 400);
-      else if (beat % 2 === 0) noise(0.03, 0.03, 6000);
+      if (beat % 4 === 0) noise(0.06, 0.07, 400, bgmGain);
+      else if (beat % 2 === 0) noise(0.03, 0.03, 6000, bgmGain);
     }
     // melody — seeded random walk on the scale
     if (themeRng() < th.density) {
@@ -111,7 +131,7 @@ const Sfx = (() => {
       melodyPos = Math.max(0, Math.min(th.scale.length * 2 - 1, melodyPos + move));
       const oct = Math.floor(melodyPos / th.scale.length);
       const deg = th.scale[melodyPos % th.scale.length];
-      tone(noteFreq(th.root + 12 + oct * 12 + deg), 0.14, th.lead, 0.035);
+      tone(noteFreq(th.root + 12 + oct * 12 + deg), 0.14, th.lead, 0.035, null, bgmGain);
     }
     stepIdx++;
   }
@@ -126,6 +146,7 @@ const Sfx = (() => {
       const th = THEMES[name];
       this.current = name;
       if (!th || name === "none") return;
+      ctx(); // ensure mixer buses exist before the first musicStep routes through bgmGain
       currentTheme = th; stepIdx = 0; melodyPos = th.scale.length;
       themeRng = mulberry(th.seed);
       const interval = (60 / th.tempo / 2) * 1000; // 8th notes
@@ -143,7 +164,7 @@ const Sfx = (() => {
     },
   };
 
-  return { play, tone, noise, Music, THEMES: Object.keys(THEMES) };
+  return { play, tone, noise, Music, THEMES: Object.keys(THEMES), setMasterVolume, setBgmVolume, setSeVolume };
 })();
 const Music = Sfx.Music;
 if (typeof window !== "undefined") {

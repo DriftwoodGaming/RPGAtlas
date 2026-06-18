@@ -166,7 +166,7 @@ function createInputSystem(deps) {
     // Dispatch to exactly one destination: menu (UIStack) > map edge. While any UI
     // is open the press only reaches the menu, so e.g. a cancel that closes a menu
     // can't also queue a map edge that instantly reopens it.
-    if (isMenuOpen()) onMenuNav(action);
+    if (isMenuOpen()) onMenuNav(action, e.repeat);
     else edgeQueue.push(action);
   }
   function onKeyUp(e) {
@@ -206,10 +206,17 @@ function createInputSystem(deps) {
       if (action) active[action] = true;
     }
     const ax = gp.axes || [];
-    const sx = ax[0] || 0;
-    const sy = ax[1] || 0;
+    let sx = ax[0] || 0;
+    let sy = ax[1] || 0;
     // The left stick gets its own lstick_* names (distinct from the D-Pad buttons) so it
     // is a separately bindable input; defaults bind both to the directions.
+    // In a menu, a diagonal push keeps only its dominant axis so navigating up/down doesn't also
+    // fire left/right (which would adjust a value row in passing). On the map both axes stay, so
+    // diagonal movement still works.
+    if (isMenuOpen() && Math.abs(sx) > dz && Math.abs(sy) > dz) {
+      if (Math.abs(sx) > Math.abs(sy)) sy = 0;
+      else sx = 0;
+    }
     if (sx < -dz) addSynthetic(active, "lstick_left");
     else if (sx > dz) addSynthetic(active, "lstick_right");
     if (sy < -dz) addSynthetic(active, "lstick_up");
@@ -288,7 +295,7 @@ function createInputSystem(deps) {
         const wasDown = !!prev[a];
         if (isDown && !wasDown) {
           // fresh press — route by precedence (menu > map edge).
-          if (isMenuOpen()) onMenuNav(a);
+          if (isMenuOpen()) onMenuNav(a, false);
           else edges[a] = true;
           slot.navHeld[a] = 0;
         } else if (isDown && wasDown) {
@@ -296,7 +303,7 @@ function createInputSystem(deps) {
           if (NAV[a] && isMenuOpen()) {
             slot.navHeld[a] = (slot.navHeld[a] || 0) + 1;
             const over = slot.navHeld[a] - DAS_DELAY;
-            if (over >= 0 && over % ARR_RATE === 0) onMenuNav(a);
+            if (over >= 0 && over % ARR_RATE === 0) onMenuNav(a, true);
           }
         } else {
           slot.navHeld[a] = 0;
