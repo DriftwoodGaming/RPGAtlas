@@ -45,16 +45,22 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
   padding: 10px 14px;
   z-index: 20;
   font-family: var(--font-menu, inherit);
+  user-select: none; -webkit-user-select: none; /* fast clicks shouldn't drag-select menu text */
 }
-.win-title { font-weight: 700; color: #aeccf0; margin-bottom: 6px; font-size: 14px; }
+.win-title {
+  font-weight: 700; color: #aeccf0; font-size: 14px;
+  margin-bottom: 8px; padding-bottom: 7px;
+  border-bottom: 1px solid rgba(170,190,240,0.18); /* header rule — separates title from the list */
+}
+.listwin .win-title { text-align: center; }   /* menu titles are centered over their list */
 .win-help { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(170,190,240,0.25); font-size: 12px; color: #b8c2dc; min-height: 16px; }
 
 .menu-list { list-style: none; margin: 0; padding: 0; max-height: 380px; overflow-y: auto; }
 .menu-list li {
-  padding: 5px 12px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+  padding: 5px 12px; border-radius: 6px; cursor: default; white-space: nowrap;
   min-height: 36px;
 }
-.menu-list li.sel { background: rgba(90,130,220,0.45); outline: 1px solid #9ab8f0; }
+.menu-list li.sel { background: rgba(90,130,220,0.45); outline: 1px solid #9ab8f0; outline-offset: -1px; }
 .menu-list li.disabled { color: #6a7088; }
 .menu-list .cnt { color: #9ab0d8; font-size: 12px; margin-left: 8px; }
 .icon-sprite {
@@ -108,7 +114,8 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
 .choicewin { left: auto; right: 16px; top: auto; bottom: 176px; transform: none; min-width: 180px; }
 
 /* ---------- options / controls (centered, inherits .listwin positioning) ---------- */
-.optionswin { min-width: 320px; }
+.optionswin { min-width: 320px; }                /* shared layout class — also Controls + pick-an-action */
+.optionswin-wide { min-width: 420px; }           /* Options root only: room for the slider value column */
 .optionswin .menu-list li {
   display: flex; align-items: center; justify-content: space-between; gap: 28px;
 }
@@ -116,7 +123,38 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
   color: #b8c6e6; opacity: 0.85;
   display: inline-flex; align-items: center; gap: 4px;
 }
+/* adjustable value rows (volume sliders + cyclers): label left, value column right,
+   all rows share the same value-column width so sliders and words line up. */
+.optionswin .menu-list li .opt-label { flex: 1 1 auto; }
+.optionswin .menu-list li .opt-value {
+  flex: 0 0 auto; display: inline-flex; align-items: center; gap: 10px;
+  color: #cfe0ff; font-variant-numeric: tabular-nums;
+}
+.opt-value .opt-arrow { color: #8fb0ee; opacity: 0.45; font-size: 12px; }
+.menu-list li.sel .opt-value .opt-arrow { opacity: 1; color: #cfe0ff; }
+/* Fixed (not min-) width so every ◄/► lines up vertically across sliders and word-rows. */
+.opt-value .opt-cur {
+  width: 200px; text-align: center; letter-spacing: 1px; font-size: 13px;
+}
+.opt-value .opt-bar { color: #cfe0ff; }
+.opt-value .opt-pct {
+  display: inline-block; min-width: 42px; margin-left: 8px;
+  text-align: right; letter-spacing: 0;
+}
+/* Navigation rows (Controls / Back: "go somewhere") are centered, in any window class. */
+.menu-list li.navrow { display: flex; align-items: center; justify-content: center; }
+/* Clean visual break above a "Back"/return row. The line is drawn in the margin gap via ::before
+   (not as a border on the row's own box) so the row's highlight stays a clean rounded rect — no
+   thin line fused to the top/bottom of the button when it's selected. */
+.menu-list li.sep { margin-top: 16px; position: relative; }
+.menu-list li.sep::before {
+  content: ""; position: absolute; left: 0; right: 0; top: -8px;
+  border-top: 1px solid rgba(170,190,240,0.18);
+}
 .cap-prompt { text-align: center; min-width: 280px; }
+/* The capture prompt's title already carries the header rule, so its hint line drops its own
+   top border (other menus keep the help-bar separator). */
+.cap-prompt .win-help { border-top: none; padding-top: 0; }
 
 /* In-menu rebinder glyphs (Options ▸ Controls): same procedural icons as the editor grid,
    a touch larger than running-text and vertically centered in the list rows. */
