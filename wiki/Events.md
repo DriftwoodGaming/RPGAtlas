@@ -67,10 +67,32 @@ Event pages can also act as real-time map enemies. In the page's **Action Combat
 - Choose a **Defeat switch** if you want the event to change pages when defeated; otherwise it erases
   for the current play session.
 
-During play, press **J** on the map to swing the sword. A swing checks the short-lived collider in
-front of the player, damages each enemy once, flashes the target, and applies knockback when the next
-tile is open. Defeated action-combat enemies also count for Kill quest objectives that target the
-same enemy.
+During play, use the remappable **Attack** action on the map to swing the sword. A swing checks the
+short-lived collider in front of the player, damages each enemy once, flashes the target, and applies
+knockback when the next tile is open. Defeated action-combat enemies also count for Kill quest
+objectives that target the same enemy.
+
+For player-facing instructions, write text such as `Press \input[attack] to swing.` The prompt shows
+the player's current keyboard or gamepad binding instead of assuming a specific key.
+
+---
+
+## Common events
+
+**Database ▸ Common Events** stores reusable command sequences that are not tied to one map event.
+Use **Call Common Event** in any event command list to run one immediately, or call
+`game.callCommonEvent(id)` from a Script command. The script API returns a Promise; use
+`return game.callCommonEvent(id)` when later event commands must wait for the common event to finish.
+
+Each common event has a trigger:
+
+- **None** — runs only when explicitly called.
+- **Autorun** — repeatedly runs as a blocking event while its activation switch is ON.
+- **Parallel** — repeatedly runs in the background while its activation switch is ON.
+
+The activation switch controls only Autorun and Parallel behavior. Direct calls still run when that
+switch is OFF. Use a Control Switch command inside an Autorun common event to turn off its activation
+switch, or it will continue to restart and hold player control.
 
 ---
 
@@ -87,6 +109,7 @@ the button to edit or delete it.
 | Command | What it does |
 |---|---|
 | **Show Text** | Display a message window. Optional speaker **name** and **face** portrait. Supports [text codes](Message-Text-Codes). |
+| **Call Common Event** | Run a reusable command sequence from Database ▸ Common Events. |
 | **Show Choices** | Offer the player options, each branching to its own sub-list of commands. |
 | **Conditional Branch** | Run commands only **if** a condition is true (switch, self-switch, variable…), with an optional **else**. |
 | **Wait** | Pause for a number of frames. |

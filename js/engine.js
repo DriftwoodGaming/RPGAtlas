@@ -378,6 +378,7 @@ const _createInputSystem = window.createInputSystem;
   let evRTs = [];
   let blockingRun = false; // an action/touch/autorun interpreter is active
   const parallels = new Map(); // evRT -> running flag
+  const commonParallels = new Map(); // common event id -> running flag
 
   function tileAt(layer, x, y) {
     return map.layers[layer][y * map.width + x];
@@ -845,8 +846,9 @@ const _createInputSystem = window.createInputSystem;
 
   // ============================ interpreter ============================
   class Interp {
-    constructor(evRT) {
+    constructor(evRT, commonStack) {
       this.evRT = evRT;
+      this.commonStack = commonStack || [];
     }
     selfKey(key) {
       return G.mapId + ":" + (this.evRT ? this.evRT.ev.id : 0) + ":" + key;
@@ -922,6 +924,10 @@ const _createInputSystem = window.createInputSystem;
 
         case "questFail":
           Quests.fail(c.questId);
+          break;
+
+        case "commonEvent":
+          await this.callCommonEvent(c.commonEventId);
           break;
 
         case "transfer":
@@ -1059,7 +1065,10 @@ const _createInputSystem = window.createInputSystem;
           break;
         case "script": {
           try {
-            new Function("game", c.code)(scriptApi);
+            const api = Object.create(scriptApi);
+            api.callCommonEvent = (id) => this.callCommonEvent(id);
+            const result = new Function("game", c.code)(api);
+            if (result && typeof result.then === "function") await result;
           } catch (e) {
             console.error("Script command error:", e);
           }
@@ -1076,6 +1085,21 @@ const _createInputSystem = window.createInputSystem;
           }
           break;
       }
+    }
+    async callCommonEvent(id) {
+      const commonEvent = RA.byId(proj.commonEvents || [], Number(id));
+      if (!commonEvent || !commonEvent.commands.length) return false;
+      if (this.commonStack.includes(commonEvent.id)) {
+        console.warn("Skipped recursive common event call:", commonEvent.id);
+        return false;
+      }
+      this.commonStack.push(commonEvent.id);
+      try {
+        await this.runList(commonEvent.commands);
+      } finally {
+        this.commonStack.pop();
+      }
+      return true;
     }
     testCond(cond) {
       if (!cond) return true;
@@ -1150,6 +1174,9 @@ const _createInputSystem = window.createInputSystem;
     },
     abandonQuest(id) {
       return Quests.abandon(id);
+    },
+    callCommonEvent(id) {
+      return new Interp(null).callCommonEvent(id);
     },
     state() {
       return G;
@@ -1342,6 +1369,41 @@ const _createInputSystem = window.createInputSystem;
     }
   }
 
+  async function runCommonEventBlocking(commonEvent) {
+    if (blockingRun) return;
+    blockingRun = true;
+    try {
+      await new Interp(null).callCommonEvent(commonEvent.id);
+    } finally {
+      refreshAllPages();
+      blockingRun = false;
+    }
+  }
+
+  function updateCommonEvents() {
+    const commonEvents = proj.commonEvents || [];
+    if (!blockingRun) {
+      const autorun = commonEvents.find((commonEvent) =>
+        commonEvent.trigger === "auto" &&
+        commonEvent.commands.length &&
+        RA.commonEventEnabled(commonEvent, G.switches));
+      if (autorun) runCommonEventBlocking(autorun);
+    }
+    for (const commonEvent of commonEvents) {
+      if (
+        commonEvent.trigger !== "parallel" ||
+        !commonEvent.commands.length ||
+        !RA.commonEventEnabled(commonEvent, G.switches) ||
+        commonParallels.get(commonEvent.id)
+      ) continue;
+      commonParallels.set(commonEvent.id, true);
+      new Interp(null).callCommonEvent(commonEvent.id).finally(async () => {
+        await sleep(50);
+        commonParallels.set(commonEvent.id, false);
+      });
+    }
+  }
+
   async function transferPlayer(mapId, x, y, dir) {
     const tr = Plugins.transition;
     if (tr && tr.out) await tr.out();
@@ -1458,6 +1520,7 @@ const _createInputSystem = window.createInputSystem;
         });
       }
     }
+    updateCommonEvents();
   }
 
   function onPlayerStep() {
@@ -2270,6 +2333,7 @@ const _createInputSystem = window.createInputSystem;
     }
   }
   async function applySave(d) {
+    commonParallels.clear();
     G.switches = d.switches || {};
     G.vars = d.vars || {};
     G.selfSw = d.selfSw || {};
@@ -3356,6 +3420,7 @@ const _createInputSystem = window.createInputSystem;
   }
 
   async function newGame() {
+    commonParallels.clear();
     G.switches = {};
     G.vars = {};
     G.selfSw = {};
@@ -3540,7 +3605,7 @@ const _createInputSystem = window.createInputSystem;
   }
 
   // Apply System-tab presentation settings: screen size, UI area, fonts,
-  // base font size, and window opacity (via CSS variables play.css reads).
+  // base font size, window opacity, and window color (via CSS variables play.css reads).
   function applyScreenSettings() {
     const s = proj.system;
     SCREEN_W = clamp(Math.floor(Number(s.screenWidth) || 816), 384, 3840);
@@ -3578,6 +3643,11 @@ const _createInputSystem = window.createInputSystem;
       clamp(s.windowOpacity == null ? 93 : Number(s.windowOpacity), 0, 100) /
         100,
     );
+    const windowPalette = RA.windowColorPalette(s.windowColor);
+    stage.style.setProperty("--win-top-rgb", windowPalette.top);
+    stage.style.setProperty("--win-bottom-rgb", windowPalette.bottom);
+    stage.style.setProperty("--win-name-top-rgb", windowPalette.nameTop);
+    stage.style.setProperty("--win-name-bottom-rgb", windowPalette.nameBottom);
   }
 
   async function boot() {

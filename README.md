@@ -56,8 +56,8 @@ plus an icon toolbar with everything one click away.
 | **HD-2D rendering** | Per-map opt-in WebGL2 mode: tilted perspective camera, extruded terrain, billboard sprites, bloom, depth of field, distance fog and point lights (events named `light #rrggbb radius`); live preview panel in the editor; falls back to the classic 2D renderer automatically |
 | **Cut / Copy / Paste** | Shift+drag selects a tile region (all layers + shadows + heights); events copy/paste too |
 | **Undo / Redo** | Full-map history for tiles, shadows, heights, passability and events |
-| **Database** | Actors, Classes, Skills, Items, Weapons, Armors, Enemies, Troops, States, Switches, Variables, System |
-| **System tab** | Game screen width/height, UI area size, screen scale, message & menu fonts, font size, window opacity, remappable system sounds & music themes, side-view or front-view battles, start-transparent player |
+| **Database** | Actors, Classes, Skills, Items, Weapons, Armors, Enemies, Troops, Common Events, States, Switches, Variables, System |
+| **System tab** | Game screen width/height, UI area size, screen scale, message & menu fonts, font size, window color and opacity, remappable system sounds & music themes, side-view or front-view battles, start-transparent player |
 | **States** | Poison / stun / regen-style battle effects with per-turn HP %, act restriction, duration and battle-end removal; skills can inflict or cure them |
 | **Plugin Manager** | Project-embedded JavaScript with boot, map-load and per-frame hooks |
 | **Audio Manager** | Preview every procedural sound effect and music theme |
@@ -124,7 +124,7 @@ Return to Title · Script (JS)
 - Pooled combat particles for movement, impacts, skills, magic, healing, guarding, states, and defeats
 - Configurable class traits for stats, resistances, skill bonuses, equipment, and combat rules
 - Shops with buy/sell, procedural chiptune music & sound effects
-- Presentation is project-driven: screen size, UI area, scale, fonts, font size and window opacity
+- Presentation is project-driven: screen size, UI area, scale, fonts, font size, window color and opacity
   all come from the Database System tab
 
 ## Plugins

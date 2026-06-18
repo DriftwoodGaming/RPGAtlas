@@ -98,6 +98,33 @@ const RA = {
     { v: '"Arial Black", Impact, sans-serif', l: "Display (Arial Black)" },
     { v: 'fantasy', l: "Fantasy (browser pick)" },
   ],
+  DEFAULT_WINDOW_COLOR: "#12182e",
+  normalizeWindowColor(value) {
+    const raw = String(value == null ? "" : value).trim();
+    const short = /^#([0-9a-f]{3})$/i.exec(raw);
+    if (short) {
+      return ("#" + short[1].split("").map((c) => c + c).join("")).toLowerCase();
+    }
+    return /^#[0-9a-f]{6}$/i.test(raw) ? raw.toLowerCase() : this.DEFAULT_WINDOW_COLOR;
+  },
+  windowColorPalette(value) {
+    const hex = this.normalizeWindowColor(value);
+    const rgb = [
+      parseInt(hex.slice(1, 3), 16),
+      parseInt(hex.slice(3, 5), 16),
+      parseInt(hex.slice(5, 7), 16),
+    ];
+    const scaled = (factor) => rgb
+      .map((channel) => Math.max(0, Math.min(255, Math.round(channel * factor))))
+      .join(", ");
+    return {
+      hex,
+      top: scaled(1),
+      bottom: scaled(0.6),
+      nameTop: scaled(1.55),
+      nameBottom: scaled(0.78),
+    };
+  },
   // logical UI sounds the engine plays; each maps to any procedural SE name
   SYSTEM_SOUNDS: [
     { key: "cursor", label: "Cursor move", def: "cursor" },
@@ -128,6 +155,19 @@ const RA = {
       invulnFrames: 24,
       defeatSelfSwitch: "",
     };
+  },
+  defaultCommonEvent() {
+    return {
+      id: 0,
+      name: "Common Event",
+      trigger: "none",
+      switchId: 0,
+      commands: [],
+    };
+  },
+  commonEventEnabled(commonEvent, switches) {
+    if (!commonEvent) return false;
+    return !commonEvent.switchId || !!(switches && switches[commonEvent.switchId]);
   },
   // --- Input system (keyboard + gamepad bindings, remappable) ---
   // Generic positional gamepad button names, in W3C "Standard Gamepad" index order (0..15).
@@ -329,6 +369,20 @@ const RA = {
     p.meta.version = 3;
     p.plugins = p.plugins || [];
     p.quests = p.quests || [];
+    p.commonEvents = Array.isArray(p.commonEvents) ? p.commonEvents : [];
+    p.commonEvents = p.commonEvents
+      .filter((commonEvent) => commonEvent && typeof commonEvent === "object")
+      .map((commonEvent, index) => {
+        const next = Object.assign(RA.defaultCommonEvent(), commonEvent);
+        next.id = Number(next.id) || index + 1;
+        next.name = String(next.name || "Common Event");
+        next.trigger = ["none", "auto", "parallel"].includes(next.trigger)
+          ? next.trigger
+          : "none";
+        next.switchId = Math.max(0, Number(next.switchId) || 0);
+        next.commands = Array.isArray(next.commands) ? next.commands : [];
+        return next;
+      });
     p.customChars = p.customChars || [];
     p.commandPresets = Array.isArray(p.commandPresets) ? p.commandPresets : [];
     p.assets = p.assets || {};
@@ -349,6 +403,7 @@ const RA = {
     if (!sys.fontMenu) sys.fontMenu = RA.FONTS[0].v;
     if (!sys.fontSize) sys.fontSize = 15;
     if (sys.windowOpacity == null) sys.windowOpacity = 93;
+    sys.windowColor = RA.normalizeWindowColor(sys.windowColor);
     sys.sounds = Object.assign(RA.defaultSounds(), sys.sounds || {});
     sys.music = Object.assign(RA.defaultMusic(), sys.music || {});
     // v3 input bindings (keyboard + gamepad, remappable). Backfill per action so a partial
@@ -916,6 +971,7 @@ const DataDefaults = (() => {
       ],
       customChars: [],
       commandPresets: [],
+      commonEvents: [],
       assets: { tiles: {} },
       system: {
         title: "Atlas Quest",
@@ -930,7 +986,7 @@ const DataDefaults = (() => {
         uiWidth: 0, uiHeight: 0,
         screenScale: 1.6,
         fontText: RA.FONTS[0].v, fontMenu: RA.FONTS[0].v,
-        fontSize: 15, windowOpacity: 93,
+        fontSize: 15, windowOpacity: 93, windowColor: RA.DEFAULT_WINDOW_COLOR,
         sounds: RA.defaultSounds(),
         music: RA.defaultMusic(),
         types: RA.defaultTypes(),

@@ -1785,6 +1785,7 @@ const editorI18n = createEditorI18n({
     const varName = (id) => id + (proj.system.variables[id - 1] ? " (" + proj.system.variables[id - 1] + ")" : "");
     const dbName = (arr, id) => { const e = RA.byId(arr, id); return e ? e.name : "#" + id; };
     const questName = (id) => dbName(proj.quests || [], id);
+    const commonEventName = (id) => dbName(proj.commonEvents || [], id);
     const questObjName = (questId, objIndex) => {
       const q = RA.byId(proj.quests || [], questId);
       const obj = q && Array.isArray(q.objectives) ? q.objectives[objIndex] : null;
@@ -1811,6 +1812,7 @@ const editorI18n = createEditorI18n({
       case "questSetObj": return "Set Objective: " + questName(c.questId) + " — " + questObjName(c.questId, c.objIndex) + " = " + (c.value || 0);
       case "questComplete": return "Complete Quest: " + questName(c.questId);
       case "questFail": return "Fail Quest: " + questName(c.questId);
+      case "commonEvent": return "Call Common Event: " + commonEventName(c.commonEventId);
       case "transfer": { const m = RA.byId(proj.maps, c.mapId); return "Transfer → " + (m ? m.name : "?") + " (" + c.x + "," + c.y + ")"; }
       case "gold": return (c.op === "sub" ? "Lose" : "Gain") + " " + c.val + " " + proj.system.currency;
       case "item": return (c.op === "sub" ? "Lose" : "Gain") + " " + dbName(c.kind === "weapon" ? proj.weapons : c.kind === "armor" ? proj.armors : proj.items, c.id) + " ×" + c.val;
@@ -2081,6 +2083,12 @@ const editorI18n = createEditorI18n({
         box.appendChild(field("Quest", sel(w, "questId", dbOpts(proj.quests, "(none)"))));
         return () => { c.questId = w.questId; };
       } },
+    { t: "commonEvent", label: "Call Common Event", make: () => ({ t: "commonEvent", commonEventId: proj.commonEvents[0] ? proj.commonEvents[0].id : 0 }),
+      form(c, box) {
+        const w = { commonEventId: c.commonEventId || (proj.commonEvents[0] ? proj.commonEvents[0].id : 0) };
+        box.appendChild(field("Common event", sel(w, "commonEventId", dbOpts(proj.commonEvents, "(none)"))));
+        return () => { c.commonEventId = w.commonEventId; };
+      } },
     { t: "switch", label: "Control Switch", make: () => ({ t: "switch", id: 1, val: true }),
       form(c, box) {
         const w = { id: c.id, val: String(c.val) };
@@ -2304,7 +2312,7 @@ const editorI18n = createEditorI18n({
     { t: "script", label: "Script (JavaScript)", make: () => ({ t: "script", code: "" }),
       form(c, box) {
         const ta = h("textarea", { rows: 6, spellcheck: "false" }, c.code || "");
-        box.appendChild(field("JS — api: game.setSwitch(id,v) getSwitch setVar getVar addGold(n) party() quest(id) questStatus startQuest advanceQuestObjective setQuestObjective completeQuest failQuest abandonQuest state()", ta));
+        box.appendChild(field("JS — api: game.setSwitch(id,v) getSwitch setVar getVar addGold(n) callCommonEvent(id) party() quest(id) questStatus startQuest advanceQuestObjective setQuestObjective completeQuest failQuest abandonQuest state()", ta));
         return () => { c.code = ta.value; };
       } },
   ];
@@ -2995,7 +3003,8 @@ const editorI18n = createEditorI18n({
           propRow("Invuln frames", nIn(pg.combat, "invulnFrames", 0, 180)),
           propRow("Defeat switch", sel(pg.combat, "defeatSelfSwitch",
             [{ v: "", l: "(erase event)" }, { v: "A", l: "Self-Switch A" }, { v: "B", l: "Self-Switch B" }, { v: "C", l: "Self-Switch C" }, { v: "D", l: "Self-Switch D" }])),
-          h("div", { class: "dim" }, "Press J on the map to swing. HP 0 uses the selected enemy's database HP.")),
+          h("div", { class: "dim" },
+            "Players use the remappable Attack action to swing. In messages, use \\input[attack] for an input-aware prompt. HP 0 uses the selected enemy's database HP.")),
       ], combatBadge);
       combatSection.addEventListener("change", refreshCombatBadge);
 
@@ -3202,8 +3211,14 @@ const editorI18n = createEditorI18n({
         fontOpts.stringValues = true;
         box.appendChild(row(field("Message font", sel(s, "fontText", fontOpts)),
           field("Menu font", sel(s, "fontMenu", fontOpts))));
+        const windowColor = h("input", {
+          type: "color",
+          value: RA.normalizeWindowColor(s.windowColor),
+          oninput(e) { s.windowColor = RA.normalizeWindowColor(e.target.value); touch(); },
+        });
         box.appendChild(row(field("Font size (px)", nIn(s, "fontSize", 8, 48)),
-          field("Window opacity", rangeIn(s, "windowOpacity", 0, 100, "%"))));
+          field("Window opacity", rangeIn(s, "windowOpacity", 0, 100, "%")),
+          field("Window color", windowColor)));
 
         box.appendChild(h("div", { class: "subhead" }, "System sounds"));
         const seOpts = SE_NAMES.map((n) => ({ v: n, l: n }));
@@ -3608,6 +3623,30 @@ const editorI18n = createEditorI18n({
           redrawM();
           box.appendChild(h("div", { class: "subhead" }, "Members (up to 4)"));
           box.appendChild(mbox);
+        },
+      }) },
+      { label: "Common Events", build: () => listFormTab({
+        list: () => proj.commonEvents,
+        allowEmpty: true,
+        blank: () => RA.defaultCommonEvent(),
+        form(e, box, redrawList) {
+          e.commands = Array.isArray(e.commands) ? e.commands : [];
+          e.trigger = ["none", "auto", "parallel"].includes(e.trigger) ? e.trigger : "none";
+          e.switchId = Math.max(0, Number(e.switchId) || 0);
+          box.appendChild(h("div", { class: "subhead" }, "Common event settings"));
+          box.appendChild(row(
+            field("Name", nameRefresher(e, redrawList)),
+            field("Trigger", sel(e, "trigger", [
+              { v: "none", l: "None" },
+              { v: "auto", l: "Autorun" },
+              { v: "parallel", l: "Parallel" },
+            ])),
+            field("Activation switch", sel(e, "switchId", switchOpts())),
+          ));
+          box.appendChild(h("div", { class: "dim" },
+            "Autorun and Parallel run while the selected switch is ON. Choose (none) to keep the trigger always active. Direct calls run regardless of this switch."));
+          box.appendChild(h("div", { class: "subhead" }, "Contents"));
+          box.appendChild(cmdListWidget(() => e.commands, { snapshot() {} }).el);
         },
       }) },
       { label: "Quests", build: () => listFormTab({
@@ -4113,7 +4152,7 @@ const editorI18n = createEditorI18n({
  *   atlas.setTransition({out,in})   custom transfer effect
  *   atlas.registerCommand(type, fn) handle a custom event command
  *   atlas.startBattle(troopId)      start a battle, resolves "win"/"lose"/"escape"
- *   game.setSwitch/getSwitch/setVar/getVar/addGold/party/state
+ *   game.setSwitch/getSwitch/setVar/getVar/addGold/callCommonEvent/party/state
  * Tip: the bundled Atlas_* plugins (Add → Built-in…) show real examples.
  * A hook that throws is disabled (see the browser console). */
 atlas.onMapLoad((map) => {
@@ -4587,7 +4626,7 @@ atlas.onMapLoad((map) => {
 </ul>
 <h3>Tools</h3>
 <ul>
-<li><b>Database</b>: actors, classes, skills, items, equipment, enemies, troops, states, types, switches, variables, system.</li>
+<li><b>Database</b>: actors, classes, skills, items, equipment, enemies, troops, common events, states, types, switches, variables, system.</li>
 <li><b>System tab</b>: screen size, UI area, screen scale, fonts &amp; font size, window opacity, system sounds &amp; music, side-view or front-view battles, start-transparent player.</li>
 <li><b>States</b>: poison / stun / regen-style battle effects, inflicted or cured by skills.</li>
 <li><b>Plugin Manager</b>: project-embedded JavaScript that runs at game boot, with map-load and per-frame hooks.</li>

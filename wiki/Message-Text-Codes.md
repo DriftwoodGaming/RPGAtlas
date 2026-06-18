@@ -21,6 +21,8 @@ The `\input` action is one of the input actions from **Database ▸ Controls**: 
 `right`, `ok`, `cancel`, `dash`, `attack`. The glyph follows whatever the player has bound and which
 device they're using — e.g. `Press \input[ok] to continue` shows the **Z** key-cap on a keyboard, or
 **A** / **✕** / **B** on an Xbox / PlayStation / Switch pad. It's chosen when the message opens.
+Action-combat tutorials should likewise use `Press \input[attack] to swing` rather than naming the
+default attack key, since players can remap that action.
 
 Messages also use **typewriter** display by default — text appears letter by letter.
 

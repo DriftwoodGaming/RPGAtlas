@@ -7,9 +7,11 @@ const vm = require("node:vm");
 const context = vm.createContext({
   console,
   Assets: { T: {} },
+  window: {},
 });
 vm.runInContext(fs.readFileSync("js/plugins.js", "utf8"), context, { filename: "js/plugins.js" });
 vm.runInContext(fs.readFileSync("js/data.js", "utf8"), context, { filename: "js/data.js" });
+vm.runInContext(fs.readFileSync("js/runtime/input.js", "utf8"), context, { filename: "js/runtime/input.js" });
 
 function evaluate(source) {
   return vm.runInContext(source, context);
@@ -66,5 +68,35 @@ const legacy = evaluate(`RA.migrateProject({
 })`);
 assert.equal(legacy.maps[0].events[0].pages[0].combat.enabled, false);
 assert.equal(legacy.maps[0].events[0].pages[0].combat.knockbackTiles, 1);
+
+// Map action combat must consume the named Attack action, not inspect a physical key.
+// Pin both sides of the integration: engine.js asks Input for "attack", and the input
+// layer resolves a project-defined replacement binding.
+const engineSource = fs.readFileSync("js/engine.js", "utf8");
+assert.match(engineSource, /Input\.consume\(["']attack["']\)/, "map update consumes the Attack action");
+assert.doesNotMatch(engineSource, /case\s+["']KeyJ["']/, "engine has no hardcoded J attack branch");
+
+const handlers = {};
+const bindings = evaluate("RA.defaultInput()");
+bindings.keyboard.attack = ["KeyK"];
+const Input = evaluate("createInputSystem")({
+  defaultBindings: bindings,
+  document: { addEventListener(type, fn) { handlers[type] = fn; } },
+  window: { addEventListener() {} },
+  navigator: { getGamepads: () => [] },
+  isMenuOpen: () => false,
+  onMenuNav() {},
+});
+Input.attachDOM();
+const keyEvent = (code) => ({ code, repeat: false, preventDefault() {} });
+
+handlers.keydown(keyEvent("KeyJ"));
+Input.poll();
+assert.equal(Input.consume("attack"), false, "the old default key does not attack after rebinding");
+handlers.keyup(keyEvent("KeyJ"));
+
+handlers.keydown(keyEvent("KeyK"));
+Input.poll();
+assert.equal(Input.consume("attack"), true, "the remapped key triggers the Attack action");
 
 console.log("Action combat tests passed.");

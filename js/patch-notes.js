@@ -4,6 +4,37 @@
 
 export const PATCH_NOTES = [
   {
+    date: "June 18, 2026",
+    title: "Reusable Common Events",
+    summary: "The Database now includes Common Events for reusable command sequences, explicit calls, and switch-controlled automatic processing.",
+    items: [
+      "Added Database -> Common Events with Name, Trigger, Activation switch, and the full event-command list editor.",
+      "Added the Call Common Event command to event content lists and game.callCommonEvent(id) to the Script API.",
+      "Common Events support None, Autorun, and Parallel triggers, with optional switch gating for automatic execution.",
+      "Recursive common-event calls are safely skipped to prevent an immediate infinite call loop.",
+    ],
+  },
+  {
+    date: "June 18, 2026",
+    title: "Custom Window Colors",
+    summary: "Projects can now set a shared window color for Show Text boxes, menus, and battle information panels from the System tab.",
+    items: [
+      "Added a Window color picker beside the existing font size and opacity settings in Database -> System.",
+      "The selected color is applied to message boxes, speaker-name labels, standard menus, and battle log and party panels.",
+      "Existing projects receive the original dark-blue window color automatically, while custom colors persist through saves and exports.",
+    ],
+  },
+  {
+    date: "June 18, 2026",
+    title: "Remappable Map Attack Prompts",
+    summary: "Map action combat and its guidance now consistently use the remappable Attack action instead of assuming the default J key.",
+    items: [
+      "Map sword attacks are covered by a regression test that verifies a replacement Attack binding works and the old key no longer triggers it.",
+      "The Action Combat editor hint now points authors to the remappable Attack action and the \\input[attack] message prompt.",
+      "Action Combat and message text-code documentation now show input-aware attack instructions for keyboard and gamepad players.",
+    ],
+  },
+  {
     date: "June 16, 2026",
     title: "Quest Editor Validation Warnings",
     summary: "The Quests database tab now warns authors about broken quest references and other common setup mistakes while editing.",

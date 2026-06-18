@@ -46,6 +46,11 @@ monster families ship with the engine. See [Battles & States](Battles-and-States
 **Groups of enemies** that appear together in one battle. A fixed encounter or a random encounter
 always references a *troop*, not a single enemy. A troop can be one slime or a whole pack.
 
+### Common Events
+Reusable event-command sequences that can be called from map events or scripts. They can also run
+automatically as **Autorun** or **Parallel** processes, optionally gated by a switch. See
+[Common events](Events#common-events).
+
 ### States
 Status effects: poison, stun, regen, and the like. Each state has a **per-turn HP change (%)**, an
 **action restriction**, a **duration**, whether it's **removed after battle**, and colors/icons.
@@ -73,7 +78,7 @@ Game-wide presentation and rules. This tab is worth a careful look:
 | **Screen width / height** | The game's resolution |
 | **UI area size & screen scale** | How big the playfield and interface are |
 | **Message & menu fonts, font size** | Typography for all windows |
-| **Window opacity** | How see-through message/menu windows are |
+| **Window color & opacity** | The shared color and transparency of Show Text boxes and menus |
 | **System sounds & music themes** | Remappable cursor/confirm/cancel sounds and default music |
 | **Battle view** | **Side view** (animated party sprites) or classic **front view** |
 | **Start transparent** | Begin with the player sprite hidden (great for intro cutscenes) |
