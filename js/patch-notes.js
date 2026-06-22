@@ -4,6 +4,17 @@
 
 export const PATCH_NOTES = [
   {
+    date: "June 22, 2026",
+    title: "Live HD-2D Editor Preview",
+    summary: "The HD-2D Preview now uses the current PIXI renderer directly and stays synchronized with map edits.",
+    items: [
+      "Game -> HD-2D Preview opens a working draggable preview panel again, including elevation, map characters, ambient lighting, event lights, and map lights.",
+      "Blocked and elevated tiles cast bounded point-light shadows in both the preview and game runtime.",
+      "The Map Properties Point lights toggle now consistently controls event and map lights during playtests and previews.",
+      "Closing and reopening the preview reuses its renderer safely without accumulating per-frame lighting graphics.",
+    ],
+  },
+  {
     date: "June 19, 2026",
     title: "HD-2D Height Extrusion",
     summary: "Elevation painted with the map editor's Height tool now renders as raised blocks with shaded cliff faces in the HD-2D view, instead of being ignored.",

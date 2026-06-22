@@ -1634,12 +1634,13 @@ const editorI18n = createEditorI18n({
   }
 
   // ============================ HD-2D live preview ============================
-  // A floating panel that renders the current map through the game's WebGL2
-  // renderer (js/gl.js) using the map's own hd2d settings. It rebuilds after
+  // A floating panel that renders the current map through the game's PIXI
+  // renderer using the map's own hd2d settings. It rebuilds after
   // edits (debounced — touch() marks it dirty) and re-renders every frame.
   let hdPanel = null, hdCanvas = null, hdDirty = true, hdMapId = 0, hdLastBuild = 0, hdRAF = 0;
   let hdCamX = 0, hdCamY = 0; // camera look-at center, world px
   let hdKick = null;          // one-shot refresh timer (covers rAF pauses in hidden windows)
+  let hdOpening = false;
 
   function hdMarkDirty() {
     hdDirty = true;
@@ -1710,14 +1711,23 @@ const editorI18n = createEditorI18n({
       if (L) lights.push({ rx: ev.x, ry: ev.y, color: L.color, radius: L.radius });
       if (pg && pg.charset) {
         const ci = Assets.charsetIndex(pg.charset);
-        if (ci >= 0) sprites.push({ canvas: Assets.charFrameCanvas(ci, pg.dir || 0, 1), rx: ev.x, ry: ev.y, pr: 1 });
+        if (ci >= 0) sprites.push({
+          id: "preview_ev_" + ev.id,
+          canvas: Assets.charFrameCanvas(ci, pg.dir || 0, 1),
+          rx: ev.x, ry: ev.y, pr: 1,
+        });
       }
     }
     const hd2d = m.hd2d || {};
+    if (hd2d.lights !== false && Array.isArray(m.lights)) lights.push(...m.lights);
+    if (hd2d.lights === false) lights.length = 0;
     const ambient = hd2d.ambient != null ? Number(hd2d.ambient) : 0.45;
-    const frame = GLRender.renderFrame(w, hgt, camX, camY, sprites,
-      { lights, ambient, focus: { rx: (camX + w / 2) / TILE, ry: (camY + hgt / 2) / TILE } });
-    if (frame) hdCanvas.getContext("2d").drawImage(frame, 0, 0);
+    GLRender.renderFrame(w, hgt, camX, camY, sprites, {
+      lights,
+      ambient,
+      focus: { rx: (camX + w / 2) / TILE, ry: (camY + hgt / 2) / TILE },
+      tilePassable: effectivePass,
+    });
   }
   function hdFrame() {
     if (!hdPanel) return;
@@ -1731,27 +1741,30 @@ const editorI18n = createEditorI18n({
     window.removeEventListener("mousemove", hdPanel._move);
     window.removeEventListener("mouseup", hdPanel._up);
     hdPanel.remove();
-    hdPanel = null; hdCanvas = null;
+    hdPanel = null;
     refreshToolbar();
   }
-  function toggleHdPreview() {
+  async function toggleHdPreview() {
     if (hdPanel) { closeHdPreview(); return; }
-    // The in-editor HD-2D live preview was built on the old synchronous GLRender. The new
-    // PIXI renderer (Renderer, aliased to GLRender) is async and renders to its own canvas,
-    // so this preview needs a PIXI rewrite — disable it gracefully until then rather than
-    // throwing every frame. (The in-game HD-2D rendering uses the new renderer fully.)
-    const asyncRenderer = typeof GLRender !== "undefined" && GLRender.available &&
-      GLRender.available.constructor && GLRender.available.constructor.name === "AsyncFunction";
-    if (typeof GLRender === "undefined" || asyncRenderer) {
-      flashStatus("HD-2D live preview is being rebuilt on the new PIXI renderer — unavailable for now");
-      return;
+    if (hdOpening) return;
+    hdOpening = true;
+    if (!hdCanvas) {
+      hdCanvas = h("canvas", {
+        id: "hd-preview-canvas",
+        width: 480,
+        height: 360,
+        style: "display:block;cursor:grab",
+      });
     }
-    if (!GLRender.available()) {
+    if (typeof GLRender === "undefined" || !(await GLRender.available({ canvas: hdCanvas }))) {
+      hdOpening = false;
+      hdCanvas = null;
       flashStatus("HD-2D preview needs WebGL2, which is unavailable in this browser");
       return;
     }
-    hdCanvas = h("canvas", { width: 480, height: 360, style: "display:block;cursor:grab" });
+    hdOpening = false;
     hdPanel = h("div", {
+      id: "hd-preview-panel",
       style: "position:fixed;right:18px;bottom:38px;z-index:90;border:1px solid #3a3a4a;border-radius:6px;" +
         "overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,0.5);background:#101018",
     },

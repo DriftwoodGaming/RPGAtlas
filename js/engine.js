@@ -1731,15 +1731,18 @@ const _createInputSystem = window.createInputSystem;
         });
       }
       const lights = [];
-      // Luzes de eventos
-      for (const rt of evRTs) {
-        if (rt.light && !rt.erased && rt.page) {
-          lights.push({ rx: ip(rt.prx, rt.rx), ry: ip(rt.pry, rt.ry), color: rt.light.color, radius: rt.light.radius });
+      const lightsEnabled = !map.hd2d || map.hd2d.lights !== false;
+      if (lightsEnabled) {
+        // Event lights
+        for (const rt of evRTs) {
+          if (rt.light && !rt.erased && rt.page) {
+            lights.push({ rx: ip(rt.prx, rt.rx), ry: ip(rt.pry, rt.ry), color: rt.light.color, radius: rt.light.radius });
+          }
         }
-      }
-      // Luzes do mapa
-      if (map.lights) {
-        for (const l of map.lights) lights.push(l);
+        // Map lights
+        if (map.lights) {
+          for (const l of map.lights) lights.push(l);
+        }
       }
       const ambient =
         map.hd2d && map.hd2d.ambient != null ? Number(map.hd2d.ambient) : 0.45;

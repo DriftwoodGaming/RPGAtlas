@@ -13,6 +13,7 @@ vm.runInContext(fs.readFileSync("js/renderer.js", "utf8"), context, {
   filename: "js/renderer.js",
 });
 const planWalls = context.window.Renderer.planWalls;
+const planLightOccluders = context.window.Renderer.planLightOccluders;
 
 const map = (width, height, heights) => ({ width, height, heights });
 // planWalls returns objects from the vm realm, so compare by value, not by
@@ -49,5 +50,23 @@ assert.equal(json(edge[0]), json({ tx: 0, ty: 1, h: 4, faceUnits: 4 }));
 const plateau = planWalls(map(1, 3, [1, 1, 0]));
 assert.equal(plateau.find((w) => w.ty === 0).faceUnits, 0); // 1 - 1
 assert.equal(plateau.find((w) => w.ty === 1).faceUnits, 1); // 1 - 0
+
+// Lighting occlusion includes blocked and elevated nearby tiles, but not the
+// tile occupied by the light source itself.
+const shadowMap = map(4, 3, [
+  0, 0, 0, 0,
+  0, 0, 2, 0,
+  0, 0, 0, 0,
+]);
+const blocked = new Set(["1,1"]);
+const occluders = planLightOccluders(
+  shadowMap,
+  { rx: 0, ry: 1, radius: 180 },
+  (x, y) => !blocked.has(x + "," + y),
+);
+assert.equal(occluders.some((o) => o.tx === 1 && o.ty === 1 && o.tileHeight === 0), true);
+assert.equal(occluders.some((o) => o.tx === 2 && o.ty === 1 && o.tileHeight === 2), true);
+assert.equal(occluders.some((o) => o.tx === 0 && o.ty === 1), false);
+assert.equal(planLightOccluders(shadowMap, null, () => true).length, 0);
 
 console.log("Wall extrusion tests passed.");

@@ -25,7 +25,7 @@ const Renderer = (() => {
   let lightRenderContainer = null;
   let lightMapTexture = null;
   let lightMapSprite = null;
-  let ambientSpr = null;
+  let ambientGraphics = null;
   let gradientTexture = null;
   let currentMap = null;
 
@@ -144,11 +144,31 @@ const Renderer = (() => {
     return { x: px + (dx / len) * projDist, y: py + (dy / len) * projDist };
   }
 
-  function tileHeightAt(x, y) {
-    if (!currentMap || !currentMap.heights) return 0;
-    if (x < 0 || y < 0 || x >= currentMap.width || y >= currentMap.height)
-      return 0;
-    return Number(currentMap.heights[y * currentMap.width + x] || 0);
+  function planLightOccluders(map, light, tilePassable) {
+    const out = [];
+    if (!map || !light || typeof tilePassable !== "function") return out;
+    const radius = Math.max(0, Number(light.radius) || 0);
+    const lightX = Number(light.rx);
+    const lightY = Number(light.ry);
+    if (!Number.isFinite(lightX) || !Number.isFinite(lightY) || radius <= 0) return out;
+    const minTx = Math.max(0, Math.floor(lightX - radius / TILE - 1));
+    const maxTx = Math.min(map.width, Math.ceil(lightX + radius / TILE + 1));
+    const minTy = Math.max(0, Math.floor(lightY - radius / TILE - 1));
+    const maxTy = Math.min(map.height, Math.ceil(lightY + radius / TILE + 1));
+    for (let ty = minTy; ty < maxTy; ty++) {
+      for (let tx = minTx; tx < maxTx; tx++) {
+        if (tx === Math.floor(lightX) && ty === Math.floor(lightY)) continue;
+        const tileHeight = map.heights
+          ? Number(map.heights[ty * map.width + tx] || 0)
+          : 0;
+        if (tilePassable(tx, ty) && tileHeight <= 0) continue;
+        const dx = (tx - lightX) * TILE;
+        const dy = (ty - lightY) * TILE;
+        if (Math.sqrt(dx * dx + dy * dy) > radius + TILE) continue;
+        out.push({ tx, ty, tileHeight });
+      }
+    }
+    return out;
   }
 
   // Pure geometry for the height-extrusion pass: one entry per elevated tile.
@@ -244,21 +264,32 @@ const Renderer = (() => {
     graphics.endFill();
   }
 
-  async function available() {
+  async function available(options = {}) {
     if (ok) return true;
     try {
+      if (!PIXI || !PIXI.Application) return false;
+      const targetCanvas = options.canvas || null;
       app = new PIXI.Application();
       await app.init({
         antialias: false,
         premultipliedAlpha: true,
         backgroundAlpha: 0,
+        ...(targetCanvas ? { canvas: targetCanvas } : {}),
       });
       const pixiCanvas = app.canvas;
-      pixiCanvas.id = "pixicanvas";
-      pixiCanvas.style.cssText =
-        "position:absolute;inset:0;z-index:0;image-rendering:pixelated";
-      const gameCanvas = document.getElementById("gamecanvas");
-      gameCanvas.parentNode.insertBefore(pixiCanvas, gameCanvas);
+      pixiCanvas.style.imageRendering = "pixelated";
+      if (!targetCanvas) {
+        const gameCanvas = document.getElementById("gamecanvas");
+        if (!gameCanvas || !gameCanvas.parentNode) {
+          app.destroy();
+          app = null;
+          return false;
+        }
+        pixiCanvas.id = "pixicanvas";
+        pixiCanvas.style.cssText =
+          "position:absolute;inset:0;z-index:0;image-rendering:pixelated";
+        gameCanvas.parentNode.insertBefore(pixiCanvas, gameCanvas);
+      }
       ok = true;
 
       sceneContainer = new PIXI.Container();
@@ -274,6 +305,7 @@ const Renderer = (() => {
       sceneContainer.addChild(spriteContainer);
 
       lightRenderContainer = new PIXI.Container();
+      ambientGraphics = new PIXI.Graphics();
 
       lightMapTexture = PIXI.RenderTexture.create({
         width: 1,
@@ -353,6 +385,7 @@ const Renderer = (() => {
 
   function renderFrame(w, h, camX, camY, sprites, extra) {
     if (!ok) return null;
+    extra = extra || {};
 
     if (app.renderer.width !== w || app.renderer.height !== h) {
       app.renderer.resize(w, h);
@@ -392,8 +425,8 @@ const Renderer = (() => {
     releaseAllLights();
     releaseAllShadows();
 
-    const lights = extra.lights;
-    const hasLights = lights && Array.isArray(lights) && lights.length > 0;
+    const lights = Array.isArray(extra.lights) ? extra.lights : [];
+    const hasLights = lights.length > 0;
     const ambient = extra.ambient != null ? extra.ambient : 0.45;
     const doLighting = hasLights || ambient != null;
 
@@ -412,19 +445,19 @@ const Renderer = (() => {
       const ambientColor = (ambientBg << 16) | (ambientBg << 8) | ambientBg;
 
       // Draw background with ambient color
-      const bgGraphics = new PIXI.Graphics();
-      bgGraphics.beginFill(ambientColor, 1);
-      bgGraphics.drawRect(0, 0, w, h);
-      bgGraphics.endFill();
-      lightRenderContainer.addChild(bgGraphics);
+      ambientGraphics.clear();
+      ambientGraphics.beginFill(ambientColor, 1);
+      ambientGraphics.drawRect(0, 0, w, h);
+      ambientGraphics.endFill();
+      lightRenderContainer.addChild(ambientGraphics);
 
       const gradHalf = gradientTexture.width / 2;
       const sx = extra.shakeX || 0;
       const sy = extra.shakeY || 0;
 
       const tilePassable = extra.tilePassable;
-      // Sombras temporariamente desabilitadas — apenas luzes por enquanto
-      const useShadows = false;
+      // Shadows are safe only when the host provides map passability.
+      const useShadows = currentMap && typeof tilePassable === "function";
 
       for (let i = 0; i < lights.length; i++) {
         const l = lights[i];
@@ -448,50 +481,23 @@ const Renderer = (() => {
         lightRenderContainer.addChild(spr);
 
         if (useShadows) {
-          const radius = l.radius;
-          const minTx = Math.max(0, Math.floor(l.rx - radius / TILE - 1));
-          const maxTx = Math.min(
-            currentMap.width,
-            Math.ceil(l.rx + radius / TILE + 1),
-          );
-          const minTy = Math.max(0, Math.floor(l.ry - radius / TILE - 1));
-          const maxTy = Math.min(
-            currentMap.height,
-            Math.ceil(l.ry + radius / TILE + 1),
-          );
-          for (let ty = minTy; ty < maxTy; ty++) {
-            for (let tx = minTx; tx < maxTx; tx++) {
-              const tileHeight = tileHeightAt(tx, ty);
-              const tileBlocked = !tilePassable(tx, ty) || tileHeight > 0;
-              if (!tileBlocked) continue;
-
-              // Check if tile is within light radius
-              const tileCx = tx * TILE + TILE / 2;
-              const tileCy = ty * TILE + TILE / 2;
-              const dx = tileCx - l.rx * TILE - TILE / 2;
-              const dy = tileCy - l.ry * TILE - TILE / 2;
-              const distToLight = Math.sqrt(dx * dx + dy * dy);
-
-              // Skip if tile is too far from light source
-              if (distToLight > radius + TILE) continue;
-
-              const tileMinX = (tx * TILE - camX + sx) * zoom;
-              const tileMinY = (ty * TILE - camY + sy) * zoom;
-              const shadow = acquireShadowGraphics();
-              const projectionDistance =
-                l.radius * zoom * (0.3 + tileHeight * 0.1);
-              buildShadowForTile(
-                shadow,
-                lightX,
-                lightY,
-                tileMinX,
-                tileMinY,
-                TILE * zoom,
-                projectionDistance,
-                l.radius * zoom,
-              );
-              lightRenderContainer.addChild(shadow);
-            }
+          for (const occluder of planLightOccluders(currentMap, l, tilePassable)) {
+            const tileMinX = (occluder.tx * TILE - camX + sx) * zoom;
+            const tileMinY = (occluder.ty * TILE - camY + sy) * zoom;
+            const shadow = acquireShadowGraphics();
+            const projectionDistance =
+              l.radius * zoom * (0.3 + occluder.tileHeight * 0.1);
+            buildShadowForTile(
+              shadow,
+              lightX,
+              lightY,
+              tileMinX,
+              tileMinY,
+              TILE * zoom,
+              projectionDistance,
+              l.radius * zoom,
+            );
+            lightRenderContainer.addChild(shadow);
           }
         }
       }
@@ -508,7 +514,7 @@ const Renderer = (() => {
     return null;
   }
 
-  return { available, setMap, renderFrame, planWalls };
+  return { available, setMap, renderFrame, planWalls, planLightOccluders };
 })();
 
 window.Renderer = Renderer;
