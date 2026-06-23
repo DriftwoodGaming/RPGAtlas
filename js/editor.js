@@ -5056,13 +5056,13 @@ atlas.onMapLoad((map) => {
       content: h("div", { class: "helpbox", html: `
 <h3>Drawing maps</h3>
 <ul>
-<li><b>Tools</b>: Pen <kbd>B</kbd>, Eraser <kbd>E</kbd>, Rectangle <kbd>R</kbd>, Circle <kbd>O</kbd>, Fill <kbd>F</kbd>, Shadow Pen <kbd>S</kbd>. Right-click = pick tile from the map.</li>
-<li><b>Layers</b>: Auto <kbd>0</kbd> places terrain on Layer 1 and stacks decorations on Layers 2–3 automatically. <kbd>1</kbd>–<kbd>4</kbd> select Ground / Decor / Decor&nbsp;2 / Overhead directly (Overhead draws above the player).</li>
+<li><b>Tools</b>: Pen <kbd>Q</kbd>, Eraser <kbd>W</kbd>, Rectangle <kbd>E</kbd>, Circle <kbd>R</kbd>, Fill <kbd>T</kbd>, Shadow Pen <kbd>Y</kbd>. Right-click = pick tile from the map.</li>
+<li><b>Layers</b>: Auto <kbd>&#96;</kbd> places terrain on Layer 1 and stacks decorations on Layers 2–3 automatically. <kbd>1</kbd>–<kbd>4</kbd> select Ground / Decor / Decor&nbsp;2 / Overhead directly (Overhead draws above the player).</li>
 <li><b>Shadow Pen</b>: left-click paints a half-tile shadow quadrant, right-click erases it.</li>
-<li><b>Height Mode</b> <kbd>H</kbd>: paint HD-2D elevation with Pen / Rectangle / Circle / Fill. Keys <kbd>0</kbd>–<kbd>9</kbd> set the value, right-click picks it up, Eraser clears. Raised tiles become 3D blocks when the map's HD-2D rendering is on.</li>
+<li><b>Modes</b>: press <kbd>Tab</kbd> (<kbd>Shift</kbd>+<kbd>Tab</kbd> reverse) to cycle Map → Event → Passability → Height. <b>Height Mode</b>: paint HD-2D elevation with Pen / Rectangle / Circle / Fill. Keys <kbd>0</kbd>–<kbd>9</kbd> set the value, right-click picks it up, Eraser clears. Raised tiles become 3D blocks when the map's HD-2D rendering is on.</li>
 <li><b>HD-2D</b>: enable per map in Game ▸ Map Properties (camera tilt, bloom, depth of field, fog, point lights). Game ▸ HD-2D Preview opens a live panel that follows your edits — drag it to pan. Lights are events named “light #rrggbb radius”.</li>
 <li><b>Selection</b>: Shift+drag selects an area. Cut <kbd>Ctrl+X</kbd> / Copy <kbd>Ctrl+C</kbd> / Paste <kbd>Ctrl+V</kbd>, then click to stamp (Esc cancels). Works for events too.</li>
-<li>Undo <kbd>Ctrl+Z</kbd> · Redo <kbd>Ctrl+Y</kbd> · Zoom <kbd>+</kbd>/<kbd>−</kbd>, <kbd>Ctrl</kbd>+wheel, <kbd>Ctrl+0</kbd> = 100%.</li>
+<li>Undo <kbd>Ctrl+Z</kbd> · Redo <kbd>Ctrl+Y</kbd> · Zoom <kbd>+</kbd>/<kbd>−</kbd>, <kbd>Ctrl</kbd>+wheel, <kbd>Ctrl+0</kbd> = 100%. Press <kbd>?</kbd> for the full keyboard shortcut list.</li>
 </ul>
 <h3>Passability</h3>
 <ul>
@@ -5095,6 +5095,51 @@ atlas.onMapLoad((map) => {
 <p>RPGAtlas is free and open source software under the <b>GNU GPLv3</b>. The content you create — maps, story, database, characters — is yours. Exported games bundle the engine runtime, which stays under the GPL (its readable source ships inside every export).</p>
 ` }),
     });
+  }
+  function openKeyboardShortcuts() {
+    const box = h("div", { class: "helpbox" });
+    const kbd = (s) => h("kbd", null, s);
+    const keys = (...labels) => {
+      const out = [];
+      labels.forEach((l, i) => { if (i) out.push(" / "); out.push(kbd(l)); });
+      return out;
+    };
+    const line = (chips, desc) => h("li", null, ...chips, h("span", { class: "cl-desc" }, " — " + desc));
+    const aKey = (id) => ACT[id].key;
+    const aLabel = (id) => actionLabel(ACT[id]);
+    const section = (title, rows) => {
+      box.appendChild(h("h3", null, title));
+      const ul = h("ul", { class: "code-legend-list" });
+      rows.forEach((r) => ul.appendChild(r));
+      box.appendChild(ul);
+    };
+
+    const toolIds = ["tool-pen", "tool-erase", "tool-rect", "tool-circle", "tool-fill", "tool-shadow"];
+    const layerIds = ["layer-auto", "layer-ground", "layer-decor", "layer-decor2", "layer-over"];
+
+    section("Modes", [
+      line(keys("Tab"), "next mode  (Map → Event → Passability → Height, wraps)"),
+      line(keys("Shift", "Tab"), "previous mode"),
+      h("li", { class: "dim" }, "Set Start Position is reached from the Mode menu, not the Tab cycle."),
+    ]);
+    section("Tools  (Map or Height mode)", toolIds.map((id) => line(keys(aKey(id)), aLabel(id))));
+    section("Layers  (Map mode)", layerIds.map((id) => line(keys(aKey(id)), aLabel(id))));
+    section("Height mode", [line(keys("0–9"), "set the painted elevation value")]);
+    section("Edit & file", ["undo", "redo", "cut", "copy", "paste", "save"].map((id) => line(keys(aKey(id)), aLabel(id))));
+    section("View", [
+      line(keys("+", "−"), "zoom in / out  (Ctrl + wheel also zooms)"),
+      line(keys(aKey("zoom1")), "zoom to 100%"),
+    ]);
+    section("Application", ["db", "hdpreview", "play"].map((id) => line(keys(aKey(id)), aLabel(id))));
+    section("Selection & events", [
+      line(keys("Shift", "drag"), "select an area of tiles"),
+      line(keys("Del"), "delete the selected event (Event mode)"),
+      line(keys("Esc"), "clear selection / cancel paste / deselect"),
+    ]);
+    box.appendChild(h("div", { class: "dim", style: "margin-top:10px;font-size:12px" },
+      "Tool and layer keys do nothing outside their mode — switch with Tab first. Toolbar and menu clicks switch mode automatically. F1 and F5 take over the browser's Help and Reload while the editor is focused."));
+
+    modal({ title: "Keyboard Shortcuts", wide: true, content: box, dialogKeys: true });
   }
   function openAbout() {
     modal({
@@ -5188,7 +5233,7 @@ atlas.onMapLoad((map) => {
   } });
   act("open", { label: "Open Project (.json)…", icon: "open", tip: "Open / import a project file", run() { $("import-file").click(); } });
   act("save", { label: "Save Project", icon: "save", key: "Ctrl+S",
-    tip: host.isTauri ? "Save the project to its file (Ctrl+S)" : "Save the project to this browser now",
+    tip: host.isTauri ? "Save the project to its file" : "Save the project to this browser now",
     run() {
       if (host.isTauri) { desktopSave(false); return; }
       saveNow();
@@ -5196,7 +5241,7 @@ atlas.onMapLoad((map) => {
     } });
   act("export", { label: "Export Project As File…", run: exportProject });
   act("build", { label: "Export Standalone Game…", run: openStandaloneExport });
-  act("play", { label: "Playtest", icon: "play", tip: "Save and run the game", run() {
+  act("play", { label: "Playtest", icon: "play", key: "F5", tip: "Save and run the game", run() {
     saveNow();
     if (host.isTauri) {
       host.openPlaytest().catch((e) => alert("Could not open play-test window: " + ((e && e.message) || e)));
@@ -5205,7 +5250,7 @@ atlas.onMapLoad((map) => {
     }
   } });
   act("mapprops", { label: "Map Properties…", run: openMapProps });
-  act("hdpreview", { label: "HD-2D Preview", icon: "hd2d", tip: "Toggle the live HD-2D preview panel (uses this map's HD-2D settings)", active: () => !!hdPanel, run: toggleHdPreview });
+  act("hdpreview", { label: "HD-2D Preview", icon: "hd2d", key: "F2", tip: "Toggle the live HD-2D preview panel (uses this map's HD-2D settings)", active: () => !!hdPanel, run: toggleHdPreview });
 
   act("undo", { label: "Undo", icon: "undo", key: "Ctrl+Z", enabled: () => undoStack.length > 0, run: undo });
   act("redo", { label: "Redo", icon: "redo", key: "Ctrl+Y", enabled: () => redoStack.length > 0, run: redo });
@@ -5214,23 +5259,23 @@ atlas.onMapLoad((map) => {
   act("paste", { label: "Paste", icon: "paste", key: "Ctrl+V", tip: "Paste — then click the map to place", enabled: () => !!(clipTiles || clipEvent), run: startPaste });
   act("deselect", { label: "Clear Selection", key: "Esc", enabled: () => !!(selection || pasteMode), run: clearSelection });
 
-  act("mode-map", { label: "Map (Tile) Mode", icon: "map", tip: "Tile layer — draw the map", active: () => mode === "map", run: () => setMode("map") });
-  act("mode-event", { label: "Event Mode", icon: "event", tip: "Event layer — place and edit events", active: () => mode === "event", run: () => setMode("event") });
-  act("mode-pass", { label: "Passability Mode", icon: "pass", tip: "Passability — click tiles to cycle auto → ✕ block → ○ pass", active: () => mode === "pass", run: () => setMode("pass") });
-  act("mode-height", { label: "Height Mode (HD-2D)", icon: "height", key: "H",
-    tip: "Heights — paint HD-2D elevation with the Pen / Rectangle / Circle / Fill tools (keys 0–9 set the value)",
+  act("mode-map", { label: "Map (Tile) Mode", icon: "map", key: "Tab ⇆", tip: "Tile layer — draw the map", active: () => mode === "map", run: () => setMode("map") });
+  act("mode-event", { label: "Event Mode", icon: "event", key: "Tab ⇆", tip: "Event layer — place and edit events", active: () => mode === "event", run: () => setMode("event") });
+  act("mode-pass", { label: "Passability Mode", icon: "pass", key: "Tab ⇆", tip: "Passability — click tiles to cycle auto → ✕ block → ○ pass", active: () => mode === "pass", run: () => setMode("pass") });
+  act("mode-height", { label: "Height Mode (HD-2D)", icon: "height", key: "Tab ⇆",
+    tip: "Heights — paint HD-2D elevation with the Pen / Rectangle / Circle / Fill tools (digits 0–9 set the value)",
     active: () => mode === "height", run: () => setMode("height") });
   act("mode-start", { label: "Set Start Position…", active: () => mode === "start", run() {
     setMode("start");
     flashStatus("Click the map to set the player start position");
   } });
 
-  [["auto", "0"], ["ground", "1"], ["decor", "2"], ["decor2", "3"], ["over", "4"]].forEach(([ln, key]) => {
+  [["auto", "`"], ["ground", "1"], ["decor", "2"], ["decor2", "3"], ["over", "4"]].forEach(([ln, key]) => {
     act("layer-" + ln, { label: LAYER_LABELS[ln], icon: "layer-" + ln, key,
       active: () => layer === ln && mode === "map",
       run() { if (mode !== "map") setMode("map"); setLayer(ln); } });
   });
-  [["pen", "B"], ["erase", "E"], ["rect", "R"], ["circle", "O"], ["fill", "F"], ["shadow", "S"]].forEach(([t, key]) => {
+  [["pen", "Q"], ["erase", "W"], ["rect", "E"], ["circle", "R"], ["fill", "T"], ["shadow", "Y"]].forEach(([t, key]) => {
     act("tool-" + t, { label: TOOL_LABELS[t], icon: t, key,
       tip: t === "shadow" ? "Shadow Pen — left paints a shadow quadrant, right erases" : TOOL_LABELS[t],
       active: () => tool === t && (mode === "map" || mode === "height"),
@@ -5239,10 +5284,10 @@ atlas.onMapLoad((map) => {
 
   act("zoomin", { label: "Zoom In", icon: "zoomin", key: "+", run: () => zoomStep(1) });
   act("zoomout", { label: "Zoom Out", icon: "zoomout", key: "−", run: () => zoomStep(-1) });
-  act("zoom1", { label: "Zoom 1:1", icon: "zoom1", key: "Ctrl+0", tip: "Set zoom to 100%", active: () => Math.abs(zoom - 1) < 0.01, run: () => setZoom(1) });
+  act("zoom1", { label: "Zoom 1:1", icon: "zoom1", key: "0", tip: "Set zoom to 100%", active: () => Math.abs(zoom - 1) < 0.01, run: () => setZoom(1) });
   act("zoomfit", { label: "Fit Map In View", run: () => zoomFit() });
 
-  act("db", { label: "Database…", icon: "db", tip: "Database — actors, items, enemies, switches…", run: openDatabase });
+  act("db", { label: "Database…", icon: "db", key: "F1", tip: "Database — actors, items, enemies, switches…", run: openDatabase });
   act("plugins", { label: "Plugin Manager…", icon: "plugins", tip: "Plugin Manager — project JavaScript run at game boot", run: openPluginManager });
   act("audio", { label: "Audio Manager…", icon: "audio", tip: "Audio Manager — preview sounds and music", run: openAudioManager });
   act("search", { label: "Event Searcher…", icon: "search", tip: "Event Searcher — find text / switches / variables across maps", run: openEventSearcher });
@@ -5250,6 +5295,7 @@ atlas.onMapLoad((map) => {
   act("chargen", { label: "Character Generator…", icon: "chargen", tip: "Character Generator — build original walking sprites", run: openCharGenerator });
   act("language", { label: "Interface Language…", run: openLanguageSettings });
   act("patchnotes", { label: "Patch Notes", run: openPatchNotes });
+  act("shortcuts", { label: "Keyboard Shortcuts…", key: "?", run: openKeyboardShortcuts });
   act("help", { label: "Quick Help", run: openHelp });
   act("about", { label: "About RPGAtlas", run: openAbout });
 
@@ -5301,7 +5347,7 @@ atlas.onMapLoad((map) => {
     { label: "Scale", items: ["zoomin", "zoomout", "zoom1", "zoomfit"] },
     { label: "Tools", items: ["db", "plugins", "audio", "search", "resources", "chargen"] },
     { label: "Game", items: ["play", "build", "-", "mapprops", "hdpreview", "mode-start"] },
-    { label: "Help", items: ["language", "-", "patchnotes", "help", "about"] },
+    { label: "Help", items: ["language", "-", "shortcuts", "patchnotes", "help", "about"] },
   ];
   let menuOpenRef = null;
   let menuDismissBound = false;
@@ -5362,6 +5408,13 @@ atlas.onMapLoad((map) => {
     selectedEvent = null;
     pasteMode = null;
     renderMap(); refreshToolbar(); setStatus();
+  }
+  const MODE_CYCLE = ["map", "event", "pass", "height"]; // "start" intentionally excluded
+  function cycleMode(dir) {
+    let i = MODE_CYCLE.indexOf(mode);
+    if (i < 0) i = 0; // "start"/unexpected -> enter at "map"
+    const n = MODE_CYCLE.length;
+    setMode(MODE_CYCLE[(i + dir + n) % n]);
   }
   function setTool(t) {
     tool = t;
@@ -5468,6 +5521,10 @@ atlas.onMapLoad((map) => {
         if (selectedEvent) { selectedEvent = null; renderMap(); refreshToolbar(); }
         return;
       }
+      if (e.key === "?" && !e.ctrlKey && !e.metaKey) { e.preventDefault(); openKeyboardShortcuts(); return; }
+      // Mode cycle (always available). Tab forward, Shift+Tab back. Skip when Ctrl/Meta held.
+      if (e.code === "Tab" && !e.ctrlKey && !e.metaKey) { e.preventDefault(); cycleMode(e.shiftKey ? -1 : 1); return; }
+
       if (e.ctrlKey || e.metaKey) {
         switch (e.code) {
           case "KeyZ": e.preventDefault(); undo(); break;
@@ -5476,30 +5533,46 @@ atlas.onMapLoad((map) => {
           case "KeyC": e.preventDefault(); copySelection(false); break;
           case "KeyV": e.preventDefault(); startPaste(); break;
           case "KeyS": e.preventDefault(); runAct("save"); break;
-          case "Digit0": e.preventDefault(); setZoom(1); break;
         }
         return;
       }
-      if (mode === "height" && /^Digit\d$/.test(e.code)) { // 0–9 set the painted elevation
+      // Application shortcuts — global (any mode). F1/F5 override the browser's Help/Reload.
+      switch (e.code) {
+        case "F1": e.preventDefault(); runAct("db");        return;
+        case "F2": e.preventDefault(); runAct("hdpreview"); return;
+        case "F5": e.preventDefault(); runAct("play");      return;
+      }
+      // Height mode consumes ALL digits for the painted elevation (0–9). Must stay above the layer gate.
+      if (mode === "height" && /^Digit\d$/.test(e.code)) {
         heightVal = Number(e.code.slice(5));
         setStatus();
         return;
       }
+      // Tools
+      if (mode === "map" || mode === "height") {
+        switch (e.code) {
+          case "KeyQ": setTool("pen");    return;
+          case "KeyW": setTool("erase");  return;
+          case "KeyE": setTool("rect");   return;
+          case "KeyR": setTool("circle"); return;
+          case "KeyT": setTool("fill");   return;
+          case "KeyY": setTool("shadow"); return;
+        }
+      }
+      // Layers
+      if (mode === "map") {
+        switch (e.code) {
+          case "Backquote": setLayer("auto");   return;
+          case "Digit1":    setLayer("ground"); return;
+          case "Digit2":    setLayer("decor");  return;
+          case "Digit3":    setLayer("decor2"); return;
+          case "Digit4":    setLayer("over");   return;
+        }
+      }
       switch (e.code) {
-        case "KeyB": runAct("tool-pen"); break;
-        case "KeyE": runAct("tool-erase"); break;
-        case "KeyR": runAct("tool-rect"); break;
-        case "KeyO": runAct("tool-circle"); break;
-        case "KeyF": runAct("tool-fill"); break;
-        case "KeyS": runAct("tool-shadow"); break;
-        case "KeyH": runAct("mode-height"); break;
-        case "Digit0": runAct("layer-auto"); break;
-        case "Digit1": runAct("layer-ground"); break;
-        case "Digit2": runAct("layer-decor"); break;
-        case "Digit3": runAct("layer-decor2"); break;
-        case "Digit4": runAct("layer-over"); break;
         case "Equal": case "NumpadAdd": zoomStep(1); break;
         case "Minus": case "NumpadSubtract": zoomStep(-1); break;
+        case "Digit0": case "Numpad0": setZoom(1); break; // reset to 100% (height mode consumes 0 above)
         case "Delete": case "Backspace":
           if (mode === "event") deleteSelectedEvent();
           break;
