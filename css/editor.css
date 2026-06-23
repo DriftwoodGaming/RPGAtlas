@@ -69,6 +69,10 @@ input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold-edge);
 .menu-item .mi-key { color: #8a8da4; font-size: 11px; margin-left: 18px; }
 .menu-item:hover .mi-key { color: #cdd6ee; }
 .menu-sep { height: 1px; background: #383b52; margin: 4px 6px; }
+/* Flyout submenu (anchored to its parent menu-item) */
+.menu-item { position: relative; }
+.menu-sub { top: -5px; left: 100%; margin-left: 2px; }
+.menu-sub.flip-left { left: auto; right: 100%; margin-left: 0; margin-right: 2px; }
 
 /* ---------- toolbar ---------- */
 #toolbar {

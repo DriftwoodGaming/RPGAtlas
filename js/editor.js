@@ -53,6 +53,9 @@ const editorI18n = createEditorI18n({
   let clipCmd = null;        // event-command clipboard (array of cloned commands) — shared across event editors
   let clipPage = null;       // event-page clipboard (cloned page) — shared across event editors
   let pasteMode = null;      // null | "tiles" | "event"
+  let popupMenuEl = null;    // active canvas context menu (menu-drop), or null
+  let popupSubTimer = null;  // pending submenu-open timer (hover-intent delay), or null
+  let suppressNextCtxMenu = false; // right-click that cancelled a paste shouldn't also open the menu
   const undoStack = [];
   const redoStack = [];
 
@@ -236,6 +239,72 @@ const editorI18n = createEditorI18n({
       ],
       dialogKeys: true,
     });
+  }
+
+  // Reusable lightweight popup menu (reuses the menu-drop / menu-item / mi-key / menu-sep CSS that
+  // the event-editor menus use). `items` is an array of "separator" or
+  // { label, key?, enabled?, onClick, submenu? }. A submenu (its own items array) opens to the side
+  // on hover; entering a different top-level row closes it. NOTE: openCmdMenu/openPageMenu predate
+  // this and hand-roll the same pattern — left as-is to avoid regressions.
+  function closePopupMenu() {
+    if (popupSubTimer) { clearTimeout(popupSubTimer); popupSubTimer = null; }
+    if (!popupMenuEl) return;
+    popupMenuEl.remove(); popupMenuEl = null;
+    document.removeEventListener("mousedown", onPopupOutside, true);
+    document.removeEventListener("keydown", onPopupKey, true);
+  }
+  function onPopupOutside(e) { if (popupMenuEl && !popupMenuEl.contains(e.target)) closePopupMenu(); }
+  function onPopupKey(e) { if (e.key === "Escape") { e.preventDefault(); closePopupMenu(); } }
+  function buildPopupList(items, isSub) {
+    const menu = h("div", { class: "menu-drop" + (isSub ? " menu-sub" : "") });
+    const rows = [];
+    for (const it of items) {
+      if (it === "separator") { menu.appendChild(h("div", { class: "menu-sep" })); continue; }
+      const on = it.enabled !== false;
+      const hasSub = Array.isArray(it.submenu) && it.submenu.length;
+      const rowEl = h("div", { class: "menu-item" + (on ? "" : " disabled") },
+        h("span", { class: "mi-label" }, it.label),
+        it.key ? h("span", { class: "mi-key" }, it.key) : (hasSub ? h("span", { class: "mi-key" }, "▸") : null));
+      if (!isSub) {
+        rowEl.addEventListener("mouseenter", () => {
+          // A pass-through (mouse skimming across rows) shouldn't flash a submenu open: defer the
+          // open behind a short hover-intent delay, cancelled if the pointer leaves first.
+          if (popupSubTimer) { clearTimeout(popupSubTimer); popupSubTimer = null; }
+          rows.forEach((r) => { if (r !== rowEl && r._sub) { r._sub.remove(); r._sub = null; } });
+          if (hasSub && on && !rowEl._sub) {
+            popupSubTimer = setTimeout(() => {
+              popupSubTimer = null;
+              if (rowEl._sub) return;
+              const sub = buildPopupList(it.submenu, true);
+              rowEl.appendChild(sub);
+              rowEl._sub = sub;
+              if (sub.getBoundingClientRect().right > window.innerWidth - 4) sub.classList.add("flip-left");
+            }, 220);
+          }
+        });
+        rowEl.addEventListener("mouseleave", () => {
+          // Cancel a not-yet-fired open; an already-open submenu stays (it's a child of this row, so
+          // moving onto it doesn't fire this leave) until a different row is hovered.
+          if (popupSubTimer) { clearTimeout(popupSubTimer); popupSubTimer = null; }
+        });
+      }
+      if (on && !hasSub) {
+        rowEl.addEventListener("mousedown", (e) => { e.stopPropagation(); closePopupMenu(); it.onClick(); });
+      }
+      rows.push(rowEl);
+      menu.appendChild(rowEl);
+    }
+    return menu;
+  }
+  function showPopupMenu(x, y, items) {
+    closePopupMenu();
+    const menu = buildPopupList(items, false);
+    document.body.appendChild(menu);
+    menu.style.left = Math.max(4, Math.min(x, window.innerWidth - menu.offsetWidth - 4)) + "px";
+    menu.style.top = Math.max(4, Math.min(y, window.innerHeight - menu.offsetHeight - 4)) + "px";
+    popupMenuEl = menu;
+    document.addEventListener("mousedown", onPopupOutside, true);
+    document.addEventListener("keydown", onPopupKey, true);
   }
 
   // ============================ persistence ============================
@@ -775,12 +844,192 @@ const editorI18n = createEditorI18n({
 
   function eventAt(x, y) { return curMap().events.find((e) => e.x === x && e.y === y) || null; }
 
+  // Shared event-mode actions, reused by the canvas (double-click / right-click menu), keyboard, and
+  // start-mode paths so they stay in lockstep. Undo is handled inside each as appropriate — callers
+  // (e.g. the context menu) must not add their own pushUndo().
+  function newEventAt(cell) {
+    const existing = eventAt(cell.x, cell.y);
+    if (existing) {
+      // Existing event → edit in place; commits on OK, unchanged behavior.
+      selectedEvent = existing;
+      renderMap(); refreshToolbar();
+      openEventEditor(existing);
+      return existing;
+    }
+    // Brand-new event: build it detached and only insert into the map when the editor is confirmed
+    // (via the onCommitNew hook). Cancelling the first edit leaves nothing behind — same as the
+    // quick-event builders. The editor edits a clone, so the detached object is untouched until OK.
+    const ev = DataDefaults.newEvent(RA.nextId(curMap().events), cell.x, cell.y);
+    openEventEditor(ev, () => {
+      curMap().events.push(ev);
+      selectedEvent = ev;
+      refreshToolbar();
+    });
+    return ev;
+  }
+  function setStartHere(cell) {
+    proj.system.startMapId = curMapId;
+    proj.system.startX = cell.x; proj.system.startY = cell.y;
+    touch(); renderMap();
+    flashStatus("Start position set");
+  }
+  function deleteSelectedEvent() {
+    if (!selectedEvent) return;
+    pushUndo();
+    const m = curMap();
+    m.events = m.events.filter((x) => x !== selectedEvent);
+    selectedEvent = null;
+    touch(); renderMap(); refreshToolbar();
+  }
+
+  // Right-click in Event mode: select what's under the cursor, then show a context-sensitive menu.
+  function openCanvasMenu(e) {
+    const cell = cellFromMouse(e);
+    if (!cell) return;
+    selectedEvent = eventAt(cell.x, cell.y);
+    renderMap(); refreshToolbar();
+    const ev = selectedEvent;
+    if (ev) {
+      showPopupMenu(e.clientX, e.clientY, [
+        { label: "Edit Event", onClick: () => openEventEditor(ev) },
+        { label: "Cut", key: "Ctrl+X", onClick: () => copySelection(true) },
+        { label: "Copy", key: "Ctrl+C", onClick: () => copySelection(false) },
+        { label: "Delete", onClick: () => deleteSelectedEvent() },
+        "separator",
+        { label: "Set Start Position Here", onClick: () => setStartHere(cell) },
+      ]);
+    } else {
+      showPopupMenu(e.clientX, e.clientY, [
+        { label: "New Event", onClick: () => newEventAt(cell) },
+        { label: "New Quick Event", submenu: [
+          { label: "Transfer", onClick: () => quickTransfer(cell) },
+          { label: "Sign", onClick: () => quickSign(cell) },
+          { label: "Chest", onClick: () => quickChest(cell) },
+        ] },
+        { label: "Paste Event", key: "Ctrl+V", enabled: !!clipEvent,
+          onClick: () => { pasteMode = "event"; stampPaste(cell); } },
+        "separator",
+        { label: "Set Start Position Here", onClick: () => setStartHere(cell) },
+      ]);
+    }
+  }
+
+  // ---- quick-event builders ----
+  // Build a page from the defaults, merging cond onto (not over) the default cond.
+  function mkPage(opts, commands) {
+    const p = DataDefaults.newPage();
+    opts = opts || {};
+    if (opts.cond) Object.assign(p.cond, opts.cond);
+    for (const k in opts) if (k !== "cond") p[k] = opts[k];
+    p.commands = commands || [];
+    return p;
+  }
+  function placeQuickEvent(cell, name, pages) {
+    if (eventAt(cell.x, cell.y)) { flashStatus("That cell already has an event"); return null; }
+    pushUndo();
+    const ev = DataDefaults.newEvent(RA.nextId(curMap().events), cell.x, cell.y, name);
+    ev.pages = pages;
+    curMap().events.push(ev);
+    selectedEvent = ev;
+    touch(); renderMap(); refreshToolbar();
+    return ev;
+  }
+  function quickSign(cell) {
+    if (eventAt(cell.x, cell.y)) { flashStatus("That cell already has an event"); return; }
+    // Like Transfer/Chest: collect the content in a small dialog (here, the Show Text editor),
+    // then build & place the event — no detour through the full event editor.
+    const c = { t: "text", name: "", face: "", text: "" };
+    // editCommand(cmd, onOK, skipSnapshot, snapFn, onCancel): skip the editor's own undo snapshot
+    // (placeQuickEvent pushes one) and, on Cancel, do nothing so no empty event is left behind.
+    editCommand(c, () => {
+      placeQuickEvent(cell, "Sign", [
+        mkPage({ charset: "sign", trigger: "action" }, [c]),
+      ]);
+    }, true, null, () => {});
+  }
+  function quickTransfer(cell) {
+    if (eventAt(cell.x, cell.y)) { flashStatus("That cell already has an event"); return; }
+    const w = { mapId: proj.maps[0] ? proj.maps[0].id : 0, x: 0, y: 0, dir: 0 };
+    // Keep refs to the Map/X/Y inputs so the visual picker can write back into them
+    // (mirrors the full Transfer Player command form's "Pick destination" button).
+    const mapSel = sel(w, "mapId", dbOpts(proj.maps));
+    const xIn = nIn(w, "x", 0);
+    const yIn = nIn(w, "y", 0);
+    const content = h("div", null,
+      row(field("Map", mapSel), field("X", xIn), field("Y", yIn),
+        field("Facing", sel(w, "dir", DIR_OPTS))),
+      h("button", { class: "mini", onclick() {
+        openLocationPicker(w.mapId, w.x, w.y, (res) => {
+          w.mapId = res.mapId; w.x = res.x; w.y = res.y;
+          mapSel.value = String(res.mapId); xIn.value = res.x; yIn.value = res.y;
+        });
+      } }, "📍 Pick destination on map…"));
+    modal({
+      title: "New Transfer Event",
+      content,
+      buttons: [
+        { label: "Create", primary: true, onClick(close) {
+          close();
+          placeQuickEvent(cell, "Transfer", [
+            mkPage({ charset: "", trigger: "touch", priority: "below", through: true },
+              [{ t: "transfer", mapId: w.mapId, x: w.x, y: w.y, dir: w.dir }]),
+          ]);
+        } },
+        { label: "Cancel" },
+      ],
+      dialogKeys: true,
+    });
+  }
+  function quickChest(cell) {
+    if (eventAt(cell.x, cell.y)) { flashStatus("That cell already has an event"); return; }
+    const w = { kind: "item", id: proj.items[0] ? proj.items[0].id : 0, val: 1 };
+    const entryWrap = h("span");
+    function redrawEntry() {
+      const isGold = w.kind === "gold";
+      const arr = w.kind === "weapon" ? proj.weapons : w.kind === "armor" ? proj.armors : proj.items;
+      if (!isGold) w.id = arr[0] ? arr[0].id : 0; // keep id valid when kind changes
+      entryWrap.innerHTML = "";
+      entryWrap.appendChild(isGold ? h("span", null, "—") : sel(w, "id", dbOpts(arr)));
+    }
+    const content = h("div", null,
+      row(field("Kind", sel(w, "kind",
+          [{ v: "item", l: "Item" }, { v: "weapon", l: "Weapon" }, { v: "armor", l: "Armor" }, { v: "gold", l: "Gold" }],
+          redrawEntry)),
+        field("Entry", entryWrap),
+        field("Amount", nIn(w, "val", 1, 9999))));
+    redrawEntry();
+    modal({
+      title: "New Chest",
+      content,
+      buttons: [
+        { label: "Create", primary: true, onClick(close) {
+          close();
+          const give = w.kind === "gold"
+            ? { t: "gold", op: "add", val: w.val }
+            : { t: "item", kind: w.kind, id: w.id, op: "add", val: w.val };
+          const label = w.kind === "gold" ? (w.val + " Gold") : ("×" + w.val);
+          placeQuickEvent(cell, "Chest", [
+            mkPage({ charset: "chest", trigger: "action" }, [
+              { t: "se", name: "chest" },
+              give,
+              { t: "text", name: "", text: "Found " + label + "!" },
+              { t: "selfsw", key: "A", val: true },
+            ]),
+            mkPage({ cond: { selfSw: "A" }, charset: "chest_open", trigger: "action" }, []),
+          ]);
+        } },
+        { label: "Cancel" },
+      ],
+      dialogKeys: true,
+    });
+  }
+
   function onCanvasDown(e) {
     const cell = cellFromMouse(e);
     if (!cell) return;
     if (pasteMode) {
       if (e.button === 0) stampPaste(cell);
-      else if (e.button === 2) cancelPaste();
+      else if (e.button === 2) { suppressNextCtxMenu = true; cancelPaste(); }
       return;
     }
     if (e.button === 2) {
@@ -804,10 +1053,7 @@ const editorI18n = createEditorI18n({
     }
     if (e.button !== 0) return;
     if (mode === "start") {
-      proj.system.startMapId = curMapId;
-      proj.system.startX = cell.x; proj.system.startY = cell.y;
-      touch(); renderMap();
-      flashStatus("Start position set");
+      setStartHere(cell);
       setMode("event");
       return;
     }
@@ -907,23 +1153,14 @@ const editorI18n = createEditorI18n({
     if (mode !== "event") return;
     const cell = cellFromMouse(e);
     if (!cell) return;
-    let ev = eventAt(cell.x, cell.y);
-    if (!ev) {
-      pushUndo();
-      ev = DataDefaults.newEvent(RA.nextId(curMap().events), cell.x, cell.y);
-      curMap().events.push(ev);
-      touch();
-    }
-    selectedEvent = ev;
-    renderMap(); refreshToolbar();
-    openEventEditor(ev);
+    newEventAt(cell);
   }
 
   function setStatus() {
     const m = curMap();
     let s = m ? m.name + " (" + m.width + "×" + m.height + ")" : "";
     s += "  ·  " + (mode === "map" ? t(TOOL_LABELS[tool]) + " / " + t(LAYER_LABELS[layer])
-      : mode === "event" ? t("Event mode (double-click = new/edit, drag = move)")
+      : mode === "event" ? t("Event mode (double-click = new/edit, drag = move, right-click = menu)")
       : mode === "pass" ? t("Passability (click cycles auto → ✕ block → ○ pass)")
       : mode === "height" ? t("Heights — painting {value} with {tool} (keys 0–9 set the value, right-click picks, Eraser clears)", {
         value: heightVal,
@@ -2718,7 +2955,9 @@ const editorI18n = createEditorI18n({
   }
 
   // ============================ event editor ============================
-  function openEventEditor(evOriginal) {
+  // onCommitNew (optional): for a brand-new, not-yet-inserted event, called on OK after the edited
+  // clone is written back — inserts it into the map. Omitted when editing an existing event.
+  function openEventEditor(evOriginal, onCommitNew) {
     const ev = RA.clone(evOriginal);
     let pageIdx = 0;
 
@@ -3070,6 +3309,7 @@ const editorI18n = createEditorI18n({
     okBtn.onclick = () => {
       pushUndo();
       Object.assign(evOriginal, ev);
+      if (onCommitNew) onCommitNew(evOriginal);   // new event: insert into the map now (not before)
       touch(); renderMap(); evModal.close();
     };
     cancelBtn.onclick = () => evModal.close();
@@ -4831,7 +5071,7 @@ atlas.onMapLoad((map) => {
 </ul>
 <h3>Events</h3>
 <ul>
-<li>In <b>Event mode</b> double-click a cell to create/edit an event; drag to move; <kbd>Del</kbd> deletes. Each event has <b>pages</b> — the last page whose conditions hold is active.</li>
+<li>In <b>Event mode</b> double-click a cell to create/edit an event; drag to move; <kbd>Del</kbd> deletes. <b>Right-click</b> for a menu: New Event, <b>Quick Events</b> (Transfer / Sign / Chest), Cut/Copy/Paste, and Set Start Position Here. Each event has <b>pages</b> — the last page whose conditions hold is active.</li>
 <li>Triggers: Action button (Z), Player touch, Autorun (blocks play), Parallel (background). Use Self-Switches for chest-like one-time events.</li>
 <li><b>Event Searcher</b> (Tools menu) finds text, names, or switch/variable usage across all maps.</li>
 </ul>
@@ -5196,7 +5436,11 @@ atlas.onMapLoad((map) => {
     mapCanvas.addEventListener("mousemove", onCanvasMove);
     window.addEventListener("mouseup", onCanvasUp);
     mapCanvas.addEventListener("dblclick", onCanvasDbl);
-    mapCanvas.addEventListener("contextmenu", (e) => e.preventDefault());
+    mapCanvas.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      if (suppressNextCtxMenu) { suppressNextCtxMenu = false; return; }
+      if (mode === "event") openCanvasMenu(e);
+    });
     mapCanvas.addEventListener("mouseleave", () => { hoverCell = null; hoverQuad = 0; renderMap(); });
 
     // ctrl+wheel zooms around the cursor
@@ -5257,13 +5501,7 @@ atlas.onMapLoad((map) => {
         case "Equal": case "NumpadAdd": zoomStep(1); break;
         case "Minus": case "NumpadSubtract": zoomStep(-1); break;
         case "Delete": case "Backspace":
-          if (mode === "event" && selectedEvent) {
-            pushUndo();
-            const m = curMap();
-            m.events = m.events.filter((x) => x !== selectedEvent);
-            selectedEvent = null;
-            touch(); renderMap(); refreshToolbar();
-          }
+          if (mode === "event") deleteSelectedEvent();
           break;
       }
     });
