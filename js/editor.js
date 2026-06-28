@@ -12,7 +12,7 @@ import {
 } from "./editor/project-io.js";
 import * as host from "./editor/host.js";
 import { createEditorI18n } from "./editor/i18n.js";
-import { PATCH_NOTES } from "./patch-notes.js";
+import { PATCH_NOTES } from "./patch-notes.js?v=4";
 
 const { Assets, AtlasBuiltins, DataDefaults, GLRender, Music, RA, Sfx } = window.RPGAtlasDeps;
 const editorI18n = createEditorI18n({
@@ -61,6 +61,7 @@ const editorI18n = createEditorI18n({
 
   const $ = (id) => document.getElementById(id);
   function curMap() { return RA.byId(proj.maps, curMapId); }
+  function playtestUrl() { return "play.html?playtest=" + Date.now(); }
 
   // ============================ tiny DOM builder ============================
   function h(tag, attrs, ...kids) {
@@ -349,9 +350,20 @@ const editorI18n = createEditorI18n({
       flashStatus("Save failed: " + e.message);
     }
   }
-  function exportProject() {
+  async function exportProject() {
     if (host.isTauri) { desktopSave(true); return; } // Export = Save As on desktop
-    exportProjectFile(proj);
+    try {
+      const result = await exportProjectFile(proj);
+      if (result && result.cancelled) {
+        flashStatus("Project export cancelled");
+      } else if (result && result.method === "picker") {
+        flashStatus("Project exported to " + result.fileName);
+      } else if (result) {
+        flashStatus("Project export downloaded as " + result.fileName);
+      }
+    } catch (e) {
+      alert("Project export failed: " + ((e && e.message) || e));
+    }
   }
   function openStandaloneExport() {
     const content = h("div", null,
@@ -509,18 +521,28 @@ const editorI18n = createEditorI18n({
     g.stroke();
     if (mode === "pass") drawPassOverlay(g, m);
     if (mode === "height") drawHeightOverlay(g, m);
-    // events
-    if (mode === "event" || mode === "start") {
+    // Event pins stay visible while painting so placed events do not appear to
+    // vanish when leaving Event mode. Passability/Height keep their overlays clean.
+    if (mode !== "pass" && mode !== "height") {
+      const interactiveEvents = mode === "event" || mode === "start";
       for (const ev of m.events) {
-        g.fillStyle = ev === selectedEvent ? "rgba(120,200,255,0.35)" : "rgba(255,255,255,0.14)";
+        g.fillStyle = interactiveEvents
+          ? (ev === selectedEvent ? "rgba(120,200,255,0.35)" : "rgba(255,255,255,0.14)")
+          : "rgba(120,200,255,0.10)";
         g.fillRect(ev.x * TILE + 2, ev.y * TILE + 2, TILE - 4, TILE - 4);
-        g.strokeStyle = ev === selectedEvent ? "#7ac8ff" : "rgba(255,255,255,0.6)";
+        g.strokeStyle = interactiveEvents
+          ? (ev === selectedEvent ? "#7ac8ff" : "rgba(255,255,255,0.6)")
+          : "rgba(122,200,255,0.45)";
         g.lineWidth = 2 / zoom;
         g.strokeRect(ev.x * TILE + 2, ev.y * TILE + 2, TILE - 4, TILE - 4);
         const pg = ev.pages[0];
         if (pg && pg.charset) {
           const ci = Assets.charsetIndex(pg.charset);
-          if (ci >= 0) Assets.drawChar(g, ci, pg.dir || 0, 1, ev.x * TILE, ev.y * TILE - 6);
+          if (ci >= 0) {
+            if (!interactiveEvents) g.globalAlpha = 0.55;
+            Assets.drawChar(g, ci, pg.dir || 0, 1, ev.x * TILE, ev.y * TILE - 6);
+            g.globalAlpha = 1;
+          }
         }
       }
     }
@@ -1181,7 +1203,7 @@ const editorI18n = createEditorI18n({
         s += "  ·  " + (effectivePass(hoverCell.x, hoverCell.y) ? "○ " + t("passable") : "✕ " + t("blocked")) +
           (m.passOv[hoverCell.y * m.width + hoverCell.x] ? " (" + t("override") + ")" : "");
       }
-      const ev = mode !== "map" && eventAt(hoverCell.x, hoverCell.y);
+      const ev = mode !== "pass" && mode !== "height" && eventAt(hoverCell.x, hoverCell.y);
       if (ev) s += "  ·  " + ev.name;
     }
     if (mode === "map" && selection) s += "  ·  " + t("selection") + " " + (selection.x2 - selection.x1 + 1) + "×" + (selection.y2 - selection.y1 + 1);
@@ -1874,8 +1896,8 @@ const editorI18n = createEditorI18n({
   }
 
   // ============================ HD-2D live preview ============================
-  // A floating panel that renders the current map through the game's PIXI
-  // renderer using the map's own hd2d settings. It rebuilds after
+  // A floating panel that renders the current map through the game's WebGL
+  // HD-2D renderer using the map's own hd2d settings. It rebuilds after
   // edits (debounced — touch() marks it dirty) and re-renders every frame.
   let hdPanel = null, hdCanvas = null, hdDirty = true, hdMapId = 0, hdLastBuild = 0, hdRAF = 0;
   let hdCamX = 0, hdCamY = 0; // camera look-at center, world px
@@ -1965,6 +1987,7 @@ const editorI18n = createEditorI18n({
     GLRender.renderFrame(w, hgt, camX, camY, sprites, {
       lights,
       ambient,
+      tilt: hd2d.tilt != null ? Number(hd2d.tilt) : 50,
       focus: { rx: (camX + w / 2) / TILE, ry: (camY + hgt / 2) / TILE },
       tilePassable: effectivePass,
     });
@@ -3255,6 +3278,8 @@ const editorI18n = createEditorI18n({
         h("div", { class: "prop-rows" },
           propRow("Enabled", chk(pg.combat, "enabled")),
           propRow("Enemy", sel(pg.combat, "enemyId", dbOpts(proj.enemies, "(none)"))),
+          h("div", { class: "subhead" }, "Enemy AI"),
+          propRow("AI", sel(pg.combat, "ai", RA.ACTION_COMBAT_AI || [{ v: "none", l: "None" }])),
           propRow("HP override", nIn(pg.combat, "hp", 0, 9999)),
           propRow("Touch damage", nIn(pg.combat, "touchDamage", 0, 999)),
           propRow("Knockback", nIn(pg.combat, "knockbackTiles", 0, 4)),
@@ -3262,7 +3287,7 @@ const editorI18n = createEditorI18n({
           propRow("Defeat switch", sel(pg.combat, "defeatSelfSwitch",
             [{ v: "", l: "(erase event)" }, { v: "A", l: "Self-Switch A" }, { v: "B", l: "Self-Switch B" }, { v: "C", l: "Self-Switch C" }, { v: "D", l: "Self-Switch D" }])),
           h("div", { class: "dim" },
-            "Players use the remappable Attack action to swing. In messages, use \\input[attack] for an input-aware prompt. HP 0 uses the selected enemy's database HP.")),
+            "Players use the remappable Attack action to swing. Enemy AI controls extra movement such as chasing; Touch damage controls adjacent strikes. In messages, use \\input[attack] for an input-aware prompt. HP 0 uses the selected enemy's database HP.")),
       ], combatBadge);
       combatSection.addEventListener("change", refreshCombatBadge);
 
@@ -5249,7 +5274,7 @@ atlas.onMapLoad((map) => {
     if (host.isTauri) {
       host.openPlaytest().catch((e) => alert("Could not open play-test window: " + ((e && e.message) || e)));
     } else {
-      window.open("play.html", "rpgatlas_play");
+      window.open(playtestUrl(), "rpgatlas_play");
     }
   } });
   act("mapprops", { label: "Map Properties…", run: openMapProps });

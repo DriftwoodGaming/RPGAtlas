@@ -1,7 +1,7 @@
 "use strict";
 
-// Exercises the pure height-extrusion geometry (Renderer.planWalls) without
-// pulling in PIXI or a DOM. The renderer IIFE only touches window/PIXI/document
+// Exercises the pure height-extrusion geometry (Renderer.planWalls) without a
+// GPU or a DOM. The renderer IIFE only touches window.Assets/document/WebGL
 // inside its methods, so a bare window stub is enough to load it.
 
 const assert = require("node:assert/strict");

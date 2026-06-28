@@ -20,6 +20,7 @@ async function importClassicScript(relativePath, sandbox = {}) {
 }
 const {
   buildStandaloneGame,
+  exportProjectFile,
   loadStoredProject,
   safeFileName,
   saveProject,
@@ -77,6 +78,49 @@ assert.equal(storage.getItem("driftwood_project"), null);
 saveProject(storage, { meta: { engine: "rpgatlas" } });
 assert.match(storage.getItem("rpgatlas_project"), /rpgatlas/);
 assert.equal(safeFileName("My: Game!", "fallback"), "My_Game");
+
+const originalShowSaveFilePicker = globalThis.showSaveFilePicker;
+try {
+  let pickerOptions = null;
+  const pickerWrites = [];
+  globalThis.showSaveFilePicker = async (options) => {
+    pickerOptions = options;
+    return {
+      name: "Chosen_Project.json",
+      async createWritable() {
+        return {
+          async write(blob) {
+            pickerWrites.push(await blob.text());
+          },
+          async close() {
+            pickerWrites.push("closed");
+          },
+        };
+      },
+    };
+  };
+  const pickedExport = await exportProjectFile({
+    meta: { engine: "rpgatlas" },
+    system: { title: "Picker: Quest!" },
+  });
+  assert.equal(pickerOptions.suggestedName, "Picker_Quest.json");
+  assert.deepEqual(pickerOptions.types[0].accept, { "application/json": [".json"] });
+  assert.deepEqual(pickedExport, { method: "picker", fileName: "Chosen_Project.json" });
+  assert.match(pickerWrites[0], /"title": "Picker: Quest!"/);
+  assert.equal(pickerWrites[1], "closed");
+
+  globalThis.showSaveFilePicker = async () => {
+    const error = new Error("cancelled");
+    error.name = "AbortError";
+    throw error;
+  };
+  assert.deepEqual(
+    await exportProjectFile({ system: { title: "Cancel Test" } }),
+    { cancelled: true, fileName: "Cancel_Test.json" },
+  );
+} finally {
+  globalThis.showSaveFilePicker = originalShowSaveFilePicker;
+}
 
 const messages = createMessageSystem({
   Assets: {},

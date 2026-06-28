@@ -63,14 +63,18 @@ Event pages can also act as real-time map enemies. In the page's **Action Combat
 
 - Turn **Enabled** on.
 - Pick an **Enemy** from the Database. HP 0 uses that enemy's database HP.
+- Pick an **AI** behavior. **None** keeps the normal event movement; **Chase player** makes the
+  enemy close distance when the player is nearby.
 - Set optional **Touch damage**, **Knockback**, and **Invuln frames**.
 - Choose a **Defeat switch** if you want the event to change pages when defeated; otherwise it erases
   for the current play session.
 
 During play, use the remappable **Attack** action on the map to swing the sword. A swing checks the
-short-lived collider in front of the player, damages each enemy once, flashes the target, and applies
-knockback when the next tile is open. Defeated action-combat enemies also count for Kill quest
-objectives that target the same enemy.
+tile in front of the player plus its short-lived visual collider, damages each enemy once, flashes
+the target, and applies knockback when the next tile is open. Enemies with **Touch damage** can
+strike from the adjacent tile; assign **Chase player** AI when you want them to actively pursue the
+player.
+Defeated action-combat enemies also count for Kill quest objectives that target the same enemy.
 
 For player-facing instructions, write text such as `Press \input[attack] to swing.` The prompt shows
 the player's current keyboard or gamepad binding instead of assuming a specific key.

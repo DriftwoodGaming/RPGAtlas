@@ -149,6 +149,7 @@ const RA = {
     return {
       enabled: false,
       enemyId: 0,
+      ai: "none",
       hp: 0,
       touchDamage: 0,
       knockbackTiles: 1,
@@ -156,6 +157,10 @@ const RA = {
       defeatSelfSwitch: "",
     };
   },
+  ACTION_COMBAT_AI: [
+    { v: "none", l: "None" },
+    { v: "chase", l: "Chase player" },
+  ],
   defaultCommonEvent() {
     return {
       id: 0,
@@ -189,14 +194,14 @@ const RA = {
     { key: "attack", label: "Attack" },
   ],
   // Default bindings. keyboard = arrays of KeyboardEvent.code; gamepad = arrays of PAD_BUTTONS
-  // names. Keyboard values match the engine's original hard-coded bindings for exact parity.
+  // names. Attack keeps F for older players and J for the previous remappable-action default.
   defaultInput() {
     return {
       keyboard: {
         up: ["ArrowUp", "KeyW"], down: ["ArrowDown", "KeyS"],
         left: ["ArrowLeft", "KeyA"], right: ["ArrowRight", "KeyD"],
         ok: ["KeyZ", "Enter", "Space"], cancel: ["KeyX", "Escape"],
-        dash: ["ShiftLeft", "ShiftRight"], attack: ["KeyJ"],
+        dash: ["ShiftLeft", "ShiftRight"], attack: ["KeyF", "KeyJ"],
       },
       gamepad: {
         // Directions bind both the D-Pad and the left stick (the poller synthesizes
@@ -412,6 +417,9 @@ const RA = {
     sys.input = sys.input || {};
     sys.input.keyboard = Object.assign({}, defInput.keyboard, sys.input.keyboard || {});
     sys.input.gamepad = Object.assign({}, defInput.gamepad, sys.input.gamepad || {});
+    if (Array.isArray(sys.input.keyboard.attack) && sys.input.keyboard.attack.length === 1 && sys.input.keyboard.attack[0] === "KeyJ") {
+      sys.input.keyboard.attack = defInput.keyboard.attack.slice();
+    }
     if (sys.input.stickDeadzone == null) sys.input.stickDeadzone = defInput.stickDeadzone;
     // v3 element/skill/weapon/armor/equipment type lists (Database ▸ Types)
     const defTypes = RA.defaultTypes();
@@ -501,9 +509,15 @@ const RA = {
       if (!m.heights || m.heights.length !== n) m.heights = new Array(n).fill(0);
       for (const ev of m.events || []) {
         for (const page of ev.pages || []) {
+          const hadCombatAi = page.combat && Object.prototype.hasOwnProperty.call(page.combat, "ai");
           page.combat = Object.assign(RA.defaultActionCombat(), page.combat || {});
           page.combat.enabled = !!page.combat.enabled;
           page.combat.enemyId = Number(page.combat.enemyId) || 0;
+          if (!hadCombatAi && page.combat.enabled && page.moveType === "random" && Number(page.combat.touchDamage) > 0) {
+            page.combat.ai = "chase";
+          } else if (!RA.ACTION_COMBAT_AI.some((ai) => ai.v === page.combat.ai)) {
+            page.combat.ai = RA.defaultActionCombat().ai;
+          }
           page.combat.hp = Math.max(0, Number(page.combat.hp) || 0);
           page.combat.touchDamage = Math.max(0, Number(page.combat.touchDamage) || 0);
           page.combat.knockbackTiles = Math.max(0, Number(page.combat.knockbackTiles) || 0);
@@ -656,7 +670,7 @@ const DataDefaults = (() => {
     set(m, "decor", 18, 12, T.tree); set(m, "decor", 19, 13, T.tree); set(m, "decor", 17, 14, T.pine);
     set(m, "decor", 9, 12, T.pine);
 
-    // HD-2D config (enable PIXI rendering path)
+    // HD-2D config (enable the WebGL 3D rendering path)
     m.hd2d = { enabled: true, tilt: 50, bloom: false, dof: false, fog: false, lights: true, ambient: 0.45 };
     // Light test
     m.lights = [{ rx: 12, ry: 8, color: "#FFFF00", radius: 64 }];

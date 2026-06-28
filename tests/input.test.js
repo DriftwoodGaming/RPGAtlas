@@ -37,7 +37,7 @@ assert.deepEqual(def.gamepad.up, ["dpad_up", "lstick_up"]);
 assert.deepEqual(def.gamepad.left, ["dpad_left", "lstick_left"]);
 assert.deepEqual(def.keyboard.up, ["ArrowUp", "KeyW"]);
 assert.deepEqual(def.keyboard.dash, ["ShiftLeft", "ShiftRight"]);
-assert.deepEqual(def.keyboard.attack, ["KeyJ"]);
+assert.deepEqual(def.keyboard.attack, ["KeyF", "KeyJ"]);
 assert.equal(def.stickDeadzone, 0.5);
 // Every action has a keyboard + gamepad binding array.
 const actions = clone(evaluate("RA.INPUT_ACTIONS")).map((a) => a.key);
@@ -65,8 +65,21 @@ const migPart = evaluate(`RA.migrateProject({
 const mp = clone(migPart.system.input);
 assert.deepEqual(mp.keyboard.ok, ["KeyP"], "override kept");
 assert.deepEqual(mp.keyboard.cancel, ["KeyX", "Escape"], "other keyboard action backfilled");
+assert.deepEqual(mp.keyboard.attack, ["KeyF", "KeyJ"], "old default attack gains F");
 assert.deepEqual(mp.gamepad.ok, ["face_south"], "whole gamepad block backfilled");
 assert.equal(mp.stickDeadzone, 0.5, "deadzone backfilled");
+
+const migOldAttack = evaluate(`RA.migrateProject({
+  meta: { engine: "rpgatlas", version: 3 },
+  system: { input: { keyboard: { attack: ["KeyJ"] } } }
+})`);
+assert.deepEqual(clone(migOldAttack.system.input.keyboard.attack), ["KeyF", "KeyJ"], "saved old default attack gains F");
+
+const migCustomAttack = evaluate(`RA.migrateProject({
+  meta: { engine: "rpgatlas", version: 3 },
+  system: { input: { keyboard: { attack: ["KeyK"] } } }
+})`);
+assert.deepEqual(clone(migCustomAttack.system.input.keyboard.attack), ["KeyK"], "custom attack binding is preserved");
 
 // 6. mergeInputBindings: null override is an identity copy; overrides replace only their actions.
 const base = "RA.defaultInput()";
@@ -83,7 +96,7 @@ assert.equal(merged.stickDeadzone, 0.3, "deadzone override applied");
 // projInput missing an action still resolves via engine defaults.
 const sparse = clone(evaluate(`RA.mergeInputBindings({ keyboard: { ok: ["KeyL"] } }, null)`));
 assert.deepEqual(sparse.keyboard.ok, ["KeyL"], "project binding honored");
-assert.deepEqual(sparse.keyboard.attack, ["KeyJ"], "missing project action falls back to engine default");
+assert.deepEqual(sparse.keyboard.attack, ["KeyF", "KeyJ"], "missing project action falls back to engine default");
 // Reset == dropping the override.
 assert.deepEqual(
   clone(evaluate(`RA.mergeInputBindings(${base}, undefined)`)),

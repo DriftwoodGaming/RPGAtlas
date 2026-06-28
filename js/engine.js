@@ -454,18 +454,17 @@ const _createInputSystem = window.createInputSystem;
   // dev override until the editor exposes per-map HD-2D settings:
   // ?hd2d=1 forces the HD-2D renderer on, ?hd2d=0 forces it off
   const hdOverride = new URLSearchParams(location.search).get("hd2d");
+  function hdMapEnabled(candidateMap) {
+    if (!candidateMap) return false;
+    const hd = candidateMap.hd2d;
+    if (hd && Object.prototype.hasOwnProperty.call(hd, "enabled")) return hd.enabled === true;
+    if (hd && (hd.lights || hd.tilt != null || hd.ambient != null)) return true;
+    return !!(candidateMap.lights && candidateMap.lights.length > 0);
+  }
   function hdWanted() {
     if (hdOverride === "1") return true;
     if (hdOverride === "0") return false;
-    if (!map) return false;
-    if (map.hd2d && map.hd2d.enabled) return true;
-    if (
-      map.hd2d &&
-      (map.hd2d.lights || map.hd2d.tilt != null || map.hd2d.ambient != null)
-    )
-      return true;
-    if (map.lights && map.lights.length > 0) return true;
-    return false;
+    return hdMapEnabled(map);
   }
   let evRTs = [];
   let blockingRun = false; // an action/touch/autorun interpreter is active
@@ -643,6 +642,17 @@ const _createInputSystem = window.createInputSystem;
       return false;
     return true;
   }
+  function eventBlocksChaseTile(mover, other, x, y) {
+    if (mover && mover.page && mover.page.through) return false;
+    if (!other || other === mover || other.erased || !other.page) return false;
+    if (other.page.priority !== "same" || other.page.through) return false;
+    if (other.x === x && other.y === y) return true;
+    return !!(other.moving && other.tx === x && other.ty === y);
+  }
+  function canCombatChasePass(rt, nx, ny) {
+    if (!canEntityPass(rt, nx, ny)) return false;
+    return !evRTs.some((other) => eventBlocksChaseTile(rt, other, nx, ny));
+  }
   function startMove(ent, dir) {
     ent.dir = dir;
     const dx = dir === 1 ? -1 : dir === 2 ? 1 : 0;
@@ -670,6 +680,9 @@ const _createInputSystem = window.createInputSystem;
   function combatMaxHp(cfg, enemy) {
     return Math.max(1, Number(cfg && cfg.hp) || Number(enemy && enemy.stats && enemy.stats.mhp) || 1);
   }
+  function combatAi(cfg) {
+    return cfg && cfg.ai === "chase" ? "chase" : "none";
+  }
   function refreshEventCombat(rt) {
     const cfg = combatConfig(rt.page);
     const enemy = cfg && combatEnemy(cfg);
@@ -684,6 +697,7 @@ const _createInputSystem = window.createInputSystem;
       hp: combatMaxHp(cfg, enemy),
       invuln: 0,
       hurtFlash: 0,
+      attackCooldown: 0,
       stagger: 0,
       knockback: false,
       dead: false,
@@ -703,6 +717,17 @@ const _createInputSystem = window.createInputSystem;
     if (dir === 1) return { x: x - 0.48, y: y + 0.14, w: 0.62, h: 0.78 };
     if (dir === 2) return { x: x + 0.86, y: y + 0.14, w: 0.62, h: 0.78 };
     return { x: x + 0.10, y: y + 0.86, w: 0.80, h: 0.62 };
+  }
+  function swordHitsEntity(attacker, target, dir) {
+    if (!attacker || !target) return false;
+    const hitbox = swordHitboxAt(attacker.rx, attacker.ry, dir);
+    if (rectsOverlap(hitbox, entityHurtbox(target))) return true;
+    const [dx, dy] = DIRD[dir] || [0, 0];
+    return target.x === attacker.x + dx && target.y === attacker.y + dy;
+  }
+  function tileDistance(a, b) {
+    if (!a || !b) return Infinity;
+    return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
   }
   function attackFrame(attack) {
     return attack ? attack.total - attack.framesLeft : 999;
@@ -783,7 +808,10 @@ const _createInputSystem = window.createInputSystem;
     const dmg = Number(cfg && cfg.touchDamage) || 0;
     const a = G.party[0];
     if (!p || !a || dmg <= 0 || (p.hurtInvuln || 0) > 0) return;
-    if (!rectsOverlap(entityHurtbox(p), entityHurtbox(rt))) return;
+    if ((rt.combat.attackCooldown || 0) > 0) return;
+    if (!rectsOverlap(entityHurtbox(p), entityHurtbox(rt)) && tileDistance(p, rt) > 1) return;
+    rt.combat.attackCooldown = 45;
+    rt.dir = dirTo(rt.x, rt.y, p.x, p.y);
     a.hp = Math.max(0, a.hp - dmg);
     p.hurtInvuln = 60;
     addMapFloatText("-" + dmg, p.rx + 0.5, p.ry - 0.2, "#ff8a8a");
@@ -801,10 +829,9 @@ const _createInputSystem = window.createInputSystem;
     if (p && p.hurtInvuln > 0) p.hurtInvuln--;
     if (p && p.attack) {
       if (attackIsActive(p.attack)) {
-        const hitbox = swordHitboxAt(p.rx, p.ry, p.attack.dir);
         for (const rt of evRTs) {
           if (!combatReady(rt) || p.attack.hitIds.has(rt.ev.id)) continue;
-          if (!rectsOverlap(hitbox, entityHurtbox(rt))) continue;
+          if (!swordHitsEntity(p, rt, p.attack.dir)) continue;
           p.attack.hitIds.add(rt.ev.id);
           damageMapEnemy(rt);
         }
@@ -816,6 +843,7 @@ const _createInputSystem = window.createInputSystem;
       if (!combatReady(rt)) continue;
       if (rt.combat.invuln > 0) rt.combat.invuln--;
       if (rt.combat.hurtFlash > 0) rt.combat.hurtFlash--;
+      if (rt.combat.attackCooldown > 0) rt.combat.attackCooldown--;
       if (rt.combat.stagger > 0) rt.combat.stagger--;
       damagePlayerFromEnemy(rt);
     }
@@ -826,6 +854,26 @@ const _createInputSystem = window.createInputSystem;
   }
   function combatStaggered(rt) {
     return !!(rt && rt.combat && rt.combat.stagger > 0);
+  }
+  function combatChaseDir(rt) {
+    const p = G.player;
+    if (!combatReady(rt) || !p || !rt.page) return -1;
+    const cfg = combatConfig(rt.page);
+    if (combatAi(cfg) !== "chase") return -1;
+    if (combatStaggered(rt) || rt.locked || blockingRun) return -1;
+    const dx = p.x - rt.x;
+    const dy = p.y - rt.y;
+    const dist = Math.abs(dx) + Math.abs(dy);
+    if (dist <= 1 || dist > 5) return -1;
+    const xDir = dx > 0 ? 2 : dx < 0 ? 1 : -1;
+    const yDir = dy > 0 ? 0 : dy < 0 ? 3 : -1;
+    const dirs = Math.abs(dx) >= Math.abs(dy) ? [xDir, yDir] : [yDir, xDir];
+    for (const dir of dirs) {
+      if (dir < 0) continue;
+      const [mx, my] = DIRD[dir];
+      if (canCombatChasePass(rt, rt.x + mx, rt.y + my)) return dir;
+    }
+    return -1;
   }
   function drawSwordSlash(g, hitbox, dir) {
     const x = hitbox.x * TILE;
@@ -1602,13 +1650,19 @@ const _createInputSystem = window.createInputSystem;
       }
       if (!rt.moving && rt.route) {
         updateRoute(rt);
-      } else if (!rt.moving && rt.page.moveType === "random" && !rt.locked && !blockingRun && !combatStaggered(rt)) {
-        if (--rt.moveT <= 0) {
-          rt.moveT = 40 + rnd(100);
-          const d = rnd(4);
-          if (rnd(4) === 0) rt.dir = d;
-          else if (canEntityPass(rt, rt.x + DIRD[d][0], rt.y + DIRD[d][1]))
-            startMove(rt, d);
+      } else if (!rt.moving) {
+        const chaseDir = combatChaseDir(rt);
+        if (chaseDir >= 0) {
+          startMove(rt, chaseDir);
+          rt.moveT = 20 + rnd(40);
+        } else if (rt.page.moveType === "random" && !rt.locked && !blockingRun && !combatStaggered(rt)) {
+          if (--rt.moveT <= 0) {
+            rt.moveT = 40 + rnd(100);
+            const d = rnd(4);
+            if (rnd(4) === 0) rt.dir = d;
+            else if (canEntityPass(rt, rt.x + DIRD[d][0], rt.y + DIRD[d][1]))
+              startMove(rt, d);
+          }
         }
       }
       // autorun / parallel
@@ -1758,6 +1812,8 @@ const _createInputSystem = window.createInputSystem;
       }
       const ambient =
         map.hd2d && map.hd2d.ambient != null ? Number(map.hd2d.ambient) : 0.45;
+      const tilt =
+        map.hd2d && map.hd2d.tilt != null ? Number(map.hd2d.tilt) : 50;
       await Renderer.renderFrame(SCREEN_W, SCREEN_H, camX, camY, sprites, {
         focus: { rx: pix, ry: piy },
         lights,
@@ -1765,6 +1821,7 @@ const _createInputSystem = window.createInputSystem;
         shakeX,
         shakeY,
         ambient,
+        tilt,
         tilePassable,
       });
     }
@@ -1800,7 +1857,7 @@ const _createInputSystem = window.createInputSystem;
   // Fixed-timestep loop: update() runs at a steady 60 ticks/sec regardless of refresh rate,
   // render() once per frame (every frame, at full refresh). Keeps the tick-based engine in
   // sync without per-system delta time, and stops fast displays from running in fast-forward.
-  // render() is async (PIXI HD-2D path), so we await it to avoid overlapping frames.
+  // render() is async (WebGL HD-2D path), so we await it to avoid overlapping frames.
 
   let loopLast = 0, loopAcc = 0;
   const TICK_MS = 1000 / 60;

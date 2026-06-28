@@ -79,10 +79,39 @@ export function downloadBlob(blob, fileName) {
   setTimeout(() => URL.revokeObjectURL(anchor.href), 5000);
 }
 
-export function exportProjectFile(project) {
+async function saveBlobWithPicker(blob, fileName) {
+  const picker = globalThis.showSaveFilePicker;
+  if (typeof picker !== "function") return null;
+
+  const handle = await picker({
+    suggestedName: fileName,
+    types: [{
+      description: "RPGAtlas project",
+      accept: { "application/json": [".json"] },
+    }],
+  });
+  const writable = await handle.createWritable();
+  try {
+    await writable.write(blob);
+  } finally {
+    await writable.close();
+  }
+  return handle;
+}
+
+export async function exportProjectFile(project) {
   const blob = new Blob([JSON.stringify(project, null, 1)], { type: "application/json" });
   const title = project.system.title || "rpgatlas-project";
-  downloadBlob(blob, safeFileName(title, "rpgatlas-project") + ".json");
+  const fileName = safeFileName(title, "rpgatlas-project") + ".json";
+  try {
+    const handle = await saveBlobWithPicker(blob, fileName);
+    if (handle) return { method: "picker", fileName: handle.name || fileName };
+  } catch (error) {
+    if (error && error.name === "AbortError") return { cancelled: true, fileName };
+    throw error;
+  }
+  downloadBlob(blob, fileName);
+  return { method: "download", fileName };
 }
 
 export async function buildStandaloneGame(project, Assets) {

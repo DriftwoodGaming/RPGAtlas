@@ -4,6 +4,73 @@
 
 export const PATCH_NOTES = [
   {
+    date: "June 28, 2026",
+    title: "Project Export Save As",
+    summary: "Export Project As File now opens a Save As destination picker when the editor is running in a capable desktop browser or desktop app.",
+    items: [
+      "File -> Export Project As File opens a native Save As picker so the project file can be named and saved to a chosen folder.",
+      "Browsers without the save-picker API still fall back to the standard .json download.",
+    ],
+  },
+  {
+    date: "June 28, 2026",
+    title: "Action Combat Chase Spacing",
+    summary: "Chasing action-combat enemies now avoid stacking on each other unless their event page has Through enabled.",
+    items: [
+      "Enemy chase AI now treats another same-priority event's current tile or reserved movement destination as blocked.",
+      "Turning on Through for an event still allows that chaser to overlap other events when the project needs pass-through behavior.",
+    ],
+  },
+  {
+    date: "June 28, 2026",
+    title: "Playtest and Event Marker Sync",
+    summary: "Editor event markers now stay visible while painting, and browser playtests launch from a fresh player URL.",
+    items: [
+      "Events remain visible as faint map pins outside Event mode, so they no longer look deleted when switching back to tile painting.",
+      "The Playtest command now opens browser playtests with a cache-busting play.html URL while still saving the current project first.",
+    ],
+  },
+  {
+    date: "June 28, 2026",
+    title: "Action Combat AI Picker",
+    summary: "Action Combat events now expose enemy AI directly and the default Attack binding includes F again.",
+    items: [
+      "The Action Combat section now has an Enemy AI picker with None and Chase player options.",
+      "Existing random touch-damage enemies keep their chase behavior through migration, but new enemies choose it explicitly.",
+      "The default Attack action now responds to F as well as J unless the project has a custom attack binding.",
+    ],
+  },
+  {
+    date: "June 28, 2026",
+    title: "HD-2D Toggle Respects Map Properties",
+    summary: "Maps now return to the flat 2D renderer when HD-2D is switched off in Map Properties.",
+    items: [
+      "The Map Properties Enabled checkbox now controls the runtime renderer even when camera tilt, ambient light, fog, bloom, point lights, or saved map lights remain configured.",
+      "Older projects that had HD-2D settings before the explicit toggle still opt into HD-2D until the map is saved with the checkbox off.",
+    ],
+  },
+  {
+    date: "June 28, 2026",
+    title: "Action Combat Follow-Up",
+    summary: "Map action combat now reliably hits the adjacent tile and gives touch-damage enemies a simple way to pressure the player.",
+    items: [
+      "Sword swings now check the tile in front of the player as well as the visual slash collider, so adjacent enemies are hit and knocked back reliably.",
+      "Touch damage now works as an adjacent melee strike for action-combat enemies instead of requiring an impossible same-tile overlap.",
+      "Random-moving action-combat enemies with Touch damage now chase nearby players before resuming random wandering.",
+    ],
+  },
+  {
+    date: "June 28, 2026",
+    title: "True 3D HD-2D Rendering",
+    summary: "HD-2D now renders through a real perspective camera again, so the Camera tilt control actually tilts the view. The PIXI dependency was removed in favor of a dependency-free WebGL renderer.",
+    items: [
+      "Camera tilt (25–89 degrees) leans the camera back through a genuine 3D perspective: raised blocks reveal their walls and the world foreshortens, instead of the slider doing nothing.",
+      "Restored the full HD-2D feature set on the 3D path — height-extruded blocks with shaded cliff faces, billboard characters that stand at their elevation, 3D point lights with ambient, plus bloom, depth of field, and distance fog.",
+      "Removed the bundled PIXI library; the renderer is now raw WebGL2 with no third-party dependency and a smaller download.",
+      "The in-editor HD-2D Preview and exported games use the same renderer, so what you see while editing matches the game.",
+    ],
+  },
+  {
     date: "June 22, 2026",
     title: "Live HD-2D Editor Preview",
     summary: "The HD-2D Preview now uses the current PIXI renderer directly and stays synchronized with map edits.",

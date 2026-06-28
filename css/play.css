@@ -22,7 +22,7 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
   font-family: var(--font-text);
   font-size: var(--font-size);
 }
-#pixicanvas { position: absolute; inset: 0; z-index: 0; image-rendering: pixelated; }
+#glcanvas { position: absolute; inset: 0; z-index: 0; image-rendering: pixelated; }
 #gamecanvas { position: absolute; inset: 0; z-index: 1; image-rendering: pixelated; }
 .uilayer { position: absolute; inset: 0; pointer-events: none; }
 .uilayer > * { pointer-events: auto; }
