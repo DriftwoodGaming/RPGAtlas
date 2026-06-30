@@ -138,6 +138,7 @@ input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold-edge);
   box-shadow: 0 16px 50px rgba(0,0,0,0.6);
 }
 .modal.wide { width: 880px; }
+.modal.resizable { resize: both; overflow: auto; }
 .modal-title { padding: 10px 16px; font-weight: 700; border-bottom: 1px solid #30334a; color: #e8cfa0; }
 .modal-body { padding: 12px 16px; overflow-y: auto; }
 .modal-btns { padding: 10px 16px; border-top: 1px solid #30334a; display: flex; gap: 8px; justify-content: flex-end; }
@@ -463,8 +464,17 @@ input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold-edge);
 .patch-note li { margin: 4px 0; }
 
 /* ---------- plugin manager ---------- */
-.plug-wrap { display: flex; gap: 12px; min-height: 380px; }
-.plug-side { width: 220px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
+.modal.plugin-modal { min-width: 880px; min-height: 520px; }
+.modal.plugin-modal .modal-body { flex: 1; min-height: 0; display: flex; }
+.modal.plugin-modal .plug-wrap { flex: 1; min-height: 0; }
+.plug-wrap { display: flex; gap: 0; min-height: 380px; }
+.plug-side { width: 252px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
+.plug-split { flex: 0 0 12px; cursor: col-resize; position: relative; touch-action: none; }
+.plug-split::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px;
+  background: #30344b; border-radius: 2px;
+}
+.plug-split:hover::before, .plug-split.dragging::before { background: var(--accent); }
 .plug-list { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto; border: 1px solid #2c2f44; border-radius: 5px; }
 .plug-list li { padding: 4px 8px; cursor: pointer; display: flex; align-items: center; gap: 7px; }
 .plug-list li:hover { background: #2a2d40; }
@@ -477,8 +487,20 @@ input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold-edge);
   border-radius: 4px; padding: 0 5px; line-height: 16px;
 }
 .plug-list li.sel .plug-badge { color: #fff; border-color: #cdd6ee; background: rgba(255,255,255,0.18); }
+.plug-status {
+  flex: 0 0 auto; font-size: 10px; letter-spacing: 0.2px; text-transform: uppercase;
+  border-radius: 4px; padding: 0 5px; line-height: 16px;
+}
+.plug-status.ok { color: #98e6a8; background: rgba(70,150,90,0.16); border: 1px solid #3c7a4a; }
+.plug-status.warn { color: #ffd27f; background: rgba(180,120,40,0.16); border: 1px solid #8d6429; }
+.plug-status.off { color: #9aa0b8; background: rgba(120,125,150,0.12); border: 1px solid #4a4e60; }
+.plug-list li.sel .plug-status { color: #fff; border-color: #cdd6ee; background: rgba(255,255,255,0.18); }
 .plug-form { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .plug-form textarea { flex: 1; min-height: 260px; font-size: 12px; }
+.plug-meta { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.plug-meta label { display: flex; flex-direction: column; gap: 3px; color: #aeb2c8; font-size: 11px; }
+.plug-meta label.wide { grid-column: 1 / -1; }
+.plug-meta .plug-desc { min-height: 54px; flex: 0 0 auto; }
 
 /* ---------- audio manager ---------- */
 .audio-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }

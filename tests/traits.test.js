@@ -42,11 +42,18 @@ const legacyPlugins = evaluate(`RA.migrateProject({
 })`);
 assert.equal(legacyPlugins.plugins[0].key, "Atlas_Core");
 assert.equal(legacyPlugins.plugins[0].name, "Atlas_Core");
+assert.equal(legacyPlugins.plugins[0].pluginId, "atlas.core");
+assert.equal(legacyPlugins.plugins[0].version, "1.0.0");
 assert.ok(legacyPlugins.plugins[0].code.includes("window.Atlas"));
 assert.equal(legacyPlugins.plugins[1].key, "Atlas_Weather");
 assert.equal(legacyPlugins.plugins[1].name, "My Weather"); // custom names survive
+assert.equal(legacyPlugins.plugins[1].pluginId, "atlas.weather");
+assert.deepEqual(Array.from(legacyPlugins.plugins[1].dependencies), ["atlas.core"]);
 assert.equal(legacyPlugins.plugins[1].on, false);          // disabled stays disabled
 assert.equal(legacyPlugins.plugins[2].code, "/*user code*/");
+assert.equal(legacyPlugins.plugins[2].pluginId, "plugin.3");
+assert.equal(legacyPlugins.plugins[2].version, "1.0.0");
+assert.deepEqual(Array.from(legacyPlugins.plugins[2].dependencies), []);
 assert.equal(legacyPlugins.plugins.length, 3);             // seeded once already — no dupes
 
 evaluate(`globalThis.testClass = {

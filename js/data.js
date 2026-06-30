@@ -541,6 +541,24 @@ const RA = {
         if (pl.builtin) pl.code = AtlasBuiltins.bodyOf(spec.fn);
       }
     }
+    for (const pl of p.plugins) {
+      if (!pl || typeof pl !== "object") continue;
+      const spec = typeof AtlasBuiltins !== "undefined" && pl.key ? AtlasBuiltins.specByKey(pl.key) : null;
+      if (spec) {
+        pl.pluginId = spec.pluginId;
+        pl.version = spec.version;
+        pl.author = spec.author;
+        pl.description = spec.desc || "";
+        pl.dependencies = (spec.dependencies || []).slice();
+        if (pl.builtin) pl.code = AtlasBuiltins.bodyOf(spec.fn);
+      } else {
+        pl.pluginId = String(pl.pluginId || pl.key || ("plugin." + (pl.id || "legacy"))).trim();
+        pl.version = String(pl.version || "1.0.0").trim();
+        pl.author = String(pl.author || "").trim();
+        pl.description = String(pl.description || "").trim();
+        pl.dependencies = Array.isArray(pl.dependencies) ? pl.dependencies.map((dep) => String(dep).trim()).filter(Boolean) : [];
+      }
+    }
     // Install the engine's bundled plugins once, so existing projects gain them
     // too. We only seed missing ones, and only the first time — a deliberately
     // removed built-in stays removed.

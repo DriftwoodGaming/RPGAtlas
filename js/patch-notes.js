@@ -4,6 +4,17 @@
 
 export const PATCH_NOTES = [
   {
+    date: "June 29, 2026",
+    title: "Plugin Metadata Foundation",
+    summary: "Plugins now have formal metadata fields, clearer validation, and a more flexible Plugin Manager layout.",
+    items: [
+      "Plugin Manager now exposes plugin ID, version, author, description, and dependency fields above the code editor.",
+      "The Plugin Manager window and plugin list divider can now be resized.",
+      "Bundled plugins now carry metadata, and older projects are migrated with safe defaults for custom plugins.",
+      "Playtests now record plugin load status in window.AtlasPluginStatus and skip duplicate or missing-dependency plugins with console warnings.",
+    ],
+  },
+  {
     date: "June 28, 2026",
     title: "Project Export Save As",
     summary: "Export Project As File now opens a Save As destination picker when the editor is running in a capable desktop browser or desktop app.",

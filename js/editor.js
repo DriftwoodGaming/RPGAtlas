@@ -183,7 +183,7 @@ const editorI18n = createEditorI18n({
   const modalRoot = () => $("modal-root");
   function modal(opts) {
     const overlay = h("div", { class: "overlay" });
-    const win = h("div", { class: "modal " + (opts.wide ? "wide " : "") + (opts.class || "") });
+    const win = h("div", { class: "modal " + (opts.wide ? "wide " : "") + (opts.resizable ? "resizable " : "") + (opts.class || "") });
     win.appendChild(h("div", { class: "modal-title" }, t(opts.title || "")));
     const body = h("div", { class: "modal-body" });
     if (opts.content) body.appendChild(opts.content);
@@ -4643,16 +4643,32 @@ atlas.onMapLoad((map) => {
     let cur = plugins[0] || null;
     const list = h("ul", { class: "plug-list" });
     const nameIn = h("input", { type: "text", placeholder: "Plugin name", oninput(e) { if (cur) { cur.name = e.target.value; touch(); redrawList(); } } });
+    const pluginIdIn = h("input", { type: "text", placeholder: "Plugin ID, e.g. atlas.weather", oninput(e) { if (cur) { cur.pluginId = e.target.value.trim(); touch(); redrawList(); } } });
+    const versionIn = h("input", { type: "text", placeholder: "Version", oninput(e) { if (cur) { cur.version = e.target.value.trim(); touch(); } } });
+    const authorIn = h("input", { type: "text", placeholder: "Author", oninput(e) { if (cur) { cur.author = e.target.value; touch(); } } });
+    const depsIn = h("input", { type: "text", placeholder: "Dependencies: atlas.core, other.plugin", oninput(e) { if (cur) { cur.dependencies = e.target.value.split(",").map((s) => s.trim()).filter(Boolean); touch(); redrawList(); } } });
+    const descIn = h("textarea", { class: "plug-desc", placeholder: "Description", spellcheck: "true", oninput(e) { if (cur) { cur.description = e.target.value; touch(); } } });
     const codeTa = h("textarea", { spellcheck: "false", oninput(e) { if (cur) { cur.code = e.target.value; touch(); } } });
+    function pluginIdentity(pl) { return String(pl && (pl.pluginId || pl.key || pl.name || ("plugin." + pl.id)) || "").trim(); }
+    function pluginStatus(pl) {
+      const id = pluginIdentity(pl);
+      if (!id) return { label: "missing id", cls: "warn" };
+      if (plugins.some((other) => other !== pl && pluginIdentity(other) === id)) return { label: "duplicate id", cls: "warn" };
+      const missing = (pl.dependencies || []).filter((dep) => !plugins.some((other) => other.on && pluginIdentity(other) === dep));
+      if (pl.on && missing.length) return { label: "missing dep", cls: "warn" };
+      return { label: pl.on ? "ready" : "disabled", cls: pl.on ? "ok" : "off" };
+    }
     function redrawList() {
       list.innerHTML = "";
       plugins.forEach((pl) => {
+        const st = pluginStatus(pl);
         const cb = h("input", { type: "checkbox",
           onclick(e) { e.stopPropagation(); },
           onchange(e) { pl.on = e.target.checked; touch(); redrawList(); },
           ...(pl.on ? { checked: "" } : {}) });
         const kids = [cb, h("span", { class: "plug-name" }, pl.name || "(unnamed)")];
         if (pl.builtin) kids.push(h("span", { class: "plug-badge" }, "built-in"));
+        kids.push(h("span", { class: "plug-status " + st.cls }, st.label));
         list.appendChild(h("li", {
           class: (pl === cur ? "sel" : "") + (pl.on ? "" : " off"),
           onclick() { cur = pl; redrawList(); redrawForm(); },
@@ -4677,8 +4693,13 @@ atlas.onMapLoad((map) => {
     }
     function redrawForm() {
       nameIn.value = cur ? cur.name : "";
+      pluginIdIn.value = cur ? (cur.pluginId || cur.key || "") : "";
+      versionIn.value = cur ? (cur.version || "") : "";
+      authorIn.value = cur ? (cur.author || "") : "";
+      depsIn.value = cur ? (cur.dependencies || []).join(", ") : "";
+      descIn.value = cur ? (cur.description || "") : "";
       codeTa.value = cur ? cur.code : "";
-      nameIn.disabled = codeTa.disabled = !cur;
+      nameIn.disabled = pluginIdIn.disabled = versionIn.disabled = authorIn.disabled = depsIn.disabled = descIn.disabled = codeTa.disabled = !cur;
     }
     function move(d) {
       if (!cur) return;
@@ -4690,7 +4711,8 @@ atlas.onMapLoad((map) => {
     const side = h("div", { class: "plug-side" },
       h("div", { class: "dbbtns" },
         h("button", { onclick() {
-          const pl = { id: RA.nextId(plugins.length ? plugins : [{ id: 0 }]), name: "New Plugin", on: true, code: PLUGIN_TEMPLATE };
+          const id = RA.nextId(plugins.length ? plugins : [{ id: 0 }]);
+          const pl = { id: id, name: "New Plugin", pluginId: "plugin." + id, version: "1.0.0", author: "", description: "", dependencies: [], on: true, code: PLUGIN_TEMPLATE };
           plugins.push(pl); cur = pl;
           touch(); redrawList(); redrawForm();
         } }, "+ New"),
@@ -4709,10 +4731,50 @@ atlas.onMapLoad((map) => {
       list,
       h("div", { class: "dim" }, "Checked plugins run top-to-bottom at game boot."),
     );
-    const form = h("div", { class: "plug-form" }, nameIn, codeTa);
+    const meta = h("div", { class: "plug-meta" },
+      h("label", null, "Name", nameIn),
+      h("label", null, "Plugin ID", pluginIdIn),
+      h("label", null, "Version", versionIn),
+      h("label", null, "Author", authorIn),
+      h("label", { class: "wide" }, "Dependencies", depsIn),
+      h("label", { class: "wide" }, "Description", descIn));
+    const form = h("div", { class: "plug-form" }, meta, codeTa);
+    const minSideW = 220, minFormW = 360;
+    let draggingSplit = false, dragStartX = 0, dragStartW = 0;
+    function clampSideW(w) {
+      const max = Math.max(minSideW, wrap.getBoundingClientRect().width - minFormW);
+      return Math.max(minSideW, Math.min(max, w));
+    }
+    const split = h("div", {
+      class: "plug-split",
+      title: "Drag to resize the plugin list",
+      onpointerdown(e) {
+        draggingSplit = true;
+        dragStartX = e.clientX;
+        dragStartW = side.getBoundingClientRect().width;
+        split.classList.add("dragging");
+        split.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      },
+      onpointermove(e) {
+        if (!draggingSplit) return;
+        side.style.width = clampSideW(dragStartW + e.clientX - dragStartX) + "px";
+      },
+      onpointerup(e) {
+        draggingSplit = false;
+        split.classList.remove("dragging");
+        if (split.hasPointerCapture(e.pointerId)) split.releasePointerCapture(e.pointerId);
+      },
+      onpointercancel(e) {
+        draggingSplit = false;
+        split.classList.remove("dragging");
+        if (split.hasPointerCapture(e.pointerId)) split.releasePointerCapture(e.pointerId);
+      },
+    });
+    const wrap = h("div", { class: "plug-wrap" }, side, split, form);
     redrawList(); redrawForm();
-    modal({ title: "Plugin Manager", wide: true, dismissable: false,
-      content: h("div", { class: "plug-wrap" }, side, form),
+    modal({ title: "Plugin Manager", wide: true, resizable: true, dismissable: false, class: "plugin-modal",
+      content: wrap,
       buttons: [{ label: "Close", primary: true }] });
   }
 

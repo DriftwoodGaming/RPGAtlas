@@ -1347,6 +1347,8 @@ const _createInputSystem = window.createInputSystem;
     textProcessors: [], // fn(html) -> html, run on every message/choice string
     commands: {}, // custom event-command handlers, by command type
     transition: null, // { out(ms), in(ms) } installed by a transition plugin
+    status: [],
+    pluginId(pl) { return String(pl && (pl.pluginId || pl.key || pl.name || ("plugin." + pl.id)) || "").trim(); },
     fire(name, arg) {
       const list = this.hooks[name];
       for (let i = list.length - 1; i >= 0; i--) {
@@ -1419,15 +1421,35 @@ const _createInputSystem = window.createInputSystem;
           Battle.run(troopId, canEscape !== false),
       };
       Plugins.atlas = Plugins.dw = atlas; // .dw kept for pre-rebrand plugins
+      Plugins.status = [];
+      const seen = new Set(), loaded = new Set();
       for (const pl of proj.plugins || []) {
-        if (!pl.on) continue;
+        const pluginId = Plugins.pluginId(pl);
+        const entry = { id: pl.id, pluginId: pluginId, name: pl.name || pluginId || "?", status: "pending", errors: [] };
+        Plugins.status.push(entry);
+        if (!pl.on) { entry.status = "disabled"; continue; }
+        if (!pluginId) { entry.status = "skipped"; entry.errors.push("Missing plugin ID."); console.warn("Plugin '" + (pl.name || "?") + "' skipped: missing plugin ID."); continue; }
+        if (seen.has(pluginId)) { entry.status = "skipped"; entry.errors.push("Duplicate plugin ID: " + pluginId); console.warn("Plugin '" + (pl.name || pluginId) + "' skipped: duplicate plugin ID '" + pluginId + "'."); continue; }
+        seen.add(pluginId);
+        const missing = (pl.dependencies || []).filter((dep) => !loaded.has(dep));
+        if (missing.length) {
+          entry.status = "skipped";
+          entry.errors.push("Missing dependencies: " + missing.join(", "));
+          console.warn("Plugin '" + (pl.name || pluginId) + "' skipped: missing dependencies " + missing.join(", ") + ".");
+          continue;
+        }
         try {
           new Function("atlas", "game", "dw", pl.code)(atlas, scriptApi, atlas);
+          entry.status = "loaded";
+          loaded.add(pluginId);
         } catch (e) {
           // "dw" = pre-rebrand alias
           console.error("Plugin '" + (pl.name || "?") + "' failed:", e);
+          entry.status = "failed";
+          entry.errors.push(e && e.message ? e.message : String(e));
         }
       }
+      if (typeof window !== "undefined") window.AtlasPluginStatus = Plugins.status;
     },
   };
 

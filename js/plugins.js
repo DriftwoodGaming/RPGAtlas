@@ -253,13 +253,13 @@ const AtlasBuiltins = (() => {
 
   // ---- registry ----
   const LIST = [
-    { key: "Atlas_Core", fn: Atlas_Core, on: true,
+    { key: "Atlas_Core", pluginId: "atlas.core", name: "Atlas Core", version: "1.0.0", author: "RPGAtlas", dependencies: [], fn: Atlas_Core, on: true,
       desc: "Shared library every other Atlas plugin builds on. Load first." },
-    { key: "Atlas_TextCodes", fn: Atlas_TextCodes, on: true,
+    { key: "Atlas_TextCodes", pluginId: "atlas.text-codes", name: "Atlas Text Codes", version: "1.0.0", author: "RPGAtlas", dependencies: ["atlas.core"], fn: Atlas_TextCodes, on: true,
       desc: "Inline icons (\\i[n]), colour codes (\\c[n]) and BBCode in messages." },
-    { key: "Atlas_Transitions", fn: Atlas_Transitions, on: true,
+    { key: "Atlas_Transitions", pluginId: "atlas.transitions", name: "Atlas Transitions", version: "1.0.0", author: "RPGAtlas", dependencies: ["atlas.core"], fn: Atlas_Transitions, on: true,
       desc: "Transfer effects: fade, iris, curtain, slide." },
-    { key: "Atlas_Weather", fn: Atlas_Weather, on: true,
+    { key: "Atlas_Weather", pluginId: "atlas.weather", name: "Atlas Weather", version: "1.0.0", author: "RPGAtlas", dependencies: ["atlas.core"], fn: Atlas_Weather, on: true,
       desc: "Rain, storm, snow and fog overlays; per-map or scripted." },
   ];
 
@@ -271,7 +271,19 @@ const AtlasBuiltins = (() => {
   function make(key, id) {
     const s = specByKey(key);
     if (!s) return null;
-    return { id: id, key: s.key, name: s.key, on: s.on !== false, builtin: true, code: bodyOf(s.fn) };
+    return {
+      id: id,
+      key: s.key,
+      pluginId: s.pluginId,
+      name: s.key,
+      version: s.version,
+      author: s.author,
+      description: s.desc || "",
+      dependencies: (s.dependencies || []).slice(),
+      on: s.on !== false,
+      builtin: true,
+      code: bodyOf(s.fn),
+    };
   }
   function seed(startId) {
     return LIST.map((s, i) => make(s.key, (startId || 1) + i));
