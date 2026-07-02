@@ -67,12 +67,6 @@ export class BrowserSaveRepository implements SaveRepository {
     }
   }
 
-  /** Alias of readSlot — the save/load menu reads the same parsed payload for
-   *  its summary (info.mapName/level/ts) as it does to restore (info.data). */
-  slotInfo(slot: number): any | null {
-    return this.readSlot(slot);
-  }
-
   /** Write a slot payload. Returns false on quota/unavailable so the caller
    *  shows the storage-full message (the try/catch mirrors saveLoadMenu). */
   writeSlot(slot: number, payload: any): boolean {

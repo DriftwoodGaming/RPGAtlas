@@ -29,12 +29,12 @@
 
 import { ctx } from "./state/engine-context.js";
 import { update } from "./scenes/map.js";
-import { render, TICK_MS } from "./render-glue.js";
+import { render } from "./render-glue.js";
 
-/** Re-export the fixed tick length so the loop's timestep constant has a home
- *  in the loop module. render-glue.ts remains its definition site (it also uses
- *  TICK_MS for render interpolation); consumers may import it from either. */
-export { TICK_MS };
+/** The fixed game-logic tick length. Owned here — the loop defines the
+ *  timestep; render-glue imports it for interpolation (function-scope use only,
+ *  so the loop↔render-glue import cycle is eval-order safe). */
+export const TICK_MS = 1000 / 60;
 
 /** One rAF step: accumulate real time, drain whole 60 Hz ticks, render once.
  *  `now` is the high-resolution timestamp rAF passes its callback. */

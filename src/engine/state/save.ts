@@ -17,7 +17,7 @@ import { loadMap, initPlayer } from "../scenes/map-runtime.js";
 import { browserSaveRepository as saves } from "../../platform/browser/save-repository.js";
 
 export function slotInfo(slot: any): any {
-  return saves.slotInfo(slot);
+  return saves.readSlot(slot);
 }
 export async function saveLoadMenu(mode: any): Promise<boolean> {
   const slots = [1, 2, 3];

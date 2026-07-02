@@ -13,7 +13,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, DataDefaults, Music, RA, Sfx } from "../shared/deps.js";
-import { validateProject } from "../shared/schema.js";
+import { isProjectLike, validateProject } from "../shared/schema.js";
 import { registerBuiltinCommands } from "./interpreter/commands/index.js";
 import { initInterpServices } from "./interpreter/interp.js";
 import { scriptApi } from "./script-api.js";
@@ -109,12 +109,7 @@ function loadProject(): any {
       localStorage.getItem("driftwood_project");
     if (raw) {
       const p = JSON.parse(raw);
-      if (
-        p &&
-        p.meta &&
-        (p.meta.engine === "rpgatlas" || p.meta.engine === "driftwood")
-      )
-        return validateProject(RA.migrateProject(p), "load");
+      if (isProjectLike(p)) return validateProject(RA.migrateProject(p), "load");
     }
   } catch (e) {
     console.warn("Stored project unreadable, using sample.", e);

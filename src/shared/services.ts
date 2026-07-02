@@ -33,8 +33,6 @@ export interface ProjectRepository {
   /** Load + migrate the stored project, or null if none exists. */
   loadProject(): Project | null;
   saveProject(project: Project): void;
-  /** True when a stored project exists (drives the editor's first-run flow). */
-  hasProject(): boolean;
 }
 
 /** Per-game save slots + player options (today src/engine/state/save.ts and
@@ -42,11 +40,10 @@ export interface ProjectRepository {
  *  "rpgatlas_<gameId>_save_<slot>" / "rpgatlas_<gameId>_options" with
  *  pre-rebrand "driftwood_*" read-fallbacks). */
 export interface SaveRepository {
-  /** Summary for the save/load menu (null = empty slot). */
-  slotInfo(slot: number): any | null;
   readSlot(slot: number): any | null;
-  /** Throws/returns false on quota failure — caller shows the storage-full
-   *  message (behavior fixed in Phase 0). */
+  /** Returns false on quota/storage failure — the caller shows the
+   *  storage-full message (behavior fixed in Phase 0). MUST NOT throw:
+   *  src/engine/state/save.ts handles only the boolean, with no try/catch. */
   writeSlot(slot: number, payload: any): boolean;
   readOptions(): any | null;
   writeOptions(options: any): void;
@@ -58,24 +55,27 @@ export interface SaveRepository {
  *  reaching into globals; until then the interface documents the surface the
  *  glue actually uses. */
 export interface RendererAdapter {
-  /** (Re)build renderer resources for the current map. */
-  prepareMap(map: any, proj: Project): void;
-  /** Draw one frame from the current game state (called from the loop's render
-   *  phase; must not mutate game state). */
-  renderFrame(state: any): void;
-  /** HD-2D availability/teardown — mirrors today's lost-context fallback. */
+  /** Draw one frame from the current game state on the shared engine context
+   *  (called once per rAF from the loop's render phase; reads ctx, must not
+   *  mutate game state). Today: render-glue.ts render(). */
+  render(): Promise<void>;
+  /** HD-2D availability — mirrors today's lost-context fallback gate
+   *  (render-glue's `hdActive && !Renderer.isLost()`). */
   isAvailable(): boolean;
-  dispose(): void;
 }
 
-/** Plugin host surface (today src/engine/plugin-runtime.ts + script-api.ts).
- *  The registerCommand bridge routes onto the interpreter registry
+/** Plugin host surface (today the Plugins object in
+ *  src/engine/plugin-runtime.ts; method names match the implementation).
+ *  atlas.registerCommand routes onto the interpreter registry
  *  (src/engine/interpreter/registry.ts). This surface is FROZEN for plugin
  *  compatibility — extend, never break. */
 export interface PluginRuntime {
-  loadAll(proj: Project): void;
-  runHook(name: string, ...args: any[]): void;
-  registerCommand(type: string, handler: (cmd: any, interp: any) => any): void;
+  /** (Re)load every enabled project plugin; reads ctx.proj.plugins and
+   *  publishes load results to window.AtlasPluginStatus. */
+  runAll(): void;
+  /** Fire a lifecycle hook (onMapLoad/onUpdate/onMessageText/…) on every loaded
+   *  plugin; a throwing plugin is disabled, never the caller. */
+  fire(name: string, arg?: any): void;
 }
 
 /** Message/UI-stack presentation surface (today src/engine/message.ts +

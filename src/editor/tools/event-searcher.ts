@@ -44,7 +44,7 @@ export function openEventSearcher() {
         ev.pages.forEach((pg: any, pi: any) => {
           let hit: any = null;
           if (kind === "name") {
-            if (pi === 0 && ev.name!.toLowerCase().includes(ql)) hit = ev.name;
+            if (pi === 0 && (ev.name || "").toLowerCase().includes(ql)) hit = ev.name;
           } else if (kind === "text") {
             walkCommands(pg.commands, (c: any) => {
               if (hit) return;

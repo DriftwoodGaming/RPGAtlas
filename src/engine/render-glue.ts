@@ -21,12 +21,12 @@ import {
   tilePassable,
   walkFrame,
 } from "./scenes/map-runtime.js";
+// The fixed tick length is owned by the loop (src/engine/loop.ts); render()
+// only uses it to interpolate by the leftover fraction. Function-scope use
+// only, so the loop↔render-glue import cycle is eval-order safe.
+import { TICK_MS } from "./loop.js";
 
 const TILE = Assets.TILE;
-
-// Fixed-timestep tick length (60 Hz); the loop accumulates real time against
-// it and render() interpolates by the leftover fraction.
-export const TICK_MS = 1000 / 60;
 
 export async function render(): Promise<void> {
   if (!ctx.g2d) return;

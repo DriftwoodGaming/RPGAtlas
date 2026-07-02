@@ -8,8 +8,6 @@
      same meta.engine gate, same formatVersion migration. Returns null when no
      stored project exists — identical to today.
    - saveProject() -> saveProject(driver, project): same key, same JSON.
-   - hasProject(): true when either key holds a value (mirrors the load gate's
-     own key precedence).
 
    The StorageDriver satisfies the {getItem,setItem,removeItem} shape that
    project-io.js already expects, so the wrapped functions run unchanged. The
@@ -31,9 +29,6 @@ import { localStorageDriver } from "./local-storage-driver";
  *  of js/data.js and schema imports. */
 export type ProjectMigrator = (project: any) => Project;
 
-const PROJECT_KEY = "rpgatlas_project";
-const LEGACY_PROJECT_KEY = "driftwood_project";
-
 export class BrowserProjectRepository implements ProjectRepository {
   private readonly driver: StorageDriver;
   private readonly migrate: ProjectMigrator;
@@ -49,12 +44,5 @@ export class BrowserProjectRepository implements ProjectRepository {
 
   saveProject(project: Project): void {
     saveProjectIo(this.driver, project);
-  }
-
-  hasProject(): boolean {
-    return (
-      this.driver.getItem(PROJECT_KEY) != null ||
-      this.driver.getItem(LEGACY_PROJECT_KEY) != null
-    );
   }
 }

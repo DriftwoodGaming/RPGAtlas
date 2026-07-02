@@ -11,7 +11,7 @@ import {
   exportWindowsExecutable as writeWindowsExecutable,
 } from "../../js/editor/project-io.js";
 import * as host from "../../js/editor/host.js";
-import { validateProject } from "../shared/schema";
+import { isProjectLike, validateProject } from "../shared/schema";
 import { BrowserProjectRepository } from "../platform/browser/project-repository";
 import { Assets, RA, t, editorState as S, editorHooks } from "./editor-state";
 import { $, h } from "./dom";
@@ -116,7 +116,7 @@ const projectRepo = new BrowserProjectRepository(
     r.onload = async () => {
       try {
         const p = JSON.parse(r.result);
-        if (!p || !p.meta || (p.meta.engine !== "rpgatlas" && p.meta.engine !== "driftwood")) throw new Error("Not an RPGAtlas project file.");
+        if (!isProjectLike(p)) throw new Error("Not an RPGAtlas project file.");
         S.proj = validateProject(RA.migrateProject(p), "import");
         Assets.registerCustomChars(S.proj.customChars);
         await Assets.loadExternalAssets(S.proj);
