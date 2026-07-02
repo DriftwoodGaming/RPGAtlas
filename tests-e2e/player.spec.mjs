@@ -44,6 +44,26 @@ test.describe("player boot", () => {
   });
 });
 
+test.describe("built-in plugins", () => {
+  // Phase 1 exit criterion: the plugin API surface is frozen and all four
+  // built-in plugins must load through the extracted plugin runtime
+  // (src/engine/plugin-runtime.ts). Plugins.status is published to
+  // window.AtlasPluginStatus after loadAll(); "loaded" means the plugin's
+  // fn executed and its hooks registered without error.
+  test("all four built-in plugins report loaded", async ({ page }) => {
+    await gotoWithAtlasQuest(page, "/play.html");
+    await expect(page.locator(".titlewin .title-name")).toHaveText("Atlas Quest");
+
+    const status = await page.evaluate(() =>
+      (window.AtlasPluginStatus || []).map((p) => ({ pluginId: p.pluginId, status: p.status })),
+    );
+    const byId = Object.fromEntries(status.map((p) => [p.pluginId, p.status]));
+    for (const id of ["atlas.core", "atlas.text-codes", "atlas.transitions", "atlas.weather"]) {
+      expect(byId[id], `plugin ${id} should load (got: ${JSON.stringify(status)})`).toBe("loaded");
+    }
+  });
+});
+
 test.describe("player start", () => {
   test("starting a new game places the player on a map", async ({ page }) => {
     await gotoWithAtlasQuest(page, "/play.html");
