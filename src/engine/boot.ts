@@ -35,13 +35,12 @@ import { initMessageSystem } from "./message.js";
 import { initInputSystem } from "./input.js";
 import { refreshAllPages, setRoute } from "./scenes/map-runtime.js";
 import {
-  update,
   transferPlayer,
   waitFrames,
   frameWait,
   tickTween,
 } from "./scenes/map.js";
-import { render, TICK_MS } from "./render-glue.js";
+import { startLoop } from "./loop.js";
 import { initJournalView } from "./scenes/menus.js";
 import { Shop } from "./scenes/shop.js";
 import { Battle } from "./scenes/battle.js";
@@ -95,19 +94,7 @@ const EngineServices: any = {
 initInterpServices(EngineServices);
 registerBuiltinCommands();
 
-// Fixed-timestep loop: update() runs at a steady 60 ticks/sec regardless of refresh rate,
-// render() once per frame (every frame, at full refresh). Keeps the tick-based engine in
-// sync without per-system delta time, and stops fast displays from running in fast-forward.
-// render() is async (WebGL HD-2D path), so we await it to avoid overlapping frames.
-async function loop(now: any): Promise<void> {
-  if (ctx.loopLast === 0) ctx.loopLast = now; // first frame: establish baseline, no delta
-  ctx.loopAcc += now - ctx.loopLast;
-  ctx.loopLast = now;
-  if (ctx.loopAcc > 250) ctx.loopAcc = 250; // clamp after a stall / tab switch (avoid spiral)
-  while (ctx.loopAcc >= TICK_MS) { update(); ctx.loopAcc -= TICK_MS; }
-  await render();
-  requestAnimationFrame(loop);
-}
+// The fixed-timestep game loop now lives in ./loop.ts (startLoop below).
 
 // ============================ boot ============================
 function loadProject(): any {
@@ -246,7 +233,7 @@ async function boot(): Promise<void> {
   document.title = (ctx.proj.system.title || "RPGAtlas") + " — RPGAtlas Player";
   ctx.scene = "title";
   showTitle();
-  requestAnimationFrame(loop); // kick off via rAF so loop() receives a real timestamp
+  startLoop(); // kick off the fixed-timestep loop (rAF, so it gets a real timestamp)
 
   // unlock audio on first interaction
   const unlock = () => {
