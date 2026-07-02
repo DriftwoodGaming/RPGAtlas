@@ -50,6 +50,8 @@ import {
 } from "./scenes/menus.js";
 import { Shop } from "./scenes/shop.js";
 import { Battle } from "./scenes/battle.js";
+import { toTitle, showTitle } from "./scenes/title.js";
+import { gameOver } from "./scenes/gameover.js";
 // Shared engine context (Phase 1 Stage B): imported as EC because `ctx` here is
 // the game canvas 2d context. The IIFE installs getter/setter bridges onto EC
 // (below, before the boot section) so extracted modules see this closure's
@@ -121,12 +123,9 @@ const _createInputSystem = window.createInputSystem;
   setSysProjectProvider(() => proj); // util.js sys* helpers read the live project
   let stage, canvas, ctx, uiLayer, fader;
   initUiStack(() => uiLayer); // ui-stack.js showList appends to the live uiLayer
-  // Closure functions the extracted modules call through the fns registry.
-  // Function declarations hoist, so installing here is safe. Entries are
-  // removed as their owners move out of this file (fns.refreshAllPages,
-  // fns.openMenu, fns.Battle, fns.Plugins are self-installed by their modules).
-  fns.gameOver = gameOver; // map-runtime's touch-damage defeat path + encounters
-  fns.toTitle = toTitle; // pause menu's "Return to title" (menus.ts)
+  // The fns forward-ref registry entries (refreshAllPages, openMenu, Battle,
+  // Plugins, gameOver, toTitle) are all self-installed by their extracted
+  // modules now; this closure no longer contributes any.
   let scene = "boot"; // boot | title | map | battle | gameover
   let menuOpen = false;
   let cameraZoom = 1;
@@ -317,161 +316,9 @@ const _createInputSystem = window.createInputSystem;
   // fns.Battle for the plugin runtime and the map scene's encounters.
 
   // ============================ title / gameover ============================
-  // initPlayer / refreshPlayerCharset live in ./scenes/map-runtime.ts.
-
-  async function newGame() {
-    commonParallels.clear();
-    G.switches = {};
-    G.vars = {};
-    G.selfSw = {};
-    G.quests = {};
-    G.gold = proj.system.startGold || 0;
-    G.inv = { item: {}, weapon: {}, armor: {} };
-    G.party = (proj.system.party || [])
-      .slice(0, 4)
-      .map(makeActor)
-      .filter(Boolean);
-    if (!G.party.length && proj.actors.length)
-      G.party = [makeActor(proj.actors[0].id)];
-    G.steps = 0;
-    cameraZoom = 1;
-    initPlayer(proj.system.startX, proj.system.startY, proj.system.startDir);
-    G.player.transparent = !!proj.system.startTransparent;
-    await loadMap(proj.system.startMapId);
-    scene = "map";
-  }
-
-  async function toTitle() {
-    await fadeTo(1, 350);
-    scene = "title";
-    // clear leftover UI
-    while (UIStack.length) removeUI(UIStack[UIStack.length - 1]);
-    uiLayer
-      .querySelectorAll(".battlewin, .menupanel")
-      .forEach((n) => n.remove());
-    showTitle();
-    await fadeTo(0, 350);
-  }
-
-  async function showTitle() {
-    Music.play(sysBgm("title"));
-    const tw = el("div", "titlewin");
-    tw.appendChild(
-      el("div", "title-name", esc(proj.system.title || "Untitled")),
-    );
-    tw.appendChild(el("div", "title-sub", "made with RPGAtlas"));
-    uiLayer.appendChild(tw);
-    // decorative title backdrop on the canvas
-    drawTitleBackdrop();
-    while (true) {
-      const hasSave = [1, 2, 3].some((s) => slotInfo(s));
-      const i = await showList(
-        [
-          { label: "New Game" },
-          { label: "Continue", disabled: !hasSave },
-          { label: "Options" },
-        ],
-        { className: "titlemenu", cancellable: false },
-      );
-      if (i === 0) {
-        tw.remove();
-        await fadeTo(1, 300);
-        await newGame();
-        await render();
-        await fadeTo(0, 300);
-        return;
-      } else if (i === 1) {
-        const ok2 = await saveLoadMenu("load");
-        if (ok2) {
-          tw.remove();
-          await render();
-          await fadeTo(0, 300);
-          return;
-        }
-      } else if (i === 2) {
-        await optionsMenu();
-      }
-    }
-  }
-  function drawTitleBackdrop() {
-    const g = ctx;
-    const grad = g.createLinearGradient(0, 0, 0, SCREEN_H);
-    grad.addColorStop(0, "#1a2340");
-    grad.addColorStop(1, "#2c4a3a");
-    g.fillStyle = grad;
-    g.fillRect(0, 0, SCREEN_W, SCREEN_H);
-    // procedural hills + trees
-    g.fillStyle = "#22382c";
-    g.beginPath();
-    g.moveTo(0, SCREEN_H);
-    for (let x = 0; x <= SCREEN_W; x += 40) {
-      g.lineTo(x, SCREEN_H - 90 - 40 * Math.sin(x / 130));
-    }
-    g.lineTo(SCREEN_W, SCREEN_H);
-    g.fill();
-    for (let i = 0; i < 9; i++) {
-      const x = 40 + i * 88,
-        y = SCREEN_H - 60 - 30 * Math.sin(x / 130);
-      Assets.drawTile(g, Assets.T.pine, x, y - 30);
-    }
-    g.fillStyle = "rgba(255,255,230,0.85)";
-    for (let i = 0; i < 40; i++) {
-      g.fillRect((i * 211) % SCREEN_W, (i * 137) % (SCREEN_H - 200), 2, 2);
-    }
-    // faint compass-rose watermark (the RPGAtlas motif)
-    g.save();
-    g.translate(SCREEN_W - 120, 130);
-    g.globalAlpha = 0.16;
-    g.strokeStyle = g.fillStyle = "#ffe2a0";
-    g.lineWidth = 2;
-    g.beginPath();
-    g.arc(0, 0, 70, 0, 6.2832);
-    g.stroke();
-    g.beginPath();
-    g.arc(0, 0, 56, 0, 6.2832);
-    g.stroke();
-    for (let i = 0; i < 4; i++) {
-      g.beginPath();
-      g.moveTo(0, -64);
-      g.lineTo(9, 0);
-      g.lineTo(0, 64);
-      g.lineTo(-9, 0);
-      g.closePath();
-      g.fill();
-      g.rotate(Math.PI / 4);
-      g.globalAlpha = i % 2 === 0 ? 0.09 : 0.16; // diagonals fainter than cardinals
-    }
-    g.restore();
-  }
-
-  async function gameOver() {
-    scene = "gameover";
-    Music.stop();
-    sysSe("gameover");
-    const gw = el(
-      "div",
-      "gameoverwin",
-      "<div>GAME OVER</div><div class='go-sub'>press confirm</div>",
-    );
-    uiLayer.appendChild(gw);
-    await new Promise((resolve) => {
-      const ui = {
-        el: gw,
-        onKey(k) {
-          if (k === "ok") {
-            removeUI(ui);
-            resolve();
-          }
-        },
-      };
-      gw.addEventListener("click", () => {
-        removeUI(ui);
-        resolve();
-      });
-      pushUI(ui);
-    });
-    await toTitle();
-  }
+  // newGame / toTitle / showTitle / drawTitleBackdrop live in
+  // ./scenes/title.ts and gameOver in ./scenes/gameover.ts (Phase 1 Stage B),
+  // imported above; both scenes self-install their fns entries.
 
   // ============================ interpreter services ============================
   // The closure-state bridge onto the shared engine context (EC) is installed
