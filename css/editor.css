@@ -164,6 +164,29 @@ body.dock-dragging, body.dock-dragging * { cursor: grabbing !important; user-sel
 button.danger { background: #532a2a; border-color: #7a3a3a; }
 button.danger:hover { background: #6a3636; }
 
+/* ---------- live HD-2D viewport (Stage C) ---------- */
+.hd-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; background: #0c0d14; }
+.hd-viewport-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+.hd-viewport-overlay { position: absolute; inset: 0; pointer-events: none; }
+.hd-light-handle { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.85); box-shadow: 0 0 8px rgba(0,0,0,0.7), 0 0 10px 2px currentColor;
+  cursor: move; pointer-events: auto; box-sizing: border-box; }
+.hd-light-handle.dim { opacity: 0.4; }
+.hd-light-handle.sel { border-color: var(--accent-edge); width: 20px; height: 20px; margin: -10px 0 0 -10px; z-index: 2; }
+.hd-light-x { position: absolute; top: -9px; right: -9px; display: none; width: 14px; height: 14px; line-height: 12px;
+  text-align: center; font-size: 9px; color: #fff; background: #532a2a; border: 1px solid #7a3a3a; border-radius: 50%; cursor: pointer; }
+.hd-light-handle.sel .hd-light-x { display: block; }
+.hd-viewport-hud { position: absolute; left: 0; right: 0; bottom: 0; padding: 5px 8px; pointer-events: none;
+  background: linear-gradient(0deg, rgba(10,11,18,0.86), rgba(10,11,18,0)); display: flex; flex-direction: column; gap: 4px; }
+.hd-hud-row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: #b8bcce; pointer-events: auto; }
+.hd-hud-row .mini { pointer-events: auto; }
+.hd-hud-cam { font-variant-numeric: tabular-nums; color: #cfd2e6; }
+.hd-hud-hint { color: #7f8398; pointer-events: none; }
+.hd-light-edit input[type=range] { flex: 1; max-width: 180px; }
+.hd-hud-rad { min-width: 30px; text-align: right; font-variant-numeric: tabular-nums; color: #cfd2e6; }
+.hd-viewport-msg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 24px; text-align: center; color: #8a8da4; font-size: 13px; }
+
 #status {
   flex: 0 0 auto; padding: 4px 12px; font-size: 12px; color: #9a9db4;
   background: #1b1d28; border-top: 1px solid #30334a; white-space: nowrap; overflow: hidden;

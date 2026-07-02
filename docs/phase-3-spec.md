@@ -2,6 +2,40 @@
 
 **Status:** IN PROGRESS. Stage log accumulates here, phase-2-spec style.
 
+Stage C COMPLETE (2026-07-02): live HD-2D viewport. The Phase 2 three.js
+renderer, embedded as a dockable panel (dock id `hd`, the id the Stage B layout
+tests already reserved) via a lazy `mount` factory
+(`src/editor/map-editor/hd-viewport.ts`) — it supersedes and replaces the old
+floating `hd-preview.ts` (deleted). The panel drives the renderer's existing
+`available/setMap/renderFrame` surface: the per-frame rAF loop re-reads the map
+so every Map-Properties/height/event edit shows live (`touch()` →
+`viewportDirty()` rebuilds the tile prerender; lights + camera are per-frame),
+and idles cheaply while parked (the dock hides inactive/closed panels in
+`#panel-store`, so `offsetParent` is null → no GPU work). A **viewport camera
+decoupled from the game camera**: grab-the-ground pan, wheel zoom-to-cursor
+(both exact via rigid XZ translation of the look-at center), and Shift/right-drag
+tilt — the renderer's only free camera axis is pitch (fixed azimuth), so "orbit"
+= tilt; passes viewport-local `zoom`/`tilt` to `renderFrame`, never touching
+`map.hd2d.tilt`. **Drag gizmos for point lights** (the first editor affordance
+for `map.lights`; previously only `light #rgb radius` events fed the renderer):
+handles float over each `map.lights` entry, projected by a new pure, unit-tested
+camera module (`src/editor/map-editor/hd-camera.ts` — `makeCam`/`projectToScreen`
+/`screenToPlane`, orthonormal-basis forward+ground unproject, exact inverses so
+handles track the rendered light and drags land under the cursor). Double-click
+adds a light (snapped to the half-tile grid), drag moves it, a HUD inspector sets
+colour/radius and deletes, all via `touch()` (autosave + live). `hd2d.lights ===
+false` still hides the glow but leaves handles editable (with a status hint). F2
+/ the `hdpreview` action upgraded from side-panel toggle to **panel focus**
+(`toggleViewport`: show+focus when hidden/unfocused, else hide); added to the
+View menu beside the other panels. Golden/perf renderer specs untouched
+(editor-only page). `editor.css?v=41`, `patch-notes.js?v=7`. Verified live (docks
+as a tab, renders Meridian Village in HD-2D, pan/zoom/tilt HUD, add/select/edit/
+persist a light with real-time glow, no console errors) + a 5-test hd-camera unit
+suite (basis orthonormality, project/unproject round-trip across tilt/zoom/pan,
+clamps, behind-camera) + a viewport e2e (View-menu open, double-click drops a
+persisted `map.lights` entry). Full gate green: tsc, eslint, node --test (16),
+vitest (44), Playwright editor(5)+golden/player/export(16).
+
 Stage B COMPLETE (2026-07-02): dockable workspace. Pure layout tree
 (`src/editor/dock/layout.ts` — split/tabs nodes + floats; in-place edits so a
 drop-target reference survives the drag's remove-then-reinsert, structural

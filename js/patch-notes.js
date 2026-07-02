@@ -5,6 +5,17 @@
 export const PATCH_NOTES = [
   {
     date: "July 2, 2026",
+    title: "Live HD-2D viewport — edit your map inside the 3D scene",
+    summary:
+      "The HD-2D preview is now a full dockable viewport panel: the game's three.js renderer runs live inside the editor, with its own camera you can fly around and drag-to-place point lights right in the 3D scene.",
+    items: [
+      "Press F2 (or use View ▸ HD-2D Viewport) to dock the live renderer as a panel — split it beside the map, tab it, or float it like any other panel; it updates instantly as you paint tiles, edit heights, or change Map Properties.",
+      "A viewport camera decoupled from the game: drag to pan across the map, scroll the wheel to zoom toward the cursor, and Shift-drag (or right-drag) to change the camera tilt — none of it touches the map's own HD-2D settings.",
+      "Point lights are now editable with drag gizmos: double-click empty space to drop a light, drag its handle to reposition it in the scene, and tweak its colour and radius live — the first way to place per-map lights without light-named events.",
+    ],
+  },
+  {
+    date: "July 2, 2026",
     title: "Dockable workspace — arrange the editor your way",
     summary:
       "The editor's panels (Maps, Tiles, Map) are now a fully dockable workspace: drag panels by their tabs to re-dock, split, tab, or float them, resize with draggable dividers, and save named layouts.",

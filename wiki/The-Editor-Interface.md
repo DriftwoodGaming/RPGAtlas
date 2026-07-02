@@ -21,6 +21,25 @@ The Maps, Tiles, and Map views are **panels** you can rearrange freely:
 
 ---
 
+## The live HD-2D Viewport
+
+Press **`F2`** (or **View ▸ HD-2D Viewport**) to dock a panel that renders the current map through the
+game's real HD-2D (three.js) engine, using that map's own HD-2D settings. It's a full workspace panel —
+split it beside the map, tab it, or float it — and it updates **live** as you paint tiles, edit heights,
+place events, or change **Map Properties**.
+
+- **Fly the camera** — it's independent of the in-game camera. **Drag** to pan across the map, **scroll**
+  the wheel to zoom toward the cursor, and **Shift-drag** (or **right-drag**) to change the camera tilt.
+  **Reset view** re-centers it. None of this changes the map's saved HD-2D tilt.
+- **Place point lights with drag gizmos** — **double-click** empty space to drop a light where you click,
+  **drag** its handle to move it in the scene, and use the inspector at the bottom to set its **colour**
+  and **radius** or **Delete** it. (Lights only glow when **Point lights** is enabled in Map Properties;
+  you can also still create lights as events named `light #rrggbb radius`.)
+
+The viewport needs WebGL2; on a browser without it the panel shows a short notice instead.
+
+---
+
 ## The menu bar
 
 | Menu | What lives there |
@@ -57,12 +76,12 @@ You're always in exactly one mode. Modes decide what clicking the map *does*.
 
 | Tool | Shortcut | What it does |
 |---|---|---|
-| **Pen** | `B` | Paint one tile at a time (click and drag) |
-| **Eraser** | `E` | Clear tiles |
-| **Rectangle** | `R` | Drag a filled rectangle |
-| **Circle** | `O` | Drag an ellipse |
-| **Fill** | `F` | Flood-fill a connected area |
-| **Shadow Pen** | `S` | Paint half-tile shadow quadrants (Map mode) |
+| **Pen** | `Q` | Paint one tile at a time (click and drag) |
+| **Eraser** | `W` | Clear tiles |
+| **Rectangle** | `E` | Drag a filled rectangle |
+| **Circle** | `R` | Drag an ellipse |
+| **Fill** | `T` | Flood-fill a connected area |
+| **Shadow Pen** | `Y` | Paint half-tile shadow quadrants (Map mode) |
 
 In **Height mode**, keys `0`–`9` set the elevation value the tools paint.
 
@@ -74,7 +93,7 @@ Maps are built from **four tile layers**, drawn bottom to top:
 
 | Layer | Shortcut | Typical use |
 |---|---|---|
-| **Auto layer** | `0` | The smart default — sorts terrain vs. decoration automatically |
+| **Auto layer** | `` ` `` | The smart default — sorts terrain vs. decoration automatically |
 | **Layer 1 — Ground** | `1` | Grass, dirt, water, floors |
 | **Layer 2 — Decor** | `2` | Bushes, rocks, furniture |
 | **Layer 3 — Decor 2** | `3` | A second decoration layer for stacking |
@@ -89,12 +108,17 @@ control over what stacks on what, or to use the Overhead layer for things the pl
 
 | Keys | Action |
 |---|---|
-| `B` `E` `R` `O` `F` `S` | Pen · Eraser · Rectangle · Circle · Fill · Shadow Pen |
-| `0` | Auto layer · `1`–`4` choose layer |
-| `+` / `-` | Zoom out/in · `Ctrl`+wheel zoom · `Ctrl+0` reset to 1:1 |
+| `Q` `W` `E` `R` `T` `Y` | Pen · Eraser · Rectangle · Circle · Fill · Shadow Pen |
+| `` ` `` | Auto layer · `1`–`4` choose layer |
+| `0`–`9` | Set the painted elevation (Height mode only) |
+| `Tab` / `Shift+Tab` | Cycle to the next / previous mode |
+| `+` / `-` | Zoom in/out · `Ctrl`+wheel zoom · `0` reset to 1:1 |
 | **Right-click** | Pick the tile under the cursor |
-| `Ctrl+P` | **Command Palette** — type a few letters of any editor command and press Enter to run it |
+| `F1` | Open the **Database** |
+| `F2` | Show the live **HD-2D Viewport** panel |
+| `F5` | **Playtest** (save and run the game) |
 | `F6` | Focus the next workspace panel |
+| `Ctrl+P` | **Command Palette** — type a few letters of any editor command and press Enter to run it |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / Redo (full-map history) |
 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | Cut / Copy / Paste |
 | **Shift+drag** | Select a tile region (all layers + shadows + heights) |

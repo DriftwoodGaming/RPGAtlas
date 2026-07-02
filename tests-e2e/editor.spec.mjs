@@ -161,3 +161,46 @@ test.describe("dockable workspace", () => {
     await expect(page.locator("#dock-root .dock-region")).toHaveCount(3);
   });
 });
+
+test.describe("live HD-2D viewport", () => {
+  test("opens as a dock panel and a double-click drops a point light that persists", async ({ page }) => {
+    await page.goto("/index.html");
+    const saveIndicator = page.locator("#save-ind");
+    await expect(saveIndicator).toBeVisible(); // boot finished
+    await expect(saveIndicator).toHaveText(/^✓ /);
+
+    // View ▸ HD-2D Viewport docks the renderer panel (a 4th region) with its
+    // canvas mounted inside the dock. It is not in the default layout, so this
+    // also exercises showPanel adding a brand-new panel beside the map view.
+    await page.locator("#menus .menu-label", { hasText: "View" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "HD-2D Viewport" }).click();
+    const canvas = page.locator("#dock-root .hd-viewport-canvas");
+    await expect(canvas).toBeVisible();
+    await expect(page.locator(".dock-tab", { hasText: "HD-2D" })).toBeVisible();
+
+    const readProject = () =>
+      page.evaluate(() => JSON.parse(localStorage.getItem("rpgatlas_project")));
+    const before = await readProject();
+    const mapId = before.system.startMapId || before.maps[0].id;
+    const lightsBefore = (before.maps.find((m) => m.id === mapId).lights || []).length;
+
+    // Double-click empty viewport space → a point light is placed on the ground
+    // there (the first editor affordance for map.lights). The gizmo math runs
+    // off the panel size, so this works without asserting on WebGL output.
+    const box = await canvas.boundingBox();
+    await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+
+    await expect(saveIndicator).toHaveText(/^● /);
+    await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
+
+    const after = await readProject();
+    const mapAfter = after.maps.find((m) => m.id === mapId);
+    expect(Array.isArray(mapAfter.lights)).toBe(true);
+    expect(mapAfter.lights.length).toBe(lightsBefore + 1);
+    const L = mapAfter.lights[mapAfter.lights.length - 1];
+    expect(typeof L.rx).toBe("number");
+    expect(typeof L.ry).toBe("number");
+    expect(L.color).toMatch(/^#[0-9a-fA-F]{6}$/);
+    expect(L.radius).toBeGreaterThan(0);
+  });
+});

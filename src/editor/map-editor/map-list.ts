@@ -13,7 +13,7 @@ import { touch } from "../persistence";
 import { renderMap } from "./map-render";
 import { heightsOf } from "./painting";
 import { setStatus, flashStatus } from "./status";
-import { hdMarkDirty } from "./hd-preview";
+import { viewportDirty } from "./hd-viewport";
 import { walkCommands } from "../event-editor/command-list";
 
   // ============================ map list ============================
@@ -693,7 +693,7 @@ import { walkCommands } from "../event-editor/command-list";
       ])),
         field("Day/night cycle (sun follows the clock)", chk(hdW, "dayNight"))),
       field("Time of day on entry (hours 0–24, blank = keep current)", tIn(hdW, "timeOfDay")),
-      h("div", { class: "dim" }, "Paint elevation in Height mode (H). Lights are events named “light #rrggbb radius”. Preview with Game ▸ HD-2D Preview."),
+      h("div", { class: "dim" }, "Paint elevation in Height mode (H). Point lights: drag gizmos in the HD-2D Viewport (F2), or place events named “light #rrggbb radius”. See changes live in the HD-2D Viewport."),
     );
     modal({
       title: "Map Properties",
@@ -724,7 +724,7 @@ import { walkCommands } from "../event-editor/command-list";
           };
           if (work.width !== m.width || work.height !== m.height) resizeMap(m, work.width, work.height);
           close(); rebuildMapList(); renderMap(); touch();
-          hdMarkDirty();
+          viewportDirty();
         } },
         { label: "Cancel" },
       ],

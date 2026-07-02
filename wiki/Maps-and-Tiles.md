@@ -96,9 +96,11 @@ and raised walkways.
 Enable HD-2D in **Map Properties**, where you'll also find its look-and-feel controls: camera tilt,
 bloom, depth of field, fog color, ambient light, and lights.
 
-Use **Game > HD-2D Preview** to open a draggable live panel in the editor. The panel follows tile,
-height, event, ambient-light, and point-light edits, and uses the same elevation and lighting renderer
-as the game runtime. Close and reopen it at any time without losing the current map.
+Press **`F2`** (or **View ▸ HD-2D Viewport**) to open the live **HD-2D Viewport** — a dockable panel that
+renders the map with the same elevation and lighting renderer as the game runtime and follows tile,
+height, event, ambient-light, and point-light edits as you make them. Its camera is independent of the
+game: drag to pan, wheel to zoom, Shift-drag (or right-drag) to tilt. You can also **double-click** the
+viewport to drop a point light and drag its gizmo to position it. See [The Editor Interface](The-Editor-Interface).
 
 ### Lights
 

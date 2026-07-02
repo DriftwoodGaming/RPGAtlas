@@ -4,7 +4,7 @@
    classic raw-WebGL2 script (js/renderer.js) is retired and no longer ships.
    A leftover ?renderer=classic just logs a note and gets the three renderer.
 
-   Hosts (engine render-glue/map-runtime, editor hd-preview) import Renderer
+   Hosts (engine render-glue/map-runtime, editor hd-viewport) import Renderer
    from HERE — the process-wide instance of the classic surface
    (available/setMap/renderFrame/isLost). See docs/phase-2-spec.md.
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */

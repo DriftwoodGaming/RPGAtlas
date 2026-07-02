@@ -26,7 +26,7 @@ import { undo, redo } from "./map-editor/history";
 import { canCopy, copySelection, startPaste, clearSelection } from "./map-editor/clipboard";
 import { setStatus, flashStatus } from "./map-editor/status";
 import { openMapProps } from "./map-editor/map-list";
-import { toggleHdPreview, isHdPreviewOpen } from "./map-editor/hd-preview";
+import { toggleViewport, isViewportVisible } from "./map-editor/hd-viewport";
 import { ICONS } from "./icons";
 import { openDatabase } from "./database";
 import { openPluginManager } from "./tools/plugin-manager";
@@ -106,7 +106,7 @@ act("play", { label: "Playtest", icon: "play", key: "F5", tip: "Save and run the
   }
 } });
 act("mapprops", { label: "Map Properties…", run: openMapProps });
-act("hdpreview", { label: "HD-2D Preview", icon: "hd2d", key: "F2", tip: "Toggle the live HD-2D preview panel (uses this map's HD-2D settings)", active: () => isHdPreviewOpen(), run: toggleHdPreview });
+act("hdpreview", { label: "HD-2D Viewport", icon: "hd2d", key: "F2", tip: "Show the live HD-2D viewport panel (renders this map with its HD-2D settings; drag light gizmos)", active: () => isViewportVisible(), run: toggleViewport });
 
 act("undo", { label: "Undo", icon: "undo", key: "Ctrl+Z", enabled: () => S.undoStack.length > 0, run: undo });
 act("redo", { label: "Redo", icon: "redo", key: "Ctrl+Y", enabled: () => S.redoStack.length > 0, run: redo });
@@ -202,7 +202,7 @@ const MENUS = [
   { label: "Draw", items: ["tool-pen", "tool-erase", "tool-rect", "tool-circle", "tool-fill", "tool-shadow"] },
   { label: "Layer", items: ["layer-auto", "layer-ground", "layer-decor", "layer-decor2", "layer-over"] },
   { label: "Scale", items: ["zoomin", "zoomout", "zoom1", "zoomfit"] },
-  { label: "View", items: ["panel-maps", "panel-tiles", "panel-map", "-", "focus-next-panel", "-", "dock-reset", "dock-save", "dock-load"] },
+  { label: "View", items: ["panel-maps", "panel-tiles", "panel-map", "hdpreview", "-", "focus-next-panel", "-", "dock-reset", "dock-save", "dock-load"] },
   { label: "Tools", items: ["db", "plugins", "audio", "search", "resources", "chargen", "-", "cmdpal"] },
   { label: "Game", items: ["play", "build", "-", "mapprops", "hdpreview", "mode-start"] },
   { label: "Help", items: ["language", "-", "shortcuts", "patchnotes", "help", "about"] },

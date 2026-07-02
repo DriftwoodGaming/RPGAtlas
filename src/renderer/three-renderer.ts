@@ -867,7 +867,7 @@ export function createThreeRenderer(): any {
   // ---------------------------- availability ----------------------------
   // Same contract as the classic renderer: memoized; false forever after an
   // init failure; options.canvas renders into an existing canvas (the editor's
-  // HD-2D preview), otherwise a canvas is inserted behind #gamecanvas.
+  // HD-2D viewport), otherwise a canvas is inserted behind #gamecanvas.
   async function available(options: any = {}): Promise<boolean> {
     if (ok !== null) return ok;
     try {

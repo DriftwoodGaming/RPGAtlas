@@ -17,7 +17,7 @@ import { Assets, RA, t, editorState as S, editorHooks } from "./editor-state";
 import { $, h } from "./dom";
 import { modal } from "./modals";
 import { flashStatus } from "./map-editor/status";
-import { hdMarkDirty } from "./map-editor/hd-preview";
+import { viewportDirty } from "./map-editor/hd-viewport";
 
 // The editor's project store over localStorage. The migrator runs the project
 // through RA.migrateProject then the load-boundary schema guard, so both
@@ -31,7 +31,7 @@ const projectRepo = new BrowserProjectRepository(
     $("save-ind").textContent = "● " + t("unsaved");
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveNow, 700);
-    hdMarkDirty(); // keep the HD-2D preview in sync with edits
+    viewportDirty(); // keep the live HD-2D viewport in sync with edits
   }
   export function saveNow() {
     try {

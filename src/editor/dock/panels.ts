@@ -12,6 +12,7 @@ import { $, h } from "../dom";
 import { modal } from "../modals";
 import { registerCommand, refreshToolbar } from "../workspace";
 import { flashStatus } from "../map-editor/status";
+import { mountViewport, VIEWPORT_PANEL } from "../map-editor/hd-viewport";
 import {
   registerDockPanel, initDock, setDockChangeHook,
   focusPanel, togglePanel, isPanelVisible, focusNextPanel,
@@ -22,6 +23,9 @@ export function initDockWorkspace() {
   registerDockPanel({ id: "maps", title: "Maps", el: $("panel-maps"), closable: true });
   registerDockPanel({ id: "tiles", title: "Tiles", el: $("panel-tiles"), closable: true });
   registerDockPanel({ id: "map", title: "Map", el: $("panel-map"), closable: false });
+  // The live HD-2D viewport (Stage C) mounts lazily — its WebGL canvas is only
+  // built the first time the panel is shown (F2 / the View menu).
+  registerDockPanel({ id: VIEWPORT_PANEL, title: "HD-2D", mount: mountViewport, closable: true });
 
   // Keep menu check-marks live after a panel is toggled/closed by drag.
   setDockChangeHook(refreshToolbar);
