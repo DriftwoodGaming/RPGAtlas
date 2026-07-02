@@ -70,4 +70,13 @@ export const scriptApi: any = {
   getCameraZoom() {
     return ctx.cameraZoom;
   },
+  // Day/night clock (Phase 2 Stage D): hours 0–24, rendered by HD-2D maps
+  // with hd2d.dayNight. Scripts/plugins own its progression (Phase 5 wires
+  // gameplay schedules on top).
+  setTimeOfDay(h: any) {
+    G.timeOfDay = clamp(Number(h) || 0, 0, 24);
+  },
+  getTimeOfDay() {
+    return G.timeOfDay == null ? 12 : G.timeOfDay;
+  },
 };

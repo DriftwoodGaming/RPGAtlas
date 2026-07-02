@@ -145,6 +145,33 @@ test.describe("renderer golden images", () => {
     await expect(page.locator("#stage")).toHaveScreenshot("hd2d-materials-meridian-village.png");
   });
 
+  // Stage D: the extended post stack — ACES, warm grade, vignette, SSAO,
+  // FXAA on top of bloom. (The Stage A bloom/DoF golden above still passes
+  // unchanged, proving the new composite is bit-identical with these off.)
+  test("HD-2D post stack v2 (ACES+grade+vignette+SSAO+FXAA) renders a stable frame", async ({ page }) => {
+    await bootToStableMap(page, 1, (project) => {
+      project.maps[0].hd2d = {
+        enabled: true, tilt: 50, bloom: true, lights: true, ambient: 0.45,
+        aces: true, vignette: true, lut: "warm", ssao: true, fxaa: true,
+      };
+      return project;
+    });
+    await expect(page.locator("#stage")).toHaveScreenshot("hd2d-post2-meridian-village.png");
+  });
+
+  // Stage D: day/night at golden hour — low gold-tinted sun, long shadows,
+  // window glow beginning to engage, water glints on the dusk sun.
+  test("HD-2D day/night dusk (map.hd2d.dayNight) renders a stable frame", async ({ page }) => {
+    await bootToStableMap(page, 1, (project) => {
+      project.maps[0].hd2d = {
+        enabled: true, tilt: 50, lights: true, ambient: 0.45,
+        dayNight: true, timeOfDay: 17.5, shadows: true, water: true, materials: true,
+      };
+      return project;
+    });
+    await expect(page.locator("#stage")).toHaveScreenshot("hd2d-dusk-meridian-village.png");
+  });
+
   test("classic 2D renderer (?hd2d=0 override) renders a stable frame", async ({ page }) => {
     await bootToStableMap(page, 0);
     await expect(page.locator("#stage")).toHaveScreenshot("classic2d-meridian-village.png");

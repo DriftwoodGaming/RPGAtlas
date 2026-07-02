@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 2, 2026",
+    title: "Cinematic post stack and a day/night cycle",
+    summary:
+      "HD-2D maps gain a film-grade finishing stack — ACES tone mapping, color grades, vignette, ambient occlusion, FXAA — plus a real day/night cycle where the sun arcs across the sky, shadows stretch and fade, and windows light up after dark.",
+    items: [
+      "New Map Properties toggles: ACES filmic tone mapping, FXAA anti-aliasing, SSAO ambient occlusion, vignette, and a color-grade preset (Warm, Cool, Night, Sepia, Noir) — all per map, combinable with bloom/depth-of-field/fog.",
+      "New 'Day/night cycle' toggle: the map's lighting follows an in-game clock — golden dawns and dusks, blue moonlit nights, the sun (and its shadows) sweeping east to west, and emissive windows/torches igniting at night with Auto materials.",
+      "Set each map's 'Time of day on entry', and drive the clock from scripts/plugins with game.setTimeOfDay(hours) / game.getTimeOfDay(); the clock is saved with the game.",
+      "All effects render in the editor's HD-2D preview and in exported games.",
+    ],
+  },
+  {
+    date: "July 2, 2026",
     title: "Living water and auto materials for HD-2D maps",
     summary:
       "Ponds, rivers, and swamps come alive with animated waves, real reflections, and shore foam — and a new auto-material system gives tiles light-reactive relief, specular sparkle, and windows that glow at night.",

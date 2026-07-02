@@ -180,6 +180,10 @@ export async function loadMap(mapId: any): Promise<void> {
   }
   G.mapId = mapId;
   G.encSteps = 0;
+  // Maps can pin the day/night clock on entry (blank = keep the current time).
+  if (ctx.map.hd2d && ctx.map.hd2d.timeOfDay != null && ctx.map.hd2d.timeOfDay !== "") {
+    G.timeOfDay = clamp(Number(ctx.map.hd2d.timeOfDay) || 0, 0, 24);
+  }
   mapFloatTexts.length = 0;
   ctx.evRTs = ctx.map.events.map(makeEvRT);
   ctx.parallels.clear();

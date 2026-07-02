@@ -113,6 +113,7 @@ import { refreshToolbar } from "../workspace";
       focus: { rx: (camX + w / 2) / TILE, ry: (camY + hgt / 2) / TILE },
       tilePassable: effectivePass,
       t: hdT++,
+      timeOfDay: hd2d.timeOfDay != null && hd2d.timeOfDay !== "" ? Number(hd2d.timeOfDay) : 12,
     });
   }
   function hdFrame() {

@@ -654,6 +654,10 @@ import { walkCommands } from "../event-editor/command-list";
       pointShadows: !!hd.pointShadows,
       water: !!hd.water,
       materials: !!hd.materials,
+      aces: !!hd.aces, fxaa: !!hd.fxaa, ssao: !!hd.ssao, vignette: !!hd.vignette,
+      lut: typeof hd.lut === "string" ? hd.lut : "",
+      dayNight: !!hd.dayNight,
+      timeOfDay: hd.timeOfDay == null ? "" : String(hd.timeOfDay),
     };
     const fogColorIn = h("input", { type: "color", value: hdW.fogColor,
       oninput(e: any) { hdW.fogColor = e.target.value; } });
@@ -672,6 +676,16 @@ import { walkCommands } from "../event-editor/command-list";
         field("Point-light shadows (4 nearest lights cast)", chk(hdW, "pointShadows"))),
       row(field("Water surface (waves, reflections, foam)", chk(hdW, "water")),
         field("Auto materials (relief, specular, night glow)", chk(hdW, "materials"))),
+      row(field("ACES filmic tone mapping", chk(hdW, "aces")),
+        field("FXAA anti-aliasing", chk(hdW, "fxaa"))),
+      row(field("Ambient occlusion (SSAO)", chk(hdW, "ssao")),
+        field("Vignette", chk(hdW, "vignette"))),
+      row(field("Color grade", sel(hdW, "lut", [
+        { v: "", l: "None" }, { v: "warm", l: "Warm" }, { v: "cool", l: "Cool" },
+        { v: "night", l: "Night" }, { v: "sepia", l: "Sepia" }, { v: "noir", l: "Noir" },
+      ])),
+        field("Day/night cycle (sun follows the clock)", chk(hdW, "dayNight"))),
+      field("Time of day on entry (hours 0–24, blank = keep current)", tIn(hdW, "timeOfDay")),
       h("div", { class: "dim" }, "Paint elevation in Height mode (H). Lights are events named “light #rrggbb radius”. Preview with Game ▸ HD-2D Preview."),
     );
     modal({
@@ -692,6 +706,12 @@ import { walkCommands } from "../event-editor/command-list";
             pointShadows: hdW.pointShadows,
             water: hdW.water,
             materials: hdW.materials,
+            aces: hdW.aces, fxaa: hdW.fxaa, ssao: hdW.ssao, vignette: hdW.vignette,
+            lut: hdW.lut || "",
+            dayNight: hdW.dayNight,
+            timeOfDay: String(hdW.timeOfDay).trim() === ""
+              ? null
+              : Math.min(24, Math.max(0, Number(hdW.timeOfDay) || 0)),
           };
           if (work.width !== m.width || work.height !== m.height) resizeMap(m, work.width, work.height);
           close(); rebuildMapList(); renderMap(); touch();

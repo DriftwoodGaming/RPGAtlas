@@ -26,6 +26,10 @@ export const G: any = {
   mapId: 0,
   steps: 0,
   encSteps: 0,
+  // In-game clock (hours 0–24) for the HD-2D day/night cycle. Lives in game
+  // state so saves round-trip it; maps can pin it (hd2d.timeOfDay) and
+  // scripts drive it (game.setTimeOfDay) — nothing advances it implicitly.
+  timeOfDay: 12,
   player: null,
 };
 

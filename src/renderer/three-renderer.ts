@@ -176,6 +176,11 @@ export function createThreeRenderer(): any {
     "uniform sampler2D uEmisMap;\n" + // rgb: emissive color
     "uniform float uGlow;\n" + // emissive engagement (rises as ambient falls)
     "#endif\n" +
+    // Stage D: the day/night cycle tints the ambient term (dawn gold, night
+    // blue). Compiled only under map.hd2d.dayNight.
+    "#ifdef DAYNIGHT\n" +
+    "uniform vec3 uAmbTint;\n" +
+    "#endif\n" +
     "void main() {\n" +
     "#ifdef CLIPY\n" +
     "  if (uClipY.x > 0.5 && vWorld.y < uClipY.y) discard;\n" +
@@ -185,6 +190,9 @@ export function createThreeRenderer(): any {
     "  vec3 rgb = c.rgb * vTint;\n" +
     "  if (uAmbient >= 0.0) {\n" +
     "    vec3 lit = vec3(uAmbient);\n" +
+    "#ifdef DAYNIGHT\n" +
+    "    lit *= uAmbTint;\n" +
+    "#endif\n" +
     "#ifdef MATERIALS\n" +
     "    vec3 N = normalize(texture(uMatMap, vUV).rgb * 2.0 - 1.0);\n" +
     "    float specM = texture(uMatMap, vUV).a;\n" +
@@ -297,6 +305,9 @@ export function createThreeRenderer(): any {
     "  rgb = mix(rgb, vec3(0.92, 0.96, 1.0), clamp(foam, 0.0, 1.0) * 0.7);\n" +
     "  if (uAmbient >= 0.0) {\n" + // same forward lighting as the scene pass
     "    vec3 lit = vec3(uAmbient);\n" +
+    "#ifdef DAYNIGHT\n" +
+    "    lit *= uAmbTint;\n" +
+    "#endif\n" +
     "    for (int i = 0; i < " + MAX_LIGHTS + "; i++) {\n" +
     "      if (i >= uLightCount) break;\n" +
     "      float f = max(0.0, 1.0 - distance(vWorld, uLightPos[i].xyz) / uLightPos[i].w);\n" +
@@ -341,13 +352,23 @@ export function createThreeRenderer(): any {
     "  }\n" +
     "  outColor = vec4(c, 1.0);\n" +
     "}";
+  // Stage D extensions (SSAO multiply, ACES, color grade, vignette) are all
+  // behind runtime `if` gates on uniforms that default to off, so a map using
+  // only the classic bloom/DoF still composites bit-identically — the Stage A
+  // post-stack golden holds.
   const COMP_FS =
     "precision highp float;\n" +
     "in vec2 vUV;\n" +
-    "uniform sampler2D uScene, uBlurScene, uBlurBright, uDepth;\n" +
+    "uniform sampler2D uScene, uBlurScene, uBlurBright, uDepth, uAO;\n" +
     "uniform float uBloom, uDof, uFocusDist, uFocusRange;\n" +
     "uniform vec2 uNearFar;\n" +
+    "uniform float uSsao, uAces, uVignette, uGradeOn;\n" +
+    "uniform mat3 uGradeM;\n" +
+    "uniform vec3 uGradeB;\n" +
     "out vec4 outColor;\n" +
+    "vec3 aces(vec3 x) {\n" + // Narkowicz ACES filmic fit
+    "  return clamp(x * (2.51 * x + 0.03) / (x * (2.43 * x + 0.59) + 0.14), 0.0, 1.0);\n" +
+    "}\n" +
     "void main() {\n" +
     "  vec3 col = texture(uScene, vUV).rgb;\n" +
     "  if (uDof > 0.0) {\n" +
@@ -356,8 +377,72 @@ export function createThreeRenderer(): any {
     "    float coc = clamp((abs(z - uFocusDist) - " + (TILE * 3).toFixed(1) + ") / uFocusRange, 0.0, 1.0) * uDof;\n" +
     "    col = mix(col, texture(uBlurScene, vUV).rgb, coc);\n" +
     "  }\n" +
+    "  if (uSsao > 0.0) col *= mix(1.0, texture(uAO, vUV).r, uSsao);\n" +
     "  if (uBloom > 0.0) col += texture(uBlurBright, vUV).rgb * uBloom;\n" +
+    "  if (uAces > 0.5) col = aces(col * 1.25);\n" + // slight exposure lift into the shoulder
+    "  if (uGradeOn > 0.5) col = clamp(uGradeM * col + uGradeB, 0.0, 1.0);\n" +
+    "  if (uVignette > 0.0) {\n" +
+    "    vec2 q = vUV - 0.5;\n" +
+    "    col *= 1.0 - uVignette * smoothstep(0.15, 0.5, dot(q, q));\n" +
+    "  }\n" +
     "  outColor = vec4(col, 1.0);\n" +
+    "}";
+  // Depth-derived ambient occlusion at half res (Stage D): fixed spiral taps
+  // (no per-pixel noise — determinism), world-space depth deltas, blurred by
+  // the shared Gaussian before the composite multiplies it in.
+  const AO_FS =
+    "precision highp float;\n" +
+    "in vec2 vUV;\n" +
+    "uniform sampler2D uDepth;\n" +
+    "uniform vec2 uNearFar;\n" +
+    "uniform vec2 uInvSize;\n" + // 1 / half-res target size
+    "uniform float uProjScale;\n" + // (h/2)/tan(fov/2): world px -> screen px at z=1
+    "out vec4 outColor;\n" +
+    "float lin(float s) {\n" +
+    "  float d = s * 2.0 - 1.0;\n" +
+    "  return 2.0 * uNearFar.x * uNearFar.y / (uNearFar.y + uNearFar.x - d * (uNearFar.y - uNearFar.x));\n" +
+    "}\n" +
+    "void main() {\n" +
+    "  float z0 = lin(texture(uDepth, vUV).r);\n" +
+    "  float rp = clamp(30.0 * uProjScale / z0 * 0.5, 2.0, 24.0);\n" + // ~30 world px
+    "  const vec2 taps[8] = vec2[](\n" +
+    "    vec2(1.0, 0.0), vec2(0.5257, 0.8507), vec2(-0.4045, 0.6545), vec2(-0.9511, -0.3090),\n" +
+    "    vec2(-0.2245, -0.6909), vec2(0.4635, -0.6373), vec2(0.7290, 0.2367), vec2(-0.0784, 0.2412));\n" +
+    "  float occ = 0.0;\n" +
+    "  for (int i = 0; i < 8; i++) {\n" +
+    "    float zi = lin(texture(uDepth, vUV + taps[i] * rp * uInvSize).r);\n" +
+    "    float d = z0 - zi;\n" + // occluder in front of us -> positive
+    "    occ += clamp(d / 24.0, 0.0, 1.0) * clamp(1.0 - d / 260.0, 0.0, 1.0);\n" +
+    "  }\n" +
+    "  outColor = vec4(vec3(1.0 - occ / 8.0 * 0.9), 1.0);\n" +
+    "}";
+  // Compact luma FXAA (Stage D, the classic diagonal-tap variant): edge-
+  // blended final resolve when map.hd2d.fxaa.
+  const FXAA_FS =
+    "precision highp float;\n" +
+    "in vec2 vUV;\n" +
+    "uniform sampler2D uTex;\n" +
+    "uniform vec2 uInvSize;\n" +
+    "out vec4 outColor;\n" +
+    "float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }\n" +
+    "void main() {\n" +
+    "  vec3 cM = texture(uTex, vUV).rgb;\n" +
+    "  float lM = luma(cM);\n" +
+    "  float lNW = luma(texture(uTex, vUV + vec2(-1.0, -1.0) * uInvSize).rgb);\n" +
+    "  float lNE = luma(texture(uTex, vUV + vec2(1.0, -1.0) * uInvSize).rgb);\n" +
+    "  float lSW = luma(texture(uTex, vUV + vec2(-1.0, 1.0) * uInvSize).rgb);\n" +
+    "  float lSE = luma(texture(uTex, vUV + vec2(1.0, 1.0) * uInvSize).rgb);\n" +
+    "  float lMin = min(lM, min(min(lNW, lNE), min(lSW, lSE)));\n" +
+    "  float lMax = max(lM, max(max(lNW, lNE), max(lSW, lSE)));\n" +
+    "  if (lMax - lMin < max(0.0312, lMax * 0.125)) { outColor = vec4(cM, 1.0); return; }\n" +
+    "  vec2 dir = vec2(-((lNW + lNE) - (lSW + lSE)), (lNW + lSW) - (lNE + lSE));\n" +
+    "  float dirReduce = max((lNW + lNE + lSW + lSE) * 0.03125, 0.0078125);\n" +
+    "  float rcpDirMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + dirReduce);\n" +
+    "  dir = clamp(dir * rcpDirMin, -8.0, 8.0) * uInvSize;\n" +
+    "  vec3 a = 0.5 * (texture(uTex, vUV + dir * (1.0 / 3.0 - 0.5)).rgb + texture(uTex, vUV + dir * (2.0 / 3.0 - 0.5)).rgb);\n" +
+    "  vec3 b = a * 0.5 + 0.25 * (texture(uTex, vUV + dir * -0.5).rgb + texture(uTex, vUV + dir * 0.5).rgb);\n" +
+    "  float lB = luma(b);\n" +
+    "  outColor = vec4((lB < lMin || lB > lMax) ? a : b, 1.0);\n" +
     "}";
 
   // ---------------------------- tiny mat4 ----------------------------
@@ -432,6 +517,8 @@ export function createThreeRenderer(): any {
     uLightCol: { value: lightCol },
     uFog: { value: new Float32Array(4) },
     uFogRange: { value: new Float32Array([1, 2]) },
+    // Stage D day/night ambient tint (DAYNIGHT programs only).
+    uAmbTint: { value: new Float32Array([1, 1, 1]) },
     // Stage B sun shadows (only uploaded to programs compiled with SHADOWS).
     uSunMVP: { value: new THREE.Matrix4() },
     uShadowMap: { value: null as THREE.Texture | null },
@@ -477,6 +564,7 @@ export function createThreeRenderer(): any {
     if (cfg.shadows > 0) m.defines.SHADOWS = 1;
     if (cfg.pointShadows > 0) m.defines.POINT_SHADOWS = 1;
     if (cfg.water > 0) m.defines.CLIPY = 1;
+    if (cfg.dayNight) m.defines.DAYNIGHT = 1;
     if (aux) m.defines.MATERIALS = 1;
     m.glslVersion = THREE.GLSL3; // three emits #version first (its defines precede raw sources)
     m.blending = THREE.CustomBlending;
@@ -502,6 +590,7 @@ export function createThreeRenderer(): any {
       },
     });
     m.glslVersion = THREE.GLSL3;
+    if (cfg.dayNight) m.defines.DAYNIGHT = 1;
     m.blending = THREE.CustomBlending;
     m.blendEquation = THREE.AddEquation;
     m.blendSrc = THREE.OneFactor;
@@ -578,8 +667,10 @@ export function createThreeRenderer(): any {
     h: number;
     hw: number;
     hh: number;
+    fx: boolean;
     scene: THREE.WebGLRenderTarget;
     half: THREE.WebGLRenderTarget[];
+    post: THREE.WebGLRenderTarget | null;
   } | null = null;
 
   function makeTarget(w: number, h: number, depth: boolean) {
@@ -610,18 +701,24 @@ export function createThreeRenderer(): any {
     rt.scene.depthTexture?.dispose();
     rt.scene.dispose();
     rt.half.forEach((t) => t.dispose());
+    rt.post?.dispose();
     rt = null;
   }
 
-  function ensureTargets(w: number, h: number) {
-    if (rt && rt.w === w && rt.h === h) return;
+  function ensureTargets(w: number, h: number, fxaa = false) {
+    if (rt && rt.w === w && rt.h === h && rt.fx === fxaa) return;
     freeTargets();
     const hw = Math.max(1, w >> 1),
       hh = Math.max(1, h >> 1);
     rt = {
-      w, h, hw, hh,
+      w, h, hw, hh, fx: fxaa,
       scene: makeTarget(w, h, true),
-      half: [makeTarget(hw, hh, false), makeTarget(hw, hh, false), makeTarget(hw, hh, false), makeTarget(hw, hh, false)],
+      // 0/1: DoF ping-pong, 2/3: bloom ping-pong, 4/5: SSAO ping-pong
+      half: [
+        makeTarget(hw, hh, false), makeTarget(hw, hh, false), makeTarget(hw, hh, false),
+        makeTarget(hw, hh, false), makeTarget(hw, hh, false), makeTarget(hw, hh, false),
+      ],
+      post: fxaa ? makeTarget(w, h, false) : null, // FXAA reads the composite from here
     };
   }
 
@@ -640,11 +737,28 @@ export function createThreeRenderer(): any {
     uBlurScene: { value: null as any },
     uBlurBright: { value: null as any },
     uDepth: { value: null as any },
+    uAO: { value: null as any },
     uBloom: { value: 0 },
     uDof: { value: 0 },
     uFocusDist: { value: 0 },
     uFocusRange: { value: 1 },
     uNearFar: { value: new Float32Array([1, 2]) },
+    uSsao: { value: 0 },
+    uAces: { value: 0 },
+    uVignette: { value: 0 },
+    uGradeOn: { value: 0 },
+    uGradeM: { value: new THREE.Matrix3() },
+    uGradeB: { value: new Float32Array(3) },
+  };
+  const aoU = {
+    uDepth: { value: null as any },
+    uNearFar: { value: new Float32Array([1, 2]) },
+    uInvSize: { value: new Float32Array(2) },
+    uProjScale: { value: 1 },
+  };
+  const fxaaU = {
+    uTex: { value: null as any },
+    uInvSize: { value: new Float32Array(2) },
   };
   function passScene(fs: string, uniforms: Record<string, { value: any }>) {
     const mesh = new THREE.Mesh(postGeo, postMaterial(fs, uniforms));
@@ -658,6 +772,8 @@ export function createThreeRenderer(): any {
   const brightScene = passScene(BRIGHT_FS, brightU);
   const blurScene = passScene(BLUR_FS, blurU);
   const compScene = passScene(COMP_FS, compU);
+  const aoScene = passScene(AO_FS, aoU);
+  const fxaaScene = passScene(FXAA_FS, fxaaU);
 
   function blurPass(srcTex: THREE.Texture, dst: THREE.WebGLRenderTarget, dirX: number, dirY: number) {
     const r = renderer!;
@@ -733,6 +849,62 @@ export function createThreeRenderer(): any {
     heights: any = null,
     mapDiag = 0;
   let cfg: any = { tilt: 50, bloom: 0, dof: 0, fog: null, lights: false, ambient: 0.45, shadows: 0, pointShadows: 0 };
+
+  // Color-grade presets (map.hd2d.lut): a mat3 + bias applied in the
+  // composite. Procedural stand-ins for image LUTs — deterministic, tiny, and
+  // per-map like every other hd2d flag.
+  function gradeFor(name: any): { m: number[]; b: number[] } | null {
+    const desat = (m: number[], s: number) => {
+      // mix toward the luma projection by s
+      const L = [0.299, 0.587, 0.114];
+      const out = m.slice();
+      for (let r = 0; r < 3; r++) {
+        for (let c2 = 0; c2 < 3; c2++) {
+          out[c2 * 3 + r] = m[c2 * 3 + r] * (1 - s) + L[c2] * s; // column-major
+        }
+      }
+      return out;
+    };
+    const diag = (x: number, y: number, z: number) => [x, 0, 0, 0, y, 0, 0, 0, z];
+    switch (String(name || "")) {
+      case "warm":
+        return { m: diag(1.1, 1.0, 0.88), b: [0.012, 0.004, 0] };
+      case "cool":
+        return { m: diag(0.88, 1.0, 1.12), b: [0, 0.004, 0.015] };
+      case "night":
+        return { m: desat(diag(0.6, 0.7, 1.08), 0.25), b: [0, 0.004, 0.02] };
+      case "sepia":
+        // classic sepia (column-major)
+        return { m: [0.393, 0.349, 0.272, 0.769, 0.686, 0.534, 0.189, 0.168, 0.131], b: [0, 0, 0] };
+      case "noir":
+        return { m: desat(diag(1.18, 1.18, 1.18), 1), b: [-0.06, -0.06, -0.06] };
+      default:
+        return null;
+    }
+  }
+
+  // Day/night curve (Stage D): hour 0–24 -> sun daylight factor, ambient
+  // scale, ambient tint, sun azimuth/elevation. Dawn ~6h, dusk ~18h.
+  function dayNightAt(h: number) {
+    const daylight = Math.max(0, Math.sin((Math.PI * (h - 6)) / 12));
+    const dl = Math.pow(daylight, 0.7);
+    const dusk = daylight * (1 - daylight) * 4 * (daylight > 0 ? 1 : 0);
+    const night = [0.55, 0.62, 1.05],
+      day = [1, 1, 1],
+      gold = [1.2, 0.85, 0.6];
+    const tint = [0, 0, 0];
+    for (let i = 0; i < 3; i++) {
+      tint[i] = night[i] + (day[i] - night[i]) * dl;
+      tint[i] += (gold[i] - tint[i]) * dusk * 0.45;
+    }
+    return {
+      daylight: dl,
+      scale: 0.25 + 0.75 * dl,
+      tint,
+      azimuth: 90 + Math.min(1, Math.max(0, (h - 6) / 12)) * 180, // east -> west
+      elevation: 15 + 60 * daylight,
+    };
+  }
   let mapDisposables: Array<{ dispose(): void }> = [];
 
   function hAt(tx: number, ty: number): number {
@@ -921,6 +1093,14 @@ export function createThreeRenderer(): any {
       // Stage C: animated water surface + auto-generated material maps.
       water: c.water === true ? 1 : Math.min(1, Math.max(0, Number(c.water) || 0)),
       materials: !!c.materials,
+      // Stage D: post-stack toggles + day/night cycle.
+      aces: !!c.aces,
+      vignette: c.vignette === true ? 0.5 : Math.min(1, Math.max(0, Number(c.vignette) || 0)),
+      grade: gradeFor(c.lut),
+      ssao: c.ssao === true ? 0.55 : Math.min(1, Math.max(0, Number(c.ssao) || 0)),
+      fxaa: !!c.fxaa,
+      dayNight: !!c.dayNight,
+      sun: c.sun || null,
     };
     // Sun direction (used by water glints now, the day/night cycle later) —
     // available even when sun shadows are off.
@@ -943,6 +1123,7 @@ export function createThreeRenderer(): any {
         ["SHADOWS", cfg.shadows > 0],
         ["POINT_SHADOWS", cfg.pointShadows > 0],
         ["CLIPY", cfg.water > 0],
+        ["DAYNIGHT", !!cfg.dayNight],
       ] as const) {
         const has = !!p.mat.defines[def];
         if (on && !has) { p.mat.defines[def] = 1; dirty = true; }
@@ -1179,8 +1360,9 @@ export function createThreeRenderer(): any {
     for (const [mesh, mat] of swapped) mesh.material = mat;
   }
 
-  // Render the sun depth map.
-  function renderSunDepth(r: THREE.WebGLRenderer) {
+  // Render the sun depth map. `dl` scales strength (day/night fades shadows
+  // toward dusk; 1 when the cycle is off).
+  function renderSunDepth(r: THREE.WebGLRenderer, dl = 1) {
     ensureShadowRT();
     depthMVP.value.copy(U.uSunMVP.value);
     withDepthMaterials(() => {
@@ -1189,7 +1371,7 @@ export function createThreeRenderer(): any {
       r.render(scene, camera);
     });
     U.uShadowMap.value = shadowRT!.depthTexture;
-    U.uShadowStrength.value = cfg.shadows;
+    U.uShadowStrength.value = cfg.shadows * dl;
   }
 
   // ------------------------ point-light shadows (Stage B.2) ------------------------
@@ -1434,9 +1616,32 @@ export function createThreeRenderer(): any {
     // emissive glow engagement (full at pitch black, zero at default ambient),
     // and the water shader's screen size for its reflection lookup.
     U.uTime.value = (Number(extra.t) || 0) / 60;
-    U.uGlow.value = Math.min(1, Math.max(0, (0.45 - ambient) / 0.45));
     U.uScreen.value[0] = w;
     U.uScreen.value[1] = h;
+    // Stage D: day/night — the hour drives the sun's position, a tinted &
+    // scaled ambient (folded into uAmbTint), sun-shadow strength, and the
+    // emissive glow below. Everything derives from extra.timeOfDay, which the
+    // engine owns (map default / script hooks) — nothing here ticks on its own.
+    let effAmbient = ambient;
+    let sunDl = 1;
+    if (cfg.dayNight) {
+      const h24 = Number.isFinite(Number(extra.timeOfDay))
+        ? Math.min(24, Math.max(0, Number(extra.timeOfDay)))
+        : 12;
+      const dn = dayNightAt(h24);
+      sunDl = dn.daylight;
+      effAmbient = ambient * dn.scale;
+      for (let i = 0; i < 3; i++) U.uAmbTint.value[i] = dn.tint[i] * dn.scale;
+      const az = (dn.azimuth * Math.PI) / 180,
+        el = (dn.elevation * Math.PI) / 180;
+      U.uSunDir.value[0] = Math.sin(az) * Math.cos(el);
+      U.uSunDir.value[1] = Math.sin(el);
+      U.uSunDir.value[2] = -Math.cos(az) * Math.cos(el);
+      if (cfg.shadows > 0 && lastMapArgs) {
+        fitSunCamera(lastMapArgs[2], { azimuth: dn.azimuth, elevation: dn.elevation });
+      }
+    }
+    U.uGlow.value = Math.min(1, Math.max(0, (0.45 - effAmbient) / 0.45));
 
     // far-to-near so soft alpha edges blend correctly between sprites
     sprites.sort((a, b) => a.ry - b.ry);
@@ -1461,8 +1666,9 @@ export function createThreeRenderer(): any {
     }
     for (let i = sprites.length; i < spritePool.length; i++) spritePool[i].mesh.visible = false;
 
-    // ---- sun depth pass (only when this map casts shadows) ----
-    if (cfg.shadows > 0) renderSunDepth(r);
+    // ---- sun depth pass (only when this map casts shadows; none at night) ----
+    if (cfg.shadows > 0 && sunDl > 0.003) renderSunDepth(r, sunDl);
+    else if (cfg.shadows > 0) U.uShadowStrength.value = 0;
 
     // ---- point-light depth pass (map.hd2d.pointShadows) ----
     const plCount = cfg.pointShadows > 0 ? Math.min(nLights, MAX_PLS) : 0;
@@ -1481,9 +1687,11 @@ export function createThreeRenderer(): any {
     if (cfg.water > 0 && waterGroup.children.length) renderReflection(r, mvp, clear);
 
     // ---- scene pass (direct to canvas unless a post effect needs a target) ----
-    const post = cfg.bloom > 0 || cfg.dof > 0;
+    const post =
+      cfg.bloom > 0 || cfg.dof > 0 || cfg.ssao > 0 || cfg.aces || cfg.vignette > 0 ||
+      !!cfg.grade || cfg.fxaa;
     if (post) {
-      ensureTargets(w, h);
+      ensureTargets(w, h, cfg.fxaa);
       r.setRenderTarget(rt!.scene);
     } else {
       r.setRenderTarget(null);
@@ -1512,8 +1720,20 @@ export function createThreeRenderer(): any {
         blurPass(rt!.half[2].texture, rt!.half[3], 1, 0);
         blurPass(rt!.half[3].texture, rt!.half[2], 0, 1);
       }
+      if (cfg.ssao > 0) { // depth-derived AO, blurred once → half[4]
+        aoU.uDepth.value = rt!.scene.depthTexture;
+        aoU.uNearFar.value[0] = near;
+        aoU.uNearFar.value[1] = far;
+        aoU.uInvSize.value[0] = 1 / rt!.hw;
+        aoU.uInvSize.value[1] = 1 / rt!.hh;
+        aoU.uProjScale.value = h / 2 / Math.tan(FOV / 2);
+        r.setRenderTarget(rt!.half[4]);
+        r.render(aoScene, camera);
+        blurPass(rt!.half[4].texture, rt!.half[5], 1, 0);
+        blurPass(rt!.half[5].texture, rt!.half[4], 0, 1);
+      }
 
-      // composite to the canvas
+      // composite to the canvas (or to the FXAA source target)
       compU.uScene.value = rt!.scene.texture;
       compU.uBlurScene.value = rt!.half[0].texture;
       compU.uBlurBright.value = rt!.half[2].texture;
@@ -1532,8 +1752,24 @@ export function createThreeRenderer(): any {
       }
       compU.uFocusDist.value = focusDist;
       compU.uFocusRange.value = dist * 0.9;
-      r.setRenderTarget(null);
+      compU.uAO.value = rt!.half[4].texture;
+      compU.uSsao.value = cfg.ssao;
+      compU.uAces.value = cfg.aces ? 1 : 0;
+      compU.uVignette.value = cfg.vignette;
+      compU.uGradeOn.value = cfg.grade ? 1 : 0;
+      if (cfg.grade) {
+        compU.uGradeM.value.fromArray(cfg.grade.m);
+        compU.uGradeB.value.set(cfg.grade.b);
+      }
+      r.setRenderTarget(cfg.fxaa ? rt!.post : null);
       r.render(compScene, camera);
+      if (cfg.fxaa) { // final edge-blended resolve to the canvas
+        fxaaU.uTex.value = rt!.post!.texture;
+        fxaaU.uInvSize.value[0] = 1 / w;
+        fxaaU.uInvSize.value[1] = 1 / h;
+        r.setRenderTarget(null);
+        r.render(fxaaScene, camera);
+      }
     }
     return cv;
   }

@@ -28,7 +28,18 @@ world-space normals + tile-class specular in alpha (uMatMap) and luminance-scale
 (engine tick via render-glue / a frame counter in the editor preview) — determinism holds.
 New goldens: `hd2d-water-…` and `hd2d-materials-meridian-village.png`; the byte-identical-
 when-off discipline verified again (no existing golden rewritten).
-Remaining: D post stack & day/night, E particles/terrain/perf.
+Stage D COMPLETE (2026-07-02): post stack v2 — the composite gains SSAO multiply
+(depth-derived, fixed spiral taps, Gaussian-blurred at half res), ACES (Narkowicz fit),
+color-grade presets as mat3+bias (`hd2d.lut`: warm/cool/night/sepia/noir), vignette, and a
+final FXAA resolve pass (`hd2d.fxaa` routes the composite through a full-res target). All
+additions sit behind runtime `if (uniform)` gates that default off, so the Stage A
+bloom/DoF post golden still passes bit-identically. Day/night — `hd2d.dayNight` compiles a
+DAYNIGHT variant (ambient tint), with the hour driving sun azimuth/elevation (refit per
+frame), shadow strength fade, ambient scale/tint curve (gold dawn/dusk, blue night), and
+emissive glow. Time lives in `G.timeOfDay` (save-round-tripped), pinned per map by
+`hd2d.timeOfDay`, scripted via `game.setTimeOfDay/getTimeOfDay` (Phase 5 wires gameplay).
+New goldens: `hd2d-post2-…` and `hd2d-dusk-meridian-village.png`.
+Remaining: E particles/terrain/perf, classic retirement, 60 fps CI check.
 **Branch:** `phase-2-renderer` (off `main` at tag `phase-1`)
 **Architect & Stage A implementation:** Claude Fable 5 (roadmap assignment: "three.js scene
 architecture + parity skeleton"). Stages B–E cores: Claude Opus (high).
