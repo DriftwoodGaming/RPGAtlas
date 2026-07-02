@@ -5,6 +5,17 @@
 export const PATCH_NOTES = [
   {
     date: "July 2, 2026",
+    title: "Autotiles — paint connected terrain with RPG-Maker sheets",
+    summary:
+      "Terrain now autotiles: import an RPG-Maker A2 autotile sheet and paint whole regions of grass, water, or path that automatically pick the right edges and corners as you draw. Comes with resizable terrain brushes.",
+    items: [
+      "Tiles panel ▸ Autotiles ▸ Import… (or Tools ▸ Import Autotile Sheet…) brings in a standard RPG-Maker A2 sheet — each 2×3 block becomes a terrain brush swatch. Click a swatch, then paint like any tile; the 47-blob engine resolves borders and inner corners from the neighbours automatically.",
+      "Brush sizes: pick 1×1, 3×3, or 5×5 in the Tiles panel (or press [ and ] ) to paint broad strokes of terrain at once.",
+      "Autotiles resolve live everywhere — the 2D map, the HD-2D viewport, and playtest — and right-clicking a swatch deletes the group. Maps stay plain tile data, so existing projects and saves are unchanged.",
+    ],
+  },
+  {
+    date: "July 2, 2026",
     title: "Live HD-2D viewport — edit your map inside the 3D scene",
     summary:
       "The HD-2D preview is now a full dockable viewport panel: the game's three.js renderer runs live inside the editor, with its own camera you can fly around and drag-to-place point lights right in the 3D scene.",

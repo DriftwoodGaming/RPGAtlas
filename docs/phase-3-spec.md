@@ -2,6 +2,41 @@
 
 **Status:** IN PROGRESS. Stage log accumulates here, phase-2-spec style.
 
+Stage D COMPLETE (2026-07-02): autotiles & terrain brushes. **47-blob
+RPG-Maker-A2 autotile engine.** Map layers stay plain integer tile ids — the
+blob shape is resolved at DRAW TIME from 8-neighbour connectivity, so the save
+format and the Phase 2 golden suite are untouched (sample maps have no autotile
+groups → the resolver is never entered; all 9 goldens byte-identical). Pure core
+`src/shared/autotile.ts` (`cornerSources(mask)` → the four 24px minitile sources
+per corner via the five-state corner rule; `neighborMask(same)` collapses the
+256-input space onto the 47 valid shapes by masking diagonals whose edges are
+open). The per-corner minitile coordinates were reverse-engineered from RPG Maker
+MV's `Tilemap.FLOOR_AUTOTILE_TABLE` (entry 0 = connected, 47 = isolated,
+single-bit-flip entries) and cross-validated for mirror symmetry — 16 unit tests
+cover all 256 masks + the canonical MV entries. Runtime registry
+`src/shared/autotile-registry.ts` (reserved id `AUTOTILE_BASE = 1_000_000` per
+group, per-mask 48×48 assembled-canvas cache) + shared draw primitive
+`src/shared/autotile-draw.ts` (`drawLayerCell`) replace the four bare
+`Assets.drawTile` cell loops (2D map-render, HD viewport `buildBuffers`, tile-
+paste preview, engine `prerenderMap`) so autotiles resolve identically in the 2D
+editor, the live HD-2D viewport, AND playtest. Group management
+`src/editor/autotile-store.ts` (proj.autotiles CRUD, A2-sheet slice import into
+96×144 blocks, swatches) + shared decode `src/shared/autotile-load.ts`
+(`syncAutotileRegistry`, used by editor boot and engine map load). Tiles-panel UI
+`src/editor/map-editor/autotile-ui.ts`: brush-size selector (1/3/5, keys `[`/`]`,
+`S.brushSize` footprint in the pen/eraser) + autotile swatch strip with Import
+(also a registered `autotile-import` command, Tools menu + palette). Selecting a
+group sets `S.selectedTile` to its reserved id, so all existing paint/fill/rect/
+copy-paste code works unchanged; `resolvePaintLayer` routes autotiles to ground
+under Auto. `schema.ts` gains `Autotile` + `Project.autotiles?`. `editor.css?v=42`,
+`patch-notes.js?v=8`. Verified live (import a synthetic A2 sheet → swatch appears
+→ paint with brush 5 → bordered blob renders in the HD-2D viewport, no console
+errors) + 16-test pure-core suite + an autotile e2e (in-page File import → paint
+→ reserved ids in ground layer). Full gate green: tsc, eslint, node --test (16),
+vitest (60), Playwright editor(6)+golden/player/export(15). Deferred to a
+follow-on **D2**: cliff auto-texturing (Phase 2's deferred item) — it lives in the
+HD-2D renderer, so it is split out to keep parity risk off this merge.
+
 Stage C COMPLETE (2026-07-02): live HD-2D viewport. The Phase 2 three.js
 renderer, embedded as a dockable panel (dock id `hd`, the id the Stage B layout
 tests already reserved) via a lazy `mount` factory
@@ -148,15 +183,15 @@ project schema's meaning or any runtime behavior.
   point lights (writes `map.hd2d.lights`), real-time response to every map/HD-2D
   property edit (hooks into `touch()`), F2 upgraded from side-panel toggle to panel
   focus. Golden specs unaffected (editor-only page).
-- **D — Autotiles & terrain brushes** (Sonnet): 47-blob autotile engine for procedural
+- **D — Autotiles & terrain brushes** (Opus — DONE; cliff auto-texturing split to D2): 47-blob autotile engine for procedural
   terrain, import of RPG-Maker-format autotile sheets, terrain brushes, configurable
   brush sizes; palette UI for autotile groups. Revisit Phase 2's deferred cliff
   auto-texturing with the autotile data.
-- **E — World view & database upgrades** (Sonnet): map-connection graph (parsed from
+- **E — World view & database upgrades** (Opus): map-connection graph (parsed from
   transfer commands), drag to re-link, bird's-eye multi-map layout, per-map notes;
   database searchable/filterable lists everywhere, bulk edit, copy-paste entries
   between projects, formula fields for stats/damage.
-- **F — Unified undo & UI polish** (Sonnet, Fable sign-off): one history spanning map,
+- **F — Unified undo & UI polish** (Opus, Fable sign-off): one history spanning map,
   event, and database edits (design note below); consistent spacing/type scale, dark
   theme refinement, empty states, keyboard-navigation completeness.
 

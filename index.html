@@ -5,7 +5,7 @@
 <title>RPGAtlas — Editor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="img/system/rpgatlas-logo.svg">
-<link rel="stylesheet" href="css/editor.css?v=41">
+<link rel="stylesheet" href="css/editor.css?v=42">
 </head>
 <body>
   <header id="menubar">
@@ -33,7 +33,21 @@
 
     <div id="panel-tiles" class="dock-panel-content">
       <div class="side-head"><span data-i18n="Tiles">Tiles</span> <span class="dim" data-i18n="(right-click map = pick)">(right-click map = pick)</span></div>
+      <div id="brush-bar">
+        <span class="brush-label" data-i18n="Brush">Brush</span>
+        <button id="brush-1" class="brush-btn sel" title="1×1">1</button>
+        <button id="brush-3" class="brush-btn" title="3×3">3</button>
+        <button id="brush-5" class="brush-btn" title="5×5">5</button>
+      </div>
       <div id="palettewrap"><canvas id="palette"></canvas></div>
+      <div id="autotile-bar">
+        <div class="side-subhead">
+          <span data-i18n="Autotiles">Autotiles</span>
+          <button id="autotile-import" class="mini-btn" data-i18n="Import…">Import…</button>
+        </div>
+        <div id="autotile-strip"></div>
+      </div>
+      <input id="autotile-file" type="file" accept="image/png,image/*" hidden>
     </div>
 
     <div id="panel-map" class="dock-panel-content">

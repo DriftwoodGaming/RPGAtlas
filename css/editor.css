@@ -111,6 +111,25 @@ input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold-edge);
 #palettewrap { flex: 1; overflow: auto; border: 1px solid #2c2f44; border-radius: 4px; }
 #palette { display: block; cursor: pointer; image-rendering: pixelated; }
 
+/* brush size + autotiles (Phase 3 Stage D) */
+#brush-bar { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.brush-label { color: #aeb2c8; font-size: 12px; margin-right: 2px; }
+.brush-btn { width: 26px; height: 24px; padding: 0; border: 1px solid #2c2f44; border-radius: 4px;
+  background: #23263a; color: #cfd3e6; cursor: pointer; font-weight: 600; }
+.brush-btn:hover { background: #2a2d40; }
+.brush-btn.sel { background: var(--accent); color: #fff; border-color: var(--accent); }
+#autotile-bar { flex: 0 0 auto; display: flex; flex-direction: column; gap: 5px; }
+.side-subhead { display: flex; justify-content: space-between; align-items: center; color: #aeb2c8; font-weight: 600; font-size: 12px; }
+.mini-btn { padding: 2px 8px; border: 1px solid #2c2f44; border-radius: 4px; background: #23263a; color: #cfd3e6; cursor: pointer; font-size: 12px; }
+.mini-btn:hover { background: #2a2d40; }
+#autotile-strip { display: flex; flex-wrap: wrap; gap: 5px; max-height: 132px; overflow-y: auto; }
+.autotile-empty { font-size: 11px; line-height: 1.35; padding: 2px 0; }
+.autotile-swatch { width: 40px; height: 40px; border: 1px solid #2c2f44; border-radius: 4px; cursor: pointer;
+  background: #101018; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.autotile-swatch:hover { border-color: #4a4f70; }
+.autotile-swatch.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.autotile-swatch canvas { display: block; image-rendering: pixelated; }
+
 #mapscroll { flex: 1; overflow: auto; background: #101018; padding: 14px; }
 #mapcanvas { display: block; image-rendering: pixelated; cursor: crosshair; box-shadow: 0 0 0 1px #30334a, 0 8px 30px rgba(0,0,0,0.5); }
 

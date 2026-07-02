@@ -17,6 +17,7 @@ import { setStatus, flashStatus } from "./status";
 import { quickTransfer, quickSign, quickChest } from "../event-editor/quick-events";
 import { openEventEditor } from "../event-editor/event-editor";
 import { setMode, refreshToolbar } from "../workspace";
+import { isAutotileId } from "../../shared/autotile-registry";
 
   // ============================ painting ============================
   export function cellFromMouse(e: any) {
@@ -51,6 +52,8 @@ import { setMode, refreshToolbar } from "../workspace";
   // Auto layer: terrain tiles go to ground; decorations stack onto decor, then decor 2.
   export function resolvePaintLayer(t: any, x: any, y: any) {
     if (S.layer !== "auto") return S.layer;
+    // Autotile groups are whole-cell terrain → ground layer under Auto.
+    if (isAutotileId(t)) return "ground";
     const def = Assets.tiles[t];
     if (!def || def.terrain) return "ground";
     const m = curMap(), i = y * m.width + x;
@@ -72,11 +75,23 @@ import { setMode, refreshToolbar } from "../workspace";
       stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
     }
   }
+  // Iterate the current brush footprint (odd square centered on the cell),
+  // clipped to the map. Brush size only affects the freehand pen/eraser.
+  function forBrush(cell: any, fn: (x: number, y: number) => void) {
+    const m = curMap(), r = Math.floor(Math.max(1, S.brushSize) / 2);
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const x = cell.x + dx, y = cell.y + dy;
+        if (x < 0 || y < 0 || x >= m.width || y >= m.height) continue;
+        fn(x, y);
+      }
+    }
+  }
   export function paintAt(cell: any) {
     if (S.tool === "pen") {
-      setCell(cell.x, cell.y, S.selectedTile, resolvePaintLayer(S.selectedTile, cell.x, cell.y));
+      forBrush(cell, (x, y) => setCell(x, y, S.selectedTile, resolvePaintLayer(S.selectedTile, x, y)));
     } else if (S.tool === "erase") {
-      setCell(cell.x, cell.y, 0, S.layer === "auto" ? topLayerAt(cell.x, cell.y) : S.layer);
+      forBrush(cell, (x, y) => setCell(x, y, 0, S.layer === "auto" ? topLayerAt(x, y) : S.layer));
     } else if (S.tool === "fill") {
       const def = Assets.tiles[S.selectedTile];
       const ln = S.layer === "auto" ? (def && def.terrain ? "ground" : "decor") : S.layer;
