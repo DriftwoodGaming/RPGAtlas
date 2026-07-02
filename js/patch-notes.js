@@ -4,6 +4,18 @@
 
 export const PATCH_NOTES = [
   {
+    date: "July 2, 2026",
+    title: "Point lights now cast shadows on HD-2D maps",
+    summary:
+      "Torches, lamps, and any other point light can now cast real-time shadows: walls block lamplight and characters throw flickering shadows away from nearby flames.",
+    items: [
+      "New 'Point-light shadows' toggle in Map Properties (HD-2D section); off by default, existing maps are unchanged.",
+      "The 4 lights nearest the camera cast omnidirectional soft shadows (raised terrain, overhead tiles, and characters all occlude).",
+      "Advanced: map.hd2d.pointShadows accepts a 0–1 strength for partially-soft occlusion instead of full darkness.",
+      "Works in the editor's live HD-2D preview and in exported games.",
+    ],
+  },
+  {
     date: "July 1, 2026",
     title: "Real-time sun shadows for HD-2D maps",
     summary:

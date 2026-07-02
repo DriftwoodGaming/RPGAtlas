@@ -6,8 +6,17 @@ added. Stage B.1 COMPLETE (2026-07-01): directional sun shadow maps (3×3 PCF) b
 `map.hd2d.shadows` (+ optional `hd2d.sun {azimuth, elevation}`), terrain/sprites/overhead
 cast & receive via a `#define SHADOWS` compile variant — OFF compiles byte-identical to the
 parity shaders, so every Stage A golden still passes; editor Map Properties toggle; new
-three-captured golden `hd2d-shadows-meridian-village.png`. Remaining: B.2 point-light
-shadows, C water/materials, D post stack & day/night, E particles/terrain/perf.
+three-captured golden `hd2d-shadows-meridian-village.png`.
+Stage B.2 COMPLETE (2026-07-02): omnidirectional point-light shadows behind
+`map.hd2d.pointShadows` (`POINT_SHADOWS` define, same byte-identical-when-off discipline).
+The 4 lights nearest the camera target render 6 cube faces each into one shared 2D depth
+atlas (256px faces, 3×2 tiles per light, lights stacked; the face axes are pinned between
+the JS view matrices and an analytic GLSL lookup — no per-fragment matrix indexing), with a
+4-tap PCF + slope bias against the near-grazing ground. Editor Map Properties toggle; new
+three-captured golden `hd2d-pointshadows-meridian-village.png` (injected lights + raised
+wall). Gotcha for future passes: three.js only applies a render target's `.viewport` inside
+`setRenderTarget()`, so per-tile viewport changes must re-call it.
+Remaining: C water/materials, D post stack & day/night, E particles/terrain/perf.
 **Branch:** `phase-2-renderer` (off `main` at tag `phase-1`)
 **Architect & Stage A implementation:** Claude Fable 5 (roadmap assignment: "three.js scene
 architecture + parity skeleton"). Stages B–E cores: Claude Opus (high).

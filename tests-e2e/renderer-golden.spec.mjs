@@ -104,6 +104,22 @@ test.describe("renderer golden images", () => {
     await expect(page.locator("#stage")).toHaveScreenshot("hd2d-shadows-meridian-village.png");
   });
 
+  // Stage B.2: point-light shadows (three.js renderer only). The transform
+  // injects two big lights and a raised wall so terrain AND sprites occlude.
+  test("HD-2D point-light shadows (map.hd2d.pointShadows) render a stable frame", async ({ page }) => {
+    await bootToStableMap(page, 1, (project) => {
+      const m = project.maps[0];
+      m.hd2d = { enabled: true, tilt: 50, lights: true, ambient: 0.25, pointShadows: true };
+      m.lights = [
+        { rx: 10.5, ry: 10.5, color: "#ffcc88", radius: 320 },
+        { rx: 14, ry: 12, color: "#88bbff", radius: 240 },
+      ];
+      for (let y = 9; y <= 10; y++) m.heights[y * m.width + 8] = 2;
+      return project;
+    });
+    await expect(page.locator("#stage")).toHaveScreenshot("hd2d-pointshadows-meridian-village.png");
+  });
+
   test("classic 2D renderer (?hd2d=0 override) renders a stable frame", async ({ page }) => {
     await bootToStableMap(page, 0);
     await expect(page.locator("#stage")).toHaveScreenshot("classic2d-meridian-village.png");

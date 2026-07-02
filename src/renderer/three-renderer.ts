@@ -41,6 +41,16 @@ export function createThreeRenderer(): any {
   const TINT_S = 0.62,
     TINT_EW = 0.48; // auto-shading for exposed block walls
   const MAX_LIGHTS = 16;
+  // Stage B.2: point-light shadows. Up to MAX_PLS lights (the nearest to the
+  // camera target) render omnidirectional depth into one shared 2D atlas —
+  // 6 faces of PL_FACE px per light, 3 columns x 2 rows per light, lights
+  // stacked vertically (three.js's own cube-in-2D trick, done raw here so the
+  // face convention is pinned between the JS matrices and the GLSL lookup).
+  const MAX_PLS = 4;
+  const PL_FACE = 256;
+  const PL_NEAR = 6; // px — inside this radius nothing occludes
+  const PL_W = PL_FACE * 3,
+    PL_H = PL_FACE * 2 * MAX_PLS;
 
   // ---------------------------- shaders ----------------------------
   // Verbatim from js/renderer.js (see header) — do not "modernize" these while
@@ -89,6 +99,55 @@ export function createThreeRenderer(): any {
     "  return vis / 9.0;\n" +
     "}\n" +
     "#endif\n" +
+    // Stage B.2: point-light shadows. Compiled ONLY under POINT_SHADOWS
+    // (map.hd2d.pointShadows) — stripped otherwise, so programs without the
+    // define stay identical to the Stage A/B.1 shaders. The first uPLCount
+    // entries of the light arrays are the shadow casters; each has 6 depth
+    // faces in the shared uPLMap atlas (see renderPointDepth for the layout —
+    // the face axes here MUST match the JS view matrices in PL_FACES).
+    "#ifdef POINT_SHADOWS\n" +
+    "uniform sampler2D uPLMap;\n" +
+    "uniform int uPLCount;\n" +
+    "uniform float uPLStrength;\n" +
+    "float plLinZ(float s, float f) {\n" + // window z -> view distance
+    "  float d = s * 2.0 - 1.0;\n" +
+    "  return 2.0 * " + PL_NEAR.toFixed(1) + " * f / (f + " + PL_NEAR.toFixed(1) + " - d * (f - " + PL_NEAR.toFixed(1) + "));\n" +
+    "}\n" +
+    "float plVis(int i) {\n" + // 1 = fully lit by caster i
+    "  vec3 d = vWorld - uLightPos[i].xyz;\n" +
+    "  float range = max(uLightPos[i].w, " + (PL_NEAR * 2).toFixed(1) + ");\n" +
+    "  vec3 a = abs(d);\n" +
+    "  float zv; vec2 uv; float face;\n" +
+    "  if (a.x >= a.y && a.x >= a.z) {\n" +
+    "    zv = a.x;\n" +
+    "    uv = d.x > 0.0 ? vec2(-d.z, d.y) : vec2(d.z, d.y);\n" +
+    "    face = d.x > 0.0 ? 0.0 : 1.0;\n" +
+    "  } else if (a.y >= a.x && a.y >= a.z) {\n" +
+    "    zv = a.y;\n" +
+    "    uv = d.y > 0.0 ? vec2(d.x, d.z) : vec2(d.x, -d.z);\n" +
+    "    face = d.y > 0.0 ? 2.0 : 3.0;\n" +
+    "  } else {\n" +
+    "    zv = a.z;\n" +
+    "    uv = d.z > 0.0 ? vec2(d.x, d.y) : vec2(-d.x, d.y);\n" +
+    "    face = d.z > 0.0 ? 4.0 : 5.0;\n" +
+    "  }\n" +
+    "  if (zv >= range) return 1.0;\n" +
+    "  uv = uv / zv * 0.5 + 0.5;\n" +
+    "  float col = face >= 3.0 ? face - 3.0 : face;\n" +
+    "  float row = float(i) * 2.0 + (face >= 3.0 ? 1.0 : 0.0);\n" +
+    "  float bias = 3.0 + zv * 0.05;\n" + // slope term: ground is near-grazing in the side faces
+    "  float vis = 0.0;\n" +
+    "  for (int ty = 0; ty < 2; ty++) {\n" + // 4-tap PCF inside the face
+    "    for (int tx = 0; tx < 2; tx++) {\n" +
+    "      vec2 t = uv + (vec2(float(tx), float(ty)) - 0.5) * " + (2 / PL_FACE).toFixed(6) + ";\n" +
+    "      t = clamp(t, " + (1.5 / PL_FACE).toFixed(6) + ", " + (1 - 1.5 / PL_FACE).toFixed(6) + ");\n" +
+    "      vec2 at = vec2((col + t.x) / 3.0, (row + t.y) / " + (MAX_PLS * 2).toFixed(1) + ");\n" +
+    "      vis += (zv - bias) <= plLinZ(texture(uPLMap, at).r, range) ? 1.0 : 0.0;\n" +
+    "    }\n" +
+    "  }\n" +
+    "  return vis * 0.25;\n" +
+    "}\n" +
+    "#endif\n" +
     "void main() {\n" +
     "  vec4 c = texture(uTex, vUV);\n" +
     "  if (c.a < 0.25) discard;\n" +
@@ -98,6 +157,10 @@ export function createThreeRenderer(): any {
     "    for (int i = 0; i < " + MAX_LIGHTS + "; i++) {\n" +
     "      if (i >= uLightCount) break;\n" +
     "      float f = max(0.0, 1.0 - distance(vWorld, uLightPos[i].xyz) / uLightPos[i].w);\n" +
+    // sqrt so the squared falloff scales linearly with the PCF visibility
+    "#ifdef POINT_SHADOWS\n" +
+    "      if (i < uPLCount && f > 0.0) f *= sqrt(mix(1.0, plVis(i), uPLStrength));\n" +
+    "#endif\n" +
     "      lit += f * f * uLightCol[i];\n" +
     "    }\n" +
     "    rgb *= lit;\n" +
@@ -111,16 +174,17 @@ export function createThreeRenderer(): any {
     "  }\n" +
     "  outColor = vec4(rgb, c.a);\n" +
     "}";
-  // Sun-depth pass (Stage B): world geometry rasterized from the sun's
-  // orthographic view; alpha-tested like the scene pass so sprite cutouts and
+  // Depth pass (Stage B): world geometry rasterized from a light's view —
+  // the sun's orthographic frustum or one point-light cube face (uDepthMVP is
+  // set per pass); alpha-tested like the scene pass so sprite cutouts and
   // tile transparency cast correct silhouettes.
   const DEPTH_VS =
     "layout(location=0) in vec3 aPos;\n" +
     "layout(location=1) in vec2 aUV;\n" +
-    "uniform mat4 uSunMVP;\n" +
+    "uniform mat4 uDepthMVP;\n" +
     "out vec2 vUV;\n" +
     "void main() {\n" +
-    "  gl_Position = uSunMVP * vec4(aPos, 1.0);\n" +
+    "  gl_Position = uDepthMVP * vec4(aPos, 1.0);\n" +
     "  vUV = aUV;\n" +
     "}";
   const DEPTH_FS =
@@ -259,7 +323,15 @@ export function createThreeRenderer(): any {
     uShadowMap: { value: null as THREE.Texture | null },
     uShadowStrength: { value: 0 },
     uShadowTexel: { value: new Float32Array(2) },
+    // Stage B.2 point-light shadows (POINT_SHADOWS programs only).
+    uPLMap: { value: null as THREE.Texture | null },
+    uPLCount: { value: 0 },
+    uPLStrength: { value: 0 },
   };
+
+  // The depth-pass materials' shared view-projection — the sun pass copies
+  // uSunMVP into it; the point-light pass writes each cube face's matrix.
+  const depthMVP = { value: new THREE.Matrix4() };
 
   const camera = new THREE.Camera(); // dummy — uMVP is computed manually
   const scene = new THREE.Scene();
@@ -276,6 +348,7 @@ export function createThreeRenderer(): any {
       uniforms: { ...U, uTex: { value: tex } },
     });
     if (cfg.shadows > 0) m.defines.SHADOWS = 1;
+    if (cfg.pointShadows > 0) m.defines.POINT_SHADOWS = 1;
     m.glslVersion = THREE.GLSL3; // three emits #version first (its defines precede raw sources)
     m.blending = THREE.CustomBlending;
     m.blendEquation = THREE.AddEquation;
@@ -503,7 +576,7 @@ export function createThreeRenderer(): any {
     mapH = 0,
     heights: any = null,
     mapDiag = 0;
-  let cfg: any = { tilt: 50, bloom: 0, dof: 0, fog: null, lights: false, ambient: 0.45, shadows: 0 };
+  let cfg: any = { tilt: 50, bloom: 0, dof: 0, fog: null, lights: false, ambient: 0.45, shadows: 0, pointShadows: 0 };
   let mapDisposables: Array<{ dispose(): void }> = [];
 
   function hAt(tx: number, ty: number): number {
@@ -601,19 +674,20 @@ export function createThreeRenderer(): any {
       ambient: c.ambient == null ? 0.45 : Math.min(2, Math.max(0, Number(c.ambient))),
       // Stage B: shadows === true → default strength; number → 0..1 strength.
       shadows: c.shadows === true ? 0.5 : Math.min(1, Math.max(0, Number(c.shadows) || 0)),
+      // Stage B.2: point-light shadows — true → full occlusion, number → 0..1.
+      pointShadows: c.pointShadows === true ? 1 : Math.min(1, Math.max(0, Number(c.pointShadows) || 0)),
     };
-    // Toggle the SHADOWS compile variant on the long-lived sprite-pool
+    // Toggle the shadow compile variants on the long-lived sprite-pool
     // materials (terrain/overhead materials are rebuilt below and pick the
-    // define up in sceneMaterial()).
+    // defines up in sceneMaterial()).
     for (const p of spritePool) {
-      const has = !!p.mat.defines.SHADOWS;
-      if (cfg.shadows > 0 && !has) {
-        p.mat.defines.SHADOWS = 1;
-        p.mat.needsUpdate = true;
-      } else if (cfg.shadows <= 0 && has) {
-        delete p.mat.defines.SHADOWS;
-        p.mat.needsUpdate = true;
+      let dirty = false;
+      for (const [def, on] of [["SHADOWS", cfg.shadows > 0], ["POINT_SHADOWS", cfg.pointShadows > 0]] as const) {
+        const has = !!p.mat.defines[def];
+        if (on && !has) { p.mat.defines[def] = 1; dirty = true; }
+        else if (!on && has) { delete p.mat.defines[def]; dirty = true; }
       }
+      if (dirty) p.mat.needsUpdate = true;
     }
     if (cfg.shadows > 0) fitSunCamera(map, c.sun);
 
@@ -665,6 +739,8 @@ export function createThreeRenderer(): any {
         }
       }
       const mesh = batchMesh(verts, ch.tex);
+      // XZ bounds for the point-shadow pass's per-light cull.
+      mesh.userData.rect = { x0: ch.x, z0: ch.y, x1: ch.x + ch.w, z1: ch.y + ch.h };
       terrainGroup.add(mesh);
       mapDisposables.push(mesh.geometry, mesh.material as THREE.Material, ch.tex);
     }
@@ -692,6 +768,7 @@ export function createThreeRenderer(): any {
         continue;
       }
       const mesh = batchMesh(verts, ch.tex);
+      mesh.userData.rect = { x0: ch.x, z0: ch.y, x1: ch.x + ch.w, z1: ch.y + ch.h };
       overheadGroup.add(mesh);
       mapDisposables.push(mesh.geometry, mesh.material as THREE.Material, ch.tex);
     }
@@ -773,7 +850,7 @@ export function createThreeRenderer(): any {
       dm = new THREE.RawShaderMaterial({
         vertexShader: DEPTH_VS,
         fragmentShader: DEPTH_FS,
-        uniforms: { uSunMVP: U.uSunMVP, uTex: (mesh.material as any).uniforms.uTex },
+        uniforms: { uDepthMVP: depthMVP, uTex: (mesh.material as any).uniforms.uTex },
       });
       dm.glslVersion = THREE.GLSL3;
       dm.blending = THREE.NoBlending;
@@ -785,26 +862,130 @@ export function createThreeRenderer(): any {
     return dm;
   }
 
-  // Render the sun depth map: every visible world mesh, drawn with its depth
-  // material. Material swap-and-restore keeps a single scene graph (no
-  // parallel shadow scene to keep in sync).
-  function renderSunDepth(r: THREE.WebGLRenderer) {
-    ensureShadowRT();
+  // Swap every visible world mesh to its depth material, run fn, restore.
+  // Material swap-and-restore keeps a single scene graph (no parallel shadow
+  // scene to keep in sync).
+  function withDepthMaterials(fn: (swapped: THREE.Mesh[]) => void) {
     const swapped: Array<[THREE.Mesh, THREE.Material | THREE.Material[]]> = [];
+    const meshes: THREE.Mesh[] = [];
     for (const group of [terrainGroup, spriteGroup, overheadGroup]) {
       for (const child of group.children) {
         const mesh = child as THREE.Mesh;
         if (!mesh.visible) continue;
         swapped.push([mesh, mesh.material]);
+        meshes.push(mesh);
         mesh.material = depthMatFor(mesh);
       }
     }
-    r.setRenderTarget(shadowRT);
-    r.clear(true, true, false);
-    r.render(scene, camera);
+    fn(meshes);
     for (const [mesh, mat] of swapped) mesh.material = mat;
+  }
+
+  // Render the sun depth map.
+  function renderSunDepth(r: THREE.WebGLRenderer) {
+    ensureShadowRT();
+    depthMVP.value.copy(U.uSunMVP.value);
+    withDepthMaterials(() => {
+      r.setRenderTarget(shadowRT);
+      r.clear(true, true, false);
+      r.render(scene, camera);
+    });
     U.uShadowMap.value = shadowRT!.depthTexture;
     U.uShadowStrength.value = cfg.shadows;
+  }
+
+  // ------------------------ point-light shadows (Stage B.2) ------------------------
+  let plRT: THREE.WebGLRenderTarget | null = null;
+
+  function ensurePLRT() {
+    if (plRT) return;
+    plRT = new THREE.WebGLRenderTarget(PL_W, PL_H, {
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      wrapS: THREE.ClampToEdgeWrapping,
+      wrapT: THREE.ClampToEdgeWrapping,
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
+      colorSpace: THREE.NoColorSpace,
+      depthBuffer: true,
+      stencilBuffer: false,
+      generateMipmaps: false,
+    });
+    const dt = new THREE.DepthTexture(PL_W, PL_H);
+    dt.format = THREE.DepthFormat;
+    dt.type = THREE.UnsignedIntType;
+    plRT.depthTexture = dt;
+  }
+
+  // Cube-face axes [right, up, forward] — the SCENE_FS plVis() lookup is the
+  // analytic mirror of these; change one and you must change both.
+  const PL_FACES: Array<[number[], number[], number[]]> = [
+    [[0, 0, -1], [0, 1, 0], [1, 0, 0]], // +X
+    [[0, 0, 1], [0, 1, 0], [-1, 0, 0]], // -X
+    [[1, 0, 0], [0, 0, 1], [0, 1, 0]], // +Y
+    [[1, 0, 0], [0, 0, -1], [0, -1, 0]], // -Y
+    [[1, 0, 0], [0, 1, 0], [0, 0, 1]], // +Z
+    [[-1, 0, 0], [0, 1, 0], [0, 0, -1]], // -Z
+  ];
+
+  function faceView(R: number[], Uv: number[], F: number[], px: number, py: number, pz: number) {
+    return [
+      R[0], Uv[0], -F[0], 0,
+      R[1], Uv[1], -F[1], 0,
+      R[2], Uv[2], -F[2], 0,
+      -(R[0] * px + R[1] * py + R[2] * pz),
+      -(Uv[0] * px + Uv[1] * py + Uv[2] * pz),
+      F[0] * px + F[1] * py + F[2] * pz,
+      1,
+    ];
+  }
+
+  // Render the first `count` lights' omnidirectional depth into the shared
+  // atlas: per light, 6 cube-face passes into their viewport tiles; meshes
+  // outside the light's range are hidden for its passes (cheap XZ cull).
+  function renderPointDepth(r: THREE.WebGLRenderer, count: number) {
+    withDepthMaterials((meshes) => {
+      // NOTE: three only applies a target's .viewport inside setRenderTarget,
+      // so every viewport change below re-calls it (same target, cheap).
+      plRT!.viewport.set(0, 0, PL_W, PL_H);
+      r.setRenderTarget(plRT);
+      r.clear(true, true, false);
+      const hidden: THREE.Mesh[] = [];
+      for (let i = 0; i < count; i++) {
+        const lx = lightPos[i * 4],
+          ly = lightPos[i * 4 + 1],
+          lz = lightPos[i * 4 + 2];
+        const range = Math.max(lightPos[i * 4 + 3], PL_NEAR * 2);
+        for (const mesh of meshes) {
+          const ud = mesh.userData;
+          let out = false;
+          if (ud.rect) {
+            const dx = Math.max(ud.rect.x0 - lx, 0, lx - ud.rect.x1);
+            const dz = Math.max(ud.rect.z0 - lz, 0, lz - ud.rect.z1);
+            out = Math.hypot(dx, dz) > range + TILE;
+          } else if (ud.bound) {
+            out = Math.hypot(ud.bound[0] - lx, ud.bound[1] - lz) - ud.bound[2] > range + TILE;
+          }
+          if (out) {
+            mesh.visible = false;
+            hidden.push(mesh);
+          }
+        }
+        const proj = perspective(Math.PI / 2, 1, PL_NEAR, range);
+        for (let f = 0; f < 6; f++) {
+          const [R, Uv, F] = PL_FACES[f];
+          depthMVP.value.fromArray(mul(proj, faceView(R, Uv, F, lx, ly, lz)));
+          plRT!.viewport.set((f % 3) * PL_FACE, (i * 2 + (f < 3 ? 0 : 1)) * PL_FACE, PL_FACE, PL_FACE);
+          r.setRenderTarget(plRT); // re-applies the viewport
+          r.render(scene, camera);
+        }
+        for (const m of hidden) m.visible = true;
+        hidden.length = 0;
+      }
+      plRT!.viewport.set(0, 0, PL_W, PL_H);
+    });
+    U.uPLMap.value = plRT!.depthTexture;
+    U.uPLStrength.value = cfg.pointShadows;
   }
 
   // ---------------------------- sprites ----------------------------
@@ -881,7 +1062,13 @@ export function createThreeRenderer(): any {
     }
     // Ambient is always the base light level; point-light events (already gated
     // by the host's "Point lights" toggle) add on top of it.
-    const lights = (cfg.lights && extra.lights) || [];
+    let lights = (cfg.lights && extra.lights) || [];
+    if (cfg.pointShadows > 0 && lights.length > 1) {
+      // Shadow casters are the first MAX_PLS entries — sort by distance to the
+      // camera target so the closest lights are the ones that cast.
+      const d2 = (L: any) => ((L.rx + 0.5) * TILE - tX) ** 2 + ((L.ry + 0.5) * TILE - tZ) ** 2;
+      lights = lights.slice().sort((a: any, b: any) => d2(a) - d2(b));
+    }
     const nLights = Math.min(lights.length, MAX_LIGHTS);
     for (let i = 0; i < nLights; i++) {
       const L = lights[i];
@@ -915,12 +1102,22 @@ export function createThreeRenderer(): any {
       ]);
       p.buf.needsUpdate = true;
       p.mat.uniforms.uTex.value = texFor(s.canvas);
+      p.mesh.userData.bound = [x0 + sw / 2, z, Math.max(sw, sh)]; // XZ cull circle
       p.mesh.visible = true;
     }
     for (let i = sprites.length; i < spritePool.length; i++) spritePool[i].mesh.visible = false;
 
     // ---- sun depth pass (only when this map casts shadows) ----
     if (cfg.shadows > 0) renderSunDepth(r);
+
+    // ---- point-light depth pass (map.hd2d.pointShadows) ----
+    const plCount = cfg.pointShadows > 0 ? Math.min(nLights, MAX_PLS) : 0;
+    U.uPLCount.value = plCount;
+    if (cfg.pointShadows > 0) {
+      ensurePLRT();
+      U.uPLMap.value = plRT!.depthTexture; // bound even at 0 casters (sampler is active)
+      if (plCount > 0) renderPointDepth(r, plCount);
+    }
 
     // ---- scene pass (direct to canvas unless a post effect needs a target) ----
     const post = cfg.bloom > 0 || cfg.dof > 0;
