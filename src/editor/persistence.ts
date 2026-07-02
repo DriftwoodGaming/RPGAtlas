@@ -16,13 +16,15 @@ import * as host from "../../js/editor/host.js";
 import { Assets, RA, t, editorState as S, editorHooks } from "./editor-state";
 import { $, h } from "./dom";
 import { modal } from "./modals";
+import { flashStatus } from "./map-editor/status";
+import { hdMarkDirty } from "./map-editor/hd-preview";
 
   let saveTimer: any = null;
   export function touch() {
     $("save-ind").textContent = "● " + t("unsaved");
     clearTimeout(saveTimer);
     saveTimer = setTimeout(saveNow, 700);
-    editorHooks.hdMarkDirty(); // keep the HD-2D preview in sync with edits
+    hdMarkDirty(); // keep the HD-2D preview in sync with edits
   }
   export function saveNow() {
     try {
@@ -45,14 +47,14 @@ import { modal } from "./modals";
     try {
       if (saveAs || !currentProjectPath) {
         const path = await host.saveProjectToFile(S.proj); // native Save dialog
-        if (!path) { editorHooks.flashStatus("Saved locally — file save cancelled"); return; }
+        if (!path) { flashStatus("Saved locally — file save cancelled"); return; }
         currentProjectPath = path;
       } else {
         await host.saveProjectToPath(currentProjectPath, S.proj); // silent overwrite
       }
-      editorHooks.flashStatus("Project saved to " + baseName(currentProjectPath));
+      flashStatus("Project saved to " + baseName(currentProjectPath));
     } catch (e: any) {
-      editorHooks.flashStatus("Save failed: " + e.message);
+      flashStatus("Save failed: " + e.message);
     }
   }
   export async function exportProject() {
@@ -60,11 +62,11 @@ import { modal } from "./modals";
     try {
       const result = await exportProjectFile(S.proj);
       if (result && result.cancelled) {
-        editorHooks.flashStatus("Project export cancelled");
+        flashStatus("Project export cancelled");
       } else if (result && result.method === "picker") {
-        editorHooks.flashStatus("Project exported to " + result.fileName);
+        flashStatus("Project exported to " + result.fileName);
       } else if (result) {
-        editorHooks.flashStatus("Project export downloaded as " + result.fileName);
+        flashStatus("Project export downloaded as " + result.fileName);
       }
     } catch (e: any) {
       alert("Project export failed: " + ((e && e.message) || e));
@@ -84,7 +86,7 @@ import { modal } from "./modals";
           try {
             await writeWindowsExecutable(S.proj, Assets);
             close();
-            editorHooks.flashStatus("Windows game executable exported");
+            flashStatus("Windows game executable exported");
           } catch (e: any) {
             alert("Game export failed: " + e.message);
           }
@@ -93,7 +95,7 @@ import { modal } from "./modals";
           try {
             await writeStandaloneHtml(S.proj, Assets);
             close();
-            editorHooks.flashStatus("Standalone HTML game exported");
+            flashStatus("Standalone HTML game exported");
           } catch (e: any) {
             alert("Game export failed: " + e.message);
           }

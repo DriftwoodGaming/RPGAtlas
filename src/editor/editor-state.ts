@@ -138,10 +138,6 @@ export interface EditorHooks {
   quickSign: (cell: any) => void;                          // quick-event builders (Package 2)
   quickChest: (cell: any) => void;                         // quick-event builders (Package 2)
   walkCommands: (list: any[], cb: (c: any) => void) => void; // command definitions (Package 2)
-  // temporary slots while the map-editor sections are still inside editor.js;
-  // the map-editor extraction switches callers to direct imports and drops these:
-  flashStatus: (msg: string) => void;
-  hdMarkDirty: () => void;
 }
 
 export const editorHooks = {} as EditorHooks;

@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
 const editorSource = fs.readFileSync("src/editor/editor.js", "utf8");
+const mapRenderSource = fs.readFileSync("src/editor/map-editor/map-render.ts", "utf8");
 const indexSource = fs.readFileSync("index.html", "utf8");
 
 assert.match(
@@ -19,13 +20,13 @@ assert.match(
 );
 
 assert.match(
-  editorSource,
+  mapRenderSource,
   /if \(S\.mode !== "pass" && S\.mode !== "height"\) \{/,
   "editor draws event pins outside Event mode",
 );
 
 assert.match(
-  editorSource,
+  mapRenderSource,
   /const interactiveEvents = S\.mode === "event" \|\| S\.mode === "start";/,
   "event editing states still get the stronger interactive marker treatment",
 );
