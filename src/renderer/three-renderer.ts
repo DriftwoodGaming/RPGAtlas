@@ -67,6 +67,28 @@ export function createThreeRenderer(): any {
     "uniform vec4 uFog;\n" + // rgb + on/off
     "uniform vec2 uFogRange;\n" + // near, far (view distance px)
     "out vec4 outColor;\n" +
+    // Stage B: sun shadow mapping. Compiled ONLY when the material carries the
+    // SHADOWS define (map.hd2d.shadows) — without it the preprocessor strips
+    // all of this and the program is identical to the Stage A parity shader.
+    "#ifdef SHADOWS\n" +
+    "uniform sampler2D uShadowMap;\n" +
+    "uniform mat4 uSunMVP;\n" +
+    "uniform float uShadowStrength;\n" +
+    "uniform vec2 uShadowTexel;\n" +
+    "float shadowVis() {\n" + // 3x3 PCF, 1 = fully lit
+    "  vec4 sc = uSunMVP * vec4(vWorld, 1.0);\n" +
+    "  vec3 p = sc.xyz / sc.w * 0.5 + 0.5;\n" +
+    "  if (p.x < 0.0 || p.x > 1.0 || p.y < 0.0 || p.y > 1.0 || p.z > 1.0) return 1.0;\n" +
+    "  float vis = 0.0;\n" +
+    "  for (int dy = -1; dy <= 1; dy++) {\n" +
+    "    for (int dx = -1; dx <= 1; dx++) {\n" +
+    "      float d = texture(uShadowMap, p.xy + vec2(float(dx), float(dy)) * uShadowTexel).r;\n" +
+    "      vis += (p.z - 0.0018) <= d ? 1.0 : 0.0;\n" +
+    "    }\n" +
+    "  }\n" +
+    "  return vis / 9.0;\n" +
+    "}\n" +
+    "#endif\n" +
     "void main() {\n" +
     "  vec4 c = texture(uTex, vUV);\n" +
     "  if (c.a < 0.25) discard;\n" +
@@ -80,12 +102,37 @@ export function createThreeRenderer(): any {
     "    }\n" +
     "    rgb *= lit;\n" +
     "  }\n" +
+    "#ifdef SHADOWS\n" +
+    "  rgb *= 1.0 - uShadowStrength * (1.0 - shadowVis());\n" +
+    "#endif\n" +
     "  if (uFog.a > 0.0) {\n" +
     "    float f = clamp((distance(vWorld, uEye) - uFogRange.x) / (uFogRange.y - uFogRange.x), 0.0, 1.0);\n" +
     "    rgb = mix(rgb, uFog.rgb * c.a, f);\n" +
     "  }\n" +
     "  outColor = vec4(rgb, c.a);\n" +
     "}";
+  // Sun-depth pass (Stage B): world geometry rasterized from the sun's
+  // orthographic view; alpha-tested like the scene pass so sprite cutouts and
+  // tile transparency cast correct silhouettes.
+  const DEPTH_VS =
+    "layout(location=0) in vec3 aPos;\n" +
+    "layout(location=1) in vec2 aUV;\n" +
+    "uniform mat4 uSunMVP;\n" +
+    "out vec2 vUV;\n" +
+    "void main() {\n" +
+    "  gl_Position = uSunMVP * vec4(aPos, 1.0);\n" +
+    "  vUV = aUV;\n" +
+    "}";
+  const DEPTH_FS =
+    "precision mediump float;\n" +
+    "in vec2 vUV;\n" +
+    "uniform sampler2D uTex;\n" +
+    "out vec4 outColor;\n" +
+    "void main() {\n" +
+    "  if (texture(uTex, vUV).a < 0.25) discard;\n" +
+    "  outColor = vec4(1.0);\n" +
+    "}";
+
   // Fullscreen triangle: same three clip-space vertices the classic
   // gl_VertexID trick produced — (-1,-1) (3,-1) (-1,3).
   const POST_VS =
@@ -176,6 +223,14 @@ export function createThreeRenderer(): any {
     const v = parseInt(String(s || "").replace("#", ""), 16) || 0;
     return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
   }
+  function ortho(l: number, r: number, b: number, t: number, n: number, f: number) {
+    return [
+      2 / (r - l), 0, 0, 0,
+      0, 2 / (t - b), 0, 0,
+      0, 0, -2 / (f - n), 0,
+      -(r + l) / (r - l), -(t + b) / (t - b), -(f + n) / (f - n), 1,
+    ];
+  }
 
   // ---------------------------- GPU state ----------------------------
   let cv: HTMLCanvasElement | null = null;
@@ -199,6 +254,11 @@ export function createThreeRenderer(): any {
     uLightCol: { value: lightCol },
     uFog: { value: new Float32Array(4) },
     uFogRange: { value: new Float32Array([1, 2]) },
+    // Stage B sun shadows (only uploaded to programs compiled with SHADOWS).
+    uSunMVP: { value: new THREE.Matrix4() },
+    uShadowMap: { value: null as THREE.Texture | null },
+    uShadowStrength: { value: 0 },
+    uShadowTexel: { value: new Float32Array(2) },
   };
 
   const camera = new THREE.Camera(); // dummy — uMVP is computed manually
@@ -215,6 +275,7 @@ export function createThreeRenderer(): any {
       fragmentShader: SCENE_FS,
       uniforms: { ...U, uTex: { value: tex } },
     });
+    if (cfg.shadows > 0) m.defines.SHADOWS = 1;
     m.glslVersion = THREE.GLSL3; // three emits #version first (its defines precede raw sources)
     m.blending = THREE.CustomBlending;
     m.blendEquation = THREE.AddEquation;
@@ -442,7 +503,7 @@ export function createThreeRenderer(): any {
     mapH = 0,
     heights: any = null,
     mapDiag = 0;
-  let cfg: any = { tilt: 50, bloom: 0, dof: 0, fog: null, lights: false, ambient: 0.45 };
+  let cfg: any = { tilt: 50, bloom: 0, dof: 0, fog: null, lights: false, ambient: 0.45, shadows: 0 };
   let mapDisposables: Array<{ dispose(): void }> = [];
 
   function hAt(tx: number, ty: number): number {
@@ -510,6 +571,13 @@ export function createThreeRenderer(): any {
     lastMapArgs = [lowerBuf, upperBuf, map];
     for (const d of mapDisposables) d.dispose();
     mapDisposables = [];
+    // Depth-pass companions of the per-map meshes go with them (sprite-pool
+    // meshes are persistent and keep theirs).
+    for (const group of [terrainGroup, overheadGroup]) {
+      for (const child of group.children) {
+        (child.userData.depthMat as THREE.Material | undefined)?.dispose();
+      }
+    }
     terrainGroup.clear();
     overheadGroup.clear();
     mapW = map.width;
@@ -531,7 +599,23 @@ export function createThreeRenderer(): any {
         : null,
       lights: c.lights !== false,
       ambient: c.ambient == null ? 0.45 : Math.min(2, Math.max(0, Number(c.ambient))),
+      // Stage B: shadows === true → default strength; number → 0..1 strength.
+      shadows: c.shadows === true ? 0.5 : Math.min(1, Math.max(0, Number(c.shadows) || 0)),
     };
+    // Toggle the SHADOWS compile variant on the long-lived sprite-pool
+    // materials (terrain/overhead materials are rebuilt below and pick the
+    // define up in sceneMaterial()).
+    for (const p of spritePool) {
+      const has = !!p.mat.defines.SHADOWS;
+      if (cfg.shadows > 0 && !has) {
+        p.mat.defines.SHADOWS = 1;
+        p.mat.needsUpdate = true;
+      } else if (cfg.shadows <= 0 && has) {
+        delete p.mat.defines.SHADOWS;
+        p.mat.needsUpdate = true;
+      }
+    }
+    if (cfg.shadows > 0) fitSunCamera(map, c.sun);
 
     const lower = chopBuffer(lowerBuf),
       upper = chopBuffer(upperBuf);
@@ -611,6 +695,116 @@ export function createThreeRenderer(): any {
       overheadGroup.add(mesh);
       mapDisposables.push(mesh.geometry, mesh.material as THREE.Material, ch.tex);
     }
+  }
+
+  // ---------------------------- sun shadows (Stage B) ----------------------------
+  const SHADOW_RES = 2048;
+  let shadowRT: THREE.WebGLRenderTarget | null = null;
+
+  function ensureShadowRT() {
+    if (shadowRT) return;
+    shadowRT = new THREE.WebGLRenderTarget(SHADOW_RES, SHADOW_RES, {
+      minFilter: THREE.NearestFilter,
+      magFilter: THREE.NearestFilter,
+      wrapS: THREE.ClampToEdgeWrapping,
+      wrapT: THREE.ClampToEdgeWrapping,
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
+      colorSpace: THREE.NoColorSpace,
+      depthBuffer: true,
+      stencilBuffer: false,
+      generateMipmaps: false,
+    });
+    const dt = new THREE.DepthTexture(SHADOW_RES, SHADOW_RES);
+    dt.format = THREE.DepthFormat;
+    dt.type = THREE.UnsignedIntType;
+    shadowRT.depthTexture = dt;
+    U.uShadowTexel.value[0] = 1 / SHADOW_RES;
+    U.uShadowTexel.value[1] = 1 / SHADOW_RES;
+  }
+
+  // Fit an orthographic sun frustum to the whole map's AABB (heights included,
+  // plus headroom for sprites standing on the tallest tile). The sun is fixed
+  // per map — azimuth: compass degrees clockwise from north (default 35, sun
+  // in the NE sky, shadows falling toward the camera); elevation: degrees
+  // above the horizon (default 55). Stage D's day/night cycle will animate
+  // these; for now they are static so golden captures stay deterministic.
+  function fitSunCamera(map: any, sun: any) {
+    const azDeg = sun && Number.isFinite(Number(sun.azimuth)) ? Number(sun.azimuth) : 35;
+    const elDeg = Math.min(85, Math.max(15, sun && Number.isFinite(Number(sun.elevation)) ? Number(sun.elevation) : 55));
+    const az = (azDeg * Math.PI) / 180,
+      el = (elDeg * Math.PI) / 180;
+    // Unit vector toward the sun; world x = east, z = south, so north is -z.
+    const dir = [Math.sin(az) * Math.cos(el), Math.sin(el), -Math.cos(az) * Math.cos(el)];
+    let maxH = 0;
+    if (map.heights) for (const v of map.heights) if (v > maxH) maxH = Number(v);
+    const wpx = map.width * TILE,
+      hpx = map.height * TILE,
+      top = (maxH + 2) * TILE;
+    const cx = wpx / 2,
+      cy = top / 2,
+      cz = hpx / 2;
+    const dist = Math.hypot(wpx, top, hpx);
+    const view = lookAt(cx + dir[0] * dist, cy + dir[1] * dist, cz + dir[2] * dist, cx, cy, cz);
+    let l = Infinity, r = -Infinity, b = Infinity, t = -Infinity, zMin = Infinity, zMax = -Infinity;
+    for (const x of [0, wpx]) {
+      for (const y of [0, top]) {
+        for (const z of [0, hpx]) {
+          const vx = view[0] * x + view[4] * y + view[8] * z + view[12];
+          const vy = view[1] * x + view[5] * y + view[9] * z + view[13];
+          const vz = view[2] * x + view[6] * y + view[10] * z + view[14];
+          l = Math.min(l, vx); r = Math.max(r, vx);
+          b = Math.min(b, vy); t = Math.max(t, vy);
+          zMin = Math.min(zMin, vz); zMax = Math.max(zMax, vz);
+        }
+      }
+    }
+    const pad = TILE; // keep casters on the map edge inside the frustum
+    U.uSunMVP.value.fromArray(
+      mul(ortho(l - pad, r + pad, b - pad, t + pad, -zMax - pad, -zMin + pad), view),
+    );
+  }
+
+  // Depth-pass material mirroring a scene material's texture (same uniform
+  // OBJECT, so per-frame sprite texture swaps propagate automatically).
+  function depthMatFor(mesh: THREE.Mesh): THREE.RawShaderMaterial {
+    let dm = mesh.userData.depthMat as THREE.RawShaderMaterial | undefined;
+    if (!dm) {
+      dm = new THREE.RawShaderMaterial({
+        vertexShader: DEPTH_VS,
+        fragmentShader: DEPTH_FS,
+        uniforms: { uSunMVP: U.uSunMVP, uTex: (mesh.material as any).uniforms.uTex },
+      });
+      dm.glslVersion = THREE.GLSL3;
+      dm.blending = THREE.NoBlending;
+      dm.depthTest = true;
+      dm.depthWrite = true;
+      dm.side = THREE.DoubleSide;
+      mesh.userData.depthMat = dm;
+    }
+    return dm;
+  }
+
+  // Render the sun depth map: every visible world mesh, drawn with its depth
+  // material. Material swap-and-restore keeps a single scene graph (no
+  // parallel shadow scene to keep in sync).
+  function renderSunDepth(r: THREE.WebGLRenderer) {
+    ensureShadowRT();
+    const swapped: Array<[THREE.Mesh, THREE.Material | THREE.Material[]]> = [];
+    for (const group of [terrainGroup, spriteGroup, overheadGroup]) {
+      for (const child of group.children) {
+        const mesh = child as THREE.Mesh;
+        if (!mesh.visible) continue;
+        swapped.push([mesh, mesh.material]);
+        mesh.material = depthMatFor(mesh);
+      }
+    }
+    r.setRenderTarget(shadowRT);
+    r.clear(true, true, false);
+    r.render(scene, camera);
+    for (const [mesh, mat] of swapped) mesh.material = mat;
+    U.uShadowMap.value = shadowRT!.depthTexture;
+    U.uShadowStrength.value = cfg.shadows;
   }
 
   // ---------------------------- sprites ----------------------------
@@ -724,6 +918,9 @@ export function createThreeRenderer(): any {
       p.mesh.visible = true;
     }
     for (let i = sprites.length; i < spritePool.length; i++) spritePool[i].mesh.visible = false;
+
+    // ---- sun depth pass (only when this map casts shadows) ----
+    if (cfg.shadows > 0) renderSunDepth(r);
 
     // ---- scene pass (direct to canvas unless a post effect needs a target) ----
     const post = cfg.bloom > 0 || cfg.dof > 0;

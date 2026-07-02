@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 1, 2026",
+    title: "Real-time sun shadows for HD-2D maps",
+    summary:
+      "HD-2D maps can now cast real-time shadows: terrain blocks, overhead tiles, and characters all cast and receive soft sun shadows — the first new rendering capability unlocked by the three.js port.",
+    items: [
+      "New 'Sun shadows' toggle in Map Properties (HD-2D section); off by default, so existing maps look exactly as before.",
+      "Characters cast soft moving drop shadows; buildings, cliffs, and trees shade the ground realistically (3×3 PCF soft edges).",
+      "Advanced: map.hd2d.shadows accepts a 0–1 strength, and map.hd2d.sun { azimuth, elevation } aims the sun (defaults: NE sky, 55° up) — groundwork for the upcoming day/night cycle.",
+      "Shadows render in the editor's live HD-2D preview too.",
+    ],
+  },
+  {
+    date: "July 1, 2026",
     title: "Atlas HD Phase 2 begins — HD-2D renderer now runs on three.js",
     summary:
       "The HD-2D renderer has been ported to the three.js engine with strict visual parity — games look identical (golden-image tests prove it), and the new scene graph is the foundation for upcoming real-time shadows, water, weather, and richer lighting.",

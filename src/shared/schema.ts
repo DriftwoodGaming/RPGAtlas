@@ -626,11 +626,19 @@ export interface MapLight {
 export interface Hd2dConfig {
   enabled?: boolean;
   tilt?: number;
-  bloom?: boolean;
-  dof?: boolean;
-  fog?: boolean;
+  /** true = default strength, or an explicit 0..1 strength. */
+  bloom?: boolean | number;
+  dof?: boolean | number;
+  fog?: boolean | { color?: string; near?: number; far?: number };
   lights?: boolean;
   ambient?: number;
+  /** Sun shadow maps (three.js renderer, Phase 2 Stage B):
+   *  true = default strength, or an explicit 0..1 shadow darkness. */
+  shadows?: boolean | number;
+  /** Sun position for the shadow pass; Stage D's day/night cycle animates it.
+   *  azimuth: compass degrees clockwise from north (default 35);
+   *  elevation: degrees above the horizon (default 55, clamped 15–85). */
+  sun?: { azimuth?: number; elevation?: number };
 }
 
 export interface GameMap {

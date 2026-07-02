@@ -1,6 +1,13 @@
 # Phase 2 Spec — Rendering Core v2 (three.js HD-2D)
 
-**Status:** IN PROGRESS — Stage A (parity port) under way.
+**Status:** IN PROGRESS — Stage A COMPLETE (2026-07-01, merged to main): parity port green
+against unchanged baselines, classic fallback pinned to the same goldens, post-stack golden
+added. Stage B.1 COMPLETE (2026-07-01): directional sun shadow maps (3×3 PCF) behind
+`map.hd2d.shadows` (+ optional `hd2d.sun {azimuth, elevation}`), terrain/sprites/overhead
+cast & receive via a `#define SHADOWS` compile variant — OFF compiles byte-identical to the
+parity shaders, so every Stage A golden still passes; editor Map Properties toggle; new
+three-captured golden `hd2d-shadows-meridian-village.png`. Remaining: B.2 point-light
+shadows, C water/materials, D post stack & day/night, E particles/terrain/perf.
 **Branch:** `phase-2-renderer` (off `main` at tag `phase-1`)
 **Architect & Stage A implementation:** Claude Fable 5 (roadmap assignment: "three.js scene
 architecture + parity skeleton"). Stages B–E cores: Claude Opus (high).
