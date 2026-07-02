@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 2, 2026",
+    title: "Living water and auto materials for HD-2D maps",
+    summary:
+      "Ponds, rivers, and swamps come alive with animated waves, real reflections, and shore foam — and a new auto-material system gives tiles light-reactive relief, specular sparkle, and windows that glow at night.",
+    items: [
+      "New 'Water surface' toggle in Map Properties: water/deep-water/swamp tiles get an animated surface with planar reflections (characters and terrain mirror in the water), refraction ripples, sun glints, and foam along shores.",
+      "New 'Auto materials' toggle: normal maps are auto-generated from every tile's artwork so point lights reveal relief; wet/icy/crystal tiles get specular highlights; windows, torches, lava, and crystals glow as ambient light drops (they ignite automatically with the upcoming day/night cycle).",
+      "Both effects are per-map, off by default, and cost nothing when disabled.",
+      "Works in the editor's live HD-2D preview and in exported games.",
+    ],
+  },
+  {
+    date: "July 2, 2026",
     title: "Point lights now cast shadows on HD-2D maps",
     summary:
       "Torches, lamps, and any other point light can now cast real-time shadows: walls block lamplight and characters throw flickering shadows away from nearby flames.",

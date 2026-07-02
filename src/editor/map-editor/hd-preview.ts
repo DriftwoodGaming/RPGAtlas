@@ -21,6 +21,7 @@ import { refreshToolbar } from "../workspace";
   // HD-2D renderer using the map's own hd2d settings. It rebuilds after
   // edits (debounced — touch() marks it dirty) and re-renders every frame.
   let hdPanel: any = null, hdCanvas: any = null, hdDirty = true, hdMapId = 0, hdLastBuild = 0, hdRAF = 0;
+  let hdT = 0; // preview animation tick (water waves etc.); advances per rendered frame
   let hdCamX = 0, hdCamY = 0; // camera look-at center, world px
   let hdKick: any = null;          // one-shot refresh timer (covers rAF pauses in hidden windows)
   let hdOpening = false;
@@ -111,6 +112,7 @@ import { refreshToolbar } from "../workspace";
       tilt: hd2d.tilt != null ? Number(hd2d.tilt) : 50,
       focus: { rx: (camX + w / 2) / TILE, ry: (camY + hgt / 2) / TILE },
       tilePassable: effectivePass,
+      t: hdT++,
     });
   }
   function hdFrame() {

@@ -51,6 +51,23 @@ export function createThreeRenderer(): any {
   const PL_NEAR = 6; // px — inside this radius nothing occludes
   const PL_W = PL_FACE * 3,
     PL_H = PL_FACE * 2 * MAX_PLS;
+  // Stage C: water & materials. The water surface floats WATER_Y px above the
+  // tile's ground so it never z-fights the prerendered water pixels below
+  // (which stay visible as the refraction source). The mirror plane for
+  // planar reflections is the height-0 surface — elevated water still gets
+  // waves/foam/specular, just not a geometrically exact reflection.
+  const WATER_Y = 3;
+  const T = ((window as any).Assets && (window as any).Assets.T) || {};
+  const WATER_TILES = new Set([T.water, T.deepwater, T.swamp].filter((v: any) => v != null));
+  // Auto-material tile classes: specular (wet/ice/crystal floors) and
+  // emissive (glowing at night — scaled by pixel luminance so window panes
+  // glow but their frames don't).
+  const SPEC_TILES = new Set(
+    [T.water, T.deepwater, T.swamp, T.ice, T.crystalfloor, T.crystals].filter((v: any) => v != null),
+  );
+  const EMIS_TILES = new Set(
+    [T.window, T.lava, T.lava_rock, T.crystals, T.crystalfloor, T.torch].filter((v: any) => v != null),
+  );
 
   // ---------------------------- shaders ----------------------------
   // Verbatim from js/renderer.js (see header) — do not "modernize" these while
@@ -148,12 +165,32 @@ export function createThreeRenderer(): any {
     "  return vis * 0.25;\n" +
     "}\n" +
     "#endif\n" +
+    // Stage C: CLIPY discards below-waterline fragments during the planar-
+    // reflection pass (compiled only when the map has water); MATERIALS adds
+    // the auto-generated normal/specular/emissive maps (terrain chunks only).
+    "#ifdef CLIPY\n" +
+    "uniform vec2 uClipY;\n" + // x: pass active, y: waterline
+    "#endif\n" +
+    "#ifdef MATERIALS\n" +
+    "uniform sampler2D uMatMap;\n" + // rgb: world-space normal, a: specular
+    "uniform sampler2D uEmisMap;\n" + // rgb: emissive color
+    "uniform float uGlow;\n" + // emissive engagement (rises as ambient falls)
+    "#endif\n" +
     "void main() {\n" +
+    "#ifdef CLIPY\n" +
+    "  if (uClipY.x > 0.5 && vWorld.y < uClipY.y) discard;\n" +
+    "#endif\n" +
     "  vec4 c = texture(uTex, vUV);\n" +
     "  if (c.a < 0.25) discard;\n" +
     "  vec3 rgb = c.rgb * vTint;\n" +
     "  if (uAmbient >= 0.0) {\n" +
     "    vec3 lit = vec3(uAmbient);\n" +
+    "#ifdef MATERIALS\n" +
+    "    vec3 N = normalize(texture(uMatMap, vUV).rgb * 2.0 - 1.0);\n" +
+    "    float specM = texture(uMatMap, vUV).a;\n" +
+    "    vec3 V = normalize(uEye - vWorld);\n" +
+    "    vec3 spec = vec3(0.0);\n" +
+    "#endif\n" +
     "    for (int i = 0; i < " + MAX_LIGHTS + "; i++) {\n" +
     "      if (i >= uLightCount) break;\n" +
     "      float f = max(0.0, 1.0 - distance(vWorld, uLightPos[i].xyz) / uLightPos[i].w);\n" +
@@ -161,9 +198,19 @@ export function createThreeRenderer(): any {
     "#ifdef POINT_SHADOWS\n" +
     "      if (i < uPLCount && f > 0.0) f *= sqrt(mix(1.0, plVis(i), uPLStrength));\n" +
     "#endif\n" +
+    "#ifdef MATERIALS\n" +
+    "      vec3 Ld = normalize(uLightPos[i].xyz - vWorld);\n" +
+    // relief shading: darken faces turned away, keep the flat look's base
+    "      f *= sqrt(mix(0.45, 1.0, clamp(dot(N, Ld), 0.0, 1.0)));\n" +
+    "      spec += uLightCol[i] * (f * specM * pow(max(dot(N, normalize(Ld + V)), 0.0), 48.0));\n" +
+    "#endif\n" +
     "      lit += f * f * uLightCol[i];\n" +
     "    }\n" +
     "    rgb *= lit;\n" +
+    "#ifdef MATERIALS\n" +
+    "    rgb += spec * 0.9;\n" +
+    "    rgb += texture(uEmisMap, vUV).rgb * uGlow;\n" +
+    "#endif\n" +
     "  }\n" +
     "#ifdef SHADOWS\n" +
     "  rgb *= 1.0 - uShadowStrength * (1.0 - shadowVis());\n" +
@@ -195,6 +242,73 @@ export function createThreeRenderer(): any {
     "void main() {\n" +
     "  if (texture(uTex, vUV).a < 0.25) discard;\n" +
     "  outColor = vec4(1.0);\n" +
+    "}";
+
+  // Water surface (Stage C): refraction = the chunk's own prerendered pixels
+  // sampled with wave-distorted UVs; reflection = the mirrored-camera pass
+  // sampled at (distorted) screen position; foam rides the aTint attribute
+  // (1 at shore corners, 0 inside). Lighting/fog mirror the scene shader so
+  // water sits in the same ambiance. Everything animates off uTime, which the
+  // hosts derive from the engine tick — no internal clocks (determinism).
+  const WATER_VS =
+    "layout(location=0) in vec3 aPos;\n" +
+    "layout(location=1) in vec2 aUV;\n" +
+    "layout(location=2) in float aTint;\n" +
+    "uniform mat4 uMVP;\n" +
+    "out vec2 vUV; out float vFoam; out vec3 vWorld;\n" +
+    "void main() {\n" +
+    "  gl_Position = uMVP * vec4(aPos, 1.0);\n" +
+    "  vUV = aUV; vFoam = aTint; vWorld = aPos;\n" +
+    "}";
+  const WATER_FS =
+    "precision mediump float;\n" +
+    "in vec2 vUV; in float vFoam; in vec3 vWorld;\n" +
+    "uniform sampler2D uTex;\n" + // this chunk's prerender (refraction source)
+    "uniform sampler2D uReflect;\n" + // mirrored scene, screen-space
+    "uniform vec2 uScreen;\n" +
+    "uniform vec2 uChunkPx;\n" +
+    "uniform float uTime;\n" +
+    "uniform vec3 uEye;\n" +
+    "uniform vec3 uSunDir;\n" +
+    "uniform float uAmbient;\n" +
+    "uniform int uLightCount;\n" +
+    "uniform vec4 uLightPos[" + MAX_LIGHTS + "];\n" +
+    "uniform vec3 uLightCol[" + MAX_LIGHTS + "];\n" +
+    "uniform vec4 uFog;\n" +
+    "uniform vec2 uFogRange;\n" +
+    "out vec4 outColor;\n" +
+    "vec3 waveN(vec2 p, float t) {\n" + // analytic normal of 3 summed sines
+    "  vec2 d = vec2(cos(p.x * 0.130 + t * 1.7) * 0.286, 0.0);\n" +
+    "  d.y += cos(p.y * 0.087 + t * 1.3) * 0.226;\n" +
+    "  vec2 dir = vec2(0.6, 0.8);\n" +
+    "  d += dir * (cos(dot(p, dir) * 0.176 + t * 2.3) * 0.246);\n" +
+    "  return normalize(vec3(-d.x, 1.0, -d.y));\n" +
+    "}\n" +
+    "void main() {\n" +
+    "  vec3 n = waveN(vWorld.xz, uTime);\n" +
+    "  vec3 refr = texture(uTex, vUV + n.xz * 5.0 / uChunkPx).rgb;\n" +
+    "  vec2 suv = clamp(gl_FragCoord.xy / uScreen + n.xz * 0.02, 0.001, 0.999);\n" +
+    "  vec3 refl = texture(uReflect, suv).rgb;\n" +
+    "  vec3 V = normalize(uEye - vWorld);\n" +
+    "  float fres = 0.08 + 0.55 * pow(1.0 - max(dot(V, n), 0.0), 3.0);\n" +
+    "  vec3 rgb = mix(refr * vec3(0.78, 0.92, 1.0), refl, fres);\n" +
+    "  rgb += vec3(0.5) * pow(max(dot(n, normalize(V + uSunDir)), 0.0), 90.0);\n" + // sun glint
+    "  float foam = vFoam * (0.55 + 0.45 * sin(uTime * 2.0 + (vWorld.x + vWorld.z) * 0.21));\n" +
+    "  rgb = mix(rgb, vec3(0.92, 0.96, 1.0), clamp(foam, 0.0, 1.0) * 0.7);\n" +
+    "  if (uAmbient >= 0.0) {\n" + // same forward lighting as the scene pass
+    "    vec3 lit = vec3(uAmbient);\n" +
+    "    for (int i = 0; i < " + MAX_LIGHTS + "; i++) {\n" +
+    "      if (i >= uLightCount) break;\n" +
+    "      float f = max(0.0, 1.0 - distance(vWorld, uLightPos[i].xyz) / uLightPos[i].w);\n" +
+    "      lit += f * f * uLightCol[i];\n" +
+    "    }\n" +
+    "    rgb *= lit;\n" +
+    "  }\n" +
+    "  if (uFog.a > 0.0) {\n" +
+    "    float f = clamp((distance(vWorld, uEye) - uFogRange.x) / (uFogRange.y - uFogRange.x), 0.0, 1.0);\n" +
+    "    rgb = mix(rgb, uFog.rgb, f);\n" +
+    "  }\n" +
+    "  outColor = vec4(rgb, 1.0);\n" +
     "}";
 
   // Fullscreen triangle: same three clip-space vertices the classic
@@ -327,6 +441,13 @@ export function createThreeRenderer(): any {
     uPLMap: { value: null as THREE.Texture | null },
     uPLCount: { value: 0 },
     uPLStrength: { value: 0 },
+    // Stage C water & materials.
+    uClipY: { value: new Float32Array(2) }, // reflection-pass waterline clip
+    uReflect: { value: null as THREE.Texture | null },
+    uScreen: { value: new Float32Array([1, 1]) },
+    uTime: { value: 0 },
+    uSunDir: { value: new Float32Array([0.33, 0.82, -0.47]) }, // az 35°, el 55°
+    uGlow: { value: 0 }, // emissive engagement, rises as ambient falls
   };
 
   // The depth-pass materials' shared view-projection — the sun pass copies
@@ -336,19 +457,27 @@ export function createThreeRenderer(): any {
   const camera = new THREE.Camera(); // dummy — uMVP is computed manually
   const scene = new THREE.Scene();
   const terrainGroup = new THREE.Group();
+  const waterGroup = new THREE.Group(); // after terrain, before sprites: sprites blend over water
   const spriteGroup = new THREE.Group();
   const overheadGroup = new THREE.Group();
-  scene.add(terrainGroup, spriteGroup, overheadGroup);
-  [scene, terrainGroup, spriteGroup, overheadGroup].forEach((o) => (o.matrixAutoUpdate = false));
+  scene.add(terrainGroup, waterGroup, spriteGroup, overheadGroup);
+  [scene, terrainGroup, waterGroup, spriteGroup, overheadGroup].forEach((o) => (o.matrixAutoUpdate = false));
 
-  function sceneMaterial(tex: THREE.Texture): THREE.RawShaderMaterial {
+  function sceneMaterial(
+    tex: THREE.Texture,
+    aux?: { mat: THREE.Texture; emis: THREE.Texture } | null,
+  ): THREE.RawShaderMaterial {
     const m = new THREE.RawShaderMaterial({
       vertexShader: SCENE_VS,
       fragmentShader: SCENE_FS,
-      uniforms: { ...U, uTex: { value: tex } },
+      uniforms: aux
+        ? { ...U, uTex: { value: tex }, uMatMap: { value: aux.mat }, uEmisMap: { value: aux.emis } }
+        : { ...U, uTex: { value: tex } },
     });
     if (cfg.shadows > 0) m.defines.SHADOWS = 1;
     if (cfg.pointShadows > 0) m.defines.POINT_SHADOWS = 1;
+    if (cfg.water > 0) m.defines.CLIPY = 1;
+    if (aux) m.defines.MATERIALS = 1;
     m.glslVersion = THREE.GLSL3; // three emits #version first (its defines precede raw sources)
     m.blending = THREE.CustomBlending;
     m.blendEquation = THREE.AddEquation;
@@ -359,6 +488,29 @@ export function createThreeRenderer(): any {
     m.depthFunc = THREE.LessEqualDepth;
     m.transparent = false; // stay in the opaque list — order is scene order
     m.side = THREE.DoubleSide; // classic never enabled CULL_FACE
+    return m;
+  }
+
+  function waterMaterial(tex: THREE.Texture, chunkW: number, chunkH: number): THREE.RawShaderMaterial {
+    const m = new THREE.RawShaderMaterial({
+      vertexShader: WATER_VS,
+      fragmentShader: WATER_FS,
+      uniforms: {
+        ...U,
+        uTex: { value: tex },
+        uChunkPx: { value: new Float32Array([chunkW, chunkH]) },
+      },
+    });
+    m.glslVersion = THREE.GLSL3;
+    m.blending = THREE.CustomBlending;
+    m.blendEquation = THREE.AddEquation;
+    m.blendSrc = THREE.OneFactor;
+    m.blendDst = THREE.OneMinusSrcAlphaFactor;
+    m.depthTest = true;
+    m.depthWrite = true;
+    m.depthFunc = THREE.LessEqualDepth;
+    m.transparent = false;
+    m.side = THREE.DoubleSide;
     return m;
   }
 
@@ -408,9 +560,13 @@ export function createThreeRenderer(): any {
     return { geo, buf };
   }
 
-  function batchMesh(verts: number[], tex: THREE.Texture): THREE.Mesh {
+  function batchMesh(
+    verts: number[],
+    tex: THREE.Texture,
+    aux?: { mat: THREE.Texture; emis: THREE.Texture } | null,
+  ): THREE.Mesh {
     const { geo } = batchGeometry(verts);
-    const mesh = new THREE.Mesh(geo, sceneMaterial(tex));
+    const mesh = new THREE.Mesh(geo, sceneMaterial(tex, aux));
     mesh.frustumCulled = false;
     mesh.matrixAutoUpdate = false;
     return mesh;
@@ -613,7 +769,14 @@ export function createThreeRenderer(): any {
   // canvas (not a reused scratch): three uploads canvas textures lazily at
   // first render, so the source canvas must stay alive and untouched.
   function chopBuffer(buf: HTMLCanvasElement) {
-    const list: Array<{ tex: THREE.CanvasTexture; x: number; y: number; w: number; h: number }> = [];
+    const list: Array<{
+      tex: THREE.CanvasTexture;
+      canvas: HTMLCanvasElement;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+    }> = [];
     for (let y = 0; y < buf.height; y += CHUNK) {
       for (let x = 0; x < buf.width; x += CHUNK) {
         const w = Math.min(CHUNK, buf.width - x),
@@ -622,10 +785,88 @@ export function createThreeRenderer(): any {
         piece.width = w;
         piece.height = h;
         piece.getContext("2d")!.drawImage(buf, x, y, w, h, 0, 0, w, h);
-        list.push({ tex: makeTexture(piece), x, y, w, h });
+        list.push({ tex: makeTexture(piece), canvas: piece, x, y, w, h });
       }
     }
     return list;
+  }
+
+  // ---------------------- auto materials (Stage C) ----------------------
+  // Normal map from a Sobel of the chunk's prerendered luminance (world-space,
+  // y up), specular strength in alpha from the tile class, plus an emissive
+  // color map (tile class, scaled by pixel luminance so bright panes glow and
+  // dark frames don't). Raw DataTextures — a canvas would premultiply the
+  // normal RGB by the spec alpha and corrupt it.
+  function buildAuxTextures(
+    ch: { canvas: HTMLCanvasElement; x: number; y: number; w: number; h: number },
+    map: any,
+  ): { mat: THREE.DataTexture; emis: THREE.DataTexture } {
+    const w = ch.w,
+      h = ch.h;
+    const img = ch.canvas.getContext("2d")!.getImageData(0, 0, w, h).data;
+    const lum = new Float32Array(w * h);
+    for (let i = 0; i < w * h; i++) {
+      lum[i] = (img[i * 4] * 0.299 + img[i * 4 + 1] * 0.587 + img[i * 4 + 2] * 0.114) / 255;
+    }
+    const mat = new Uint8Array(w * h * 4);
+    const emis = new Uint8Array(w * h * 4);
+    const S = 2.5; // relief strength
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        const gx = lum[y * w + Math.min(w - 1, x + 1)] - lum[y * w + Math.max(0, x - 1)];
+        const gy = lum[Math.min(h - 1, y + 1) * w + x] - lum[Math.max(0, y - 1) * w + x];
+        const nx = -gx * S,
+          nz = -gy * S;
+        const il = 1 / Math.hypot(nx, 1, nz);
+        mat[i * 4] = 128 + 127 * nx * il;
+        mat[i * 4 + 1] = 128 + 127 * il;
+        mat[i * 4 + 2] = 128 + 127 * nz * il;
+      }
+    }
+    // Per-tile classes from the lower layers (ground + decor + decor2).
+    const L = map.layers || {};
+    const tileAt = (layer: any, tx: number, ty: number) =>
+      layer ? layer[ty * map.width + tx] : 0;
+    const tx0 = ch.x / TILE,
+      ty0 = ch.y / TILE;
+    const tx1 = Math.min(map.width, (ch.x + ch.w) / TILE),
+      ty1 = Math.min(map.height, (ch.y + ch.h) / TILE);
+    for (let ty = ty0; ty < ty1; ty++) {
+      for (let tx = tx0; tx < tx1; tx++) {
+        const ids = [tileAt(L.ground, tx, ty), tileAt(L.decor, tx, ty), tileAt(L.decor2, tx, ty)];
+        const isSpec = ids.some((id) => SPEC_TILES.has(id));
+        const isEmis = ids.some((id) => EMIS_TILES.has(id));
+        if (!isSpec && !isEmis) continue;
+        const px0 = tx * TILE - ch.x,
+          py0 = ty * TILE - ch.y;
+        for (let py = py0; py < py0 + TILE; py++) {
+          for (let px = px0; px < px0 + TILE; px++) {
+            const i = py * w + px;
+            if (isSpec) mat[i * 4 + 3] = 230;
+            if (isEmis) {
+              const e = Math.pow(lum[i], 1.5);
+              emis[i * 4] = img[i * 4] * e;
+              emis[i * 4 + 1] = img[i * 4 + 1] * e;
+              emis[i * 4 + 2] = img[i * 4 + 2] * e;
+              emis[i * 4 + 3] = 255;
+            }
+          }
+        }
+      }
+    }
+    const mk = (data: Uint8Array) => {
+      const t = new THREE.DataTexture(data, w, h, THREE.RGBAFormat, THREE.UnsignedByteType);
+      t.magFilter = THREE.NearestFilter;
+      t.minFilter = THREE.NearestFilter;
+      t.wrapS = THREE.ClampToEdgeWrapping;
+      t.wrapT = THREE.ClampToEdgeWrapping;
+      t.generateMipmaps = false;
+      t.colorSpace = THREE.NoColorSpace;
+      t.needsUpdate = true;
+      return t;
+    };
+    return { mat: mk(mat), emis: mk(emis) };
   }
 
   // UVs of one tile inside its chunk.
@@ -652,6 +893,7 @@ export function createThreeRenderer(): any {
       }
     }
     terrainGroup.clear();
+    waterGroup.clear();
     overheadGroup.clear();
     mapW = map.width;
     mapH = map.height;
@@ -676,13 +918,32 @@ export function createThreeRenderer(): any {
       shadows: c.shadows === true ? 0.5 : Math.min(1, Math.max(0, Number(c.shadows) || 0)),
       // Stage B.2: point-light shadows — true → full occlusion, number → 0..1.
       pointShadows: c.pointShadows === true ? 1 : Math.min(1, Math.max(0, Number(c.pointShadows) || 0)),
+      // Stage C: animated water surface + auto-generated material maps.
+      water: c.water === true ? 1 : Math.min(1, Math.max(0, Number(c.water) || 0)),
+      materials: !!c.materials,
     };
+    // Sun direction (used by water glints now, the day/night cycle later) —
+    // available even when sun shadows are off.
+    {
+      const sun = c.sun || {};
+      const azDeg = Number.isFinite(Number(sun.azimuth)) ? Number(sun.azimuth) : 35;
+      const elDeg = Math.min(85, Math.max(15, Number.isFinite(Number(sun.elevation)) ? Number(sun.elevation) : 55));
+      const az = (azDeg * Math.PI) / 180,
+        el = (elDeg * Math.PI) / 180;
+      U.uSunDir.value[0] = Math.sin(az) * Math.cos(el);
+      U.uSunDir.value[1] = Math.sin(el);
+      U.uSunDir.value[2] = -Math.cos(az) * Math.cos(el);
+    }
     // Toggle the shadow compile variants on the long-lived sprite-pool
     // materials (terrain/overhead materials are rebuilt below and pick the
     // defines up in sceneMaterial()).
     for (const p of spritePool) {
       let dirty = false;
-      for (const [def, on] of [["SHADOWS", cfg.shadows > 0], ["POINT_SHADOWS", cfg.pointShadows > 0]] as const) {
+      for (const [def, on] of [
+        ["SHADOWS", cfg.shadows > 0],
+        ["POINT_SHADOWS", cfg.pointShadows > 0],
+        ["CLIPY", cfg.water > 0],
+      ] as const) {
         const has = !!p.mat.defines[def];
         if (on && !has) { p.mat.defines[def] = 1; dirty = true; }
         else if (!on && has) { delete p.mat.defines[def]; dirty = true; }
@@ -738,11 +999,48 @@ export function createThreeRenderer(): any {
           }
         }
       }
-      const mesh = batchMesh(verts, ch.tex);
+      const aux = cfg.materials ? buildAuxTextures(ch, map) : null;
+      const mesh = batchMesh(verts, ch.tex, aux);
       // XZ bounds for the point-shadow pass's per-light cull.
       mesh.userData.rect = { x0: ch.x, z0: ch.y, x1: ch.x + ch.w, z1: ch.y + ch.h };
       terrainGroup.add(mesh);
       mapDisposables.push(mesh.geometry, mesh.material as THREE.Material, ch.tex);
+      if (aux) mapDisposables.push(aux.mat, aux.emis);
+
+      // ---- animated water surface for this chunk (Stage C) ----
+      if (cfg.water > 0) {
+        const ground = map.layers && map.layers.ground;
+        const isWater = (tx: number, ty: number) =>
+          !!ground && tx >= 0 && ty >= 0 && tx < mapW && ty < mapH &&
+          WATER_TILES.has(ground[ty * mapW + tx]);
+        // foam at corners that touch any non-water tile
+        const foamAt = (cx: number, cy: number) =>
+          isWater(cx - 1, cy - 1) && isWater(cx, cy - 1) && isWater(cx - 1, cy) && isWater(cx, cy) ? 0 : 1;
+        const wverts: number[] = [];
+        for (let ty = ty0; ty < ty1; ty++) {
+          for (let tx = tx0; tx < tx1; tx++) {
+            if (!isWater(tx, ty)) continue;
+            const uv = tileUV(ch, tx, ty);
+            const y = hAt(tx, ty) * TILE + WATER_Y;
+            const x0 = tx * TILE, x1 = x0 + TILE, z0 = ty * TILE, z1 = z0 + TILE;
+            const fA = foamAt(tx, ty), fB = foamAt(tx + 1, ty),
+              fC = foamAt(tx, ty + 1), fD = foamAt(tx + 1, ty + 1);
+            wverts.push(
+              x0, y, z0, uv.u0, uv.v0, fA, x1, y, z0, uv.u1, uv.v0, fB, x0, y, z1, uv.u0, uv.v1, fC,
+              x0, y, z1, uv.u0, uv.v1, fC, x1, y, z0, uv.u1, uv.v0, fB, x1, y, z1, uv.u1, uv.v1, fD,
+            );
+          }
+        }
+        if (wverts.length) {
+          const { geo } = batchGeometry(wverts);
+          const wmesh = new THREE.Mesh(geo, waterMaterial(ch.tex, ch.w, ch.h));
+          wmesh.frustumCulled = false;
+          wmesh.matrixAutoUpdate = false;
+          waterGroup.add(wmesh);
+          // ch.tex is disposed with the terrain mesh above — only our own here.
+          mapDisposables.push(wmesh.geometry, wmesh.material as THREE.Material);
+        }
+      }
     }
 
     // overhead tiles float one tile unit above their ground height
@@ -988,6 +1286,55 @@ export function createThreeRenderer(): any {
     U.uPLStrength.value = cfg.pointShadows;
   }
 
+  // ---------------------- planar reflection (Stage C) ----------------------
+  let reflectRT: THREE.WebGLRenderTarget | null = null;
+  let reflectW = 0,
+    reflectH = 0;
+
+  function ensureReflectRT(w: number, h: number) {
+    const hw = Math.max(1, w >> 1),
+      hh = Math.max(1, h >> 1);
+    if (reflectRT && reflectW === hw && reflectH === hh) return;
+    reflectRT?.dispose();
+    reflectRT = new THREE.WebGLRenderTarget(hw, hh, {
+      minFilter: THREE.LinearFilter,
+      magFilter: THREE.LinearFilter,
+      wrapS: THREE.ClampToEdgeWrapping,
+      wrapT: THREE.ClampToEdgeWrapping,
+      format: THREE.RGBAFormat,
+      type: THREE.UnsignedByteType,
+      colorSpace: THREE.NoColorSpace,
+      depthBuffer: true,
+      stencilBuffer: false,
+      generateMipmaps: false,
+    });
+    reflectW = hw;
+    reflectH = hh;
+  }
+
+  // Mirror about the water plane: y' = 2*WATER_Y - y (column-major).
+  const MIRROR_Y = [1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 2 * WATER_Y, 0, 1];
+
+  // Render the mirrored scene for the water's reflection lookup: same
+  // projection/viewport, camera reflected about the water plane, everything
+  // below the waterline discarded (CLIPY) so the submerged ground doesn't
+  // shadow the reflections, and the water surface itself hidden.
+  function renderReflection(r: THREE.WebGLRenderer, mvp: number[], clear: number[]) {
+    ensureReflectRT(sizedW, sizedH);
+    waterGroup.visible = false;
+    U.uClipY.value[0] = 1;
+    U.uClipY.value[1] = WATER_Y + 0.5;
+    U.uMVP.value.fromArray(mul(mvp, MIRROR_Y));
+    r.setRenderTarget(reflectRT);
+    r.setClearColor(new THREE.Color(clear[0], clear[1], clear[2]), 1);
+    r.clear(true, true, false);
+    r.render(scene, camera);
+    U.uMVP.value.fromArray(mvp);
+    U.uClipY.value[0] = 0;
+    waterGroup.visible = true;
+    U.uReflect.value = reflectRT!.texture;
+  }
+
   // ---------------------------- sprites ----------------------------
   // Assets.charFrameCanvas caches its canvases, so keying textures off the
   // canvas object means each frame is uploaded once and reused.
@@ -1083,6 +1430,13 @@ export function createThreeRenderer(): any {
     }
     U.uAmbient.value = ambient;
     U.uLightCount.value = nLights;
+    // Stage C: tick-driven time (determinism: hosts pass the engine tick),
+    // emissive glow engagement (full at pitch black, zero at default ambient),
+    // and the water shader's screen size for its reflection lookup.
+    U.uTime.value = (Number(extra.t) || 0) / 60;
+    U.uGlow.value = Math.min(1, Math.max(0, (0.45 - ambient) / 0.45));
+    U.uScreen.value[0] = w;
+    U.uScreen.value[1] = h;
 
     // far-to-near so soft alpha edges blend correctly between sprites
     sprites.sort((a, b) => a.ry - b.ry);
@@ -1119,6 +1473,13 @@ export function createThreeRenderer(): any {
       if (plCount > 0) renderPointDepth(r, plCount);
     }
 
+    // The GL canvas is the bottom layer (the engine's 2D #gamecanvas sits on
+    // top, transparent over the map), so clear opaque.
+    const clear = cfg.fog ? cfg.fog.color : [16 / 255, 16 / 255, 24 / 255];
+
+    // ---- planar-reflection pass (only when this map has water) ----
+    if (cfg.water > 0 && waterGroup.children.length) renderReflection(r, mvp, clear);
+
     // ---- scene pass (direct to canvas unless a post effect needs a target) ----
     const post = cfg.bloom > 0 || cfg.dof > 0;
     if (post) {
@@ -1127,9 +1488,6 @@ export function createThreeRenderer(): any {
     } else {
       r.setRenderTarget(null);
     }
-    // The GL canvas is the bottom layer (the engine's 2D #gamecanvas sits on
-    // top, transparent over the map), so clear opaque.
-    const clear = cfg.fog ? cfg.fog.color : [16 / 255, 16 / 255, 24 / 255];
     r.setClearColor(new THREE.Color(clear[0], clear[1], clear[2]), 1);
     r.clear(true, true, false);
     r.render(scene, camera);

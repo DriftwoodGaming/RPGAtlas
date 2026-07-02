@@ -118,6 +118,7 @@ export async function render(): Promise<void> {
       ambient,
       tilt,
       tilePassable,
+      t: ctx.globalT, // renderer animations (water waves etc.) key off the engine tick
     });
   }
 

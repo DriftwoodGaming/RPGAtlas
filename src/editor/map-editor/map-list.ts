@@ -652,6 +652,8 @@ import { walkCommands } from "../event-editor/command-list";
       ambient: hd.ambient == null ? 0.45 : Number(hd.ambient),
       shadows: !!hd.shadows,
       pointShadows: !!hd.pointShadows,
+      water: !!hd.water,
+      materials: !!hd.materials,
     };
     const fogColorIn = h("input", { type: "color", value: hdW.fogColor,
       oninput(e: any) { hdW.fogColor = e.target.value; } });
@@ -668,6 +670,8 @@ import { walkCommands } from "../event-editor/command-list";
       row(field("Point lights", chk(hdW, "lights")), field("Ambient light (0–2)", nIn(hdW, "ambient", 0, 2, 0.05))),
       row(field("Sun shadows (terrain & characters cast)", chk(hdW, "shadows")),
         field("Point-light shadows (4 nearest lights cast)", chk(hdW, "pointShadows"))),
+      row(field("Water surface (waves, reflections, foam)", chk(hdW, "water")),
+        field("Auto materials (relief, specular, night glow)", chk(hdW, "materials"))),
       h("div", { class: "dim" }, "Paint elevation in Height mode (H). Lights are events named “light #rrggbb radius”. Preview with Game ▸ HD-2D Preview."),
     );
     modal({
@@ -686,6 +690,8 @@ import { walkCommands } from "../event-editor/command-list";
             lights: hdW.lights, ambient: hdW.ambient,
             shadows: hdW.shadows,
             pointShadows: hdW.pointShadows,
+            water: hdW.water,
+            materials: hdW.materials,
           };
           if (work.width !== m.width || work.height !== m.height) resizeMap(m, work.width, work.height);
           close(); rebuildMapList(); renderMap(); touch();

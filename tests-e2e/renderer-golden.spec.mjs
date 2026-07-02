@@ -120,6 +120,31 @@ test.describe("renderer golden images", () => {
     await expect(page.locator("#stage")).toHaveScreenshot("hd2d-pointshadows-meridian-village.png");
   });
 
+  // Stage C: animated water surface (village pond) — waves/reflection/foam
+  // all derive from the frozen engine tick, so the frame is reproducible.
+  test("HD-2D water surface (map.hd2d.water) renders a stable frame", async ({ page }) => {
+    await bootToStableMap(page, 1, (project) => {
+      project.maps[0].hd2d = { enabled: true, tilt: 50, water: true, lights: true, ambient: 0.45 };
+      return project;
+    });
+    await expect(page.locator("#stage")).toHaveScreenshot("hd2d-water-meridian-village.png");
+  });
+
+  // Stage C: auto materials — relief + specular from lights, emissive glow at
+  // low ambient (village windows). Lights injected near the pond and house A.
+  test("HD-2D auto materials (map.hd2d.materials) render a stable frame", async ({ page }) => {
+    await bootToStableMap(page, 1, (project) => {
+      const m = project.maps[0];
+      m.hd2d = { enabled: true, tilt: 50, materials: true, lights: true, ambient: 0.15 };
+      m.lights = [
+        { rx: 6, ry: 12, color: "#ffcc88", radius: 300 },
+        { rx: 18, ry: 6.5, color: "#ffb060", radius: 260 },
+      ];
+      return project;
+    });
+    await expect(page.locator("#stage")).toHaveScreenshot("hd2d-materials-meridian-village.png");
+  });
+
   test("classic 2D renderer (?hd2d=0 override) renders a stable frame", async ({ page }) => {
     await bootToStableMap(page, 0);
     await expect(page.locator("#stage")).toHaveScreenshot("classic2d-meridian-village.png");

@@ -16,7 +16,19 @@ the JS view matrices and an analytic GLSL lookup — no per-fragment matrix inde
 three-captured golden `hd2d-pointshadows-meridian-village.png` (injected lights + raised
 wall). Gotcha for future passes: three.js only applies a render target's `.viewport` inside
 `setRenderTarget()`, so per-tile viewport changes must re-call it.
-Remaining: C water/materials, D post stack & day/night, E particles/terrain/perf.
+Stage C COMPLETE (2026-07-02): `map.hd2d.water` — per-chunk water-surface meshes over
+water/deepwater/swamp ground tiles (WATER_Y=3px above ground), refraction = the chunk's own
+prerender with wave-distorted UVs, planar reflection = a half-res mirrored-camera pass
+(mirror about the height-0 plane; a `CLIPY` define discards below-waterline fragments so
+the submerged ground doesn't occlude reflections), analytic sine-sum normals, fresnel,
+sun glints, shore foam carried in the aTint attribute. `map.hd2d.materials` — a `MATERIALS`
+define (terrain chunks only) samples auto-generated DataTextures: Sobel-of-luminance
+world-space normals + tile-class specular in alpha (uMatMap) and luminance-scaled emissive
+(uEmisMap, engages as ambient drops — Stage D's night). All animation keys off `extra.t`
+(engine tick via render-glue / a frame counter in the editor preview) — determinism holds.
+New goldens: `hd2d-water-…` and `hd2d-materials-meridian-village.png`; the byte-identical-
+when-off discipline verified again (no existing golden rewritten).
+Remaining: D post stack & day/night, E particles/terrain/perf.
 **Branch:** `phase-2-renderer` (off `main` at tag `phase-1`)
 **Architect & Stage A implementation:** Claude Fable 5 (roadmap assignment: "three.js scene
 architecture + parity skeleton"). Stages B–E cores: Claude Opus (high).
