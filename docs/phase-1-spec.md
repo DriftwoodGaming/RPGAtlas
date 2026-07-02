@@ -1,6 +1,8 @@
 # Phase 1 Spec — The Great Refactor
 
-**Status:** In progress (started 2026-07-01)
+**Status:** COMPLETE (2026-07-01) — all exit criteria met; merged to main, tag `phase-1`.
+Both monoliths deleted; ~60 typed modules; behavior-frozen gates held throughout (one
+documented exception: the pre-existing export boot crash was fixed, see Stage A note).
 **Branch:** `phase-1-refactor` (off `phase-0-toolchain`)
 **Architect:** Claude Fable 5 · **Implementation:** Claude Opus (high) — Sonnet is excluded
 from this phase onward; former Sonnet fan-out work is consolidated into fewer, larger Opus
