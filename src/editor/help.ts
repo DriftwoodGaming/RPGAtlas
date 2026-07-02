@@ -9,7 +9,7 @@
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { PATCH_NOTES } from "../../js/patch-notes.js?v=10";
+import { PATCH_NOTES } from "../../js/patch-notes.js?v=11";
 import { editorI18n } from "./editor-state";
 import { $, h, field } from "./dom";
 import { modal } from "./modals";
@@ -145,7 +145,10 @@ export function openKeyboardShortcuts() {
   section("Tools  (Map or Height mode)", toolIds.map((id) => line(keys(aKey(id)), aLabel(id))));
   section("Layers  (Map mode)", layerIds.map((id) => line(keys(aKey(id)), aLabel(id))));
   section("Height mode", [line(keys("0–9"), "set the painted elevation value")]);
-  section("Edit & file", ["undo", "redo", "cut", "copy", "paste", "save"].map((id) => line(keys(aKey(id)), aLabel(id))));
+  section("Edit & file", [
+    ...["undo", "redo", "cut", "copy", "paste", "save"].map((id) => line(keys(aKey(id)), aLabel(id))),
+    h("li", { class: "dim" }, "Undo spans map painting, events, Map Properties, and Database edits — one history. Ctrl+Z / Ctrl+Y also work inside the Database and Map Properties dialogs (text boxes keep the browser's own text undo while typing)."),
+  ]);
   section("View", [
     line(keys("+", "−"), "zoom in / out  (Ctrl + wheel also zooms)"),
     line(keys(aKey("zoom1")), "zoom to 100%"),

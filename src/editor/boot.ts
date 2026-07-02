@@ -31,6 +31,7 @@ import {
 } from "./workspace";
 import { openKeyboardShortcuts } from "./help";
 import { dispatchKey, type KeyBinding } from "./keymap";
+import { activeEditScope } from "./edit-scope";
 import { initDockWorkspace } from "./dock/panels";
 import { initAutotileUI, renderAutotileBar, stepBrush } from "./map-editor/autotile-ui";
 import { syncAutotileRegistry } from "./autotile-store";
@@ -166,8 +167,23 @@ async function boot() {
   $("map-gen").addEventListener("click", openMapGenProps);
 
   document.addEventListener("keydown", (e: any) => {
+    if (modalRoot().children.length) {
+      // Unified undo (Stage F): Ctrl+Z / Ctrl+Y reach the shared history while
+      // a scoped dialog (Database, Map Properties) is open — except when the
+      // caret is in a text field, where the browser's native text undo wins.
+      if (activeEditScope() && (e.ctrlKey || e.metaKey) && !e.altKey &&
+          (e.code === "KeyZ" || e.code === "KeyY")) {
+        const el = e.target;
+        const textish = el.tagName === "TEXTAREA" || el.isContentEditable ||
+          (el.tagName === "INPUT" && !/^(checkbox|radio|range|color|button|file)$/.test(el.type));
+        if (!textish) {
+          e.preventDefault();
+          if (e.code === "KeyZ") undo(); else redo();
+        }
+      }
+      return;
+    }
     if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.tagName === "SELECT") return;
-    if (modalRoot().children.length) return;
     dispatchKey(EDITOR_KEYS, e);
   });
 

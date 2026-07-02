@@ -19,6 +19,7 @@ import { modal } from "./modals";
 import { flashStatus } from "./map-editor/status";
 import { viewportDirty } from "./map-editor/hd-viewport";
 import { worldDirty } from "./map-editor/world-view";
+import { noteEdit } from "./edit-scope";
 
 // The editor's project store over localStorage. The migrator runs the project
 // through RA.migrateProject then the load-boundary schema guard, so both
@@ -34,6 +35,7 @@ const projectRepo = new BrowserProjectRepository(
     saveTimer = setTimeout(saveNow, 700);
     viewportDirty(); // keep the live HD-2D viewport in sync with edits
     worldDirty();    // and the World View map-connection graph
+    noteEdit();      // unified undo: extend an active scoped-edit window (Stage F)
   }
   export function saveNow() {
     try {

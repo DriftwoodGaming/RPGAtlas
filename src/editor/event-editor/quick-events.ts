@@ -32,7 +32,7 @@ import { openLocationPicker } from "./location-picker";
   }
   function placeQuickEvent(cell: any, name: any, pages: any) {
     if (eventAt(cell.x, cell.y)) { flashStatus("That cell already has an event"); return null; }
-    pushUndo();
+    pushUndo("Quick event");
     const ev = DataDefaults.newEvent(RA.nextId(curMap().events), cell.x, cell.y, name);
     ev.pages = pages;
     curMap().events.push(ev);

@@ -90,6 +90,23 @@ Game-wide presentation and rules. This tab is worth a careful look:
 
 ---
 
+## Working with the lists
+
+Every list tab (Actors, Items, Skills, Enemies, …) shares the same toolkit:
+
+- **Search** — the box above the list filters by id or name as you type. Press **↑ / ↓** in the
+  search box to walk the (filtered) list without touching the mouse.
+- **Multi-select & bulk actions** — tick the checkbox on any rows to reveal the bulk bar:
+  **Bulk Edit** a shared numeric field (set / add / multiply), **Duplicate**, **Copy**, or
+  **Delete** the whole selection.
+- **Copy / Paste between projects** — Copy uses a clipboard that survives switching projects:
+  copy entries in one project, open another, and press **Paste**.
+- **Undo** — every Database change (typing, New/Delete, bulk edits, pastes) commits to the same
+  `Ctrl+Z` history as map painting, and `Ctrl+Z` / `Ctrl+Y` work right inside the dialog
+  (text boxes keep the browser's native text undo while you're typing in them).
+
+---
+
 ## A workflow that scales
 
 1. Sketch your **classes** and the **stats** that define your game's math.

@@ -15,6 +15,7 @@ import { heightsOf } from "./painting";
 import { setStatus, flashStatus } from "./status";
 import { viewportDirty } from "./hd-viewport";
 import { walkCommands } from "../event-editor/command-list";
+import { beginEdit, endEdit } from "../edit-scope";
 
   // ============================ map list ============================
   export function rebuildMapList() {
@@ -624,6 +625,17 @@ import { walkCommands } from "../event-editor/command-list";
 
   export function openMapProps() {
     const m = curMap();
+    // Unified undo (Stage F): the whole map object is the edit scope — OK
+    // applies name/notes/hd2d/resize in one burst ending in touch(), so the
+    // dialog's changes commit as a single "Map properties" undo entry.
+    beginEdit({
+      label: "Map properties",
+      get: () => m,
+      refresh() {
+        if (S.curMapId !== m.id) S.curMapId = m.id;
+        rebuildMapList(); renderMap();
+      },
+    });
     const tilesets = (S.proj.tilesets && S.proj.tilesets.length) ? S.proj.tilesets : [{ id: 1, name: "Default" }];
     const work = { name: m.name, width: m.width, height: m.height, music: m.music || "none", rate: m.encounters.rate, tilesetId: m.tilesetId || tilesets[0].id };
     const troopBox = h("div", { class: "minilist" });
@@ -704,6 +716,7 @@ import { walkCommands } from "../event-editor/command-list";
     modal({
       title: "Map Properties",
       content,
+      onClose: endEdit,
       buttons: [
         { label: "OK", primary: true, onClick(close: any) {
           m.name = work.name;

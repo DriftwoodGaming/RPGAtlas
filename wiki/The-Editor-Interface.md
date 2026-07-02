@@ -133,7 +133,7 @@ control over what stacks on what, or to use the Overhead layer for things the pl
 | `F5` | **Playtest** (save and run the game) |
 | `F6` | Focus the next workspace panel |
 | `Ctrl+P` | **Command Palette** — type a few letters of any editor command and press Enter to run it |
-| `Ctrl+Z` / `Ctrl+Y` | Undo / Redo (full-map history) |
+| `Ctrl+Z` / `Ctrl+Y` | Undo / Redo — **one history across everything**: map painting, events, Map Properties, and Database edits. Works inside the Database and Map Properties dialogs too (text boxes keep the browser's native text undo while you type). The Edit menu names the next step, e.g. *Undo — Database edit* |
 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | Cut / Copy / Paste |
 | **Shift+drag** | Select a tile region (all layers + shadows + heights) |
 | `Del` | Delete the selected event |

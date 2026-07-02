@@ -49,7 +49,7 @@ export function renderAutotileBar() {
       oncontextmenu(e: any) {
         e.preventDefault();
         confirmBox(`Delete autotile "${g.name}"? Painted cells will render blank.`, () => {
-          pushUndo();
+          pushUndo("Delete autotile");
           if (isAutotileId(S.selectedTile) && groupIdOf(S.selectedTile) === g.id) S.selectedTile = 1;
           deleteAutotile(S.proj, g.id);
           touch(); renderAutotileBar(); renderPalette(); renderMap(); setStatus();

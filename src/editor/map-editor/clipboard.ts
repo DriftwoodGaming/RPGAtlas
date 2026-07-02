@@ -25,7 +25,7 @@ import { setMode, refreshToolbar } from "../workspace";
       S.clipEvent = RA.clone(S.selectedEvent);
       S.clipTiles = null;
       if (cut) {
-        pushUndo();
+        pushUndo("Cut event");
         const m = curMap();
         m.events = m.events.filter((ev: any) => ev !== S.selectedEvent);
         S.selectedEvent = null;
@@ -52,7 +52,7 @@ import { setMode, refreshToolbar } from "../workspace";
     S.clipTiles = clip;
     S.clipEvent = null;
     if (cut) {
-      pushUndo();
+      pushUndo("Cut tiles");
       for (let y = r.y1; y <= r.y2; y++) {
         for (let x = r.x1; x <= r.x2; x++) {
           const i = y * m.width + x;
@@ -82,7 +82,7 @@ import { setMode, refreshToolbar } from "../workspace";
   }
   export function stampPaste(cell: any) {
     if (S.pasteMode === "tiles" && S.clipTiles) {
-      pushUndo();
+      pushUndo("Paste tiles");
       const m = curMap();
       for (let dy = 0; dy < S.clipTiles.h; dy++) {
         for (let dx = 0; dx < S.clipTiles.w; dx++) {
@@ -97,7 +97,7 @@ import { setMode, refreshToolbar } from "../workspace";
       touch(); renderMap();
     } else if (S.pasteMode === "event" && S.clipEvent) {
       if (eventAt(cell.x, cell.y)) { flashStatus("That cell already has an event"); return; }
-      pushUndo();
+      pushUndo("Paste event");
       const m = curMap();
       const ev = RA.clone(S.clipEvent);
       ev.id = RA.nextId(m.events);

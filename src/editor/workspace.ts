@@ -22,7 +22,7 @@ import {
   touch, saveNow, desktopSave, exportProject, openStandaloneExport,
 } from "./persistence";
 import { renderMap } from "./map-editor/map-render";
-import { undo, redo } from "./map-editor/history";
+import { undo, redo, undoTopLabel, redoTopLabel } from "./map-editor/history";
 import { canCopy, copySelection, startPaste, clearSelection } from "./map-editor/clipboard";
 import { setStatus, flashStatus } from "./map-editor/status";
 import { openMapProps } from "./map-editor/map-list";
@@ -57,6 +57,7 @@ export interface EditorCommand {
   tip?: string;
   enabled?: () => boolean;
   active?: () => boolean;
+  menuLabel?: () => string;   // dynamic display label (menus/palette/tooltips) — e.g. "Undo — Paint"
   run: () => void;
   labelKey?: string;          // set at registration (label/tip are re-localized on language change)
   tipKey?: string;
@@ -111,8 +112,13 @@ act("mapprops", { label: "Map Properties…", run: openMapProps });
 act("hdpreview", { label: "HD-2D Viewport", icon: "hd2d", key: "F2", tip: "Show the live HD-2D viewport panel (renders this map with its HD-2D settings; drag light gizmos)", active: () => isViewportVisible(), run: toggleViewport });
 act("worldview", { label: "World View", icon: "map", key: "F3", tip: "Show the World View — a bird's-eye map-connection graph (drag maps to arrange, drag arrows to re-link)", active: () => isWorldVisible(), run: toggleWorld });
 
-act("undo", { label: "Undo", icon: "undo", key: "Ctrl+Z", enabled: () => S.undoStack.length > 0, run: undo });
-act("redo", { label: "Redo", icon: "redo", key: "Ctrl+Y", enabled: () => S.redoStack.length > 0, run: redo });
+// Unified undo (Stage F): the menu/palette rows and toolbar tooltips name what
+// the next step applies ("Undo — Database edit"), read from the tagged stack.
+const withTop = (base: string, top: string) => t(base) + (top ? " — " + top : "");
+act("undo", { label: "Undo", icon: "undo", key: "Ctrl+Z", enabled: () => S.undoStack.length > 0,
+  menuLabel: () => withTop("Undo", undoTopLabel()), run: undo });
+act("redo", { label: "Redo", icon: "redo", key: "Ctrl+Y", enabled: () => S.redoStack.length > 0,
+  menuLabel: () => withTop("Redo", redoTopLabel()), run: redo });
 act("cut", { label: "Cut", icon: "cut", key: "Ctrl+X", tip: "Cut the selected area / event", enabled: canCopy, run: () => copySelection(true) });
 act("copy", { label: "Copy", icon: "copy", key: "Ctrl+C", tip: "Copy the selected area / event (Shift+drag selects tiles)", enabled: canCopy, run: () => copySelection(false) });
 act("paste", { label: "Paste", icon: "paste", key: "Ctrl+V", tip: "Paste — then click the map to place", enabled: () => !!(S.clipTiles || S.clipEvent), run: startPaste });
@@ -196,6 +202,7 @@ export function refreshToolbar() {
     if (!a.btn) continue;
     a.btn.classList.toggle("sel", !!(a.active && a.active()));
     a.btn.disabled = !!(a.enabled && !a.enabled());
+    if (a.menuLabel) a.btn.title = a.menuLabel() + (a.key ? "  (" + a.key + ")" : "");
   }
 }
 
@@ -232,7 +239,7 @@ export function commandEntries(): CommandEntry[] {
     const a = ACT[id];
     return {
       id,
-      label: actionLabel(a),
+      label: a.menuLabel ? a.menuLabel() : actionLabel(a),
       category: t(category[id] || "Other"),
       key: a.key,
       enabled: !(a.enabled && !a.enabled()),
@@ -261,7 +268,7 @@ function openMenuFor(menu: any, lab: any) {
       onclick() { if (dis) return; closeMenus(); a.run(); refreshToolbar(); },
     },
       h("span", { class: "mi-check" }, a.active && a.active() ? "✓" : ""),
-      h("span", { class: "mi-label" }, actionLabel(a)),
+      h("span", { class: "mi-label" }, a.menuLabel ? a.menuLabel() : actionLabel(a)),
       a.key ? h("span", { class: "mi-key" }, a.key) : null));
   }
   const r = lab.getBoundingClientRect();

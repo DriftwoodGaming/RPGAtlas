@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 2, 2026",
+    title: "Unified undo & UI polish",
+    summary:
+      "Undo now spans everything: map painting, event edits, Map Properties, and every Database change share one Ctrl+Z history, and the editor got a consistency pass — labeled undo steps, keyboard list navigation, visible focus rings, and a unified dark palette.",
+    items: [
+      "Database edits are undoable: typing, New/Delete/Duplicate, bulk edits, and pastes commit to the same history as map painting. Ctrl+Z / Ctrl+Y work inside the Database and Map Properties dialogs too (text boxes keep the browser's native text undo while you type).",
+      "Map Properties changes (name, size, HD-2D settings, notes) undo as a single step, including resizes.",
+      "The Edit menu, command palette, and toolbar tooltips now name the next step — e.g. \"Undo — Paint\", \"Redo — Database edit\".",
+      "Database lists: press ↑/↓ in the search box to walk the (filtered) list without touching the mouse.",
+      "UI polish: one shared dark-theme palette and type scale across every panel and dialog, visible gold focus rings when tabbing through controls, and thin themed scrollbars everywhere.",
+    ],
+  },
+  {
+    date: "July 2, 2026",
     title: "World View & database upgrades",
     summary:
       "A new bird's-eye World View draws your whole game as a map-connection graph parsed live from Transfer commands, and every Database list gains search, multi-select bulk editing, and cross-project copy/paste.",

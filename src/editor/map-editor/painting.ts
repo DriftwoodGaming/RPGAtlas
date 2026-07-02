@@ -167,7 +167,7 @@ import { isAutotileId } from "../../shared/autotile-registry";
   }
   export function deleteSelectedEvent() {
     if (!S.selectedEvent) return;
-    pushUndo();
+    pushUndo("Delete event");
     const m = curMap();
     m.events = m.events.filter((x: any) => x !== S.selectedEvent);
     S.selectedEvent = null;
@@ -216,7 +216,7 @@ import { isAutotileId } from "../../shared/autotile-registry";
     if (e.button === 2) {
       if (S.mode === "map" && S.tool === "shadow") { // right button erases shadows
         S.painting = true; S.shadowSet = false;
-        pushUndo();
+        pushUndo("Shadow edit");
         paintShadow(cell, quadFromMouse(e), false);
         return;
       }
@@ -239,7 +239,7 @@ import { isAutotileId } from "../../shared/autotile-registry";
       return;
     }
     if (S.mode === "pass") {
-      pushUndo();
+      pushUndo("Passability edit");
       const m = curMap();
       const cur = m.passOv[cell.y * m.width + cell.x] || 0;
       S.passVal = cur === 0 ? 2 : cur === 2 ? 1 : 0; // auto → force block → force pass → auto
@@ -248,7 +248,7 @@ import { isAutotileId } from "../../shared/autotile-registry";
       return;
     }
     if (S.mode === "height") {
-      pushUndo();
+      pushUndo("Height edit");
       S.painting = true;
       if (S.tool === "rect" || S.tool === "circle") { S.rectStart = cell; renderMap(); }
       else if (S.tool === "fill") { floodFillHeight(cell.x, cell.y, S.heightVal); touch(); renderMap(); }
@@ -271,7 +271,7 @@ import { isAutotileId } from "../../shared/autotile-registry";
       return;
     }
     S.painting = true;
-    pushUndo();
+    pushUndo("Paint");
     if (S.tool === "rect" || S.tool === "circle") { S.rectStart = cell; renderMap(); }
     else if (S.tool === "shadow") { S.shadowSet = true; paintShadow(cell, quadFromMouse(e), true); }
     else paintAt(cell);
@@ -295,7 +295,7 @@ import { isAutotileId } from "../../shared/autotile-registry";
       paintHeight(cell, S.tool === "erase" ? 0 : S.heightVal);
     } else if (S.mode === "event" && S.dragEvent && (S.dragEvent.x !== cell.x || S.dragEvent.y !== cell.y)) {
       if (!eventAt(cell.x, cell.y)) {
-        if (!S.dragPushed) { S.dragPushed = true; pushUndo(); S.dragEvent = curMap().events.find((ev: any) => ev.id === S.dragEvent.id); S.selectedEvent = S.dragEvent; }
+        if (!S.dragPushed) { S.dragPushed = true; pushUndo("Move event"); S.dragEvent = curMap().events.find((ev: any) => ev.id === S.dragEvent.id); S.selectedEvent = S.dragEvent; }
         S.dragEvent.x = cell.x; S.dragEvent.y = cell.y;
         touch();
       }

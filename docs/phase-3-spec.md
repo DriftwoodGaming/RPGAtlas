@@ -2,6 +2,54 @@
 
 **Status:** IN PROGRESS. Stage log accumulates here, phase-2-spec style.
 
+Stage F COMPLETE (2026-07-02): unified undo + UI polish. **Unified undo** —
+implemented exactly per the design note below (one stack, tagged entries, no
+command-pattern rewrite), with one deliberate refinement: instead of wrapping
+each bound-input helper in dom.ts, the transaction hook lives in `touch()`
+itself (`persistence.ts` → `noteEdit()`), which catches bound inputs AND
+structural ops (New/Delete/Duplicate/Bulk/Paste/resize) through one seam.
+Pure core `src/editor/scoped-restore.ts` (`ScopeSpec`, `cloneScoped` with
+top-level `skip`, recursive in-place `restoreInto` that preserves object/array
+identity so every live reference — S.proj, S.proj.items, a map's layers —
+survives a restore; 11 unit tests). Transaction engine
+`src/editor/edit-scope.ts`: `beginEdit(scope)` baselines EAGERLY at dialog
+open (edits mutate before touch() fires, so lazy capture would be too late),
+`noteEdit()` debounces an 800 ms commit window, `commitEdit()` always diffs —
+never gated on a dirty flag, because Map Properties' OK mutates, close()s,
+and only then touch()es. `map-editor/history.ts` becomes the unified stack:
+map snapshots gain `kind:"map"` + a per-call-site label ("Paint", "Cut tiles",
+"Event edit", …), scoped entries are `{kind:"scope", label, scope, data}`;
+undo/redo `commitEdit()` first (pending typing becomes undoable instantly),
+then dispatch on the tag; scoped restores run `withEditsSuppressed` +
+`resyncEditBaseline` so an undo never re-enters the transaction. Scopes wired:
+**Database** (one scope = S.proj minus `maps`, shared across opens; a
+module-level `liveRefresh` routes the post-restore redraw to whichever DB
+dialog is open now, else map list + map re-render) and **Map Properties**
+(scope = the whole map object, so name/hd2d/notes AND resize undo as one
+labeled step); event edits were already whole-map snapshots. **Keyboard
+completeness**: Ctrl+Z/Y now reach the shared history inside scoped dialogs
+(boot.ts modal branch; text-ish fields keep native text undo — checkbox/
+select/list focus undoes), and ↑/↓ in any DB search box walks the filtered
+list (form follows, row scrolled into view). **UI polish**: Edit menu /
+palette / toolbar tooltips name the next step via `EditorCommand.menuLabel`
+("Undo — Database edit"); css/editor.css gets a token pass — 20 surface/line/
+text tokens + a small/tiny type scale in :root, ~120 literals replaced and
+near-duplicate shades collapsed (#30344b→--line-2 etc.), `:focus-visible`
+gold rings on all buttons, thin themed scrollbars everywhere (`scrollbar-
+width/color`). Empty states audited: db-empty/autotile/trait/searcher/palette
+all already present. `editor.css?v=44`, `patch-notes.js?v=11` (+ shim), wiki
+(Editor-Interface shortcut table, Database "Working with the lists").
+Verified live (DB rename+New undone/redone inside the open dialog with tab
+refresh; closed-dialog undo restores through localStorage byte-exact —
+items back to 4, "Potion"; Map Properties rename+resize 30→24 as ONE undo,
+ground array back to 408; menu shows "Undo — Map properties") + 11 new pure
+unit tests + 2 new e2e (DB-edit undo/redo via menu label + Ctrl+Z inside the
+open dialog). Full gate green: tsc, eslint, node --test (16), vitest (86),
+Playwright 28/28 — editor(10) + golden (11, byte-identical) / player / export
+/ perf. Implementation + design sign-off: Claude Fable 5 (exceeds the
+"Opus + Fable sign-off" floor — Sonnet remains excluded). **Phase 3 stage
+plan A–F is complete.**
+
 Stage E COMPLETE (2026-07-02): World View & database upgrades. **World View** — a
 dockable bird's-eye panel (dock id `world`, toggled by F3 / View menu / the
 `worldview` command; lazy `mount` like the HD-2D viewport). It draws the whole

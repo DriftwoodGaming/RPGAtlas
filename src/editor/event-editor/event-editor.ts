@@ -379,7 +379,7 @@ import { mountForm } from "./command-defs";
       footer,
     });
     okBtn.onclick = () => {
-      pushUndo();
+      pushUndo("Event edit");
       Object.assign(evOriginal, ev);
       if (onCommitNew) onCommitNew(evOriginal);   // new event: insert into the map now (not before)
       touch(); renderMap(); evModal.close();

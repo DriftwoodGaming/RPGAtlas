@@ -271,6 +271,79 @@ test.describe("database list upgrades", () => {
   });
 });
 
+test.describe("unified undo", () => {
+  test("a Database edit commits to the shared history and Ctrl+Z reverts it", async ({ page }) => {
+    await page.goto("/index.html");
+    const saveIndicator = page.locator("#save-ind");
+    await expect(saveIndicator).toBeVisible();
+    await expect(saveIndicator).toHaveText(/^✓ /);
+
+    const readProject = () =>
+      page.evaluate(() => JSON.parse(localStorage.getItem("rpgatlas_project")));
+    const before = await readProject();
+    const nameBefore = before.items[0].name;
+
+    // Open the Database, rename the first item through its bound input.
+    await page.locator("#menus .menu-label", { hasText: "Tools" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "Database" }).click();
+    await expect(page.locator(".db-modal")).toBeVisible();
+    await page.locator(".dbtabs-vert button", { hasText: "Items" }).click();
+    const nameInput = page.locator(".dbform input[type=text]").first();
+    await expect(nameInput).toHaveValue(nameBefore);
+    await nameInput.fill("Renamed By Test");
+
+    // Close: the scoped-edit window commits as one "Database edit" entry.
+    await page.locator(".db-modal .modal-btns button", { hasText: "Close" }).click();
+    await expect(page.locator(".db-modal")).not.toBeAttached();
+    await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
+    expect((await readProject()).items[0].name).toBe("Renamed By Test");
+
+    // The Edit menu labels the pending step from the tagged stack.
+    await page.locator("#menus .menu-label", { hasText: "Edit" }).dispatchEvent("mousedown");
+    await expect(page.locator(".menu-drop .menu-item", { hasText: "Undo — Database edit" })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    // Ctrl+Z restores the name in place; Ctrl+Y re-applies it.
+    await page.keyboard.press("Control+z");
+    await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
+    expect((await readProject()).items[0].name).toBe(nameBefore);
+    await page.keyboard.press("Control+y");
+    await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
+    expect((await readProject()).items[0].name).toBe("Renamed By Test");
+  });
+
+  test("Ctrl+Z works inside the open Database dialog and refreshes the tab", async ({ page }) => {
+    await page.goto("/index.html");
+    const saveIndicator = page.locator("#save-ind");
+    await expect(saveIndicator).toBeVisible();
+    await expect(saveIndicator).toHaveText(/^✓ /);
+
+    const readProject = () =>
+      page.evaluate(() => JSON.parse(localStorage.getItem("rpgatlas_project")));
+    const itemCount = (await readProject()).items.length;
+
+    await page.locator("#menus .menu-label", { hasText: "Tools" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "Database" }).click();
+    await page.locator(".dbtabs-vert button", { hasText: "Items" }).click();
+
+    // "+ New" adds an entry (a structural edit caught by the same scope) …
+    await page.locator(".dbbtns button", { hasText: "+ New" }).click();
+    await expect(page.locator(".dblist li:not(.db-empty)")).toHaveCount(itemCount + 1);
+
+    // … and Ctrl+Z with focus outside a text field (the list) undoes it live:
+    // the debounced window is flushed by undo() itself, no wait needed.
+    await page.locator(".dblist li").first().click();
+    await page.locator(".db-modal .modal-title").click(); // blur any input
+    await page.keyboard.press("Control+z");
+    await expect(page.locator(".dblist li:not(.db-empty)")).toHaveCount(itemCount);
+    await expect(page.locator(".db-modal")).toBeVisible(); // dialog stayed open
+
+    await page.locator(".db-modal .modal-btns button", { hasText: "Close" }).click();
+    await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
+    expect((await readProject()).items.length).toBe(itemCount);
+  });
+});
+
 test.describe("autotiles", () => {
   test("importing an A2 sheet adds a terrain brush; painting writes autotile ids", async ({ page }) => {
     await page.goto("/index.html");

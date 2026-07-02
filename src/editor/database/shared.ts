@@ -165,7 +165,21 @@ export function listFormTab(spec: any) {
   }
 
   const search = h("input", { type: "search", class: "dbsearch", placeholder: "Search…", spellcheck: "false",
-    oninput(e: any) { filter = e.target.value; redrawList(); } });
+    oninput(e: any) { filter = e.target.value; redrawList(); },
+    // Keyboard navigation (Stage F): ↑/↓ from the search box walk the filtered
+    // list without leaving the field, so search → arrow → edit needs no mouse.
+    onkeydown(e: any) {
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      e.preventDefault();
+      const shown = spec.list().filter(matches);
+      if (!shown.length) return;
+      const i = shown.indexOf(cur);
+      const next = i < 0 ? 0 : Math.max(0, Math.min(shown.length - 1, i + (e.key === "ArrowDown" ? 1 : -1)));
+      cur = shown[next];
+      redrawList(); redrawForm();
+      const selRow = listEl.querySelector("li.sel");
+      if (selRow) selRow.scrollIntoView({ block: "nearest" });
+    } });
 
   const btns = h("div", { class: "dbbtns" },
     h("button", { onclick() {
