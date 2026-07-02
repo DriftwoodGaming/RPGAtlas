@@ -47,21 +47,16 @@ assert.equal(evaluate("RA.commonEventEnabled({ switchId: 3 }, { 3: false })"), f
   "selected switch OFF disables automatic processing");
 
 const editorSource = fs.readFileSync("src/editor/editor.js", "utf8");
-const engineSource = fs.readFileSync("src/engine/engine.js", "utf8");
 assert.match(editorSource, /\{ label: "Common Events"/, "Database exposes the Common Events tab");
 assert.match(editorSource, /t: "commonEvent", label: "Call Common Event"/,
   "event command picker exposes Call Common Event");
 // The `commonEvent` interpreter command moved to the extracted registry
 // (src/engine/interpreter/commands/flow.ts) in Phase 1 Stage B. Assert the
 // handler awaits interp.callCommonEvent by bundling and driving it, rather than
-// grepping the (now-deleted) switch case. The Script-API bridge and the
-// recursion guard moved to src/engine/{script-api,interpreter/interp}.ts and
-// are behavior-tested below; the autorun/parallel scheduler still lives in
-// engine.js.
-assert.match(engineSource, /commonEvent\.trigger === "auto"/,
-  "runtime schedules switch-enabled Autorun common events");
-assert.match(engineSource, /commonEvent\.trigger !== "parallel"/,
-  "runtime schedules switch-enabled Parallel common events");
+// grepping the (now-deleted) switch case. The Script-API bridge, the recursion
+// guard, and the autorun/parallel scheduler moved to
+// src/engine/{script-api,interpreter/interp,scenes/map}.ts and are
+// behavior-tested below through the real extracted modules.
 
 (async () => {
   const { build } = require("esbuild");
@@ -147,6 +142,74 @@ assert.match(engineSource, /commonEvent\.trigger !== "parallel"/,
     warns.some((w) => w.includes("Skipped recursive common event call")),
     "the recursion guard logs a warning",
   );
+
+  // ---- autorun/parallel scheduler (moved to src/engine/scenes/map.ts in
+  // Phase 1 Stage B) — behavior-tested through the real extracted module:
+  // a switch-gated Autorun only runs while its switch is ON, a Parallel is
+  // single-flight (not re-scheduled while its previous run's cooldown holds),
+  // and trigger "none" never auto-runs.
+  const entry3 = `
+    export { ctx, fns } from ${JSON.stringify(
+      path.join(root, "src/engine/state/engine-context.ts").replace(/\\/g, "/"),
+    )};
+    export { G } from ${JSON.stringify(
+      path.join(root, "src/engine/state/game-state.ts").replace(/\\/g, "/"),
+    )};
+    export { updateCommonEvents } from ${JSON.stringify(
+      path.join(root, "src/engine/scenes/map.ts").replace(/\\/g, "/"),
+    )};
+    export { registerCommand } from ${JSON.stringify(
+      path.join(root, "src/engine/interpreter/registry.ts").replace(/\\/g, "/"),
+    )};
+    export { registerBuiltinCommands } from ${JSON.stringify(
+      path.join(root, "src/engine/interpreter/commands/index.ts").replace(/\\/g, "/"),
+    )};
+  `;
+  const out3 = (await build({
+    stdin: { contents: entry3, resolveDir: root, loader: "ts" },
+    bundle: true, format: "cjs", write: false, platform: "node", logLevel: "silent",
+  })).outputFiles[0].text;
+  const mod3 = { exports: {} };
+  vm.runInNewContext(out3, {
+    module: mod3, exports: mod3.exports, require, console, setTimeout,
+    window: {
+      RPGAtlasDeps: {
+        Assets: { TILE: 48 },
+        RA: {
+          byId: (list, id) => list.find((e) => e.id === id) || null,
+          // mirrors js/data.js semantics (the real fn is asserted above)
+          commonEventEnabled: (ce, switches) => !ce.switchId || !!switches[ce.switchId],
+        },
+      },
+    },
+    location: { search: "" },
+    URLSearchParams,
+  });
+  const eng2 = mod3.exports;
+  eng2.registerBuiltinCommands();
+  const probes = [];
+  eng2.registerCommand("probeA", () => { probes.push("auto"); });
+  eng2.registerCommand("probeP", () => { probes.push("parallel"); });
+  eng2.ctx.proj = {
+    commonEvents: [
+      { id: 1, trigger: "auto", switchId: 5, commands: [{ t: "probeA" }] },
+      { id: 2, trigger: "parallel", switchId: 0, commands: [{ t: "probeP" }] },
+      { id: 3, trigger: "none", switchId: 0, commands: [{ t: "probeA" }] },
+    ],
+  };
+  eng2.updateCommonEvents();
+  eng2.updateCommonEvents(); // parallel is single-flight: still exactly one run
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(probes, ["parallel"],
+    "switch-OFF Autorun is not scheduled; Parallel runs once; 'none' never auto-runs");
+  probes.length = 0;
+  eng2.G.switches[5] = true;
+  eng2.updateCommonEvents();
+  assert.equal(eng2.ctx.blockingRun, true,
+    "a scheduled Autorun claims the blocking-interpreter slot synchronously");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.deepEqual(probes, ["auto"], "switch-ON Autorun runs (blocking)");
+  assert.equal(eng2.ctx.blockingRun, false, "the Autorun releases the blocking slot");
 
   console.log("Common event tests passed.");
 })().catch((e) => { console.error(e); process.exit(1); });

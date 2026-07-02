@@ -19,6 +19,7 @@ function evaluate(source) {
 
 const engineSource = fs.readFileSync("src/engine/engine.js", "utf8");
 const mapRuntimeSource = fs.readFileSync("src/engine/scenes/map-runtime.ts", "utf8");
+const mapSceneSource = fs.readFileSync("src/engine/scenes/map.ts", "utf8");
 
 // Phase 1 Stage B: the combat geometry helpers moved to
 // src/engine/scenes/map-runtime.ts. Bundle the real module with esbuild and
@@ -170,17 +171,18 @@ assert.equal(
 );
 
 // Map action combat must consume the named Attack action, not inspect a physical key.
-// Pin both sides of the integration: the map update loop (engine.js) asks Input for
-// "attack", and the input layer resolves a project-defined replacement binding. The
-// combat/chase internals moved to scenes/map-runtime.ts (Phase 1 Stage B).
-assert.match(engineSource, /Input\.consume\(["']attack["']\)/, "map update consumes the Attack action");
+// Pin both sides of the integration: the map update loop (scenes/map.ts since Phase 1
+// Stage B) asks Input for "attack", and the input layer resolves a project-defined
+// replacement binding. The combat/chase internals live in scenes/map-runtime.ts.
+assert.match(mapSceneSource, /Input\.consume\(["']attack["']\)/, "map update consumes the Attack action");
 assert.doesNotMatch(engineSource, /case\s+["']KeyJ["']/, "engine has no hardcoded J attack branch");
+assert.doesNotMatch(mapSceneSource, /case\s+["']KeyJ["']/, "map update has no hardcoded J attack branch");
 assert.doesNotMatch(mapRuntimeSource, /case\s+["']KeyJ["']/, "map runtime has no hardcoded J attack branch");
 assert.match(mapRuntimeSource, /tileDistance\(p, rt\) > 1/, "touch damage can strike from an adjacent tile");
 assert.match(mapRuntimeSource, /function combatChaseDir\(rt/, "action-combat enemies have chase AI");
 assert.match(mapRuntimeSource, /combatAi\(cfg\) !== ["']chase["']/, "chase AI is gated by the page combat AI setting");
 assert.match(mapRuntimeSource, /canCombatChasePass\(rt, rt\.x \+ mx, rt\.y \+ my\)/, "chase AI checks event destination reservations");
-assert.match(engineSource, /const chaseDir = combatChaseDir\(rt\)/, "event movement uses chase AI before random wandering");
+assert.match(mapSceneSource, /const chaseDir = combatChaseDir\(rt\)/, "event movement uses chase AI before random wandering");
 
 const handlers = {};
 const bindings = evaluate("RA.defaultInput()");

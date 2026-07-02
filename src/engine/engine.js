@@ -33,6 +33,13 @@ import {
   refreshPlayerCharset,
 } from "./scenes/map-runtime.js";
 import { render, TICK_MS } from "./render-glue.js";
+import {
+  update,
+  transferPlayer,
+  waitFrames,
+  frameWait,
+  tickTween,
+} from "./scenes/map.js";
 // Shared engine context (Phase 1 Stage B): imported as EC because `ctx` here is
 // the game canvas 2d context. The IIFE installs getter/setter bridges onto EC
 // (below, before the boot section) so extracted modules see this closure's
@@ -108,7 +115,8 @@ const _createInputSystem = window.createInputSystem;
   // Function declarations hoist, so installing here is safe. Entries are
   // removed as their owners move out of this file (fns.refreshAllPages is now
   // self-installed by scenes/map-runtime.ts; fns.Battle near EngineServices).
-  fns.gameOver = gameOver; // map-runtime's touch-damage defeat path
+  fns.gameOver = gameOver; // map-runtime's touch-damage defeat path + encounters
+  fns.openMenu = openMenu; // map scene update's cancel-press menu open
   let scene = "boot"; // boot | title | map | battle | gameover
   let menuOpen = false;
   let cameraZoom = 1;
@@ -241,265 +249,14 @@ const _createInputSystem = window.createInputSystem;
   initMessageSystem();
   initInputSystem();
 
-  let frameWaiters = [];
-  function frameWait() { return new Promise((r) => frameWaiters.push(r)); }
-  // Tick-accurate timers: counted in update(), so event waits/tweens advance by ticks even
-  // when several ticks run in one rendered frame. (frameWait above is per-rendered-frame.)
-  let tickTimers = [];
-  function waitFrames(n) {
-    return new Promise((resolve) => tickTimers.push({ left: Math.max(1, n | 0), resolve }));
-  }
-  function tickTween(n, step) {
-    const total = Math.max(1, n | 0);
-    return new Promise((resolve) => tickTimers.push({ left: total, total, step, resolve }));
-  }
-  function pumpTickTimers() {
-    if (!tickTimers.length) return;
-    const timers = tickTimers; tickTimers = [];
-    const done = [];
-    for (const tm of timers) {
-      tm.left--;
-      if (tm.step) tm.step((tm.total - tm.left) / tm.total);
-      if (tm.left <= 0) done.push(tm); else tickTimers.push(tm);
-    }
-    done.forEach((tm) => tm.resolve());
-  }
-
-  async function runEventBlocking(rt) {
-    if (blockingRun) return;
-    blockingRun = true;
-    rt.locked = true;
-    const prevDir = rt.dir;
-    if (rt.kind === "human" && rt.page.trigger === "action") {
-      rt.dir = dirTo(rt.x, rt.y, G.player.x, G.player.y);
-    }
-    try {
-      await new Interp(rt).runList(rt.page.commands);
-    } finally {
-      rt.locked = false;
-      if (rt.kind === "human")
-        rt.dir = prevDir === rt.dir ? rt.page.dir || 0 : rt.page.dir || 0;
-      refreshAllPages();
-      blockingRun = false;
-    }
-  }
-
-  async function runCommonEventBlocking(commonEvent) {
-    if (blockingRun) return;
-    blockingRun = true;
-    try {
-      await new Interp(null).callCommonEvent(commonEvent.id);
-    } finally {
-      refreshAllPages();
-      blockingRun = false;
-    }
-  }
-
-  function updateCommonEvents() {
-    const commonEvents = proj.commonEvents || [];
-    if (!blockingRun) {
-      const autorun = commonEvents.find((commonEvent) =>
-        commonEvent.trigger === "auto" &&
-        commonEvent.commands.length &&
-        RA.commonEventEnabled(commonEvent, G.switches));
-      if (autorun) runCommonEventBlocking(autorun);
-    }
-    for (const commonEvent of commonEvents) {
-      if (
-        commonEvent.trigger !== "parallel" ||
-        !commonEvent.commands.length ||
-        !RA.commonEventEnabled(commonEvent, G.switches) ||
-        commonParallels.get(commonEvent.id)
-      ) continue;
-      commonParallels.set(commonEvent.id, true);
-      new Interp(null).callCommonEvent(commonEvent.id).finally(async () => {
-        await sleep(50);
-        commonParallels.set(commonEvent.id, false);
-      });
-    }
-  }
-
-  async function transferPlayer(mapId, x, y, dir) {
-    const tr = Plugins.transition;
-    if (tr && tr.out) await tr.out();
-    else await fadeTo(1, 250);
-    await loadMap(mapId);
-    const p = G.player;
-    p.x = p.tx = x; p.y = p.ty = y; p.rx = x; p.ry = y; p.prx = x; p.pry = y; p.moving = false;
-    if (dir != null) p.dir = dir;
-    await render();
-    if (tr && tr.in) await tr.in();
-    else await fadeTo(0, 250);
-  }
+  // Frame/tick timers, blocking/autorun/parallel event scheduling, and
+  // transferPlayer live in ./scenes/map.ts (Phase 1 Stage B), imported above.
 
   // ============================ map scene update ============================
   let globalT = 0;
 
-  function activePlayerControl() {
-    return scene === "map" && !UIStack.length && !blockingRun && !menuOpen;
-  }
-
-  function update() {
-    globalT++;
-    if (shakeTimer > 0) shakeTimer--;
-    if (flashTimer > 0) flashTimer--;
-    const waiters = frameWaiters;
-    frameWaiters = [];
-    waiters.forEach((r) => r());
-    pumpTickTimers(); // advance tick-accurate event timers (wait / camera-zoom)
-    // Rebuild this frame's input edge set before any early-return, so title/pause
-    // menus see a clean edge set every tick and nothing stays latched across them.
-    Input.poll();
-    if (scene === "map") Plugins.fire("update");
-    if (scene !== "map" || menuOpen) {
-      return;
-    }
-
-    const p = G.player;
-    // Dash "Toggle" mode: flip the latch on each rising edge of the dash button (tracked every
-    // tick so a tap while standing still registers). Hold/Always read live in wantsDash().
-    if ((playerOptions.dashMode || "hold") === "toggle") {
-      const dp = Input.pressed("dash");
-      if (dp && !dashPrev) dashLatch = !dashLatch;
-      dashPrev = dp;
-    }
-    // snapshot start-of-tick positions so render() can interpolate between ticks
-    p.prx = p.rx; p.pry = p.ry;
-    for (const rt of evRTs) { rt.prx = rt.rx; rt.pry = rt.ry; }
-    // player motion — advance the current step, then (if it finished this tick) start the
-    // next one immediately, so there's no dead frame at each tile. activePlayerControl()
-    // stays false during events/battles, so chaining can't spawn a spurious move.
-    if (p.moving) {
-      const arrived = updateEntityMotion(p, wantsDash() ? 0.13 : 0.085);
-      if (arrived) onPlayerStep();
-    }
-    if (!p.moving && p.route) {
-      updateRoute(p);
-    } else if (!p.moving && activePlayerControl()) {
-      const d = Input.dir();
-      if (Input.consume("attack")) {
-        startPlayerAttack();
-      } else if (d >= 0) {
-        p.dir = d;
-        const [dx, dy] = DIRD[d];
-        const nx = p.x + dx,
-          ny = p.y + dy;
-        const blocker = blockingEventAt(nx, ny);
-        if (
-          blocker &&
-          blocker.page.trigger === "touch" &&
-          blocker.page.commands.length
-        ) {
-          runEventBlocking(blocker);
-        } else if (tilePassable(nx, ny) && !blocker) {
-          startMove(p, d);
-          p.animT = p.animT || 0;
-        }
-      }
-      if (Input.consume("ok")) checkActionTrigger();
-      if (Input.consume("cancel")) openMenu();
-    }
-    if (p.moving) p.animT = (p.animT || 0) + 0; // animT advanced in motion fn
-    updateMapCombat();
-
-    // events
-    for (const rt of evRTs) {
-      if (rt.erased || !rt.page) continue;
-      // Same no-dead-frame pattern as the player above: a finished step chains into the next
-      // route/random step this same tick instead of pausing a frame at each tile.
-      if (rt.moving) {
-        const arrived = updateEntityMotion(rt, rt.combat && rt.combat.knockback ? 0.18 : rt.speed);
-        if (arrived && rt.combat) rt.combat.knockback = false;
-      }
-      if (!rt.moving && rt.route) {
-        updateRoute(rt);
-      } else if (!rt.moving) {
-        const chaseDir = combatChaseDir(rt);
-        if (chaseDir >= 0) {
-          startMove(rt, chaseDir);
-          rt.moveT = 20 + rnd(40);
-        } else if (rt.page.moveType === "random" && !rt.locked && !blockingRun && !combatStaggered(rt)) {
-          if (--rt.moveT <= 0) {
-            rt.moveT = 40 + rnd(100);
-            const d = rnd(4);
-            if (rnd(4) === 0) rt.dir = d;
-            else if (canEntityPass(rt, rt.x + DIRD[d][0], rt.y + DIRD[d][1]))
-              startMove(rt, d);
-          }
-        }
-      }
-      // autorun / parallel
-      if (
-        !blockingRun &&
-        rt.page.trigger === "auto" &&
-        rt.page.commands.length
-      ) {
-        runEventBlocking(rt);
-      }
-      if (
-        rt.page.trigger === "parallel" &&
-        rt.page.commands.length &&
-        !parallels.get(rt)
-      ) {
-        parallels.set(rt, true);
-        new Interp(rt).runList(rt.page.commands).finally(async () => {
-          await sleep(50);
-          parallels.set(rt, false);
-        });
-      }
-    }
-    updateCommonEvents();
-  }
-
-  function onPlayerStep() {
-    G.steps++;
-    const p = G.player;
-    // touch events on the tile we stepped onto
-    if (!blockingRun) {
-      const here = entityAt(p.x, p.y).find(
-        (rt) =>
-          rt.page.trigger === "touch" &&
-          rt.page.commands.length &&
-          (rt.page.priority !== "same" || rt.page.through),
-      );
-      if (here) {
-        runEventBlocking(here);
-        return;
-      }
-    }
-    // random encounters
-    const enc = map.encounters;
-    if (enc && enc.rate > 0 && enc.troops.length && !blockingRun) {
-      G.encSteps++;
-      if (G.encSteps >= enc.rate * (0.7 + Math.random() * 0.6)) {
-        G.encSteps = 0;
-        const troopId = enc.troops[rnd(enc.troops.length)];
-        sysSe("encounter");
-        (async () => {
-          const result = await Battle.run(troopId, true);
-          if (result === "lose") await gameOver();
-        })();
-      }
-    }
-  }
-
-  function checkActionTrigger() {
-    const p = G.player;
-    const [dx, dy] = DIRD[p.dir];
-    const spots = [
-      [p.x + dx, p.y + dy],
-      [p.x, p.y],
-    ];
-    for (const [x, y] of spots) {
-      const rt = entityAt(x, y).find(
-        (r) => r.page.trigger === "action" && r.page.commands.length,
-      );
-      if (rt) {
-        runEventBlocking(rt);
-        return;
-      }
-    }
-  }
+  // activePlayerControl / update / onPlayerStep / checkActionTrigger live in
+  // ./scenes/map.ts (Phase 1 Stage B), imported above.
 
   // ============================ rendering ============================
   // render() lives in ../render-glue.ts (Phase 1 Stage B), imported above;
