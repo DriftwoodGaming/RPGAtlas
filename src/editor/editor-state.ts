@@ -134,10 +134,7 @@ export interface EditorHooks {
   setMode: (m: string) => void;                            // modes/zoom section
   rebuildAll: () => void;                                  // boot/wiring section
   openEventEditor: (ev: any, onCommitNew?: () => void) => void; // event editor (Package 2)
-  quickTransfer: (cell: any) => void;                      // quick-event builders (Package 2)
-  quickSign: (cell: any) => void;                          // quick-event builders (Package 2)
-  quickChest: (cell: any) => void;                         // quick-event builders (Package 2)
-  walkCommands: (list: any[], cb: (c: any) => void) => void; // command definitions (Package 2)
+  walkCommands: (list: any[], cb: (c: any) => void) => void; // event searcher (Package 3 uses; dissolved to a real export in Package 2 event-editor)
 }
 
 export const editorHooks = {} as EditorHooks;

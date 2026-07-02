@@ -13,6 +13,7 @@ import { renderMap, renderPalette, normRect } from "./map-render";
 import { pushUndo } from "./history";
 import { stampPaste, cancelPaste, copySelection } from "./clipboard";
 import { setStatus, flashStatus } from "./status";
+import { quickTransfer, quickSign, quickChest } from "../event-editor/quick-events";
 
   // ============================ painting ============================
   export function cellFromMouse(e: any) {
@@ -175,9 +176,9 @@ import { setStatus, flashStatus } from "./status";
       showPopupMenu(e.clientX, e.clientY, [
         { label: "New Event", onClick: () => newEventAt(cell) },
         { label: "New Quick Event", submenu: [
-          { label: "Transfer", onClick: () => editorHooks.quickTransfer(cell) },
-          { label: "Sign", onClick: () => editorHooks.quickSign(cell) },
-          { label: "Chest", onClick: () => editorHooks.quickChest(cell) },
+          { label: "Transfer", onClick: () => quickTransfer(cell) },
+          { label: "Sign", onClick: () => quickSign(cell) },
+          { label: "Chest", onClick: () => quickChest(cell) },
         ] },
         { label: "Paste Event", key: "Ctrl+V", enabled: !!S.clipEvent,
           onClick: () => { S.pasteMode = "event"; stampPaste(cell); } },
