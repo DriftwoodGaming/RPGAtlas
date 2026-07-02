@@ -1,8 +1,23 @@
 # The Editor Interface
 
 The editor (`index.html`) uses a classic RPG-maker layout: a **menu bar** along the top, an **icon
-toolbar** with one-click actions, the **map canvas** in the middle, and palettes/lists around it.
+toolbar** with one-click actions, and a **dockable workspace** of panels (Maps, Tiles, Map) below.
 This page is your map of the map-maker.
+
+---
+
+## The dockable workspace
+
+The Maps, Tiles, and Map views are **panels** you can rearrange freely:
+
+- **Drag a panel by its tab** to move it. Drop it on the **center** of another region to add it there
+  as a tab; drop it near a region's **edge** to split that region; drag it **out** (e.g. onto the
+  menu bar) to pop it into a **floating window** you can move and resize.
+- **Drag the dividers** between panels to resize them.
+- Your arrangement is **saved automatically** and restored next time you open the editor.
+- The **View** menu shows/hides the Maps and Tiles panels, focuses the Map, cycles focus with `F6`,
+  **Resets** the layout to default, and **saves/loads named layouts**. Every one of these is also in
+  the Command Palette (`Ctrl+P`).
 
 ---
 
@@ -79,6 +94,7 @@ control over what stacks on what, or to use the Overhead layer for things the pl
 | `+` / `-` | Zoom out/in · `Ctrl`+wheel zoom · `Ctrl+0` reset to 1:1 |
 | **Right-click** | Pick the tile under the cursor |
 | `Ctrl+P` | **Command Palette** — type a few letters of any editor command and press Enter to run it |
+| `F6` | Focus the next workspace panel |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / Redo (full-map history) |
 | `Ctrl+X` / `Ctrl+C` / `Ctrl+V` | Cut / Copy / Paste |
 | **Shift+drag** | Select a tile region (all layers + shadows + heights) |

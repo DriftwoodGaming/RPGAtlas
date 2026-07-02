@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 2, 2026",
+    title: "Dockable workspace — arrange the editor your way",
+    summary:
+      "The editor's panels (Maps, Tiles, Map) are now a fully dockable workspace: drag panels by their tabs to re-dock, split, tab, or float them, resize with draggable dividers, and save named layouts.",
+    items: [
+      "Drag any panel's tab to rearrange it: drop on the center of a region to add it as a tab, drop near an edge to split, or drag it out to float it in its own window (floating windows move and resize).",
+      "Drag the dividers between panels to resize; your arrangement is remembered automatically between sessions.",
+      "New View menu: show/hide the Maps and Tiles panels, Focus Map, Focus Next Panel (F6), Reset Panel Layout, and Save/Load named layouts — every one also reachable from the Command Palette.",
+      "The map and tile-palette views now live inside dockable panels while keeping all their existing behavior.",
+    ],
+  },
+  {
+    date: "July 2, 2026",
     title: "Command Palette — press Ctrl+P and type what you want",
     summary:
       "Phase 3 of the Atlas overhaul (the editor platform) begins: a fuzzy-searching Command Palette puts every editor action one keystroke away, backed by a new command registry and a declarative keyboard map.",

@@ -202,6 +202,7 @@ const MENUS = [
   { label: "Draw", items: ["tool-pen", "tool-erase", "tool-rect", "tool-circle", "tool-fill", "tool-shadow"] },
   { label: "Layer", items: ["layer-auto", "layer-ground", "layer-decor", "layer-decor2", "layer-over"] },
   { label: "Scale", items: ["zoomin", "zoomout", "zoom1", "zoomfit"] },
+  { label: "View", items: ["panel-maps", "panel-tiles", "panel-map", "-", "focus-next-panel", "-", "dock-reset", "dock-save", "dock-load"] },
   { label: "Tools", items: ["db", "plugins", "audio", "search", "resources", "chargen", "-", "cmdpal"] },
   { label: "Game", items: ["play", "build", "-", "mapprops", "hdpreview", "mode-start"] },
   { label: "Help", items: ["language", "-", "shortcuts", "patchnotes", "help", "about"] },

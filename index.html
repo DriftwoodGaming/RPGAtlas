@@ -5,7 +5,7 @@
 <title>RPGAtlas — Editor</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" type="image/svg+xml" href="img/system/rpgatlas-logo.svg">
-<link rel="stylesheet" href="css/editor.css?v=39">
+<link rel="stylesheet" href="css/editor.css?v=40">
 </head>
 <body>
   <header id="menubar">
@@ -15,27 +15,29 @@
 
   <div id="toolbar"></div>
 
-  <div id="main">
-    <aside id="sidebar">
-      <section>
-        <div class="side-head"><span data-i18n="Maps">Maps</span>
-          <span class="side-tools">
-            <button id="map-add" class="mini" title="New map" data-i18n-title="New map">＋</button>
-            <button id="map-del" class="mini" title="Delete map" data-i18n-title="Delete map">−</button>
-            <button id="map-gen" class="mini" title="Generate random map" data-i18n-title="Generate random map">🎲</button>
-          </span>
-        </div>
-        <ul id="maplist"></ul>
-      </section>
+  <div id="dock-root"></div>
 
-      <section id="palette-section">
-        <div class="side-head"><span data-i18n="Tiles">Tiles</span> <span class="dim" data-i18n="(right-click map = pick)">(right-click map = pick)</span></div>
-        <div id="palettewrap"><canvas id="palette"></canvas></div>
-      </section>
-    </aside>
+  <!-- Panel content lives here until the dock engine relocates it into #dock-root.
+       IDs are preserved so the editor's boot wiring binds to the same elements. -->
+  <div id="panel-store" hidden>
+    <div id="panel-maps" class="dock-panel-content">
+      <div class="side-head"><span data-i18n="Maps">Maps</span>
+        <span class="side-tools">
+          <button id="map-add" class="mini" title="New map" data-i18n-title="New map">＋</button>
+          <button id="map-del" class="mini" title="Delete map" data-i18n-title="Delete map">−</button>
+          <button id="map-gen" class="mini" title="Generate random map" data-i18n-title="Generate random map">🎲</button>
+        </span>
+      </div>
+      <ul id="maplist"></ul>
+    </div>
 
-    <div id="mapscroll">
-      <canvas id="mapcanvas"></canvas>
+    <div id="panel-tiles" class="dock-panel-content">
+      <div class="side-head"><span data-i18n="Tiles">Tiles</span> <span class="dim" data-i18n="(right-click map = pick)">(right-click map = pick)</span></div>
+      <div id="palettewrap"><canvas id="palette"></canvas></div>
+    </div>
+
+    <div id="panel-map" class="dock-panel-content">
+      <div id="mapscroll"><canvas id="mapcanvas"></canvas></div>
     </div>
   </div>
 

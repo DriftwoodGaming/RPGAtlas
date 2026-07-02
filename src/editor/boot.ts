@@ -31,6 +31,7 @@ import {
 } from "./workspace";
 import { openKeyboardShortcuts } from "./help";
 import { dispatchKey, type KeyBinding } from "./keymap";
+import { initDockWorkspace } from "./dock/panels";
 
 // The editor's global key bindings (Phase 3 Stage A). This table replaces the
 // old hardcoded keydown cascade one branch per binding, IN ORDER — the order
@@ -62,6 +63,7 @@ const EDITOR_KEYS: KeyBinding[] = [
   { codes: ["F1"], preventDefault: true, run: () => runAct("db") },
   { codes: ["F2"], preventDefault: true, run: () => runAct("hdpreview") },
   { codes: ["F5"], preventDefault: true, run: () => runAct("play") },
+  { codes: ["F6"], preventDefault: true, run: () => runAct("focus-next-panel") },
   // Height mode consumes ALL digits for the painted elevation (0–9). Must stay above the layer gate.
   { codes: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"],
     when: () => S.mode === "height",
@@ -104,6 +106,9 @@ async function boot() {
   S.palCanvas = $("palette");
 
   editorI18n.localizeStatic();
+  // Build the dockable workspace (registers the View-menu commands the menubar
+  // references) before the menubar/toolbar are built.
+  initDockWorkspace();
   buildMenubar();
   buildToolbar();
 

@@ -2,6 +2,25 @@
 
 **Status:** IN PROGRESS. Stage log accumulates here, phase-2-spec style.
 
+Stage B COMPLETE (2026-07-02): dockable workspace. Pure layout tree
+(`src/editor/dock/layout.ts` — split/tabs nodes + floats; in-place edits so a
+drop-target reference survives the drag's remove-then-reinsert, structural
+cleanup deferred to `normalize()`; `validateLayout` parses untrusted/persisted
+JSON, dropping unknown+duplicate panels) drives the DOM engine
+(`src/editor/dock/dock.ts` — flex splits with weight-based draggable resizers,
+tabbed regions, tab drag-to-dock with 5 drop zones / drag-out-to-float, floating
+windows move+resize, localStorage persistence + named layouts, focus model).
+Built-in panels (Maps/Tiles/Map) are the existing editor DOM *relocated* out of
+`#panel-store` — IDs preserved so boot's listeners and the canvases' bitmaps
+survive every re-layout (scroll positions saved/restored across reparent). All
+dock/panel ops are registered commands (View menu + palette + F6). `index.html`
+`#main` → `#dock-root` + `#panel-store`; `editor.css?v=40`, `patch-notes.js?v=6`.
+Verified live (default render, command toggle+persist, drag-to-float, float→west
+re-dock with same-dir flatten, resizer weight transfer, reload round-trip) + 16
+pure-layout unit tests + a drag/float/reset e2e. Stage C embeds the HD-2D
+renderer as another registered panel on this engine (floats stay single-region;
+splitting is main-tree only — the seam Stage C's viewport slots into).
+
 Stage A COMPLETE (2026-07-02): command registry typed (`EditorCommand`,
 `registerCommand`, `commandEntries()` with menu-derived categories); the boot.ts keydown
 cascade is now a declarative `KeyBinding[]` dispatched by the new pure `keymap.ts`

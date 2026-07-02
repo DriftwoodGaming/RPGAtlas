@@ -123,3 +123,41 @@ test.describe("command palette", () => {
     await expect(page.locator(".db-modal")).toBeVisible();
   });
 });
+
+test.describe("dockable workspace", () => {
+  test("boots the default layout, floats a panel by dragging, and resets", async ({ page }) => {
+    await page.goto("/index.html");
+    await expect(page.locator("#save-ind")).toBeVisible(); // boot finished
+
+    // Default layout: three docked regions (Maps / Tiles / Map), each with its
+    // real content mounted (the map + palette canvases live inside the dock).
+    const regions = page.locator("#dock-root .dock-region");
+    await expect(regions).toHaveCount(3);
+    await expect(page.locator("#dock-root #mapcanvas")).toBeVisible();
+    await expect(page.locator("#dock-root #palette")).toBeVisible();
+
+    // Drag the Tiles tab up into the menubar strip (no drop region there) to
+    // detach it into a floating window; the palette content travels with it.
+    const tilesTab = page.locator(".dock-tab", { hasText: "Tiles" }).first();
+    const box = await tilesTab.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 4 });
+    await page.mouse.move(430, 6, { steps: 8 });
+    await page.mouse.up();
+    await expect(page.locator(".dock-float")).toHaveCount(1);
+    await expect(page.locator(".dock-float #palette")).toBeVisible();
+    await expect(page.locator("#dock-root .dock-region")).toHaveCount(2);
+
+    // The layout persists across reloads.
+    await page.reload();
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page.locator(".dock-float")).toHaveCount(1);
+
+    // Reset Panel Layout (View menu) restores the default three-region dock.
+    await page.locator("#menus .menu-label", { hasText: "View" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "Reset Panel Layout" }).click();
+    await expect(page.locator(".dock-float")).toHaveCount(0);
+    await expect(page.locator("#dock-root .dock-region")).toHaveCount(3);
+  });
+});

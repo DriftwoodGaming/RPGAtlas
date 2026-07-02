@@ -97,25 +97,72 @@ input:focus, select:focus, textarea:focus { outline: 1px solid var(--gold-edge);
 .tbtn.play-btn:hover { background: #234a30; border-color: #48a060; color: #b8f0c8; }
 .tb-sep { width: 1px; height: 24px; background: #353850; margin: 0 5px; flex: 0 0 auto; }
 
-/* ---------- layout ---------- */
-#main { flex: 1; display: flex; min-height: 0; }
-#sidebar {
-  width: 312px; flex: 0 0 auto; overflow-y: auto;
-  background: #191b26; border-right: 1px solid #30334a; padding: 8px;
-  display: flex; flex-direction: column; gap: 10px;
-}
-#sidebar section { background: #1f2130; border: 1px solid #2c2f44; border-radius: 8px; padding: 8px; }
-.side-head { font-weight: 600; margin-bottom: 6px; color: #aeb2c8; display: flex; justify-content: space-between; align-items: center; }
+/* ---------- dockable workspace ---------- */
+#dock-root { flex: 1; position: relative; min-height: 0; display: flex; overflow: hidden; background: #14151c; }
+#panel-store { display: none; }
+.dock-panel-content { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+#panel-maps, #panel-tiles { padding: 8px; gap: 6px; }
+.side-head { font-weight: 600; margin-bottom: 6px; color: #aeb2c8; display: flex; justify-content: space-between; align-items: center; flex: 0 0 auto; }
 .btnrow { display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
-#maplist { list-style: none; margin: 0; padding: 0; max-height: 150px; overflow-y: auto; }
+#maplist { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 60px; overflow-y: auto; }
 #maplist li { padding: 4px 8px; border-radius: 4px; cursor: pointer; }
 #maplist li:hover { background: #2a2d40; }
 #maplist li.sel { background: var(--accent); color: #fff; }
-#palettewrap { max-height: 420px; overflow-y: auto; border: 1px solid #2c2f44; border-radius: 4px; }
+#palettewrap { flex: 1; overflow: auto; border: 1px solid #2c2f44; border-radius: 4px; }
 #palette { display: block; cursor: pointer; image-rendering: pixelated; }
 
 #mapscroll { flex: 1; overflow: auto; background: #101018; padding: 14px; }
 #mapcanvas { display: block; image-rendering: pixelated; cursor: crosshair; box-shadow: 0 0 0 1px #30334a, 0 8px 30px rgba(0,0,0,0.5); }
+
+/* split containers + resizers */
+.dock-split { display: flex; min-width: 0; min-height: 0; flex-basis: 0; }
+.dock-split.row { flex-direction: row; }
+.dock-split.col { flex-direction: column; }
+.dock-resizer { flex: 0 0 auto; z-index: 5; }
+.dock-resizer.row { width: 6px; margin: 3px -3px; cursor: col-resize; }
+.dock-resizer.col { height: 6px; margin: -3px 3px; cursor: row-resize; }
+.dock-resizer:hover { background: var(--accent-edge); border-radius: 3px; }
+body.dock-resizing, body.dock-resizing * { cursor: col-resize !important; user-select: none; }
+
+/* tabbed regions */
+.dock-region { display: flex; flex-direction: column; min-width: 0; min-height: 0; flex-basis: 0;
+  background: #191b26; border: 1px solid #2a2d40; border-radius: 6px; margin: 3px; overflow: hidden; }
+.dock-region.focused, .dock-float.focused { border-color: var(--accent-edge); box-shadow: 0 0 0 1px var(--accent-edge) inset; }
+.dock-tabbar { display: flex; align-items: stretch; gap: 2px; padding: 3px 4px 0; min-height: 27px;
+  background: #20222e; border-bottom: 1px solid #30334a; flex: 0 0 auto; overflow-x: auto; }
+.dock-tab { display: flex; align-items: center; gap: 6px; padding: 4px 10px; font-size: 12px; color: #aab0c4;
+  background: #23252f; border: 1px solid transparent; border-bottom: none; border-radius: 5px 5px 0 0;
+  cursor: pointer; white-space: nowrap; user-select: none; }
+.dock-tab:hover { color: #e8eaf2; background: #2c2f3f; }
+.dock-tab.sel { color: #fff; background: #191b26; border-color: #30334a; }
+.dock-tab-label { pointer-events: none; }
+.dock-tab-x { opacity: 0.45; font-size: 10px; line-height: 1; }
+.dock-tab-x:hover { opacity: 1; color: #ff9b9b; }
+.dock-body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.dock-body > .dock-panel-content { flex: 1; }
+
+/* floating windows */
+.dock-float { position: fixed; z-index: 80; display: flex; flex-direction: column; background: #191b26;
+  border: 1px solid #3a3d52; border-radius: 8px; box-shadow: 0 12px 40px rgba(0,0,0,0.55); overflow: hidden;
+  min-width: 220px; min-height: 140px; }
+.dock-float-bar { cursor: move; }
+.dock-float-resize { position: absolute; right: 0; bottom: 0; width: 15px; height: 15px; cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 45%, #4a4d63 45%, #4a4d63 100%); }
+
+/* drag feedback */
+body.dock-dragging, body.dock-dragging * { cursor: grabbing !important; user-select: none; }
+.dock-drag-ghost { position: fixed; z-index: 200; pointer-events: none; padding: 3px 10px; font-size: 12px;
+  color: #fff; background: var(--accent); border: 1px solid var(--accent-edge); border-radius: 5px; box-shadow: 0 4px 14px rgba(0,0,0,0.5); }
+.dock-drop-hi { position: fixed; z-index: 190; pointer-events: none; display: none;
+  background: rgba(52,96,140,0.30); border: 2px solid var(--accent-edge); border-radius: 6px; }
+
+/* saved-layouts dialog */
+.dock-layout-list { min-width: 320px; }
+.dock-layout-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #2a2d40; }
+.dll-name { font-weight: 600; }
+.dll-btns { display: flex; gap: 6px; }
+button.danger { background: #532a2a; border-color: #7a3a3a; }
+button.danger:hover { background: #6a3636; }
 
 #status {
   flex: 0 0 auto; padding: 4px 12px; font-size: 12px; color: #9a9db4;
