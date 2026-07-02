@@ -6,6 +6,7 @@
 import { registerCommand, getCommand } from "./interpreter/registry.js";
 import { registerBuiltinCommands } from "./interpreter/commands/index.js";
 import { el, sleep, clamp, rnd, esc, sysSe, sysBgm, setSysProjectProvider } from "./util.js";
+import { UIStack, pushUI, removeUI, showList, initUiStack } from "./ui-stack.js";
 
 const _Assets = window.RPGAtlasDeps.Assets;
 const _DataDefaults = window.RPGAtlasDeps.DataDefaults;
@@ -34,6 +35,7 @@ const _createInputSystem = window.createInputSystem;
   let proj = null;
   setSysProjectProvider(() => proj); // util.js sys* helpers read the live project
   let stage, canvas, ctx, uiLayer, fader;
+  initUiStack(() => uiLayer); // ui-stack.js showList appends to the live uiLayer
   let scene = "boot"; // boot | title | map | battle | gameover
   let menuOpen = false;
   let cameraZoom = 1;
@@ -54,199 +56,17 @@ const _createInputSystem = window.createInputSystem;
   // a provider installed at boot (setSysProjectProvider below).
 
   // ============================ input / UI stack ============================
-  const UIStack = [];
+  // UIStack / pushUI / removeUI / showList are imported from ./ui-stack.js
+  // (Phase 1 Stage B). showList reaches the game UI root through a provider the
+  // engine installs at boot (initUiStack below).
   // All physical input flows through the unified Input system (js/runtime/input.js);
   // it is instantiated near the message-system wiring once UIStack/onKey exist.
   let Input = null;
 
-  function pushUI(ui) {
-    UIStack.push(ui);
-  }
-  function removeUI(ui) {
-    const i = UIStack.indexOf(ui);
-    if (i >= 0) UIStack.splice(i, 1);
-    if (ui.el && ui.el.parentNode) ui.el.parentNode.removeChild(ui.el);
-  }
   let richText;
   let showMessage;
   let setMsgSpeed = null; // message-system typewriter speed setter (captured at wiring)
 
-  // generic selectable list. items: [{label|html, disabled, help}]
-  function showList(items, opts) {
-    opts = opts || {};
-    return new Promise((resolve) => {
-      const win = el("div", "win listwin " + (opts.className || ""));
-      if (opts.titleHtml != null) win.appendChild(el("div", "win-title", opts.titleHtml));
-      else if (opts.title) win.appendChild(el("div", "win-title", esc(opts.title)));
-      const ul = el(
-        "ul",
-        "menu-list" + (opts.cols > 1 ? " cols" + opts.cols : ""),
-      );
-      win.appendChild(ul);
-      const help = el("div", "win-help");
-      if (items.some((it) => it.help)) win.appendChild(help);
-      let idx = Math.max(0, Math.min(opts.start || 0, items.length - 1));
-      let dragging = false; // true while click-dragging a slider — suppresses hover row-changes
-      // A "value row" carries an adjust(dir) fn + get() display string; left/right (and
-      // gamepad auto-repeat) change its value in place instead of selecting it. Rendered as
-      // label-left / value-right so sliders and cyclers line up in one column.
-      const isValueRow = (it) => it && typeof it.adjust === "function";
-      // Inner HTML of the .opt-cur cell: sliders split into a bar + percent (so a bar click can
-      // seek against the bar's own rect); cyclers show the centered word.
-      const curHtml = (it) =>
-        it.slider
-          ? "<span class='opt-bar'>" + esc(it.bar()) + "</span>" +
-            "<span class='opt-pct'>" + esc(it.pct()) + "</span>"
-          : esc(it.get());
-      const valueHtml = (it) =>
-        "<span class='opt-label'>" + esc(it.label) + "</span>" +
-        "<span class='opt-value'><span class='opt-arrow' data-d='-1'>◄</span>" +
-        "<span class='opt-cur'>" + curHtml(it) + "</span>" +
-        "<span class='opt-arrow' data-d='1'>►</span></span>";
-      const lis = items.map((it, i) => {
-        let cls = "";
-        if (it.disabled) cls += " disabled";
-        if (it.nav) cls += " navrow";   // Controls / Back: centered "go somewhere" rows
-        if (it.divider) cls += " sep";  // separator rule above the first nav row
-        const li = el(
-          "li",
-          cls.trim(),
-          isValueRow(it) ? valueHtml(it) : it.html != null ? it.html : esc(it.label),
-        );
-        li.addEventListener("mouseenter", () => {
-          if (dragging) return; // mid slider-drag: don't let vertical drift change the selected row
-          idx = i;
-          refresh(false); // hover never auto-scrolls (that caused the row-boundary bounce)
-        });
-        li.addEventListener("click", (e) => {
-          e.stopPropagation();
-          idx = i;
-          refresh(false);
-          const it2 = items[i];
-          if (!isValueRow(it2)) { ok(); return; }
-          // Arrows step; cycler word advances. (Slider-bar seek/drag is handled on mousedown below.)
-          const arrow = e.target.closest(".opt-arrow");
-          if (arrow) { adjust(i, Number(arrow.dataset.d) || 1); return; }
-          if (!it2.slider) adjust(i, 1); // click the cycler word to advance; slider label = no-op
-        });
-        // Slider: press-and-drag along the bar to scrub the volume (a plain click jumps to that
-        // block). Move/up live on the document so the drag keeps tracking outside the bar; the bar
-        // is re-queried each step because updateValue() re-renders .opt-cur (the old node detaches).
-        li.addEventListener("mousedown", (e) => {
-          const it2 = items[i];
-          if (!it2 || !it2.slider || typeof it2.seek !== "function") return;
-          if (e.target.closest(".opt-arrow")) return; // arrows step via click
-          if (!e.target.closest(".opt-cur")) return;  // only the value cell scrubs
-          e.preventDefault();
-          idx = i;
-          refresh(false);
-          dragging = true;
-          let lastV = null;
-          const seekTo = (clientX) => {
-            const bar = li.querySelector(".opt-bar");
-            const r = bar && bar.getBoundingClientRect();
-            if (!r || r.width <= 0) return;
-            const frac = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
-            const v = Math.ceil(frac * 10) / 10;
-            if (v === lastV) return; // same block → skip the re-render and SE
-            lastV = v;
-            it2.seek(frac);
-            updateValue(i);
-            sysSe("cursor");
-          };
-          const onMove = (ev) => seekTo(ev.clientX);
-          const onUp = () => {
-            dragging = false;
-            document.removeEventListener("mousemove", onMove);
-            document.removeEventListener("mouseup", onUp);
-          };
-          document.addEventListener("mousemove", onMove);
-          document.addEventListener("mouseup", onUp);
-          seekTo(e.clientX);
-        });
-        ul.appendChild(li);
-        return li;
-      });
-      win.addEventListener("contextmenu", (e) => {
-        e.preventDefault();
-        cancel();
-      });
-      function refresh(scroll) {
-        lis.forEach((li, i) => li.classList.toggle("sel", i === idx));
-        if (help.parentNode)
-          help.textContent = (items[idx] && items[idx].help) || "";
-        const li = lis[idx];
-        // Only auto-scroll on keyboard/gamepad nav — never on mouse hover, or hovering a row
-        // edge would nudge the scroll and bounce the selection between neighboring rows.
-        if (scroll && li && li.scrollIntoView) li.scrollIntoView({ block: "nearest" });
-      }
-      function move(d) {
-        if (!items.length) return;
-        idx = (idx + d + items.length) % items.length;
-        sysSe("cursor");
-        refresh(true);
-      }
-      // Re-read just one value row's display (no full rebuild → no flicker on adjust).
-      function updateValue(i) {
-        const it = items[i];
-        const li = lis[i];
-        if (!it || !li) return;
-        const cur = li.querySelector(".opt-cur");
-        if (cur) cur.innerHTML = curHtml(it);
-      }
-      function adjust(i, dir) {
-        const it = items[i];
-        if (!it || it.disabled || typeof it.adjust !== "function") return;
-        it.adjust(dir);
-        sysSe("cursor");
-        updateValue(i);
-      }
-      function ok() {
-        if (!items.length) return;
-        if (items[idx].disabled) {
-          sysSe("buzzer");
-          return;
-        }
-        sysSe("ok");
-        finish(idx);
-      }
-      function cancel() {
-        if (opts.cancellable === false) return;
-        sysSe("cancel");
-        finish(-1);
-      }
-      function finish(v) {
-        removeUI(ui);
-        resolve(v);
-      }
-      const cols = opts.cols || 1;
-      const ui = {
-        el: win,
-        onKey(k, repeat) {
-          const it = items[idx];
-          const valueRow = isValueRow(it) && !it.disabled;
-          // Cyclers (Text Speed / Dash / Screen Shake) change once per press: ignore auto-repeat so
-          // holding a direction can't blow through the options. Sliders still repeat (hold to ramp).
-          const blockRepeat = repeat && valueRow && !it.slider;
-          if (k === "up") move(-cols);
-          else if (k === "down") move(cols);
-          else if (k === "left") {
-            if (valueRow) { if (!blockRepeat) adjust(idx, -1); }
-            else if (cols > 1) move(-1);
-          } else if (k === "right") {
-            if (valueRow) { if (!blockRepeat) adjust(idx, 1); }
-            else if (cols > 1) move(1);
-          } else if (k === "ok") {
-            if (valueRow) { if (!blockRepeat) adjust(idx, 1); }
-            else ok();
-          } else if (k === "cancel") cancel();
-        },
-      };
-      uiLayer.appendChild(win);
-      pushUI(ui);
-      refresh(true);
-    });
-  }
 
   // ============================ message window ============================
   // Substitute control codes, HTML-escape, then let text-code plugins add markup.
