@@ -53,6 +53,7 @@ export interface EditorState {
   tool: string;              // pen | erase | rect | circle | fill | shadow
   mode: string;              // map | event | pass | start | height
   selectedTile: number;
+  brushSize: number;         // pen/erase footprint (odd; 1 = single cell)
   heightVal: number;         // HD-2D elevation value painted in height mode (0–9)
   zoom: number;
   selectedEvent: any;
@@ -92,6 +93,7 @@ export const editorState: EditorState = {
   tool: "pen",
   mode: "map",
   selectedTile: 1,
+  brushSize: 1,
   heightVal: 1,
   zoom: 0.75,
   selectedEvent: null,

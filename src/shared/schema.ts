@@ -703,6 +703,21 @@ export interface Tileset {
   tileProps: Record<string, any>;
 }
 
+/** A 47-blob autotile group (Phase 3 Stage D). The map stores a single reserved
+ *  tile id per group (AUTOTILE_BASE + id); the visual shape is resolved from
+ *  8-neighbour connectivity at draw time. `sheet` is the RPG-Maker A2 source
+ *  block (2x3 tiles) as a data URL. */
+export interface Autotile {
+  id: number;
+  name: string;
+  /** data URL of the A2 source block (4 minitiles wide x 6 tall). */
+  sheet: string;
+  /** whole-cell terrain (paints to the ground layer under Auto). Default true. */
+  terrain?: boolean;
+  /** passable by default. Default true (terrain floors are walkable). */
+  pass?: boolean;
+}
+
 /** A project plugin entry (Database ▸ Plugins). Built-ins carry engine
  *  metadata refreshed by the migration; user plugins keep author fields. */
 export interface PluginEntry {
@@ -754,6 +769,8 @@ export interface Project {
   commonEvents: CommonEvent[];
   /** Always present after migration (RA._migrateV0toV1 seeds a Default). */
   tilesets: Tileset[];
+  /** 47-blob autotile groups (Phase 3 Stage D). Optional; absent = none. */
+  autotiles?: Autotile[];
   assets: ProjectAssets;
   actors: Actor[];
   classes: ClassDef[];

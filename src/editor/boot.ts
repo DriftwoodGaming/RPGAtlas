@@ -32,6 +32,8 @@ import {
 import { openKeyboardShortcuts } from "./help";
 import { dispatchKey, type KeyBinding } from "./keymap";
 import { initDockWorkspace } from "./dock/panels";
+import { initAutotileUI, renderAutotileBar, stepBrush } from "./map-editor/autotile-ui";
+import { syncAutotileRegistry } from "./autotile-store";
 
 // The editor's global key bindings (Phase 3 Stage A). This table replaces the
 // old hardcoded keydown cascade one branch per binding, IN ORDER — the order
@@ -85,6 +87,8 @@ const EDITOR_KEYS: KeyBinding[] = [
   { codes: ["Equal", "NumpadAdd"], run: () => zoomStep(1) },
   { codes: ["Minus", "NumpadSubtract"], run: () => zoomStep(-1) },
   { codes: ["Digit0", "Numpad0"], run: () => setZoom(1) }, // reset to 100% (height mode consumes Digit0 above)
+  { codes: ["BracketLeft"], when: mapMode, run: () => stepBrush(-1) },
+  { codes: ["BracketRight"], when: mapMode, run: () => stepBrush(1) },
   { codes: ["Delete", "Backspace"], when: () => S.mode === "event", run: () => deleteSelectedEvent() },
 ];
 
@@ -92,6 +96,11 @@ export function rebuildAll() {
   if (!RA.byId(S.proj.maps, S.curMapId)) S.curMapId = S.proj.maps[0].id;
   rebuildMapList();
   renderPalette();
+  // Decode this project's autotile sheets, then repaint once they're ready so
+  // saved/imported groups render their blobs (import registers synchronously,
+  // but a freshly loaded project decodes off-thread).
+  syncAutotileRegistry(S.proj, () => { renderMap(); renderAutotileBar(); });
+  renderAutotileBar();
   renderMap();
   refreshToolbar();
   setStatus();
@@ -111,13 +120,14 @@ async function boot() {
   initDockWorkspace();
   buildMenubar();
   buildToolbar();
+  initAutotileUI();
 
   // palette
   S.palCanvas.addEventListener("mousedown", (e: any) => {
     const r = S.palCanvas.getBoundingClientRect();
     const x = Math.floor((e.clientX - r.left) / TILE), y = Math.floor((e.clientY - r.top) / TILE);
     const id = y * Assets.PALETTE_COLS + x;
-    if (id >= 0 && Assets.tiles[id]) { S.selectedTile = id; renderPalette(); setStatus(); }
+    if (id >= 0 && Assets.tiles[id]) { S.selectedTile = id; renderPalette(); renderAutotileBar(); setStatus(); }
   });
   S.palCanvas.addEventListener("mousemove", (e: any) => {
     const r = S.palCanvas.getBoundingClientRect();

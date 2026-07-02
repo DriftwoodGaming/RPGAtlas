@@ -26,6 +26,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, TILE, curMap } from "../editor-state";
+import { drawLayerCell } from "../../shared/autotile-draw";
 import { Renderer as GLRender } from "../../renderer/index.js";
 import { h } from "../dom";
 import { effectivePass } from "./map-render";
@@ -91,11 +92,10 @@ function buildBuffers(m: any) { // same composition as the engine's prerenderMap
   lg.fillStyle = "#101018"; lg.fillRect(0, 0, lower.width, lower.height);
   for (let y = 0; y < m.height; y++) {
     for (let x = 0; x < m.width; x++) {
-      const i = y * m.width + x;
-      Assets.drawTile(lg, m.layers.ground[i], x * TILE, y * TILE);
-      Assets.drawTile(lg, m.layers.decor[i], x * TILE, y * TILE);
-      Assets.drawTile(lg, m.layers.decor2[i], x * TILE, y * TILE);
-      Assets.drawTile(ug, m.layers.over[i], x * TILE, y * TILE);
+      drawLayerCell(lg, m.layers.ground, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
+      drawLayerCell(lg, m.layers.decor, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
+      drawLayerCell(lg, m.layers.decor2, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
+      drawLayerCell(ug, m.layers.over, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
     }
   }
   if (m.shadows) {

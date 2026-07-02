@@ -15,6 +15,8 @@
 
 import { Assets, Music, RA } from "../../shared/deps.js";
 import { Renderer } from "../../renderer/index.js";
+import { drawLayerCell } from "../../shared/autotile-draw.js";
+import { syncAutotileRegistry } from "../../shared/autotile-load.js";
 import { clamp, rnd, compareVariable, sysSe } from "../util.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G, Quests, objectiveDone, onEnemyKilled, param } from "../state/game-state.js";
@@ -122,7 +124,18 @@ export function refreshAllPages(): void {
 // refreshAllPages through the fns registry.
 fns.refreshAllPages = refreshAllPages;
 
+// Decode the project's autotile sheets into the shared registry once per
+// project. Awaited before the first prerender so blobs are ready; subsequent
+// map transfers reuse the decoded blocks (the registry is process-wide).
+let autotilesSyncedFor: any = null;
+function ensureAutotilesReady(): Promise<void> {
+  if (autotilesSyncedFor === ctx.proj) return Promise.resolve();
+  autotilesSyncedFor = ctx.proj;
+  return new Promise((resolve) => syncAutotileRegistry(ctx.proj, resolve));
+}
+
 async function prerenderMap(): Promise<void> {
+  await ensureAutotilesReady();
   ctx.lowerBuf = document.createElement("canvas");
   ctx.lowerBuf.width = ctx.map.width * TILE;
   ctx.lowerBuf.height = ctx.map.height * TILE;
@@ -133,12 +146,13 @@ async function prerenderMap(): Promise<void> {
     ug = ctx.upperBuf.getContext("2d");
   lg.fillStyle = "#101018";
   lg.fillRect(0, 0, ctx.lowerBuf.width, ctx.lowerBuf.height);
-  for (let y = 0; y < ctx.map.height; y++) {
-    for (let x = 0; x < ctx.map.width; x++) {
-      Assets.drawTile(lg, tileAt("ground", x, y), x * TILE, y * TILE);
-      Assets.drawTile(lg, tileAt("decor", x, y), x * TILE, y * TILE);
-      Assets.drawTile(lg, tileAt("decor2", x, y), x * TILE, y * TILE);
-      Assets.drawTile(ug, tileAt("over", x, y), x * TILE, y * TILE);
+  const m = ctx.map, gr = m.layers.ground, dc = m.layers.decor, d2 = m.layers.decor2, ov = m.layers.over;
+  for (let y = 0; y < m.height; y++) {
+    for (let x = 0; x < m.width; x++) {
+      drawLayerCell(lg, gr, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
+      drawLayerCell(lg, dc, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
+      drawLayerCell(lg, d2, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
+      drawLayerCell(ug, ov, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
     }
   }
   // quadrant shadows (drawn into the lower buffer, under characters)

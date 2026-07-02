@@ -27,6 +27,7 @@ import { canCopy, copySelection, startPaste, clearSelection } from "./map-editor
 import { setStatus, flashStatus } from "./map-editor/status";
 import { openMapProps } from "./map-editor/map-list";
 import { toggleViewport, isViewportVisible } from "./map-editor/hd-viewport";
+import { importAutotile } from "./map-editor/autotile-ui";
 import { ICONS } from "./icons";
 import { openDatabase } from "./database";
 import { openPluginManager } from "./tools/plugin-manager";
@@ -149,6 +150,7 @@ act("audio", { label: "Audio Manager…", icon: "audio", tip: "Audio Manager —
 act("search", { label: "Event Searcher…", icon: "search", tip: "Event Searcher — find text / switches / variables across maps", run: openEventSearcher });
 act("resources", { label: "Resource Manager…", icon: "resources", tip: "Resource Manager — browse and export generated assets", run: openResourceManager });
 act("chargen", { label: "Character Generator…", icon: "chargen", tip: "Character Generator — build original walking sprites", run: openCharGenerator });
+act("autotile-import", { label: "Import Autotile Sheet…", tip: "Import an RPG-Maker A2 autotile sheet as terrain brushes", run: importAutotile });
 act("cmdpal", { label: "Command Palette…", key: "Ctrl+P", tip: "Search and run any editor command", run: openCommandPalette });
 act("language", { label: "Interface Language…", run: openLanguageSettings });
 act("patchnotes", { label: "Patch Notes", run: openPatchNotes });
@@ -203,7 +205,7 @@ const MENUS = [
   { label: "Layer", items: ["layer-auto", "layer-ground", "layer-decor", "layer-decor2", "layer-over"] },
   { label: "Scale", items: ["zoomin", "zoomout", "zoom1", "zoomfit"] },
   { label: "View", items: ["panel-maps", "panel-tiles", "panel-map", "hdpreview", "-", "focus-next-panel", "-", "dock-reset", "dock-save", "dock-load"] },
-  { label: "Tools", items: ["db", "plugins", "audio", "search", "resources", "chargen", "-", "cmdpal"] },
+  { label: "Tools", items: ["db", "plugins", "audio", "search", "resources", "chargen", "-", "autotile-import", "-", "cmdpal"] },
   { label: "Game", items: ["play", "build", "-", "mapprops", "hdpreview", "mode-start"] },
   { label: "Help", items: ["language", "-", "shortcuts", "patchnotes", "help", "about"] },
 ];

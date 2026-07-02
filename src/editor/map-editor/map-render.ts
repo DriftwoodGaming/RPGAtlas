@@ -7,6 +7,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, TILE, LAYER_ORDER, editorState as S, curMap } from "../editor-state";
+import { drawLayerCell } from "../../shared/autotile-draw";
+import { isAutotileId } from "../../shared/autotile-registry";
 
   // ============================ map rendering ============================
   function layerAlpha(li: any) {
@@ -94,7 +96,7 @@ import { Assets, TILE, LAYER_ORDER, editorState as S, curMap } from "../editor-s
       g.globalAlpha = layerAlpha(li);
       for (let y = 0; y < m.height; y++) {
         for (let x = 0; x < m.width; x++) {
-          Assets.drawTile(g, arr[y * m.width + x], x * TILE, y * TILE);
+          drawLayerCell(g, arr, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
         }
       }
       if (li === 2) { // shadows sit under the overhead layer, as in-game
@@ -161,8 +163,10 @@ import { Assets, TILE, LAYER_ORDER, editorState as S, curMap } from "../editor-s
       g.globalAlpha = 0.6;
       for (let dy = 0; dy < S.clipTiles.h; dy++) {
         for (let dx = 0; dx < S.clipTiles.w; dx++) {
-          const si = dy * S.clipTiles.w + dx;
-          for (const ln of LAYER_ORDER) Assets.drawTile(g, S.clipTiles.layers[ln][si], (S.hoverCell.x + dx) * TILE, (S.hoverCell.y + dy) * TILE);
+          for (const ln of LAYER_ORDER) {
+            drawLayerCell(g, S.clipTiles.layers[ln], S.clipTiles.w, S.clipTiles.h, dx, dy,
+              (S.hoverCell.x + dx) * TILE, (S.hoverCell.y + dy) * TILE, TILE, Assets.drawTile);
+          }
         }
       }
       g.globalAlpha = 1;
@@ -209,6 +213,9 @@ import { Assets, TILE, LAYER_ORDER, editorState as S, curMap } from "../editor-s
     S.palCanvas.width = src.width; S.palCanvas.height = src.height;
     const g = S.palCanvas.getContext("2d");
     g.drawImage(src, 0, 0);
+    // An autotile group is selected outside the tile grid (its swatch lives in
+    // the autotile strip), so the grid highlight is suppressed for it.
+    if (isAutotileId(S.selectedTile)) return;
     const sx = (S.selectedTile % Assets.PALETTE_COLS) * TILE;
     const sy = Math.floor(S.selectedTile / Assets.PALETTE_COLS) * TILE;
     g.strokeStyle = "#ffd86a"; g.lineWidth = 3;

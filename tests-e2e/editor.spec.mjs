@@ -204,3 +204,62 @@ test.describe("live HD-2D viewport", () => {
     expect(L.radius).toBeGreaterThan(0);
   });
 });
+
+test.describe("autotiles", () => {
+  test("importing an A2 sheet adds a terrain brush; painting writes autotile ids", async ({ page }) => {
+    await page.goto("/index.html");
+    const saveIndicator = page.locator("#save-ind");
+    await expect(saveIndicator).toBeVisible();
+    await expect(saveIndicator).toHaveText(/^✓ /);
+
+    // Feed a synthetic RPG-Maker A2 block (96x144 = 4x6 minitiles) straight into
+    // the hidden file input: build it in-page from a canvas so the test carries
+    // no binary fixture, then dispatch the same change event the UI listens for.
+    await page.evaluate(async () => {
+      const c = document.createElement("canvas");
+      c.width = 96; c.height = 144;
+      const g = c.getContext("2d");
+      for (let y = 0; y < 6; y++) {
+        for (let x = 0; x < 4; x++) {
+          g.fillStyle = `hsl(${(x + y * 4) * 15}, 70%, 50%)`;
+          g.fillRect(x * 24, y * 24, 24, 24);
+        }
+      }
+      const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+      const file = new File([blob], "grass.png", { type: "image/png" });
+      const input = document.getElementById("autotile-file");
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    // The import decodes and appends a swatch to the Tiles panel.
+    const swatch = page.locator("#autotile-strip .autotile-swatch");
+    await expect(swatch).toHaveCount(1);
+    await swatch.first().click();
+
+    const readProject = () =>
+      page.evaluate(() => JSON.parse(localStorage.getItem("rpgatlas_project")));
+
+    // Paint a couple of adjacent cells so the blob resolver has neighbours.
+    const mapBox = await page.locator("#mapcanvas").boundingBox();
+    await page.mouse.click(mapBox.x + 30, mapBox.y + 30);
+    await page.mouse.click(mapBox.x + 60, mapBox.y + 30);
+
+    await expect(saveIndicator).toHaveText(/^● /);
+    await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
+
+    const after = await readProject();
+    expect(Array.isArray(after.autotiles)).toBe(true);
+    expect(after.autotiles.length).toBe(1);
+    expect(after.autotiles[0].sheet).toMatch(/^data:image\/png/);
+
+    // Painted cells store the reserved autotile id (AUTOTILE_BASE = 1_000_000),
+    // not a plain tile index — the map format stays integer ids.
+    const mapId = after.system.startMapId || after.maps[0].id;
+    const ground = after.maps.find((m) => m.id === mapId).layers.ground;
+    const painted = ground.filter((v) => v >= 1_000_000);
+    expect(painted.length).toBeGreaterThanOrEqual(2);
+  });
+});
