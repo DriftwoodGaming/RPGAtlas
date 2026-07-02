@@ -44,6 +44,8 @@ import { openLocationPicker } from "./location-picker";
           : "Gold " + (c.cond.cmp || ">=") + " " + c.cond.val;
         return "If " + d;
       }
+      case "loop": return "Loop";
+      case "breakLoop": return "Break Loop";
       case "questStart": return "Start Quest: " + questName(c.questId);
       case "questAdvanceObj": return "Advance Objective: " + questName(c.questId) + " — " + questObjName(c.questId, c.objIndex) + " +" + (c.amount || 1);
       case "questSetObj": return "Set Objective: " + questName(c.questId) + " — " + questObjName(c.questId, c.objIndex) + " = " + (c.value || 0);
@@ -206,6 +208,13 @@ import { openLocationPicker } from "./location-picker";
           if (!c.else) c.else = [];
         };
       } },
+    { t: "loop", label: "Loop", make: () => ({ t: "loop", body: [] }),
+      form(c: any, box: any) {
+        box.appendChild(h("div", { class: "dim" },
+          "Repeats its body until a Break Loop command runs inside it. The body is edited in the command list (or the graph's Body port)."));
+        return () => { if (!c.body) c.body = []; };
+      } },
+    { t: "breakLoop", label: "Break Loop", make: () => ({ t: "breakLoop" }), form: () => () => {} },
     { t: "questStart", label: "Start Quest", make: () => ({ t: "questStart", questId: S.proj.quests[0] ? S.proj.quests[0].id : 0 }),
       form(c: any, box: any) {
         const w = { questId: c.questId || (S.proj.quests[0] ? S.proj.quests[0].id : 0) };

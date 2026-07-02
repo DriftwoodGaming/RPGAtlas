@@ -47,13 +47,14 @@ export interface WorldGraph {
 
 export interface Vec2 { x: number; y: number; }
 
-// Depth-first walk of a command list, recursing into if/choices branches.
+// Depth-first walk of a command list, recursing into if/choices/loop branches.
 // Kept local (no editor dependency) so this module stays pure & testable.
 function walk(list: any, cb: (c: any) => void): void {
   for (const c of list || []) {
     cb(c);
     if (c && c.t === "if") { walk(c.then, cb); walk(c.else, cb); }
     else if (c && c.t === "choices") for (const b of c.branches || []) walk(b, cb);
+    else if (c && c.t === "loop") walk(c.body, cb);
   }
 }
 

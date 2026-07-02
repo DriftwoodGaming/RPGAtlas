@@ -116,6 +116,8 @@ the button to edit or delete it.
 | **Call Common Event** | Run a reusable command sequence from Database ▸ Common Events. |
 | **Show Choices** | Offer the player options, each branching to its own sub-list of commands. |
 | **Conditional Branch** | Run commands only **if** a condition is true (switch, self-switch, variable…), with an optional **else**. |
+| **Loop** | Repeat its body until a **Break Loop** command runs inside it. |
+| **Break Loop** | Exit the innermost enclosing Loop and continue after it. |
 | **Wait** | Pause for a number of frames. |
 | **Script** | Run raw JavaScript for anything the commands don't cover (advanced — see [Plugins](Plugins)). |
 
@@ -159,6 +161,37 @@ the button to edit or delete it.
 | **Return to Title** | Go back to the title screen. |
 
 ---
+
+## Atlas Graph — visual scripting
+
+Every event page can also be authored as a **node graph**. Above the command list sits a
+**List | Graph** toggle: pressing **Graph** on a classic page converts it to a graph — losslessly,
+one node per command, already wired in order.
+
+The graph is an authoring view, not a different engine: it **compiles into the exact command list**
+the game already runs. Playtest, saves, plugins, and exported games see only the compiled commands,
+so a graph page behaves identically to the same page written as a list (and costs nothing at
+runtime).
+
+Working on the canvas:
+
+- **Wire** flow by dragging from a node's output port onto another node. Drop a wire on empty
+  canvas to pick a command and add-and-connect it in one motion. Branch nodes (Conditional Branch,
+  Show Choices, Loop) expose one port per branch plus an **After** port — what runs once the branch
+  completes.
+- **Add** nodes from the right-click menu (or double-click empty canvas): every command in the Add
+  Command picker is a node, including your saved Script buttons — which is also how plugin commands
+  join the graph.
+- **Edit** a node with a double-click (the command's normal dialog) or the inspector on the right.
+- **Navigate**: drag the background to pan, mouse-wheel to zoom, use the corner minimap to jump.
+  Comments, resizable frames, and reroute dots keep large graphs readable.
+- **Validation** runs live: cycles (use a Loop node instead), unreachable nodes, and a disconnected
+  Start are flagged in a banner. Errors keep the page's last good compile, so it never breaks
+  mid-edit.
+- **List** view shows the compiled commands read-only while a graph owns the page;
+  **Convert to list…** removes the graph and returns the compiled commands to normal editing.
+
+Ctrl+Z / Ctrl+Y inside the event editor undo graph edits and their compiled commands as one step.
 
 ## Switches vs. Variables vs. Self-Switches
 

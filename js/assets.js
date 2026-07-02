@@ -1360,6 +1360,8 @@ const Assets = (() => {
         } else if (command.t === "if") {
           scanCommands(command.then);
           scanCommands(command.else);
+        } else if (command.t === "loop") {
+          scanCommands(command.body);
         }
       }
     };

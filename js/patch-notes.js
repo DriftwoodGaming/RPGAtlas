@@ -5,6 +5,21 @@
 export const PATCH_NOTES = [
   {
     date: "July 2, 2026",
+    title: "Atlas Graph — node-based visual scripting",
+    summary:
+      "Event pages can now be authored as node graphs: a full visual-scripting canvas that compiles into the exact same event commands your game already runs, so graphs work everywhere — playtest, saves, plugins, and exported games — with zero runtime cost.",
+    items: [
+      "Open any event and press the new Graph toggle above the command list to convert the page to a graph (lossless, and reversible with Convert to list…). Wire nodes by dragging from output ports; drop a wire on empty canvas to add-and-connect a new node in one motion.",
+      "Every event command is a node — the same Add Command picker, edit dialogs, and inline inspector work on nodes, including your saved Script command buttons (which is also how plugin commands become nodes).",
+      "Branching flows visually: Conditional Branch and Show Choices nodes expose one output per branch plus an After port for what runs once the branch completes.",
+      "New Loop and Break Loop commands (usable in classic lists too): Loop repeats its body until Break Loop fires — the graph's cycle answer, and a long-requested command in its own right.",
+      "Comments, resizable frames, and reroute dots keep big graphs tidy; a minimap in the corner jumps around large canvases; pan with drag, zoom with the mouse wheel.",
+      "Live validation flags cycles, unreachable nodes, and disconnected Starts as you edit — errors keep the last good compile, so your page never breaks mid-edit.",
+      "Ctrl+Z / Ctrl+Y inside the event editor undo graph edits and their compiled commands together.",
+    ],
+  },
+  {
+    date: "July 2, 2026",
     title: "Unified undo & UI polish",
     summary:
       "Undo now spans everything: map painting, event edits, Map Properties, and every Database change share one Ctrl+Z history, and the editor got a consistency pass — labeled undo steps, keyboard list navigation, visible focus rings, and a unified dark palette.",

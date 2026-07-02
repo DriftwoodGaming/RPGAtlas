@@ -27,6 +27,10 @@ export function initInterpServices(services: any): void {
 export class Interp {
   evRT: any;
   commonStack: any[];
+  /** Set by the breakLoop command (Phase 4); runList unwinds while it is
+   *  true and the innermost loop handler consumes it. Never set unless a
+   *  loop/breakLoop command exists, so pre-Phase-4 behavior is untouched. */
+  breakLoop = false;
 
   constructor(evRT: any, commonStack?: any[]) {
     this.evRT = evRT;
@@ -37,7 +41,10 @@ export class Interp {
   }
 
   async runList(list: any): Promise<void> {
-    for (const cmd of list || []) await this.exec(cmd);
+    for (const cmd of list || []) {
+      await this.exec(cmd);
+      if (this.breakLoop) return; // unwind to the innermost loop handler
+    }
   }
   async exec(c: any): Promise<void> {
     // Every command — built-in and plugin-registered — is dispatched through

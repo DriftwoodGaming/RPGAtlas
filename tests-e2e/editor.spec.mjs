@@ -402,3 +402,55 @@ test.describe("autotiles", () => {
     expect(painted.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+test.describe("atlas graph (phase 4)", () => {
+  test("converting a page to a graph is lossless and persists on OK", async ({ page }) => {
+    await page.goto("/index.html");
+    const saveIndicator = page.locator("#save-ind");
+    await expect(saveIndicator).toBeVisible();
+    await expect(saveIndicator).toHaveText(/^✓ /);
+
+    // The sample game's Elder event, page 1: our conversion guinea pig.
+    const readElderPage = () =>
+      page.evaluate(() => {
+        const proj = JSON.parse(localStorage.getItem("rpgatlas_project"));
+        const ev = proj.maps.flatMap((m) => m.events || []).find((e) => e.name === "Elder");
+        return ev.pages[0];
+      });
+    const before = await readElderPage();
+    expect(before.graph).toBeUndefined();
+    expect(before.commands.length).toBeGreaterThan(0);
+
+    // Tools ▸ Event Searcher is the stable path into the event editor.
+    await page.locator("#menus .menu-label", { hasText: "Tools" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "Event Searcher" }).click();
+    await page.locator(".search-bar input").fill("Elder");
+    await page.locator(".search-bar button", { hasText: "Search" }).click();
+    await page.locator(".search-row", { hasText: "Elder" }).first().click();
+    await expect(page.locator(".event-modal")).toBeVisible();
+
+    // Convert: one node per top-level command, all wired, no validation issues.
+    await page.locator(".ev-viewtoggle-seg button", { hasText: "Graph" }).click();
+    await expect(page.locator(".graph-node.graph-start")).toBeVisible();
+    await expect(page.locator(".graph-node:not(.graph-start)")).toHaveCount(before.commands.length);
+    await expect(page.locator(".graph-banner")).toBeHidden();
+
+    // The List toggle becomes a read-only compiled preview while a graph owns the page.
+    await page.locator(".ev-viewtoggle-seg button", { hasText: "List" }).click();
+    await expect(page.locator(".ev-ro-note")).toBeVisible();
+    await expect(page.locator(".cmd-readonly .cmdrow")).toHaveCount(before.commands.length);
+    await page.locator(".ev-viewtoggle-seg button", { hasText: "Graph" }).click();
+
+    // OK commits the working clone; autosave persists graph + compiled commands.
+    await page.locator(".event-footer button", { hasText: "OK" }).click();
+    await expect(page.locator(".event-modal")).toBeHidden();
+    await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
+
+    const after = await readElderPage();
+    expect(after.graph).toBeTruthy();
+    expect(after.graph.nodes.length).toBe(before.commands.length);
+    expect(after.graph.entry).not.toBeNull();
+    // Lossless: the compiled commands deep-equal the pre-conversion list.
+    expect(after.commands).toEqual(before.commands);
+  });
+});

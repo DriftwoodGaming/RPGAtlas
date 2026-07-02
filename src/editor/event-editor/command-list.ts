@@ -22,6 +22,7 @@ import { cmdSummary, editCommand, pickCommand } from "./command-defs";
       cb(c);
       if (c.t === "if") { walkCommands(c.then, cb); walkCommands(c.else, cb); }
       else if (c.t === "choices") (c.branches || []).forEach((b: any) => walkCommands(b, cb));
+      else if (c.t === "loop") walkCommands(c.body, cb);
     }
   }
 
@@ -42,6 +43,11 @@ import { cmdSummary, editCommand, pickCommand } from "./command-defs";
           buildCmdRows(c.branches[bi], depth + 1, out);
           out.push({ arr: c.branches[bi], idx: c.branches[bi].length, depth: depth + 1, slot: true });
         });
+      } else if (c.t === "loop") {
+        if (!c.body) c.body = [];
+        out.push({ label: "▸ Repeat", depth: depth });
+        buildCmdRows(c.body, depth + 1, out);
+        out.push({ arr: c.body, idx: c.body.length, depth: depth + 1, slot: true });
       }
     });
   }
@@ -60,7 +66,8 @@ import { cmdSummary, editCommand, pickCommand } from "./command-defs";
     function ownsArray(cmd: any, arr: any) {
       if (!cmd) return false;
       const branches = cmd.t === "if" ? [cmd.then, cmd.else]
-        : cmd.t === "choices" ? (cmd.branches || []) : [];
+        : cmd.t === "choices" ? (cmd.branches || [])
+        : cmd.t === "loop" ? [cmd.body || []] : [];
       for (const b of branches) {
         if (b === arr) return true;
         for (const c of b) if (ownsArray(c, arr)) return true;

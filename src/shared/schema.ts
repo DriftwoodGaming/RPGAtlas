@@ -512,6 +512,18 @@ export interface CmdScript {
   t: "script";
   code: string;
 }
+/** Repeats `body` until a breakLoop command unwinds it (Phase 4). The
+ *  interpreter awaits one frame every 1000 iterations so a wait-less loop
+ *  can never freeze the tab. */
+export interface CmdLoop {
+  t: "loop";
+  body: AnyCommand[];
+}
+/** Breaks out of the innermost enclosing loop (Phase 4). Outside a loop it
+ *  ends the current command-list run (editor validation flags this). */
+export interface CmdBreakLoop {
+  t: "breakLoop";
+}
 
 /** Every built-in event command, discriminated on `t`. Plugin commands add
  *  further `t` values at runtime via the interpreter registry; those aren't in
@@ -550,7 +562,9 @@ export type AnyCommand =
   | CmdSave
   | CmdGameover
   | CmdToTitle
-  | CmdScript;
+  | CmdScript
+  | CmdLoop
+  | CmdBreakLoop;
 
 /** The `t` discriminant of any built-in command. */
 export type CommandType = AnyCommand["t"];
@@ -582,6 +596,41 @@ export interface ActionCombat {
   defeatSelfSwitch: "" | "A" | "B" | "C" | "D" | string;
 }
 
+// ---- Atlas Graph (Phase 4): node-based visual scripting IR ----
+// A graph is an additive, editor-authored representation stored per event
+// page; it compiles deterministically into `page.commands` (the only thing
+// the runtime ever reads), so graphs cost nothing at play/export time.
+
+/** One node on an event page's Atlas Graph canvas. */
+export interface GraphNode {
+  id: number; // unique within the graph
+  /** "cmd" (default): a command node. "comment": a note/frame (never wired).
+   *  "reroute": a pass-through dot for tidying edges. */
+  kind?: "cmd" | "comment" | "reroute";
+  x: number;
+  y: number;
+  /** kind "cmd": the payload command. Its own branch arrays (if.then,
+   *  choices.branches, loop.body) stay EMPTY in the graph — structure lives
+   *  in the `out` edges and is materialized by the compiler. */
+  cmd?: AnyCommand;
+  text?: string; // kind "comment"
+  w?: number; // kind "comment": frame width (a sized comment is a frame)
+  h?: number; // kind "comment": frame height
+  /** Exec outputs → target node id (null = flow ends). Shape per node type:
+   *  if = [Then, Else, After] · choices = [...options, After] ·
+   *  loop = [Body, After] · other cmd/reroute = [Next] · comment = []. */
+  out: (number | null)[];
+}
+
+/** The per-page graph document (EventPage.graph). */
+export interface EventGraph {
+  nodes: GraphNode[];
+  /** The Start pill's target — the first node executed. */
+  entry: number | null;
+  /** Node-id allocator (next unused id). */
+  nextId: number;
+}
+
 export interface EventPage {
   name?: string;
   cond?: EventPageCondition;
@@ -593,6 +642,10 @@ export interface EventPage {
   through?: boolean;
   combat?: ActionCombat;
   commands: AnyCommand[];
+  /** Atlas Graph source (Phase 4). When present, `commands` is its compiled
+   *  output and the editor treats the graph as the page's source of truth.
+   *  Optional and additive: pages without graphs are untouched. */
+  graph?: EventGraph;
 }
 
 export interface MapEvent {

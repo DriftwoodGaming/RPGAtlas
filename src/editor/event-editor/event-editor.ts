@@ -20,8 +20,10 @@ import { touch } from "../persistence";
 import { renderMap } from "../map-editor/map-render";
 import { pushUndo } from "../map-editor/history";
 import { flashStatus } from "../map-editor/status";
-import { cmdListWidget } from "./command-list";
-import { mountForm } from "./command-defs";
+import { buildCmdRows, cmdListWidget } from "./command-list";
+import { cmdSummary, mountForm } from "./command-defs";
+import { graphEditorWidget } from "./graph-editor";
+import { compileGraph, decompileCommands } from "../../shared/event-graph";
 
   // ============================ event editor ============================
   // onCommitNew (optional): for a brand-new, not-yet-inserted event, called on OK after the edited
@@ -38,17 +40,22 @@ import { mountForm } from "./command-defs";
       return hst;
     }
     const curPage = () => ev.pages[pageIdx];
-    function cmdSnapshot() {                    // call before mutating the current page's commands
+    // Entries capture commands AND the Atlas Graph together (Phase 4): a graph
+    // edit recompiles commands, so undoing one without the other would desync.
+    const pageShot = () => RA.clone({ commands: curPage().commands, graph: curPage().graph || null });
+    function cmdSnapshot() {                    // call before mutating the current page's commands/graph
       const hst = histFor(curPage());
-      hst.undo.push(RA.clone(curPage().commands));
+      hst.undo.push(pageShot());
       if (hst.undo.length > 60) hst.undo.shift();
       hst.redo.length = 0;
     }
     function cmdStep(from: any, to: any) {
       const hst = histFor(curPage());
       if (!hst[from].length) { flashStatus(from === "undo" ? "Nothing to undo" : "Nothing to redo"); return false; }
-      hst[to].push(RA.clone(curPage().commands));
-      curPage().commands = RA.clone(hst[from].pop());   // re-clone so the archived entry stays immutable
+      hst[to].push(pageShot());
+      const shot = RA.clone(hst[from].pop());   // re-clone so the archived entry stays immutable
+      curPage().commands = shot.commands;
+      if (shot.graph) curPage().graph = shot.graph; else delete curPage().graph;
       touch();
       return true;
     }
@@ -66,7 +73,8 @@ import { mountForm } from "./command-defs";
       if (pageMenuEl) return;                    // a page context menu is open — let it own the keys
       const t = e.target;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
-      const inCmdList = t && t.closest && t.closest(".cmdlist");   // the command list owns its own Delete/keys
+      // The command list and the graph canvas own their own Delete/keys.
+      const inCmdList = t && t.closest && (t.closest(".cmdlist") || t.closest(".graph-wrap"));
       if (e.ctrlKey || e.metaKey) {
         if (e.code === "KeyZ" && e.shiftKey) { e.preventDefault(); if (undoApi.redo()) redrawPage(); }
         else if (e.code === "KeyZ") { e.preventDefault(); if (undoApi.undo()) redrawPage(); }
@@ -86,6 +94,9 @@ import { mountForm } from "./command-defs";
     const head = h("div", { class: "event-head" });
     const tabs = h("div", { class: "tabs" });
     const pageBox = h("div", { class: "event-pagebox" });
+    // Center-pane view per page: "list" | "graph". Pages with a graph default
+    // to the graph; the List view is then a read-only compiled preview.
+    const viewPref = new Map();
 
     function deletePage(i: any) {
       if (ev.pages.length <= 1) return;
@@ -215,8 +226,9 @@ import { mountForm } from "./command-defs";
         inspector.appendChild(formBox);
         if (!formBox.childNodes.length)        // no-parameter commands (erase/save/gameover/totitle)
           formBox.appendChild(h("div", { class: "ev-insp-empty" }, t("This command has no parameters.")));
-        if (c.t === "choices" || c.t === "if") // nested branches are authored in the command tree, not here
-          inspector.appendChild(h("div", { class: "ev-insp-hint" }, t("Branch contents are edited in the command list.")));
+        if (c.t === "choices" || c.t === "if" || c.t === "loop") // nested branches are authored in the tree / via ports, not here
+          inspector.appendChild(h("div", { class: "ev-insp-hint" },
+            t(pg.graph ? "Branches connect via the node's output ports." : "Branch contents are edited in the command list.")));
         function commit() {
           if (!dirtySinceMount) { undoApi.snapshot(); dirtySinceMount = true; }  // one undo step per mount
           apply();
@@ -337,9 +349,67 @@ import { mountForm } from "./command-defs";
 
       const left = h("div", { class: "event-ide-col event-ide-left" }, condSection, appSection, behSection, combatSection);
 
-      // ---- center pane: command list ----
-      cw = cmdListWidget(() => ev.pages[pageIdx].commands, undoApi, onSelect);
-      const center = h("div", { class: "event-ide-col event-ide-center" }, cw.el);
+      // ---- center pane: command list OR Atlas Graph (Phase 4) ----
+      const mode = pg.graph ? (viewPref.get(pg) || "graph") : "list";
+
+      // Read-only rendering of the compiled commands while a graph owns the page.
+      function compiledPreview() {
+        const rowsBox = h("div", { class: "cmdlist cmd-readonly" });
+        const rows: any[] = [];
+        buildCmdRows(pg.commands, 0, rows);
+        rows.forEach((r2: any) => {
+          if (r2.slot) return;
+          rowsBox.appendChild(h("div", {
+            class: "cmdrow" + (r2.label ? " branch" : ""),
+            style: "padding-left:" + (8 + r2.depth * 18) + "px",
+          }, r2.label ? r2.label : "◆ " + cmdSummary(r2.cmd)));
+        });
+        if (!pg.commands.length) rowsBox.appendChild(h("div", { class: "ev-insp-empty" }, t("The graph compiles to no commands yet.")));
+        const el = h("div", { class: "cmdlist-wrap" },
+          h("div", { class: "cmdbtns" },
+            h("div", { class: "cmdbanner-title" }, h("span", null, t("Commands")), h("span", { class: "ev-cmd-count" }, "(" + pg.commands.length + ")")),
+            h("div", { class: "ev-ro-note" }, t("Compiled from the graph — read-only"))),
+          rowsBox);
+        return { el, redraw() {} };
+      }
+
+      function toGraphView() {
+        if (!pg.graph) {
+          undoApi.snapshot();
+          pg.graph = decompileCommands(pg.commands);
+          // recompile immediately: normalizes the list (e.g. branch arrays
+          // always present) so graph and commands are in lockstep from here on
+          pg.commands = compileGraph(pg.graph).commands;
+          touch();
+        }
+        viewPref.set(pg, "graph");
+        redrawPage();
+      }
+      function toListView() { viewPref.set(pg, "list"); redrawPage(); }
+      function detachGraph() {
+        confirmBox(t("Remove the graph and edit the compiled commands directly? Node positions and comments will be lost."), () => {
+          undoApi.snapshot();
+          delete pg.graph;
+          viewPref.delete(pg);
+          touch();
+          redrawPage();
+        });
+      }
+
+      const viewBar = h("div", { class: "ev-viewtoggle" },
+        h("div", { class: "ev-viewtoggle-seg" },
+          h("button", { class: "mini" + (mode === "list" ? " sel" : ""), onclick: toListView }, t("List")),
+          h("button", { class: "mini" + (mode === "graph" ? " sel" : ""), title: pg.graph ? "" : t("Convert this page to an Atlas Graph (lossless)"), onclick: toGraphView }, t("Graph"))),
+        pg.graph ? h("button", { class: "mini ev-detach", onclick: detachGraph }, t("Convert to list…")) : null);
+
+      cw = pg.graph && mode === "graph"
+        ? graphEditorWidget(() => ev.pages[pageIdx], undoApi, onSelect)
+        : pg.graph ? compiledPreview()
+        : cmdListWidget(() => ev.pages[pageIdx].commands, undoApi, onSelect);
+      // The host keeps the "center column has no intrinsic height" contract:
+      // the widget absolute-fills it, the view bar sits above in normal flow.
+      const center = h("div", { class: "event-ide-col event-ide-center" },
+        viewBar, h("div", { class: "ev-center-host" }, cw.el));
 
       // ---- right pane: inspector ----
       const right = h("div", { class: "event-ide-col event-ide-right" }, inspector);

@@ -513,8 +513,20 @@ button.danger:hover { background: #6a3636; }
 /* center + right contribute no intrinsic height (only absolutely-positioned children), so the
    left column anchors the row height; the boxes below stretch to it and scroll within. */
 .event-ide-center, .event-ide-right { position: relative; }
+/* Phase 4: the view bar (List | Graph) sits in normal flow; the host below it
+   is the positioned box the active widget absolute-fills, preserving the
+   "center contributes no intrinsic height" contract. */
+.ev-center-host { flex: 1; min-height: 0; position: relative; }
 .event-ide-center .cmdlist-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; }
 .event-ide-center .cmdlist { max-height: none; flex: 1; min-height: 0; }
+.ev-viewtoggle { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.ev-viewtoggle-seg { display: flex; }
+.ev-viewtoggle-seg .mini:first-child { border-radius: 5px 0 0 5px; }
+.ev-viewtoggle-seg .mini:last-child { border-radius: 0 5px 5px 0; margin-left: -1px; }
+.ev-detach { margin-left: auto; }
+.ev-ro-note { font-size: var(--fs-tiny); color: var(--text-dim); }
+.cmd-readonly { opacity: .85; }
+.cmd-readonly .cmdrow { cursor: default; }
 .event-inspector { position: absolute; inset: 0; overflow-y: auto; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 10px; }
 
 /* left sections */
@@ -744,3 +756,48 @@ button.danger:hover { background: #6a3636; }
 .dmg-preview { display: flex; align-items: center; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
 .dmg-fld { display: flex; align-items: center; gap: 5px; font-size: var(--fs-small); color: #b8bcce; }
 .dmg-out { font-weight: 600; color: var(--gold); }
+
+/* ============================ Atlas Graph canvas (Phase 4) ============================ */
+.graph-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; outline: none; }
+.graph-banner { padding: 4px 8px; font-size: var(--fs-small); border-radius: 5px; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.graph-banner-err { background: rgba(200,60,60,.15); border: 1px solid #7a3a3a; color: #f0b0b0; }
+.graph-banner-warn { background: rgba(255,216,106,.10); border: 1px solid var(--gold-edge); color: var(--gold); }
+.graph-viewport { flex: 1; min-height: 0; position: relative; overflow: hidden; background: var(--bg-deep); border: 1px solid var(--line); border-radius: 6px; }
+.graph-viewport.panning { cursor: grabbing; }
+.graph-stage { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+.graph-edges { position: absolute; left: 0; top: 0; width: 1px; height: 1px; overflow: visible; z-index: 1; }
+.graph-edge { fill: none; stroke: var(--accent-edge); stroke-width: 2; pointer-events: none; }
+.graph-edge.sel { stroke: var(--gold); stroke-width: 2.5; }
+.graph-edge-temp { stroke: var(--gold); stroke-dasharray: 5 4; }
+.graph-edge-hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
+
+.graph-node { position: absolute; width: 190px; z-index: 2; background: var(--panel-2); border: 1px solid var(--line-3); border-radius: 7px; padding: 6px 8px 6px 10px; cursor: grab; user-select: none; box-shadow: 0 2px 8px rgba(0,0,0,.35); }
+.graph-node.sel { border-color: var(--gold-edge); box-shadow: 0 0 0 1px var(--gold-edge), 0 2px 8px rgba(0,0,0,.35); }
+.graph-node-title { font-weight: 600; color: var(--accent-text); font-size: var(--fs-small); margin-bottom: 2px; }
+.graph-node-sum { font-size: var(--fs-tiny); color: var(--text-dim); line-height: 1.35; max-height: 44px; overflow: hidden; word-break: break-word; margin-bottom: 2px; }
+.graph-ports { display: flex; flex-direction: column; gap: 2px; }
+.graph-port-row { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.graph-port-label { font-size: var(--fs-tiny); color: var(--text-mid); }
+.graph-port { width: 11px; height: 11px; border-radius: 50%; background: var(--raise-2); border: 2px solid var(--accent-edge); cursor: crosshair; flex: 0 0 auto; }
+.graph-port:hover { background: var(--gold); border-color: var(--gold-edge); }
+.graph-port-in { position: absolute; left: -6px; top: 10px; cursor: default; }
+.graph-port-row .graph-port-out { margin-right: -15px; }
+
+.graph-start { width: auto; display: flex; align-items: center; gap: 4px; background: #2c6a3c; border-color: #48a060; color: #fff; font-weight: 600; cursor: default; padding: 6px 10px; }
+.graph-start .graph-port-out { margin-right: -17px; }
+
+.graph-reroute { position: absolute; width: 14px; height: 14px; z-index: 2; border-radius: 50%; background: var(--accent-edge); border: 2px solid var(--line-3); cursor: grab; }
+.graph-reroute.sel { background: var(--gold); }
+.graph-reroute .graph-port-out { position: absolute; right: -9px; top: 1px; width: 8px; height: 8px; }
+
+.graph-comment { position: absolute; z-index: 0; min-width: 140px; max-width: 260px; background: rgba(255,216,106,.06); border: 1px dashed var(--gold-edge); border-radius: 6px; padding: 8px; color: var(--gold); font-size: var(--fs-small); cursor: grab; }
+.graph-comment.sel { border-style: solid; }
+.graph-frame { max-width: none; }
+.graph-comment-text { white-space: pre-wrap; word-break: break-word; }
+.graph-resize { position: absolute; right: -2px; bottom: -2px; width: 14px; height: 14px; cursor: nwse-resize; border-right: 3px solid var(--gold-edge); border-bottom: 3px solid var(--gold-edge); border-radius: 0 0 4px 0; }
+
+.graph-minimap { position: absolute; right: 8px; bottom: 8px; width: 148px; height: 92px; z-index: 3; background: rgba(16,16,24,.85); border: 1px solid var(--line-2); border-radius: 5px; overflow: hidden; cursor: pointer; }
+.graph-mm-node { position: absolute; background: var(--accent-edge); border-radius: 1px; }
+.graph-mm-node.mm-comment { background: rgba(255,216,106,.4); }
+.graph-mm-view { position: absolute; border: 1px solid var(--gold); background: rgba(255,216,106,.08); }
+.graph-hint { position: absolute; left: 8px; bottom: 8px; z-index: 3; font-size: var(--fs-tiny); color: var(--text-dim); pointer-events: none; }

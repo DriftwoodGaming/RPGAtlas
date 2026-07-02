@@ -92,6 +92,46 @@ async function loadRegistry() {
   assert.equal(refreshed, 1, "switch command refreshes event pages");
   assert.equal(quests, 1, "switch command re-evaluates quest failures");
 
+  // ---- loop / breakLoop (Phase 4 Atlas Graph flow commands) ----
+  // A minimal interp implementing the runList/breakLoop contract from
+  // src/engine/interpreter/interp.ts: exec dispatches through the registry,
+  // runList unwinds while breakLoop is set, the loop handler consumes it.
+  {
+    assert.equal(typeof getCommand("loop"), "function", "loop handler registered");
+    assert.equal(typeof getCommand("breakLoop"), "function", "breakLoop handler registered");
+    const loopState = { vars: {} };
+    const loopServices = {
+      refreshAllPages: () => {},
+      evaluateQuestFailures: () => {},
+      waitFrames: async () => {},
+      rnd: () => 0,
+    };
+    const interp = {
+      breakLoop: false,
+      testCond(cond) { return (loopState.vars[cond.id] || 0) >= cond.val; },
+      async exec(c) {
+        const handler = getCommand(c.t);
+        if (handler) await handler(c, { interp: this, state: loopState, services: loopServices });
+      },
+      async runList(list) {
+        for (const cmd of list || []) {
+          await this.exec(cmd);
+          if (this.breakLoop) return;
+        }
+      },
+    };
+    // Loop: add 1 to var 1 each pass; break (nested in an if) once it hits 3.
+    await interp.runList([{
+      t: "loop", body: [
+        { t: "var", id: 1, op: "add", val: 1 },
+        { t: "if", cond: { kind: "var", id: 1, val: 3 }, then: [{ t: "breakLoop" }], else: [] },
+      ],
+    }, { t: "var", id: 2, op: "set", val: 7 }]);
+    assert.equal(loopState.vars[1], 3, "loop repeats its body until Break Loop fires");
+    assert.equal(interp.breakLoop, false, "the innermost loop consumes the break flag");
+    assert.equal(loopState.vars[2], 7, "execution continues after the loop");
+  }
+
   // ---- actor conditional branch (still in engine.js Interp.testCond) ----
   function testCond(cond, G) {
     const actor = G.party.find((a) => a.actorId === cond.actorId);
