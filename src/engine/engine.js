@@ -40,6 +40,7 @@ import {
   frameWait,
   tickTween,
 } from "./scenes/map.js";
+import { saveLoadMenu, slotInfo } from "./state/save.js";
 // Shared engine context (Phase 1 Stage B): imported as EC because `ctx` here is
 // the game canvas 2d context. The IIFE installs getter/setter bridges onto EC
 // (below, before the boot section) so extracted modules see this closure's
@@ -870,118 +871,8 @@ const _createInputSystem = window.createInputSystem;
   }
 
   // ---- save / load ----
-  function saveKey(slot) {
-    const gameId = window.RPGATLAS_GAME_ID;
-    return gameId
-      ? "rpgatlas_" + gameId + "_save_" + slot
-      : "rpgatlas_save_" + slot;
-  }
-  function slotInfo(slot) {
-    try {
-      const raw =
-        localStorage.getItem(saveKey(slot)) ||
-        localStorage.getItem(saveKey(slot).replace(/^rpgatlas/, "driftwood")); // pre-rebrand saves
-      if (!raw) return null;
-      return JSON.parse(raw);
-    } catch (e) {
-      return null;
-    }
-  }
-  async function saveLoadMenu(mode) {
-    const slots = [1, 2, 3];
-    const i = await showList(
-      slots.map((s) => {
-        const info = slotInfo(s);
-        return {
-          html:
-            "<b>Slot " +
-            s +
-            "</b> — " +
-            (info
-              ? esc(info.mapName) +
-                " · Lv " +
-                info.level +
-                " · " +
-                new Date(info.ts).toLocaleString()
-              : "(empty)"),
-          disabled: mode === "load" && !info,
-        };
-      }),
-      {
-        title: mode === "save" ? "Save Game" : "Load Game",
-        className: "savewin",
-      },
-    );
-    if (i < 0) return false;
-    const slot = slots[i];
-    if (mode === "save") {
-      const payload = {
-        ts: Date.now(),
-        mapName: map ? map.name : "",
-        level: G.party[0] ? G.party[0].level : 1,
-        data: {
-          switches: G.switches,
-          vars: G.vars,
-          selfSw: G.selfSw,
-          quests: G.quests,
-          party: G.party,
-          inv: G.inv,
-          gold: G.gold,
-          steps: G.steps,
-          cameraZoom: cameraZoom,
-          mapId: G.mapId,
-          player: {
-            x: G.player.x,
-            y: G.player.y,
-            dir: G.player.dir,
-            transparent: !!G.player.transparent,
-          },
-        },
-      };
-      try {
-        localStorage.setItem(saveKey(slot), JSON.stringify(payload));
-      } catch (e) {
-        await showMessage("", "Could not save — storage is full or unavailable.");
-        return false;
-      }
-      sysSe("save");
-      await showMessage("", "Game saved to slot " + slot + ".");
-      return false;
-    } else {
-      const info = slotInfo(slot);
-      if (!info) return false;
-      try {
-        await applySave(info.data);
-      } catch (e) {
-        await showMessage("", "That save could not be loaded — it may be corrupted or reference content that no longer exists.");
-        return false;
-      }
-      sysSe("save");
-      return true;
-    }
-  }
-  async function applySave(d) {
-    commonParallels.clear();
-    G.switches = d.switches || {};
-    G.vars = d.vars || {};
-    G.selfSw = d.selfSw || {};
-    G.quests = d.quests || {};
-    G.party = d.party || [];
-    G.inv = d.inv || { item: {}, weapon: {}, armor: {} };
-    G.party.forEach((a) => {
-      sanitizeEquipment(a);
-      a.hp = Math.min(a.hp, param(a, "mhp"));
-      a.mp = Math.min(a.mp, param(a, "mmp"));
-    });
-    G.gold = d.gold || 0;
-    G.steps = d.steps || 0;
-    cameraZoom = clamp(Number(d.cameraZoom) || 1, 0.25, 4);
-    const p = d.player || {};
-    initPlayer(p.x || 0, p.y || 0, p.dir);
-    G.player.transparent = !!p.transparent;
-    await loadMap(d.mapId);
-    scene = "map";
-  }
+  // saveKey/slotInfo/saveLoadMenu/applySave live in ./state/save.ts (Phase 1
+  // Stage B), imported above.
 
   // ============================ shop ============================
   const Shop = {
