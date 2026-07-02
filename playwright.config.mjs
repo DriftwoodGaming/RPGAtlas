@@ -18,7 +18,10 @@
 
 import { defineConfig, devices } from "@playwright/test";
 
-const PORT = 4173;
+// Overridable so parallel checkouts/worktrees (Phase 1 multi-agent work) can
+// run their own preview server instead of silently reusing another checkout's
+// (reuseExistingServer below is keyed on the URL).
+const PORT = Number(process.env.RPGATLAS_E2E_PORT) || 4173;
 // Vite's preview server binds the IPv6 loopback ([::1]) by default on this
 // toolchain; "localhost" resolves correctly there whereas a hardcoded
 // 127.0.0.1 (IPv4-only) does not on every machine. Use --host to pin an
