@@ -14,9 +14,9 @@ import { Assets, editorState as S, editorHooks } from "../editor-state";
 import { h } from "../dom";
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
+import { wizardImport } from "../importers/import-wizard";
 import {
   ASSET_TYPES,
-  importAssets,
   libraryAvailable,
   libraryCatalog,
   libraryImageEntries,
@@ -103,12 +103,10 @@ export function openAssetBrowser() {
   async function doImport(files: File[]) {
     if (!files.length) return;
     try {
-      const items = files.map((f) => ({
-        blob: f,
-        name: f.name,
-        type: f.type.startsWith("image/") ? (typeSelect.value as AssetMeta["type"]) : undefined,
-      }));
-      const metas = await importAssets(items);
+      // The wizard routes tile sheets through the slicer, odd-shaped charsets
+      // through the flipbook-sheet flow, and Aseprite JSON+PNG pairs through
+      // the tagged-sheet importer; simple files import directly.
+      const metas = await wizardImport(files, typeSelect.value as AssetMeta["type"]);
       // Bind new images live so pickers/palette pick them up, and persist the
       // tile-id registry writes bindExternalAssets makes.
       if (metas.some((m) => m.type !== "audio")) {
@@ -251,7 +249,7 @@ export function openAssetBrowser() {
       thumbFor(meta),
       h("div", { class: "ab-name" }, meta.name),
       h("div", { class: "ab-meta dim" },
-        TYPE_LABELS[meta.type] + " · " + fmtBytes(meta.bytes) +
+        (meta.meta && meta.meta.charset === false ? "Sheet" : TYPE_LABELS[meta.type]) + " · " + fmtBytes(meta.bytes) +
         (meta.w ? " · " + meta.w + "×" + meta.h : "")),
       (meta.tags || []).length ? h("div", { class: "ab-cardtags dim" }, (meta.tags || []).join(", ")) : null,
       h("div", { class: "ab-badges" },

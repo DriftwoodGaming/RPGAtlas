@@ -33,6 +33,7 @@ import {
 import { useItemOn, iconEntryHtml, bar } from "./menus.js";
 import { createBattleFx } from "./battle-fx.js";
 import { playAnimation } from "../../shared/anim-player.js";
+import { resolvePlaybackSheet } from "../../shared/asset-library.js";
 import { Interp } from "../interpreter/interp.js";
 import {
   rowOf,
@@ -168,6 +169,7 @@ export const Battle: any = {
         targets: targetEls,
         onSound: (se: any) => Sfx.play(se),
         onShake: () => battleShake(),
+        resolveSheet: resolvePlaybackSheet,
         drawIcon(index: any) {
           // copy the cached icon frame — the cache canvas must stay off-DOM
           const src = Assets.iconCanvas(index);

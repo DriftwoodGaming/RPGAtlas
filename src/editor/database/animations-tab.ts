@@ -14,6 +14,7 @@ import { touch } from "../persistence";
 import { listFormTab, nameRefresher } from "./shared";
 import { createBattleFx } from "../../shared/battle-fx";
 import { playAnimation, animDurationTicks } from "../../shared/anim-player";
+import { libraryMetas, resolvePlaybackSheet } from "../../shared/asset-library";
 
 const ITEM_TYPES = [
   { v: "particles", l: "Particles" },
@@ -198,12 +199,57 @@ export const animationsTab = () => listFormTab({
           field("Glow trail", chk(item, "trail"))));
         params.appendChild(h("div", { class: "dim" }, "Travels from the source battler to each target."));
       } else if (item.type === "flipbook") {
-        params.appendChild(row(
+        // Sheet picker (Phase 6): icons · imported library sheets (asset keys,
+        // with frame-tag ranges from the importer) · custom URL passthrough.
+        const sheetAssets = libraryMetas().filter((m: any) => m.type === "characters" && m.meta && m.meta.charset === false);
+        const cur = String(item.sheet || "icons");
+        const isUrl = cur !== "icons" && !sheetAssets.some((m: any) => m.key === cur);
+        const picker = h("select", { onchange(ev: any) {
+          const v = ev.target.value;
+          if (v === "__url") { item.sheet = ""; }
+          else {
+            item.sheet = v;
+            delete item.tag;
+            const meta = sheetAssets.find((m: any) => m.key === v);
+            if (meta && meta.meta) {
+              if (meta.meta.cols) item.cols = meta.meta.cols;
+              if (meta.meta.rows) item.rows = meta.meta.rows;
+            }
+          }
+          touch(); redrawParams(); redrawStrip();
+        } });
+        picker.appendChild(h("option", { value: "icons" }, "icons (built-in)"));
+        for (const m of sheetAssets) picker.appendChild(h("option", { value: m.key }, m.name));
+        picker.appendChild(h("option", { value: "__url" }, "(custom URL…)"));
+        picker.value = isUrl ? "__url" : cur;
+        const fields: any[] = [
           field("Anchor", sel(item, "anchor", withDefaultAnchor())),
-          field("Sheet (\"icons\" or image URL)", h("input", { type: "text", value: item.sheet || "icons",
-            oninput(ev: any) { item.sheet = ev.target.value; touch(); } })),
-          field("Cols", nIn(item, "cols", 1, 32)),
-          field("Rows", nIn(item, "rows", 1, 32))));
+          field("Sheet", picker),
+        ];
+        if (isUrl || picker.value === "__url") {
+          fields.push(field("Image URL", h("input", { type: "text", value: cur === "icons" ? "" : cur,
+            oninput(ev: any) { item.sheet = ev.target.value; touch(); } })));
+        }
+        const selectedSheet: any = sheetAssets.find((m: any) => m.key === item.sheet);
+        const frames: any[] = (selectedSheet && selectedSheet.meta && selectedSheet.meta.frames) || [];
+        if (frames.length) {
+          const tagSel = h("select", { onchange(ev: any) {
+            const tag = frames.find((f: any) => f.name === ev.target.value);
+            if (tag) {
+              item.tag = tag.name;
+              item.from = tag.from;
+              item.to = tag.to;
+              if (tag.fps) item.fps = tag.fps;
+            } else delete item.tag;
+            touch(); redrawParams(); redrawStrip();
+          } });
+          tagSel.appendChild(h("option", { value: "" }, "(manual range)"));
+          for (const f of frames) tagSel.appendChild(h("option", { value: f.name }, f.name + " (" + f.from + "–" + f.to + ")"));
+          tagSel.value = item.tag && frames.some((f: any) => f.name === item.tag) ? item.tag : "";
+          fields.push(field("Frame tag", tagSel));
+        }
+        fields.push(field("Cols", nIn(item, "cols", 1, 32)), field("Rows", nIn(item, "rows", 1, 32)));
+        params.appendChild(row(...fields));
         params.appendChild(row(
           field("From frame", nIn(item, "from", 0, 4096)),
           field("To frame", nIn(item, "to", 0, 4096)),
@@ -256,6 +302,7 @@ export const animationsTab = () => listFormTab({
           source: sourceCard,
           targets: [targetCard],
           onSound: (se: string) => Sfx.play(se),
+          resolveSheet: resolvePlaybackSheet,
           onShake: () => {
             arena.classList.remove("shake");
             void arena.offsetWidth;

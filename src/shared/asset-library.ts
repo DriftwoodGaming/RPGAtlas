@@ -321,6 +321,30 @@ export function libraryCatalog(): CatalogEntry[] {
   return metas.map((m) => ({ key: m.key, type: m.type, name: m.name }));
 }
 
+/** Synchronous URL for an already-materialized library asset (images are
+ *  eager at init/import). In standalone game exports the library is absent
+ *  and used assets ride in window.RPGATLAS_ASSETS — fall through to their
+ *  embedded data URLs so the same reference resolves in both worlds. */
+export function assetUrlSync(key: string): string | null {
+  const hit = urls.get(key);
+  if (hit) return hit;
+  if (typeof window !== "undefined") {
+    const embedded = (window as any).RPGATLAS_ASSETS;
+    if (Array.isArray(embedded)) {
+      const entry = embedded.find((e: any) => e && assetKeyOf(e.type, e.name) === key);
+      if (entry && entry.src) return entry.src;
+    }
+  }
+  return null;
+}
+
+/** Flipbook-sheet resolver for the anim player (PlayEnv.resolveSheet):
+ *  asset keys resolve through the library/embedded assets, everything else
+ *  (URLs, "icons") passes through. */
+export function resolvePlaybackSheet(sheet: string): string | null {
+  return isAssetKey(sheet) ? assetUrlSync(sheet) : sheet;
+}
+
 /** Object URL for a library asset's blob (lazy for audio). Null when absent. */
 export async function assetUrl(key: string): Promise<string | null> {
   const hit = urls.get(key);

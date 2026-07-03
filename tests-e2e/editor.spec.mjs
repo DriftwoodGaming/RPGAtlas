@@ -604,3 +604,64 @@ test.describe("asset browser (phase 6)", () => {
     await expect(page.locator(".ab-grid .ab-card")).toHaveCount(0);
   });
 });
+
+test.describe("import wizard (phase 6)", () => {
+  test("tile slicer turns a 96x96 sheet into four 48px library tiles bound to the palette", async ({ page }) => {
+    await page.goto("/index.html");
+    const saveIndicator = page.locator("#save-ind");
+    await expect(saveIndicator).toBeVisible();
+    await page.evaluate(() => new Promise((done) => {
+      const req = indexedDB.deleteDatabase("rpgatlas_library");
+      req.onsuccess = req.onerror = req.onblocked = () => done(null);
+    }));
+    await page.reload();
+    await expect(saveIndicator).toBeVisible();
+
+    await page.keyboard.press("Control+p");
+    await page.locator(".cmdpal-input").fill("Asset Browser");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".assetbrowser")).toBeVisible();
+    await page.locator("select[title=\"Type images import as\"]").selectOption("tilesets");
+
+    await page.evaluate(async () => {
+      const c = document.createElement("canvas");
+      c.width = 96; c.height = 96;
+      const g = c.getContext("2d");
+      const cols = ["#c04040", "#40c040", "#4040c0", "#c0c040"];
+      [[0,0],[48,0],[0,48],[48,48]].forEach(([x,y], i) => { g.fillStyle = cols[i]; g.fillRect(x, y, 48, 48); });
+      const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+      const file = new File([blob], "Ground Tiles.png", { type: "image/png" });
+      const input = document.getElementById("assetbrowser-file");
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    // The slicer modal opens; pick 48px source cells (2x2 grid) and import.
+    const slicer = page.locator(".overlay").last();
+    await expect(slicer.locator(".modal-title")).toContainText("Import Tileset");
+    await slicer.locator(".imp-bar select").first().selectOption("48");
+    await slicer.locator("button", { hasText: "Import Tiles" }).click();
+
+    // Four sliced tiles land in the library grid with row/col names.
+    const cards = page.locator(".ab-grid .ab-card");
+    await expect(cards).toHaveCount(4);
+    await expect(cards.first().locator(".ab-name")).toHaveText("ground-tiles-r0c0.pass");
+
+    // bindExternalAssets assigned palette ids into proj.assets.tiles; the
+    // autosave persists them.
+    await expect(saveIndicator).toHaveText(/^. /);
+    await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
+    const tileKeys = await page.evaluate(() =>
+      Object.keys(JSON.parse(localStorage.getItem("rpgatlas_project")).assets.tiles));
+    expect(tileKeys.filter((k) => k.startsWith("asset:tilesets/ground-tiles-")).length).toBe(4);
+
+    // Clean up the library so later specs/runs see a clean slate.
+    for (let i = 0; i < 4; i++) {
+      await page.locator(".ab-grid .ab-card").first().locator("button", { hasText: "Delete" }).click();
+      await page.locator(".overlay").last().locator("button", { hasText: "OK" }).click();
+    }
+    await expect(page.locator(".ab-grid .ab-card")).toHaveCount(0);
+  });
+});

@@ -854,6 +854,14 @@ button.danger:hover { background: #6a3636; }
 .ab-badge.used { background: rgba(72,160,96,.25); color: #9fe0b0; }
 .ab-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; }
 .ab-foot { border-top: 1px solid var(--line-2); padding-top: 6px; font-size: 11px; }
+
+/* ---------- Import wizard (Phase 6 Stage C) ---------- */
+.imp-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 8px; }
+.imp-bar label { display: inline-flex; align-items: center; gap: 4px; color: var(--text-mid); }
+.imp-scroll { max-height: 46vh; overflow: auto; background: var(--bg); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px; }
+.imp-canvas { image-rendering: pixelated; cursor: crosshair; display: block; }
+.imp-preview { image-rendering: pixelated; display: block; max-width: 100%; }
+.imp-tagrow { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
 .anim-item-row.sel { background: rgba(90,138,216,.22); }
 .anim-item-row span:nth-child(3) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .anim-item-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }

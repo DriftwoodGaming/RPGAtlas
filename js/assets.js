@@ -1344,6 +1344,10 @@ const Assets = (() => {
       if (!external[item.type].some((a) => a.key === key)) external[item.type].push(item);
 
       if (item.type === "characters") {
+        // Flipbook sheets (Phase 6 importers) live under "characters" but are
+        // NOT walking charsets: keep them out of the sprite pickers while the
+        // externalByKey registration above still serves playback + export.
+        if (item.meta && item.meta.charset === false) continue;
         const existing = charsets.find((c) => c.key === key);
         if (existing) {
           existing.image = item.image;
@@ -1431,6 +1435,17 @@ const Assets = (() => {
       }
     };
     for (const actor of project.actors || []) useCharacterWithFace(actor.charset);
+    // Battle-animation flipbook sheets (Phase 6): "asset:" sheet keys resolve
+    // through the same external registry, so exports must embed them too.
+    for (const anim of project.animations || []) {
+      for (const item of anim.items || []) use(item.sheet);
+    }
+    // Command lists outside map events (pre-Phase-6 gap): common events and
+    // troop battle-event pages can show faces too.
+    for (const ce of project.commonEvents || []) scanCommands(ce.commands);
+    for (const troop of project.troops || []) {
+      for (const page of troop.pages || []) scanCommands(page.commands);
+    }
     for (const map of project.maps || []) {
       for (const layer of Object.values(map.layers || {})) {
         for (const id of layer || []) {
@@ -1463,7 +1478,9 @@ const Assets = (() => {
       const item = externalByKey.get(key);
       if (!item) continue;
       const src = item.src.startsWith("data:") ? item.src : await blobDataUrl(await (await fetch(item.src)).blob());
-      result.push({ type: item.type, name: item.name, src });
+      // meta rides along so exported games keep flipbook sheets (meta.charset
+      // === false) out of the charset registry too.
+      result.push(item.meta ? { type: item.type, name: item.name, src, meta: item.meta } : { type: item.type, name: item.name, src });
     }
     return result;
   }

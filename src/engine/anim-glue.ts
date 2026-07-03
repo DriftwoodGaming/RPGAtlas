@@ -15,6 +15,7 @@ import { ctx } from "./state/engine-context.js";
 import { G } from "./state/game-state.js";
 import { createBattleFx } from "../shared/battle-fx.js";
 import { playAnimation } from "../shared/anim-player.js";
+import { resolvePlaybackSheet } from "../shared/asset-library.js";
 
 let fxBundle: any = null;
 let fxLayer: any = null;
@@ -60,6 +61,7 @@ export function playMapAnimation(animationId: any, targetEntity: any, screenAnch
     targets,
     screen,
     onSound: (se: string) => Sfx.play(se),
+    resolveSheet: resolvePlaybackSheet,
     onShake: (power: number, speed: number, duration: number) => {
       ctx.shakePower = clamp(power, 1, 9);
       ctx.shakeSpeed = clamp(speed, 1, 9);

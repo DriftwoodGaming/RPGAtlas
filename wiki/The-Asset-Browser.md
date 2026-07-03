@@ -18,6 +18,29 @@ character sheets in sprite pickers, tiles in the palette, battlers in the
 Enemies tab. Tile names ending `.pass` are passable; `.terrain` marks
 walkable terrain.
 
+### The import wizard
+
+Some drops open a wizard step instead of importing directly:
+
+- **Tileset slicer** — an image bigger than one 48×48 tile dropped on the
+  **Tiles** tab opens the slicer: pick the source grid (16/24/32/48 px or
+  custom, with offset/gap), click cells to include or exclude them, choose
+  Blocked / Passable / Terrain naming, and every included cell becomes one
+  48px tile named `<base>-r<row>c<col>`.
+  (RPG-Maker **A2 autotile blocks** have their own importer:
+  **Tools ▸ Import Autotile Sheet…** turns one into a terrain brush.)
+- **Sprite sheets** — an image on the **Characters** tab that doesn't divide
+  into the 3×4 walking grid can import as a walking charset anyway, or as a
+  **flipbook sheet**: set the cell size and add named frame tags
+  (`walk 0–3`, `cast 4–7`, …). Sheets stay out of the walking-sprite pickers
+  and appear in the Animations tab's Sheet picker instead.
+- **Aseprite** — drop a `.json` + `.png` export pair together and the frame
+  tags arrive as ready-made ranges (FPS derived from your frame durations).
+  Trimmed/non-uniform exports are repacked onto a uniform grid at import.
+
+In **Database ▸ Animations**, a Flipbook item's **Sheet** field lists your
+imported sheets; picking a **Frame tag** fills From/To/FPS in one click.
+
 Imports are stored in a **per-device library** — IndexedDB in the browser,
 the app-data folder in the desktop app — so they don't count against the
 browser's project-size limit and are shared by every project you edit on

@@ -5,6 +5,20 @@
 export const PATCH_NOTES = [
   {
     date: "July 2, 2026",
+    title: "Importers — tileset slicer, sprite sheets with frame tags, Aseprite",
+    summary:
+      "The Asset Browser learned to slice: any-grid tilesets become 48px tiles, odd-shaped sprite images become tagged flipbook sheets for battle animations, and Aseprite JSON exports import with their animation tags intact.",
+    items: [
+      "Tileset slicer: drop a tileset image on the Asset Browser's Tiles tab and pick the source grid (16/24/32/48px + offset/gap) — click cells to choose which become 48px tiles, with passable/terrain naming applied per batch.",
+      "Sprite-sheet importer: images that aren't 3×4 walking charsets can import as flipbook sheets with named frame ranges (walk 0–3, cast 4–7…).",
+      "Aseprite support: import a .json + .png export pair and its frame tags arrive as ready-to-use animation ranges (frame rate derived from your frame durations); non-uniform (trimmed) exports are repacked automatically.",
+      "Animations tab: the Flipbook item's Sheet field is now a picker — built-in icons, your imported sheets (with a Frame tag dropdown that fills From/To/FPS), or a custom URL.",
+      "Game exports now embed animation flipbook sheets, plus faces shown by common events and troop battle events.",
+      "RPG-Maker A2 autotile blocks keep their dedicated importer under Tools ▸ Import Autotile Sheet…",
+    ],
+  },
+  {
+    date: "July 2, 2026",
     title: "Asset library & Asset Browser — import your own art and audio",
     summary:
       "RPGAtlas gains a real asset pipeline: drop PNG and OGG/MP3/WAV files into the new Asset Browser and they join the same pickers as the built-in procedural sets, stored in a per-device library that escapes the browser storage ceiling.",

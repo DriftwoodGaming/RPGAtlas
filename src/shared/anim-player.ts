@@ -39,6 +39,10 @@ export interface AnimEnv {
   onShake?: (power: number, speed: number, duration: number) => void;
   /** Canvas factory for flipbook items with sheet === "icons". */
   drawIcon?: (index: number) => any;
+  /** Resolve a non-"icons" flipbook sheet reference to a drawable URL —
+   *  Phase 6 asset keys ("asset:characters/…") resolve through the library;
+   *  plain URLs pass through unchanged. Absent/null result = use as-is. */
+  resolveSheet?: (sheet: string) => string | null | undefined;
   /** Millisecond clock (tests inject a manual one). Default performance.now. */
   now?: () => number;
   /** Frame scheduler (tests drive manually). Default requestAnimationFrame. */
@@ -231,7 +235,7 @@ interface FlipbookRT {
   done: boolean;
 }
 
-function startFlipbook(fx: any, pt: any, item: AnimItem, tick: number): FlipbookRT {
+function startFlipbook(fx: any, pt: any, item: AnimItem, tick: number, env?: AnimEnv): FlipbookRT {
   const point = fx.fxPoint(pt);
   const scale = Number(item.scale) || 1;
   const cell = Math.round(48 * scale);
@@ -242,7 +246,8 @@ function startFlipbook(fx: any, pt: any, item: AnimItem, tick: number): Flipbook
   el.style.height = cell + "px";
   el.style.transform = "translate(-50%,-50%)";
   el.style.background = "transparent";
-  const sheet = String(item.sheet || "icons");
+  let sheet = String(item.sheet || "icons");
+  if (sheet !== "icons" && env && env.resolveSheet) sheet = env.resolveSheet(sheet) || sheet;
   if (sheet !== "icons") {
     const cols = Math.max(1, Number(item.cols) || 1);
     const rows = Math.max(1, Number(item.rows) || 1);
@@ -312,7 +317,7 @@ function fireItem(anim: BattleAnimation, item: AnimItem, env: AnimEnv, live: Fli
       return;
     }
     case "flipbook":
-      for (const pt of anchorPoints(anim, item, env)) live.push(startFlipbook(fx, pt, item, tick));
+      for (const pt of anchorPoints(anim, item, env)) live.push(startFlipbook(fx, pt, item, tick, env));
       return;
     default: // particles
       for (const pt of anchorPoints(anim, item, env)) {

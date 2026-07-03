@@ -353,7 +353,8 @@ export interface AnimItem {
   /** Glow trail (default true). */
   trail?: boolean;
   // -- flipbook --
-  /** "icons" (built-in icon strip) or an image URL/data URL sheet. */
+  /** "icons" (built-in icon strip), an "asset:characters/…" library sheet
+   *  (Phase 6 importers), or an image URL/data URL sheet. */
   sheet?: string;
   cols?: number;
   rows?: number;
@@ -361,6 +362,9 @@ export interface AnimItem {
   to?: number;
   fps?: number;
   scale?: number;
+  /** Display-only record of the importer frame tag that filled from/to/fps
+   *  (Phase 6); the runtime reads only the numeric range. */
+  tag?: string;
 }
 
 /** A keyframed battle animation (Database ▸ Animations). Played over the

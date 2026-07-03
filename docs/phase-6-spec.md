@@ -3,6 +3,44 @@
 **Status:** IN PROGRESS (branch `phase-6-assets`, off `main` after the Phase 5
 merge). Stage log will be prepended here, newest first, as stages land.
 
+Stage C COMPLETE (2026-07-03): the importers. **Pure math**
+(`src/editor/importers/sheet-math.ts`, 12-test vitest suite): `gridCells`
+(offset/gap, partial-edge exclusion), `cellName`, `isCharsetSheet` (3×4 +
+squarish-cell guard), `parseAseprite` (hash AND array frame forms, frameTags
+with per-tag fps from frame durations, uniform-grid detection), `packFrames`
+(near-square repack plan, centered frames). **Wizard**
+(`import-wizard.ts`, wired into the Asset Browser's doImport): tileset
+slicer modal (source cell 16/24/32/48/64/96 + offset/gap, live grid canvas
+with click-to-toggle cells, Blocked/Passable/Terrain naming, every included
+cell → one 48px nearest-neighbor tile `<base>-r<row>c<col>[.pass|.terrain]`
+with importer provenance in meta); sprite-sheet modal for non-3×4 character
+images (walking-charset direct import OR **flipbook sheet** with cell size +
+named frame-tag rows → `meta {charset:false, cols, rows, cellW/H, frames}`);
+**Aseprite** .json+.png pairs (matched by meta.image or basename; uniform
+grids use the PNG as-is, trimmed exports repack via packFrames). Bugfix
+caught live: modal buttons must settle the wizard promise BEFORE close()
+(onClose's done([]) raced the sliced items away). **Runtime**: `AnimItem.tag?`
+(schema; display-only — tags fill from/to/fps at authoring time),
+`AnimEnv.resolveSheet` hook in anim-player, `resolvePlaybackSheet`/
+`assetUrlSync` in asset-library (library object URLs, falling through to
+RPGATLAS_ASSETS data URLs in standalone exports), wired at all three
+playAnimation sites (battle, map anim-glue, editor preview). Animations tab
+Sheet field → picker (icons · library sheets · custom URL) + **Frame tag**
+dropdown that fills From/To/FPS. `bindExternalAssets` skips
+`meta.charset===false` sheets (registry-only: playback + export, never the
+sprite pickers) and `exportUsedExternalAssets` now carries meta;
+`collectUsedExternalKeys` gained animation sheets + commonEvents/troop-page
+command scans (pre-existing export gap). **A2 autotiles**: already shipped
+in Phase 3 (Tools ▸ Import Autotile Sheet…) — the slicer links to it, no new
+code (spec deviation: nothing to build). Verified live (slicer: 96×96 → 4
+named .pass tiles in library + palette registry + Assets.tiles; Aseprite:
+tags spin@10fps/pop@20fps, sheet excluded from charsets, blob-URL playback
+entry; zero console errors) + new tile-slicer e2e (36th spec). Patch note,
+wiki (Asset-Browser import-wizard section), `editor.css?v=49`,
+`assets.js?v=16`, `patch-notes.js?v=18` (+shim +help.ts). Full gate green:
+tsc, eslint, node --test (16), vitest (**179**), Playwright **36/36**
+(goldens byte-stable).
+
 Stage B COMPLETE (2026-07-02): the Asset Browser. **Tools ▸ Asset Browser**
 (`src/editor/tools/asset-browser.ts`, command `assetbrowser`, Tools menu +
 command palette): left type rail with live counts (All/Characters/Facesets/
