@@ -2,6 +2,32 @@
 
 **Status:** IN PROGRESS (started 2026-07-03). Stage log below, newest first.
 
+Stage D COMPLETE (2026-07-03): Atlas Quest HD. **Spec correction learned up
+front**: the renderer goldens do NOT synthesize their own maps — all eleven
+render Meridian Village's real tiles/heights/lights/events (several without
+overriding map.lights), so **map 1 is visually frozen** and the showcase
+lives elsewhere. **Script** (`scripts/build-atlas-quest-hd.mjs`,
+deterministic + idempotent, CRLF/1-space serializer proven byte-identical
+on an untouched project): Whispering Cave gains 2 crystal lights +
+ssao/aces + an east-wall passage (decor carve at 15,10 + touch transfer);
+Cottage gets the full interior treatment (tilt 48, ambient .32, firelight
+#ffb060 + window #88bbff, materials, dropShadows, vignette, aces, fxaa);
+**new map 4 "Driftwood Shore"** (24×14): height-3 cliff ridge (cliffs
+auto-texturing), grass→path→sand→water→deepwater bands, LCG-scattered
+pines/bushes/flowers/rocks, a bridge-tile dock running into the water with
+a lantern at its end, 4 point lights, dusk day/night (timeOfDay 17.2,
+ambient .5) + shadows + water + materials + bloom + ssao + aces + warm LUT
++ vignette + fxaa + fog #241a26; events: touch-transfer back, showcase
+sign, wandering Old Fisherman (billboard sprite under dusk light). Quest
+chain/battles/start untouched → playthrough green; goldens byte-stable
+(map 1 frozen held). Verified live twice (first pass too dark at ambient
+.42/17.5 → brightened; screenshots: shore + dock; zero console errors).
+New e2e (`showcase.spec.mjs`): warps to map 4 via seeded common event,
+asserts hd2d feature set + live GL draw calls + event roster. Wiki
+(Your-First-Game: "Tour the HD-2D showcase"); patch note;
+`patch-notes.js?v=24` (+shim +help.ts). Full gate green: tsc, eslint,
+node --test (16), vitest (204), Playwright **45/45** (goldens byte-stable).
+
 Stage C COMPLETE (2026-07-03): i18n completion. **Dictionaries**
 (js/editor/i18n.js rewrite): es/fr/de now cover the full post-overhaul
 chrome — the View menu, World View, HD-2D Viewport, Region Mode, Command

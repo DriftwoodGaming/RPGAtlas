@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 3, 2026",
+    title: "Atlas Quest HD — the sample game becomes the showcase",
+    summary:
+      "The bundled sample game now shows off the whole HD-2D toolbox, capped by a brand-new dusk map: Driftwood Shore.",
+    items: [
+      "New map — Driftwood Shore: a golden-hour beach with a day/night dusk sun and long soft shadows, animated water with a lantern-lit wooden dock, auto-textured cliffs, bloom, ACES + warm color grade, vignette, SSAO, and FXAA all on at once. Find the back passage on the Whispering Cave's east wall.",
+      "The Cottage interior gets the HD-2D treatment: firelight and window light, auto materials, and a cozy vignette.",
+      "The Whispering Cave gains two more crystal glows plus SSAO and ACES tone mapping.",
+      "Rebuildable by design: scripts/build-atlas-quest-hd.mjs regenerates the showcase deterministically (Meridian Village is intentionally untouched — it anchors the renderer's golden-image tests).",
+      "A new automated check keeps the showcase loading with its full feature set.",
+    ],
+  },
+  {
+    date: "July 3, 2026",
     title: "Editor translations catch up — Spanish, French & German cover everything",
     summary:
       "The editor's Spanish, French, and German translations now cover every menu, panel, and tool added since the overhaul began — and an automated check keeps them complete from here on.",

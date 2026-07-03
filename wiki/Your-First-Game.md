@@ -168,6 +168,16 @@ Full details and distribution tips: [Publishing Your Game](Publishing-Your-Game)
 
 ---
 
+## Tour the HD-2D showcase
+
+The bundled sample game doubles as the engine's showcase. Take the back passage in the
+**Whispering Cave** (east wall, past the crystals) out to **Driftwood Shore**: a dusk day/night sun
+with long soft shadows, animated water with a lantern-lit dock, auto-textured cliffs, bloom + warm
+color grade, and the full post stack — every effect is a per-map toggle you can inspect in
+**Game ▸ Map Properties…** and reuse in your own maps.
+
+---
+
 ## You did it 🎉
 
 You've used maps, tiles, passability, events, pages, self-switches, transfers, the database, and a
