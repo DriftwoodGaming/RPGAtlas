@@ -16,6 +16,7 @@ import { setStatus, flashStatus } from "./status";
 import { viewportDirty } from "./hd-viewport";
 import { walkCommands } from "../event-editor/command-list";
 import { beginEdit, endEdit } from "../edit-scope";
+import { subTabs } from "../database/shared";
 
   // ============================ map list ============================
   export function rebuildMapList() {
@@ -748,44 +749,57 @@ import { beginEdit, endEdit } from "../edit-scope";
     const notesIn = h("textarea", { class: "map-notes", rows: "3",
       placeholder: "Author notes for this map (shown in the World View)…" });
     notesIn.value = m.notes || "";
-    const content = h("div", null,
-      field("Name", tIn(work, "name")),
-      row(field("Width", nIn(work, "width", 5, 200)), field("Height", nIn(work, "height", 5, 200))),
-      row(field("Tileset", sel(work, "tilesetId", dbOpts(tilesets))), field("Music", sel(work, "music", MUSIC_OPTS()))),
-      h("div", { class: "fld" }, h("span", null, "Ambience layers (looping imported audio, crossfaded on transfer)"), ambBox),
-      field("Encounter rate (steps, 0 = off)", nIn(work, "rate", 0, 999)),
-      h("div", { class: "fld" }, h("span", null, "Encounter troops"), troopBox),
-      h("div", { class: "fld" }, h("span", null, "Region encounter pools (paint regions in Region mode)"), regionBox),
-      h("div", { class: "fld" }, h("span", null, "Night encounter pool (21:00–5:00; empty = default troops)"), nightBox),
-      row(field("Show on the minimap (when System ▸ Minimap is on)", chk(miniW, "show"))),
-      h("div", { class: "fld" }, h("span", null, "Notes (World View)"), notesIn),
-      h("div", { class: "fld" }, h("span", null, "HD-2D (3D perspective rendering)")),
-      row(field("Enabled", chk(hdW, "enabled")), field("Camera tilt (25–89°)", nIn(hdW, "tilt", 25, 89))),
-      row(field("Bloom", chk(hdW, "bloom")), field("Depth of field", chk(hdW, "dof"))),
-      row(field("Distance fog", chk(hdW, "fog")), field("Fog color", fogColorIn)),
-      row(field("Point lights", chk(hdW, "lights")), field("Ambient light (0–2)", nIn(hdW, "ambient", 0, 2, 0.05))),
-      row(field("Sun shadows (terrain & characters cast)", chk(hdW, "shadows")),
-        field("Point-light shadows (4 nearest lights cast)", chk(hdW, "pointShadows"))),
-      row(field("Water surface (waves, reflections, foam)", chk(hdW, "water")),
-        field("Auto materials (relief, specular, night glow)", chk(hdW, "materials"))),
-      row(field("Cliff auto-texturing (sculpted block walls)", chk(hdW, "cliffs"))),
-      row(field("Weather particles", sel(hdW, "weather", [
-        { v: "", l: "None" }, { v: "rain", l: "Rain" },
-        { v: "snow", l: "Snow" }, { v: "motes", l: "Ambient motes" },
-      ])),
-        field("Soft character drop shadows", chk(hdW, "dropShadows"))),
-      row(field("ACES filmic tone mapping", chk(hdW, "aces")),
-        field("FXAA anti-aliasing", chk(hdW, "fxaa"))),
-      row(field("Ambient occlusion (SSAO)", chk(hdW, "ssao")),
-        field("Vignette", chk(hdW, "vignette"))),
-      row(field("Color grade", sel(hdW, "lut", [
-        { v: "", l: "None" }, { v: "warm", l: "Warm" }, { v: "cool", l: "Cool" },
-        { v: "night", l: "Night" }, { v: "sepia", l: "Sepia" }, { v: "noir", l: "Noir" },
-      ])),
-        field("Day/night cycle (sun follows the clock)", chk(hdW, "dayNight"))),
-      field("Time of day on entry (hours 0–24, blank = keep current)", tIn(hdW, "timeOfDay")),
-      h("div", { class: "dim" }, "Paint elevation in Height mode (H). Point lights: drag gizmos in the HD-2D Viewport (F2), or place events named “light #rrggbb radius”. See changes live in the HD-2D Viewport."),
-    );
+    // Tabs (post-1.0 UX): the dialog reuses the Database sub-tab strip so it
+    // shows one topic at a time. Inputs bind to the shared work objects and
+    // the list boxes / notes / fog inputs are persistent nodes, so switching
+    // tabs never loses unsaved edits; builders re-read current values.
+    const content = subTabs("mapprops", [
+      { label: "General", build: () => h("div", null,
+        field("Name", tIn(work, "name")),
+        row(field("Width", nIn(work, "width", 5, 200)), field("Height", nIn(work, "height", 5, 200))),
+        row(field("Tileset", sel(work, "tilesetId", dbOpts(tilesets))), field("Music", sel(work, "music", MUSIC_OPTS()))),
+        h("div", { class: "fld" }, h("span", null, "Ambience layers (looping imported audio, crossfaded on transfer)"), ambBox),
+        row(field("Show on the minimap (when System ▸ Minimap is on)", chk(miniW, "show"))),
+        h("div", { class: "fld" }, h("span", null, "Notes (World View)"), notesIn),
+      ) },
+      { label: "Encounters", build: () => h("div", null,
+        field("Encounter rate (steps, 0 = off)", nIn(work, "rate", 0, 999)),
+        h("div", { class: "fld" }, h("span", null, "Encounter troops"), troopBox),
+        h("div", { class: "fld" }, h("span", null, "Region encounter pools (paint regions in Region mode)"), regionBox),
+        h("div", { class: "fld" }, h("span", null, "Night encounter pool (21:00–5:00; empty = default troops)"), nightBox),
+      ) },
+      { label: "HD-2D", build: () => h("div", null,
+        h("div", { class: "dim" }, "3D perspective rendering. Off = the classic top-down look."),
+        row(field("Enabled", chk(hdW, "enabled")), field("Camera tilt (25–89°)", nIn(hdW, "tilt", 25, 89))),
+        row(field("Point lights", chk(hdW, "lights")), field("Ambient light (0–2)", nIn(hdW, "ambient", 0, 2, 0.05))),
+        row(field("Sun shadows (terrain & characters cast)", chk(hdW, "shadows")),
+          field("Point-light shadows (4 nearest lights cast)", chk(hdW, "pointShadows"))),
+        row(field("Water surface (waves, reflections, foam)", chk(hdW, "water")),
+          field("Auto materials (relief, specular, night glow)", chk(hdW, "materials"))),
+        row(field("Cliff auto-texturing (sculpted block walls)", chk(hdW, "cliffs")),
+          field("Soft character drop shadows", chk(hdW, "dropShadows"))),
+        h("div", { class: "dim" }, "Paint elevation in Height mode (H). Point lights: drag gizmos in the HD-2D Viewport (F2), or place events named “light #rrggbb radius”. See changes live in the HD-2D Viewport."),
+      ) },
+      { label: "Effects", build: () => h("div", null,
+        h("div", { class: "dim" }, "Screen effects and atmosphere. These show in game when HD-2D is enabled (see the HD-2D tab)."),
+        row(field("Bloom", chk(hdW, "bloom")), field("Depth of field", chk(hdW, "dof"))),
+        row(field("Distance fog", chk(hdW, "fog")), field("Fog color", fogColorIn)),
+        row(field("Weather particles", sel(hdW, "weather", [
+          { v: "", l: "None" }, { v: "rain", l: "Rain" },
+          { v: "snow", l: "Snow" }, { v: "motes", l: "Ambient motes" },
+        ])),
+          field("Color grade", sel(hdW, "lut", [
+            { v: "", l: "None" }, { v: "warm", l: "Warm" }, { v: "cool", l: "Cool" },
+            { v: "night", l: "Night" }, { v: "sepia", l: "Sepia" }, { v: "noir", l: "Noir" },
+          ]))),
+        row(field("ACES filmic tone mapping", chk(hdW, "aces")),
+          field("FXAA anti-aliasing", chk(hdW, "fxaa"))),
+        row(field("Ambient occlusion (SSAO)", chk(hdW, "ssao")),
+          field("Vignette", chk(hdW, "vignette"))),
+        row(field("Day/night cycle (sun follows the clock)", chk(hdW, "dayNight"))),
+        field("Time of day on entry (hours 0–24, blank = keep current)", tIn(hdW, "timeOfDay")),
+      ) },
+    ]);
     modal({
       title: "Map Properties",
       content,

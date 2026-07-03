@@ -5,6 +5,20 @@
 export const PATCH_NOTES = [
   {
     date: "July 3, 2026",
+    title: "Map Properties gets tabs",
+    summary:
+      "The Map Properties window grew into one very long scroll as HD-2D picked up features. Its settings now live on four tabs — General, Encounters, HD-2D, and Effects — so each screen shows one topic at a time. Same settings, nothing removed.",
+    items: [
+      "General: name, size, tileset, music, ambience layers, minimap, and author notes.",
+      "Encounters: encounter rate, the troop list, region pools, and the night pool together on one page.",
+      "HD-2D: the on/off switch, camera tilt, lights, shadows, water, materials, and cliffs.",
+      "Effects: bloom, depth of field, fog, weather, color grading, and the day/night cycle.",
+      "The window remembers which tab you were on while the editor stays open.",
+      "OK and Cancel still apply or discard everything at once, across all tabs — and one Undo reverts the whole edit, same as before.",
+    ],
+  },
+  {
+    date: "July 3, 2026",
     title: "Database list toolbar no longer overlaps the form",
     summary:
       "On the Database's Quests tab, the list toolbar had one button too many for its column — the Delete button slid under the Title box and the sub-tab strip. The toolbar now wraps neatly instead of overlapping.",
