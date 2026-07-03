@@ -16,6 +16,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { $, h } from "../dom";
+import { editorI18n } from "../editor-state";
 import {
   defaultLayout, validateLayout, collectPanels, hasPanel,
   dockTab, dockSplit, dockFloatTab, floatPanel, showPanel, closePanel,
@@ -55,7 +56,8 @@ function panelEl(id: string): HTMLElement | null {
   resolved.set(id, el);
   return el;
 }
-function panelTitle(id: string) { return defs.get(id)?.title ?? id; }
+// Tab captions are chrome — localized like menu labels (Phase 7 Stage C).
+function panelTitle(id: string) { return editorI18n.t(defs.get(id)?.title ?? id); }
 function isClosable(id: string) { return defs.get(id)?.closable !== false; }
 
 // ---- persistence ----

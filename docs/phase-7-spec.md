@@ -2,6 +2,30 @@
 
 **Status:** IN PROGRESS (started 2026-07-03). Stage log below, newest first.
 
+Stage C COMPLETE (2026-07-03): i18n completion. **Dictionaries**
+(js/editor/i18n.js rewrite): es/fr/de now cover the full post-overhaul
+chrome — the View menu, World View, HD-2D Viewport, Region Mode, Command
+Palette…, Asset Browser…, Import Autotile Sheet…, Keyboard Shortcuts…,
+Zoom 1:1, dock layout commands (Maps/Tiles Panel, Focus, Reset/Save/Saved
+Layouts), autotile palette chrome (Autotiles/Brush/Import…/Zoom), dock tab
+captions (Map/HD-2D/World — dock.ts panelTitle now routes through t()),
+UI Font Size, Save/Delete buttons, and the Region status template; stale
+keys fixed (HD-2D Preview → Viewport, event/passability status strings
+updated to their current wording, de "Scale" Ansicht→Maßstab freeing
+Ansicht for View). **Anti-rot gate**
+(tests-unit/i18n-parity.test.ts, 10 tests): computes the chrome key set
+from the real sources — index.html data-i18n attrs, every `label:` in
+workspace.ts + dock/panels.ts, registerDockPanel titles (regex tolerates
+constant ids), LAYER/TOOL_LABELS tables (source-regexed; editor-state is
+window-bound), + a curated status/dialog list — and asserts every locale
+has exactly that set (missing AND orphan checks, plus {placeholder}
+integrity). Scope rule holds: tooltips/modal bodies fall back to English
+by design. Verified live in Spanish (menubar incl. Ver, toolbar labels,
+dock tabs Mapas/Mosaicos/Mapa, status line, Automosaicos/Importar…).
+Patch note; `patch-notes.js?v=23` (+shim +help.ts; i18n.js itself is
+Vite-hashed, no query bump). Full gate green: tsc, eslint, node --test
+(16), vitest (**204**), Playwright **44/44** (goldens byte-stable).
+
 Stage B COMPLETE (2026-07-03): accessibility. **Pure resolvers**
 (`src/shared/a11y.ts`, 8-test vitest suite): `resolveMotion` (auto/on/off
 over the system preference), `resolveTextScale` (0.5–2 clamp, else 1),

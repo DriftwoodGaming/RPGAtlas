@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 3, 2026",
+    title: "Editor translations catch up — Spanish, French & German cover everything",
+    summary:
+      "The editor's Spanish, French, and German translations now cover every menu, panel, and tool added since the overhaul began — and an automated check keeps them complete from here on.",
+    items: [
+      "Newly translated chrome: the View menu, World View, HD-2D Viewport, Region Mode, Command Palette, Asset Browser, autotile import, keyboard-shortcut dialog, dock panel tabs and layout commands, the autotile palette section, and the updated status-bar hints.",
+      "Dock tabs (Maps / Tiles / Map / HD-2D / World) now localize like the rest of the interface.",
+      "Help ▸ Interface Language… gained the UI Font Size row in all languages.",
+      "Under the hood: a locale-parity test extracts the chrome key set from the editor source and fails the build if any language is missing a translation (or carries a stale one).",
+    ],
+  },
+  {
+    date: "July 3, 2026",
     title: "Accessibility — reduced motion, colorblind assist & text scaling",
     summary:
       "Every RPGAtlas game now ships with player-side accessibility options, and the editor gains an adjustable UI font size.",
