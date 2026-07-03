@@ -862,6 +862,8 @@ button.danger:hover { background: #6a3636; }
 .imp-canvas { image-rendering: pixelated; cursor: crosshair; display: block; }
 .imp-preview { image-rendering: pixelated; display: block; max-width: 100%; }
 .imp-tagrow { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.ab-pack { grid-column: span 2; }
+.ab-packdesc { white-space: normal; font-size: 11px; line-height: 1.45; }
 .anim-item-row.sel { background: rgba(90,138,216,.22); }
 .anim-item-row span:nth-child(3) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .anim-item-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }

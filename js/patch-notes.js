@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 3, 2026",
+    title: "Starter packs — one-click asset bundles in the Asset Browser",
+    summary:
+      "The Asset Browser gains a Packs tab: install curated asset bundles into your library with one click, starting with the bundled CC0 “Driftwood Starter” pack (terrain recolors, villagers, battlers, and a small chiptune soundtrack).",
+    items: [
+      "Asset Browser ▸ Packs: browse packs with license and size info, Install/Reinstall (downloads are content-deduped, so retrying or reinstalling is always safe), and Uninstall (with in-use warnings).",
+      "Driftwood Starter (bundled, CC0): 12 recolored terrain tiles, 4 generated villagers, 3 battlers, 2 music loops, rain ambience, a victory fanfare, and a chime — generated from RPGAtlas's own procedural art, no attribution needed.",
+      "Add your own registries: point the Packs tab at any hosted index.json to install third-party packs; the registry list is a device setting.",
+      "Pack assets are tagged pack:<id> in the library, so they're easy to filter, audit, and remove as a set.",
+    ],
+  },
+  {
+    date: "July 3, 2026",
     title: "Audio v2 — streamed music, ambience layers, jingles & positional sound",
     summary:
       "Imported OGG/MP3/WAV files now play everywhere the procedural chiptunes do: maps can stream real music with crossfades, layer looping ambience, duck for victory jingles, and pan sound effects by distance.",
