@@ -21,5 +21,7 @@
 - [Publishing Your Game](Publishing-Your-Game)
 
 **Reference**
+- [Plugin & Script API](Plugin-and-Script-API)
+- [Migration Guide](Migration-Guide)
 - [Troubleshooting & FAQ](Troubleshooting-and-FAQ)
 - [Resources & Glossary](Resources-and-Glossary)

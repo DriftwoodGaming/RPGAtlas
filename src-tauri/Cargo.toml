@@ -1,6 +1,6 @@
 [package]
 name = "rpgatlas"
-version = "0.1.0"
+version = "1.0.0"
 description = "RPGAtlas desktop editor"
 authors = ["RPGAtlas contributors"]
 license = "GPL-3.0-or-later"

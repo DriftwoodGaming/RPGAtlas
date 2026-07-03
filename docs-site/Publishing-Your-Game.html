@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Publishing Your Game — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a class="active" href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="publishing-your-game">Publishing Your Game</h1>
+<p>When your game is ready for other people, you <strong>export</strong> it into a single self-contained file. Players don't need RPGAtlas, the editor, a local server, or your project file — just the export.</p>
+<hr>
+<h2 id="export-from-the-editor">Export from the editor</h2>
+<p>Choose <strong>File ▸ Export Standalone Game</strong> and pick a format:</p>
+<table><thead><tr><th>Format</th><th>What it is</th><th>Best for</th></tr></thead><tbody><tr><td><strong>Windows EXE</strong></td><td>A small launcher with your entire game bundled inside it. Double-clicking it extracts the game and opens it in the player's default browser.</td><td>Sharing with Windows players who want a "real app" to double-click</td></tr><tr><td><strong>Standalone HTML</strong></td><td>One cross-platform file that opens directly in any modern browser.</td><td>Direct sharing — Mac, Linux, Chromebooks, Discord, game jams</td></tr><tr><td><strong>Web / itch.io (.zip)</strong></td><td>The game plus a web-app manifest, icons, and an offline service worker, zipped with <code>index.html</code> at the root — exactly the layout itch.io's HTML5 uploader expects. Hosted anywhere, players can <strong>install it like an app</strong> and <strong>replay offline</strong>.</td><td>itch.io, your own website, any static host</td></tr></tbody></table>
+<p>Both bundle the engine runtime and <strong>only the custom assets your project actually uses</strong>, so the file stays as small as possible.</p>
+<hr>
+<h2 id="what-players-experience">What players experience</h2>
+<ul><li>They <strong>don't install anything</strong> beyond having a modern browser (the EXE just opens their default one).</li><li><strong>Save slots</strong> (the game has three) are stored in the <strong>player's own browser</strong>. Saves are per browser/computer — that's normal for browser games.</li><li>Nothing phones home; the game runs entirely on their machine.</li></ul>
+<hr>
+<h2 id="the-unsigned-exe-warning">The unsigned-EXE warning</h2>
+<p>The exported Windows launcher is <strong>unsigned</strong> (code-signing certificates cost money). Windows SmartScreen may show a security warning for downloaded builds — players click <strong>More info ▸ Run anyway</strong>. If that worries your audience, the <strong>Standalone HTML</strong> export sidesteps it entirely.</p>
+<hr>
+<h2 id="distribution-ideas">Distribution ideas</h2>
+<ul><li><strong>itch.io</strong> — upload the <strong>Web (.zip)</strong> build as an HTML5 game ("This file will be played in the browser" → done), or offer the EXE/HTML as downloads. The most popular home for indie RPG-maker games.</li><li><strong>Your own site / any static host</strong> — unzip the Web build onto GitHub Pages, Netlify, or any web server. Visitors on Chrome/Edge/Android get an "install app" option, and the game keeps working offline after the first visit.</li><li><strong>A direct file</strong> — share the single HTML (or EXE) via Discord or cloud storage.</li><li><strong>Game jams</strong> — the single-file HTML build is ideal for quick judging.</li></ul>
+<h3 id="a-proper-native-desktop-app">A proper native desktop app</h3>
+<p>Working from the RPGAtlas repo with the Rust toolchain installed, you can package any exported project as a <strong>real native executable</strong> (its own window, no browser at all):</p>
+<pre><code>node scripts/package-game-exe.mjs MyGame.json</code></pre>
+<p>It reuses the exact same game build as the in-editor exports, wraps it in the desktop shell RPGAtlas itself uses (Tauri), sizes the window to your game's screen settings, and drops <code>My_Game.exe</code> at the repo root. Export the project <strong>as a file</strong> from the editor first — file exports embed the imported assets your game uses.</p>
+<hr>
+<h2 id="before-you-ship-a-quick-checklist">Before you ship: a quick checklist</h2>
+<ul><li class="task"><input type="checkbox" disabled> <strong>Game Title</strong> set in <a href="The-Database.html#system">Database ▸ System</a> (it names the file).</li><li class="task"><input type="checkbox" disabled> <strong>Start position</strong> set, on a walkable tile.</li><li class="task"><input type="checkbox" disabled> Playtested from a <strong>fresh start</strong> to the end.</li><li class="task"><input type="checkbox" disabled> Every <strong>Transfer</strong> has a matching way back (no soft-locks).</li><li class="task"><input type="checkbox" disabled> <strong>Autorun cutscenes</strong> end by flipping a switch (so they don't loop or freeze the game).</li><li class="task"><input type="checkbox" disabled> Saved a <strong><code>.json</code> backup</strong> of the project (your master copy — keep it safe).</li><li class="task"><input type="checkbox" disabled> Tested the <strong>actual export</strong>, not just the in-editor playtest.</li></ul>
+<hr>
+<h2 id="licensing-briefly">Licensing, briefly</h2>
+<p>The engine is GPL-3.0, but <strong>your content is yours</strong> — sell your games, no credit required. Because exports are plain, readable HTML/JS, the engine's source-availability requirement is satisfied by the export itself. More in <a href="Resources-and-Glossary.html#licensing-in-plain-language">Resources & Glossary</a>.</p>
+<p><strong>Next:</strong> <a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maps & Tiles — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a class="active" href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="maps-tiles">Maps & Tiles</h1>
+<p>Maps are the stage your whole game plays out on. This page covers building them well: layers, passability, shadows, map properties, encounters, and the optional HD-2D height system.</p>
+<hr>
+<h2 id="creating-and-managing-maps">Creating and managing maps</h2>
+<ul><li><strong>Add a map</strong> from the map list. A project can have as many maps as you like, connected by <a href="Events.html#movement--the-world">Transfer Player</a> events.</li><li><strong>Map Properties</strong> (the <strong>Map</strong> menu, or right-click a map in the list) lets you:<ul><li>Rename and <strong>resize</strong> the map.</li><li>Set the map's <strong>music</strong>.</li><li>Configure <strong>random encounters</strong> (troops + rate).</li><li>Enable <strong>HD-2D</strong> rendering and its options (camera tilt, bloom, depth of field, fog, lights).</li></ul></li></ul>
+<blockquote><p>Resizing keeps the tiles you've already painted where possible. It's safe to grow a map as your ideas grow.</p></blockquote>
+<hr>
+<h2 id="the-four-layers">The four layers</h2>
+<p>Every map has four tile layers, painted bottom to top:</p>
+<ol><li><strong>Ground</strong> — the base terrain (grass, floors, water).</li><li><strong>Decor</strong> — objects sitting on the ground (rocks, bushes, furniture).</li><li><strong>Decor 2</strong> — a second decoration layer for stacking detail.</li><li><strong>Overhead</strong> — drawn <em>above</em> the player, so they pass <em>behind</em> it (treetops, roofs, arches).</li></ol>
+<h3 id="auto-layer-the-easy-mode">Auto layer (the easy mode)</h3>
+<p>With <strong>Auto layer</strong> selected (press <code>0</code>), RPGAtlas decides the right layer for each tile you paint — terrain goes to Ground, decorations go above. For most maps you never need to leave Auto layer. Switch to an explicit layer (<code>1</code>–<code>4</code>) only when you want precise control, especially for the <strong>Overhead</strong> layer.</p>
+<hr>
+<h2 id="passability-where-the-player-can-walk">Passability — where the player can walk</h2>
+<p>Passability decides which tiles block movement.</p>
+<ul><li><strong>It's automatic by default.</strong> The engine reads it from the tiles: the <strong>topmost decoration tile</strong> decides, and if there's none, the <strong>Ground</strong> tile does.</li><li><strong>Tile filenames can declare passability</strong> for custom art (see <a href="Characters-and-Custom-Assets.html#tile-filenames-control-passability">Characters & Custom Assets</a>).</li><li><strong>Override any cell</strong> in <strong>Passability mode</strong>: click a tile to cycle <strong>auto → force block → force pass → ledge</strong>. Tiles show <strong>○</strong> (walkable), <strong>✕</strong> (blocked), or <strong>⌒</strong> (a <strong>ledge</strong>: never stood on — walking into it makes the character <strong>jump across</strong> to the tile beyond, when that landing tile is clear. Classic one-way cliff edges).</li></ul>
+<p>Use overrides for the little exceptions: a walkable bridge over water, a decorative fence the player shouldn't cross, the impassable edge of the world.</p>
+<hr>
+<h2 id="movement-upgrades">Movement upgrades</h2>
+<ul><li><strong>Click / tap to move:</strong> players can click anywhere on the map and the engine <strong>pathfinds</strong> there, walking around obstacles. Clicking a talkable NPC walks up to it and starts the conversation. Any arrow press cancels the walk.</li><li><strong>Party followers</strong> (Database ▸ System ▸ Map systems): the other party members trail the leader around the map and snap along through transfers.</li><li><strong>Vehicles:</strong> configure a <strong>boat</strong> (shallow water), <strong>ship</strong> (any water), and <strong>airship</strong> (flies over everything, lands on open ground) in Database ▸ System — each needs a sprite (three built-in vehicle sprites ship with the engine) and a starting map/dock. Face a vehicle and press the action key to board; press it again to disembark. Riding music is optional per vehicle.</li><li><strong>Jumping:</strong> the <code>jump</code> move-route step hops an event or the player 2 tiles forward with an arc.</li></ul>
+<hr>
+<h2 id="regions-numbered-zone-tags">Regions — numbered zone tags</h2>
+<p><strong>Region mode</strong> (Mode menu / Tab-cycle) paints invisible <strong>zone numbers (1–63)</strong> onto tiles — digits set the id, <code>-</code>/<code>=</code> step it, right-click picks up the id under the cursor, the Eraser clears. Regions do nothing by themselves; they <em>drive</em> other systems:</p>
+<ul><li><strong>Region encounter pools</strong> (Map Properties): give a region its own troop list — swamp monsters in the swamp, bats near the cave — while the rest of the map keeps the default pool.</li><li><strong>The “Player Region” event condition</strong>: branch events (or graphs) on the zone the player is standing in.</li></ul>
+<hr>
+<h2 id="shadows">Shadows</h2>
+<p>The <strong>Shadow Pen</strong> (<code>S</code>, in Map mode) paints <strong>half-tile shadow quadrants</strong>, exactly like the classic makers. Drop shadows along the west and south sides of walls, cliffs, and buildings to give your maps depth and a hand-crafted look.</p>
+<hr>
+<h2 id="random-encounters">Random encounters</h2>
+<p>Instead of (or alongside) fixed <a href="Battles-and-States.html">Start Battle</a> events, a map can throw random battles as the player walks:</p>
+<ol><li>Open <strong>Map Properties</strong> for the map.</li><li>Turn on encounters and add one or more <strong>troops</strong>.</li><li>Set an <strong>encounter rate</strong> (lower = more frequent).</li></ol>
+<p>Pair this with safe maps (towns) that have <em>no</em> encounters so players get a breather.</p>
+<hr>
+<h2 id="hd-2d-heights">HD-2D heights</h2>
+<p>RPGAtlas has an optional <strong>HD-2D</strong> rendering mode: a tilted perspective camera with extruded terrain, billboard sprites, bloom, depth of field, distance fog, and point lights — reminiscent of modern "2D-HD" remakes. It's <strong>per-map and opt-in</strong>, and falls back to the classic flat 2D renderer automatically if a device can't run it.</p>
+<h3 id="painting-heights">Painting heights</h3>
+<ol><li>Switch to <strong>Height mode</strong> (the <strong>Mode</strong> menu).</li><li>Press a number key <code>0</code>–<code>9</code> to choose an elevation value.</li><li>Paint with the same <strong>Pen / Rectangle / Circle / Fill</strong> tools.</li></ol>
+<p>Raised tiles <strong>extrude into 3D blocks</strong> when the map is rendered in HD-2D — instant cliffs, plateaus, and raised walkways.</p>
+<p>Turn on <strong>Cliff auto-texturing</strong> in Map Properties (HD-2D section) to sculpt those exposed block walls into rock cliffs: the faces darken toward the base, keep a sunlit edge along the crest, and pick up shaded vertical corners where the wall turns. It's off by default and purely cosmetic — it changes no map data, so leaving it off keeps the previous flat-shaded walls.</p>
+<h3 id="turning-on-hd-2d-for-a-map">Turning on HD-2D for a map</h3>
+<p>Enable HD-2D in <strong>Map Properties</strong>, where you'll also find its look-and-feel controls: camera tilt, bloom, depth of field, fog color, ambient light, and lights.</p>
+<p>Press <strong><code>F2</code></strong> (or <strong>View ▸ HD-2D Viewport</strong>) to open the live <strong>HD-2D Viewport</strong> — a dockable panel that renders the map with the same elevation and lighting renderer as the game runtime and follows tile, height, event, ambient-light, and point-light edits as you make them. Its camera is independent of the game: drag to pan, wheel to zoom, Shift-drag (or right-drag) to tilt. You can also <strong>double-click</strong> the viewport to drop a point light and drag its gizmo to position it. See <a href="The-Editor-Interface.html">The Editor Interface</a>.</p>
+<h3 id="lights">Lights</h3>
+<p>Place a light by creating an event named like:</p>
+<pre><code>light #ffaa55 4</code></pre>
+<p>That's an event whose <strong>name</strong> is <code>light</code>, followed by a hex color and a radius. Lanterns, campfires, and glowing crystals come to life in HD-2D maps.</p>
+<blockquote><p>HD-2D is a presentation choice, not a different kind of game. You build the map exactly the same way; heights and the HD-2D toggle just change how it's drawn.</p></blockquote>
+<p><strong>Next:</strong> <a href="Events.html">Events →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

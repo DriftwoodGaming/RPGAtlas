@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Characters & Custom Assets — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a class="active" href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="characters-custom-assets">Characters & Custom Assets</h1>
+<p>Everything in RPGAtlas is generated, so you can build a whole game without drawing a single pixel. But you can also make it unmistakably <em>yours</em> — design original sprites in the Character Generator, or drop your own art into the engine's shared image folders.</p>
+<hr>
+<h2 id="the-character-generator">The Character Generator</h2>
+<p>Open <strong>Tools ▸ Character Generator</strong> to compose original walking sprites by mixing parts:</p>
+<ul><li><strong>Skin</strong>, <strong>hair</strong>, <strong>outfit</strong>, and <strong>style</strong> options combine into a unique character.</li><li>The result is a proper walking sprite sheet (3 columns × 4 directions) usable <strong>everywhere</strong> a sprite is — actors, NPC events, anything.</li></ul>
+<p>Generated characters are saved with your project (as <code>customChars</code>), so they travel with your <code>.json</code> and your exports. No external files to manage.</p>
+<hr>
+<h2 id="the-resource-manager">The Resource Manager</h2>
+<p><strong>Tools ▸ Resource Manager</strong> lets you browse <strong>every</strong> generated tile, character, and battler in the engine, and <strong>export them as PNGs</strong> (including full sprite sheets). Handy for previews, promo images, or editing a sprite in an external tool and bringing it back as a custom asset.</p>
+<hr>
+<h2 id="adding-your-own-art">Adding your own art</h2>
+<p>Custom images live <strong>once</strong> in the engine's shared <code>img</code> folder, so several projects can reuse the same library without duplicating files. The folders:</p>
+<table><thead><tr><th>Folder</th><th>What goes there</th></tr></thead><tbody><tr><td><code>img/characters</code></td><td>Walking sprite sheets (3 columns × 4 directions)</td></tr><tr><td><code>img/facesets</code></td><td>Actor portraits, matched to actors by filename</td></tr><tr><td><code>img/enemies</code></td><td>Enemy battle images</td></tr><tr><td><code>img/tilesets</code></td><td>Individual map tiles</td></tr><tr><td><code>img/system</code></td><td>Shared UI graphics, including the 8×8 database icon sheet</td></tr></tbody></table>
+<p><strong>To add art:</strong> copy your files into the right folder and reload the editor. They appear automatically in the relevant database picker or the map tile palette.</p>
+<blockquote><p>Projects save <strong>references</strong> to shared art, not copies — so your <code>.json</code> stays small. When you <strong>export</strong> a standalone game, only the assets you actually used are embedded. See <a href="Publishing-Your-Game.html">Publishing Your Game</a>.</p></blockquote>
+<p>For exact image sizes and formats, see <code>img/README.md</code> in the project.</p>
+<hr>
+<h2 id="tile-filenames-control-passability">Tile filenames control passability</h2>
+<p>Custom <strong>tile</strong> filenames can declare how the tile behaves on the map, so you don't have to set it by hand every time:</p>
+<table><thead><tr><th>Filename pattern</th><th>Behavior</th></tr></thead><tbody><tr><td><code>stone.png</code></td><td><strong>Blocked</strong> — the player can't walk on it</td></tr><tr><td><code>bridge.pass.png</code></td><td><strong>Passable</strong> — the player can walk on it</td></tr><tr><td><code>meadow.terrain.png</code></td><td><strong>Passable</strong> <em>and</em> treated as <strong>terrain</strong> by Auto Layer</td></tr></tbody></table>
+<p>You can always override any individual cell later in <strong>Passability mode</strong> — see <a href="Maps-and-Tiles.html#passability--where-the-player-can-walk">Maps & Tiles</a>.</p>
+<hr>
+<h2 id="reskinning-the-database-icons">Reskinning the database icons</h2>
+<p>Items, skills, weapons, armors, and classes each pick an icon from a shared <strong>8×8 icon sheet</strong> (64 icons). To reskin all 64 at once, replace <code>img/system/icon_set.png</code> with your own transparent <strong>256×256</strong> sheet laid out 8×8.</p>
+<hr>
+<h2 id="if-custom-art-doesnt-show-up">If custom art doesn't show up</h2>
+<p>The editor discovers your files by scanning the <code>img</code> folders. The built-in <code>RPGAtlas.exe</code> launcher and the normal <code>python -m http.server</code> workflow both support that scan automatically. If you're hosting the engine somewhere that doesn't provide directory listings and your assets aren't appearing, run <code>tools/update-assets.ps1</code> to write a manifest the editor can read. More in <a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a>.</p>
+<p><strong>Next:</strong> <a href="Audio.html">Audio →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

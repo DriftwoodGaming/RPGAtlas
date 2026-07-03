@@ -7,15 +7,24 @@
 <p align="center"><i>Chart your world. Tell your story.</i></p>
 
 <p align="center">
+  <img alt="Version 1.0.0" src="https://img.shields.io/badge/version-1.0.0-ffd86a.svg">
   <a href="LICENSE"><img alt="License: GPL v3" src="https://img.shields.io/badge/License-GPLv3-blue.svg"></a>
   <img alt="Zero-install runtime" src="https://img.shields.io/badge/runtime-zero--install-brightgreen.svg">
   <img alt="Self-contained exports" src="https://img.shields.io/badge/exports-self--contained-brightgreen.svg">
 </p>
 
-**RPGAtlas** is a complete, original, **free and open source** RPG making engine in the spirit of
-classic 2D RPG makers. No copyrighted assets, nothing to install for creators or players — everything
-(code, tiles, sprites, monsters, sound effects, even the music) is generated procedurally in plain
-JavaScript, and exported games are single self-contained files.
+**RPGAtlas 1.0** is a complete, original, **free and open source** RPG making engine in the spirit of
+classic 2D RPG makers — with a modern **HD-2D renderer** (tilted perspective, dynamic lights and
+shadows, animated water, day/night, weather, full post-processing) layered on top. No copyrighted
+assets, nothing to install for creators or players — everything (code, tiles, sprites, monsters,
+sound effects, even the music) is generated procedurally, imports are welcome when you want them,
+and exported games are single self-contained files.
+
+📖 **Documentation:** the [project wiki](wiki/Home.md) — also available as a static
+[docs site](docs-site/index.html) (`docs-site/`, GitHub Pages-ready), including the
+[Plugin & Script API reference](wiki/Plugin-and-Script-API.md) and the
+[Migration Guide](wiki/Migration-Guide.md). Boot the bundled sample, *Atlas Quest*, and walk out to
+**Driftwood Shore** for the HD-2D showcase.
 
 ## Quick start
 
@@ -156,33 +165,40 @@ npm run typecheck  # TypeScript (new code is TS; legacy JS migrates per phase)
 npm run lint
 ```
 
-The overhaul currently in progress is mapped in
-[`docs/PRODUCTION_ROADMAP.md`](docs/PRODUCTION_ROADMAP.md) — see it before starting larger
-contributions, and see [`docs/architectural_overview.md`](docs/architectural_overview.md)
-for how the codebase fits together.
+The eight-phase "Atlas HD" overhaul that produced 1.0 is documented in
+[`docs/PRODUCTION_ROADMAP.md`](docs/PRODUCTION_ROADMAP.md) (with per-phase specs beside it) —
+see [`docs/architectural_overview.md`](docs/architectural_overview.md) for how the codebase
+fits together.
 
 ## Code structure
 
-The editor and player use native JavaScript module entry points. Cohesive systems live
-under focused folders instead of accumulating in the entry files:
-
-- `js/editor/project-io.js` - project persistence and standalone build/export
-- `js/runtime/messages.js` - message conversion, rich text, typewriter behavior, faces and icons
-
-Shared engine services such as `Assets`, `RA`, and the plugin bridge remain stable globals
-for compatibility while additional systems are migrated incrementally.
+TypeScript modules under `src/` hold the engine (`src/engine/` — scenes, interpreter, state),
+the editor (`src/editor/` — map editor, database, dock workspace, tools, importers), the
+three.js HD-2D renderer (`src/renderer/`), shared services (`src/shared/`), and the storage
+platform adapters (`src/platform/` — browser and Tauri). The procedural asset/audio/data
+generators remain classic scripts under `js/` (`assets.js`, `sfx.js`, `data.js`) alongside
+`js/editor/project-io.js` (persistence/export) and `js/standalone-template.mjs` +
+`js/build-manifest.mjs` (the shared export/packaging pipeline). Shared engine services such
+as `Assets`, `RA`, and the plugin bridge remain stable globals for plugin compatibility.
 
 ## Publishing a game
 
-Choose **File > Export Standalone Game** to build the current project as either:
+Choose **File > Export Standalone Game** to build the current project as:
 
 - **Windows EXE** — a small launcher with the complete game appended inside it. Double-clicking the
   executable extracts the game and opens it in the player's default modern browser.
 - **Standalone HTML** — one cross-platform game file that can be opened directly in a modern browser.
+- **Web / itch.io (.zip)** — `index.html` at the zip root (itch.io's HTML5 layout) plus a web-app
+  manifest, icons, and an offline service worker: host it anywhere static and players can install
+  it like an app and replay offline.
+
+With the Rust toolchain, `node scripts/package-game-exe.mjs <project.json>` additionally packages
+any exported project as a **native desktop executable** (its own window, no browser) using the same
+Tauri shell as the RPGAtlas desktop app.
 
 Players do not need RPGAtlas, the editor, a local web server, or a separate project file.
 Save slots are stored by the player's browser. The Windows launcher is unsigned, so Windows may show
-a security warning for downloaded builds.
+a security warning for downloaded builds. Full guide: [Publishing Your Game](wiki/Publishing-Your-Game.md).
 
 ## Project format
 
@@ -210,13 +226,13 @@ automatically — autosaves, save slots, and bundled plugins are all carried for
 ## Files
 
 ```
-index.html        editor shell          js/assets.js   procedural tiles/sprites/battlers
-play.html         player shell          js/sfx.js      procedural SFX + generative music
-css/editor.css    editor theme          js/data.js     schema, defaults, sample game
-css/play.css      game windows          js/engine.js              player module entry
-                                        js/runtime/messages.js    message subsystem
-                                        js/editor.js              editor module entry
-                                        js/editor/project-io.js   persistence and export
+index.html        editor shell          js/assets.js       procedural tiles/sprites/battlers
+play.html         player shell          js/sfx.js          procedural SFX + generative music
+css/editor.css    editor theme          js/data.js         schema, defaults, sample game
+css/play.css      game windows          src/engine/        player runtime (TS modules)
+docs-site/        rendered docs         src/editor/        editor (TS modules)
+wiki/             documentation source  src/renderer/      three.js HD-2D renderer
+scripts/          build & packaging     src/shared/        services shared by both
 ```
 
 ## License

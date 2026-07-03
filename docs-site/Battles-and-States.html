@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Battles & States — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a class="active" href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="battles-states">Battles & States</h1>
+<p>RPGAtlas ships a complete battle system with three scheduling modes. This page explains how fights are built, the battle views and systems, status effects, and how to keep combat fun and fair.</p>
+<hr>
+<h2 id="how-a-battle-happens">How a battle happens</h2>
+<p>A battle always pits the party against a <strong>troop</strong> (a group of enemies defined in the <a href="The-Database.html#troops">Database</a>). You start one in two ways:</p>
+<ul><li><strong>A fixed battle:</strong> a <strong>Start Battle</strong> <a href="Events.html#battle-shops--audio">event command</a> — for bosses and scripted fights.</li><li><strong>Random encounters:</strong> turn them on in <strong>Map Properties</strong> with a list of troops and a rate. See <a href="Maps-and-Tiles.html#random-encounters">Maps & Tiles</a>.</li></ul>
+<p>When the player wins they gain <strong>EXP, levels, learned skills, and gold drops</strong>. You decide per-battle whether the party <strong>can escape</strong> and whether <strong>losing</strong> ends the game or lets the story continue.</p>
+<hr>
+<h2 id="the-two-battle-views">The two battle views</h2>
+<p>Set this in <strong>Database ▸ System ▸ Battle view</strong>:</p>
+<ul><li><strong>Side view</strong> — the party is shown as animated sprites facing the enemies, classic action-RPG style.</li><li><strong>Front view</strong> — you see the enemies head-on and the party is "behind the camera," classic dragon-questing style.</li></ul>
+<p>Both use the same data; it's purely how combat is presented.</p>
+<hr>
+<h2 id="the-three-battle-systems">The three battle systems</h2>
+<p>Set this in <strong>Database ▸ System ▸ Battle system</strong> — all three share the exact same damage math, states, and animations; only the <em>scheduling</em> differs:</p>
+<ul><li><strong>Turn-based</strong> (default) — classic rounds: everyone picks a command, then all actions resolve in agility order.</li><li><strong>ATB</strong> — every battler has an <strong>active-time gauge</strong> that fills with agility; they act the moment it's full. Gauges are shown on the party rows and under enemies, and pause while you're choosing a command.</li><li><strong>CTB</strong> — one battler acts at a time in an agility-driven order, previewed as a <strong>turn-order strip</strong> across the top of the battle (the highlighted chip acts now).</li></ul>
+<hr>
+<h2 id="in-battle-actions">In-battle actions</h2>
+<p>Players choose from: <strong>Attack</strong>, <strong>Skills</strong>, <strong>Items</strong>, <strong>Guard</strong>, and <strong>Escape</strong>. Turn order follows <strong>agility</strong>. Skills and items can hit one target, all enemies, one ally, or the whole party depending on their <strong>scope</strong>. Combat is enriched with pooled particle effects for hits, magic, healing, guarding, states, and defeats — and skills/weapons can play authored <a href="The-Database.html#animations">battle animations</a>.</p>
+<p><strong>Formation:</strong> the pause menu's <strong>Formation</strong> entry toggles each member between <strong>front</strong> and <strong>back row</strong>. Back row deals and takes 25% less <em>physical</em> damage and is targeted less often — put your mage there. Back-row members show a ▽ marker in battle.</p>
+<hr>
+<h2 id="troop-battle-events">Troop battle events</h2>
+<p>Each troop (Database ▸ Troops) can carry <strong>battle-event pages</strong>: ordinary event commands that run mid-battle when their condition hits — boss dialogue, phase-change switches, reinforcement flags, scripted heals. Conditions: a <strong>turn</strong> pattern (<code>a + b·x</code>), an <strong>enemy's HP</strong> dropping to a threshold, an <strong>actor's HP</strong> dropping to a threshold, or a <strong>switch</strong> being ON (set several — all must hold). The <strong>span</strong> controls refiring: <em>once per battle</em>, <em>once per turn</em>, or <em>each time it becomes true</em>.</p>
+<hr>
+<h2 id="enemies">Enemies</h2>
+<p>Each enemy (Database ▸ Enemies) defines:</p>
+<ul><li><strong>Stats</strong> — HP, MP, attack, defense, agility, etc.</li><li><strong>Rewards</strong> — EXP and gold granted on defeat.</li><li><strong>A weighted action list</strong> — what the enemy tends to do each turn (attack, cast, etc.), with some actions more likely than others. Each row can also carry a <strong>condition</strong> — a turn pattern, own HP above/below a percentage, a random chance, or a state on itself — and rows whose condition fails drop out of that turn's pick. A dragon that breathes fire every third turn and heals under 30% HP is three rows.</li><li><strong>A procedural sprite and color tint</strong> — drawn from one of <strong>twelve monster families</strong>, each with a distinct silhouette, idle motion, and combat role. Re-tint and re-stat them to create many distinct foes from the same family.</li></ul>
+<p>Group enemies into <strong>troops</strong> to use them in battle.</p>
+<p>The same enemy database entries can also power real-time <strong>Action Combat</strong> events on maps. See <a href="Events.html#action-combat-events">Events</a> for sword-swing enemies, touch damage, knockback, and defeat self-switches.</p>
+<hr>
+<h2 id="states">States</h2>
+<p><strong>States</strong> are status effects — the spice of any battle system. Define them in <strong>Database ▸ States</strong>. Each state controls:</p>
+<table><thead><tr><th>Property</th><th>Meaning</th></tr></thead><tbody><tr><td><strong>Per-turn HP change (%)</strong></td><td>Poison drains; regen restores</td></tr><tr><td><strong>Action restriction</strong></td><td>Whether the afflicted can still act (e.g. stun = can't act)</td></tr><tr><td><strong>Duration</strong></td><td>How many turns it lasts</td></tr><tr><td><strong>Removed after battle</strong></td><td>Whether it wears off automatically when combat ends</td></tr><tr><td><strong>Colors & icon</strong></td><td>How it's shown</td></tr></tbody></table>
+<p><strong>Skills and items inflict or cure states.</strong> A poison dagger applies <em>Poison</em>; an antidote removes it; a healing spell might also cure <em>Stun</em>. Classic examples to build: Poison, Stun/Paralyze, Regen, Sleep, Silence (block magic), and Berserk.</p>
+<hr>
+<h2 id="class-traits">Class traits</h2>
+<p>Combat depth largely comes from <strong>classes</strong> (Database ▸ Classes). Traits let you tune:</p>
+<ul><li><strong>Stats and growth</strong> per level.</li><li><strong>Elemental resistances</strong> (resist fire, weak to ice…), using the elements you defined in <a href="The-Database.html#types">Types</a>.</li><li><strong>Skill bonuses</strong> and which skills are learned, and when.</li><li><strong>Equipment permissions</strong> — which weapons/armors the class may wield.</li></ul>
+<p>Two characters of different classes will <em>feel</em> different in battle even with the same gear.</p>
+<hr>
+<h2 id="tips-for-fun-fair-combat">Tips for fun, fair combat</h2>
+<ul><li><strong>Start small.</strong> Test fights against one weak enemy before assembling tough troops.</li><li><strong>Give the player tools.</strong> Make sure healing items/skills exist before you deploy poison enemies.</li><li><strong>Telegraph difficulty.</strong> Use safe (encounter-free) towns between dangerous areas.</li><li><strong>Use states for variety</strong>, not frustration — long stuns or unresisted instant-death feel unfair.</li><li><strong>Reward exploration.</strong> Put the best gear behind optional <a href="Events.html#recipes">chests</a> and tough optional troops.</li><li><strong>Playtest the curve.</strong> Level a fresh party through your dungeon and watch where it spikes.</li></ul>
+<p><strong>Next:</strong> <a href="Characters-and-Custom-Assets.html">Characters & Custom Assets →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

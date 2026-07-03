@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Migration Guide — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a class="active" href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="migration-guide">Migration Guide</h1>
+<p>RPGAtlas opens <strong>every project it has ever been able to save</strong> — a project file from the earliest unversioned builds (even pre-rebrand "Driftwood" files) loads in 1.0 and upgrades itself in place. This page explains how that works and what changes between format versions.</p>
+<hr>
+<h2 id="how-project-versioning-works">How project versioning works</h2>
+<p>Every project carries <code>meta.formatVersion</code>, an integer schema version (missing = 0, i.e. a pre-versioning project). On <strong>every load, import, or playtest boot</strong> the engine runs each registered migration whose version is newer than the file's, in order, then stamps the current version. Migrations are:</p>
+<ul><li><strong>Automatic</strong> — no prompts, no separate tool; opening a project <em>is</em> migrating it.</li><li><strong>Additive</strong> — they backfill new fields with defaults that reproduce the old behavior exactly. Your game plays the same until you use the new features.</li><li><strong>Round-trip tested</strong> — the test suite loads and re-saves older fixtures and fails if a migration ever changes behavior.</li></ul>
+<p><strong>Forward compatibility:</strong> a file saved by a <em>newer</em> RPGAtlas than the one opening it is returned untouched (the version stamp is never downgraded) — newer-format data is preserved rather than half-migrated. Upgrade the app to edit the file.</p>
+<hr>
+<h2 id="format-history">Format history</h2>
+<table><thead><tr><th>Version</th><th>Introduced</th><th>What the migration adds</th></tr></thead><tbody><tr><td><strong>0 → 1</strong></td><td>pre-overhaul</td><td>The catch-all legacy upgrade: second decor layer, painted shadows, passability overrides, HD-2D heights, plugins list, quests, custom characters, input bindings, database type lists; adopts <code>"driftwood"</code>-engine files.</td></tr><tr><td><strong>1 → 2</strong></td><td>Phase 5 (Gameplay Systems)</td><td>Purely additive backfills: the animations collection, battle-mode system fields (ATB/CTB options), follower/minimap/vehicle settings, the per-map region layer, per-troop battle-event pages.</td></tr><tr><td><em>(current)</em></td><td><strong>2</strong></td><td>Phases 6–7 added <strong>no format bump</strong> — asset library references, audio v2 fields, ambience layers, and all 1.0 features are optional fields with "absent = previous behavior".</td></tr></tbody></table>
+<h2 id="upgrading-from-pre-overhaul-rpgatlas-or-driftwood-to-10">Upgrading from pre-overhaul RPGAtlas (or Driftwood) to 1.0</h2>
+<ol><li><strong>Back up</strong> your <code>.json</code> project (you should always have one — File ▸ Export Project As File…).</li><li>Open it in RPGAtlas 1.0 (drop it on the editor or File ▸ Open Project). Migration is automatic.</li><li>Save. The file is now format 2 and includes any library assets your project uses, embedded.</li></ol>
+<p>Notes:</p>
+<ul><li><strong>Older RPGAtlas versions can still open</strong> a migrated file in most cases (unknown fields are ignored), but anything built on new features won't function there — treat upgrades as one-way.</li><li><strong>Plugins keep working</strong>: the plugin/script API surface is frozen for 1.x (see <a href="Plugin-and-Script-API.html">Plugin & Script API</a>).</li><li><strong>Exported games never migrate</strong> — an export bundles the engine it was built with, forever.</li></ul>
+<h2 id="player-saves">Player saves</h2>
+<p>Save slots and player options are stored per game (by game title) in the player's browser or, for native builds, the app's storage. Engine updates don't invalidate saves: the save is a snapshot of game state, and loading it into an updated export works as long as your game's maps/events still have the same ids — the usual care when patching a released game.</p>
+<p><strong>Next:</strong> <a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

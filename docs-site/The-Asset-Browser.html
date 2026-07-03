@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Asset Browser — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a class="active" href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="the-asset-browser">The Asset Browser</h1>
+<p><strong>Tools ▸ Asset Browser</strong> manages your imported art and audio. RPGAtlas is still procedural-first — everything works with zero imports — but the Asset Browser is where your own PNGs and sound files join the toolkit.</p>
+<h2 id="importing">Importing</h2>
+<p>Drag files onto the browser (or click <strong>Import Files…</strong>):</p>
+<table><thead><tr><th>You drop</th><th>It becomes</th></tr></thead><tbody><tr><td>PNG / WebP / JPEG</td><td>An image asset of the type in the <strong>Images as</strong> selector — Characters (3×4 walk sheets), Facesets, Enemies (battlers), or Tiles (one 48×48 tile per image)</td></tr><tr><td>OGG / MP3 / WAV</td><td>An audio asset, with its role (BGM / BGS / ME / SE) guessed from the file name — edit it any time</td></tr></tbody></table>
+<p>Imported images appear immediately in the same pickers as the built-in art: character sheets in sprite pickers, tiles in the palette, battlers in the Enemies tab. Tile names ending <code>.pass</code> are passable; <code>.terrain</code> marks walkable terrain.</p>
+<h3 id="the-import-wizard">The import wizard</h3>
+<p>Some drops open a wizard step instead of importing directly:</p>
+<ul><li><strong>Tileset slicer</strong> — an image bigger than one 48×48 tile dropped on the <strong>Tiles</strong> tab opens the slicer: pick the source grid (16/24/32/48 px or custom, with offset/gap), click cells to include or exclude them, choose Blocked / Passable / Terrain naming, and every included cell becomes one 48px tile named <code>&lt;base&gt;-r&lt;row&gt;c&lt;col&gt;</code>. (RPG-Maker <strong>A2 autotile blocks</strong> have their own importer: <strong>Tools ▸ Import Autotile Sheet…</strong> turns one into a terrain brush.)</li><li><strong>Sprite sheets</strong> — an image on the <strong>Characters</strong> tab that doesn't divide into the 3×4 walking grid can import as a walking charset anyway, or as a <strong>flipbook sheet</strong>: set the cell size and add named frame tags (<code>walk 0–3</code>, <code>cast 4–7</code>, …). Sheets stay out of the walking-sprite pickers and appear in the Animations tab's Sheet picker instead.</li><li><strong>Aseprite</strong> — drop a <code>.json</code> + <code>.png</code> export pair together and the frame tags arrive as ready-made ranges (FPS derived from your frame durations). Trimmed/non-uniform exports are repacked onto a uniform grid at import.</li></ul>
+<p>In <strong>Database ▸ Animations</strong>, a Flipbook item's <strong>Sheet</strong> field lists your imported sheets; picking a <strong>Frame tag</strong> fills From/To/FPS in one click.</p>
+<p>Imports are stored in a <strong>per-device library</strong> — IndexedDB in the browser, the app-data folder in the desktop app — so they don't count against the browser's project-size limit and are shared by every project you edit on this device.</p>
+<h2 id="where-assets-travel">Where assets travel</h2>
+<ul><li><strong>Project files</strong>: saving or exporting a <code>.json</code> embeds the imported assets the project actually uses. Open that file on another machine and they are imported into that machine's library automatically.</li><li><strong>Game exports</strong>: standalone games embed only the assets your game references — players never need your library.</li></ul>
+<h2 id="managing">Managing</h2>
+<ul><li><strong>Search / tags</strong>: filter by name or tag; click <strong>Tags</strong> on a card to edit its labels. Tags starting <code>pack:</code> mark starter-pack installs.</li><li><strong>Used/unused audit</strong>: each card shows whether the current project references it; <strong>Unused only</strong> finds dead weight, and the footer totals the library's size.</li><li><strong>Rename</strong> rewrites every reference in the current project so nothing breaks. Other projects that reference the old name will show fallbacks until you rename it back or re-import.</li><li><strong>Delete</strong> warns when the current project still uses the asset.</li><li><strong>Export</strong> downloads the original file back out of the library.</li></ul>
+<h2 id="starter-packs">Starter packs</h2>
+<p>The <strong>Packs</strong> tab installs curated asset bundles into your library with one click. Every pack asset is tagged <code>pack:&lt;id&gt;</code> so it can be filtered, audited, and uninstalled as a set; installs are content-deduped, so Reinstall (or retrying a failed download) is always safe.</p>
+<ul><li><strong>Driftwood Starter</strong> ships with RPGAtlas (CC0 — generated from the engine's own procedural art): terrain recolors, four villagers, three battlers, two chiptune loops, rain ambience, a victory fanfare, and a chime.</li><li><strong>Add registry URL…</strong> points the tab at any hosted <code>index.json</code> (same format as <code>img/packs/index.json</code>) to install third-party packs. Mind the license shown on each pack — exports embed the assets your game uses.</li></ul>
+<p>The <strong>Resource Manager</strong> remains the browser for the built-in procedural tiles, characters, and icons.</p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Troubleshooting & FAQ — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a class="active" href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="troubleshooting-faq">Troubleshooting & FAQ</h1>
+<p>Quick fixes for the snags people hit most. If your problem isn't here, check the <a href="Resources-and-Glossary.html">Resources & Glossary</a> or the project's <code>README.md</code>.</p>
+<hr>
+<h2 id="starting-up">Starting up</h2>
+<h3 id="nothing-happens-the-editor-wont-load-when-i-double-click-rpgatlasexe">Nothing happens / the editor won't load when I double-click <code>RPGAtlas.exe</code></h3>
+<ul><li>Make sure <code>RPGAtlas.exe</code> is <strong>inside the RPGAtlas folder</strong>, next to <code>index.html</code>. It serves the folder it lives in; moved on its own, it can't find the engine.</li><li>Look at the little black window — it prints the address (usually <code>http://localhost:8080/</code>) and any error. Open that address in your browser manually if a tab didn't pop up.</li></ul>
+<h3 id="windows-protected-your-pc-unknown-publisher">"Windows protected your PC" / unknown publisher</h3>
+<p>Expected — the launcher is <strong>unsigned</strong>. Click <strong>More info ▸ Run anyway</strong>. It only starts a local server and opens your browser. See <a href="Installation-and-Setup.html#windows-protected-your-pc--unknown-publisher">Installation & Setup</a>.</p>
+<h3 id="could-not-open-a-local-port">"Could not open a local port"</h3>
+<p>Another copy of RPGAtlas (or another program) is using the port. Close other RPGAtlas windows and try again — the launcher tries ports 8080–8099 automatically.</p>
+<h3 id="i-opened-indexhtml-directly-and-its-broken">I opened <code>index.html</code> directly and it's broken</h3>
+<p>Browsers block <code>localStorage</code> and asset scanning on <code>file://</code> pages. You <strong>must</strong> serve the folder — use <code>RPGAtlas.exe</code> (Windows) or <code>python -m http.server 8080</code>. See <a href="Installation-and-Setup.html">Installation & Setup</a>.</p>
+<hr>
+<h2 id="my-work">My work</h2>
+<h3 id="where-is-my-project-saved-will-i-lose-it">Where is my project saved? Will I lose it?</h3>
+<p>The editor <strong>auto-saves to your browser</strong> (<code>localStorage</code>). That's convenient but fragile: it's tied to one browser on one computer, and clearing browser data erases it. <strong>Always keep a <code>.json</code> backup</strong> via <strong>File ▸ Save Project</strong>. Treat the <code>.json</code> as your real save file.</p>
+<h3 id="i-switched-browserscomputers-and-my-game-is-gone">I switched browsers/computers and my game is gone</h3>
+<p>The auto-save doesn't travel between browsers. Use the <strong><code>.json</code></strong> you exported (<strong>File ▸ Open Project</strong> to load it). If you never saved one, the work only exists in the original browser's storage.</p>
+<h3 id="undo-only-goes-back-so-far">Undo only goes back so far</h3>
+<p>Undo/redo is generous (full-map history for tiles, shadows, heights, passability, and events) but not infinite. Save <code>.json</code> checkpoints at milestones.</p>
+<hr>
+<h2 id="maps-assets">Maps & assets</h2>
+<h3 id="my-custom-art-doesnt-appear-in-the-editor">My custom art doesn't appear in the editor</h3>
+<ul><li>Confirm files are in the <strong>correct <code>img</code> subfolder</strong> (<code>characters</code>, <code>facesets</code>, <code>enemies</code>, <code>tilesets</code>, <code>system</code>) and are valid PNG/WebP/JPG. See <a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a>.</li><li><strong>Reload the editor</strong> after adding files.</li><li>If you're hosting the engine somewhere <strong>without directory listings</strong>, the scan can't see the files — run <code>tools/update-assets.ps1</code> to write a manifest, then reload. (The bundled <code>RPGAtlas.exe</code> and <code>python -m http.server</code> both provide listings, so this is only for unusual hosts.)</li></ul>
+<h3 id="the-player-can-walk-through-a-wall-or-cant-cross-a-bridge">The player can walk through a wall (or can't cross a bridge)</h3>
+<p>Passability comes from the topmost tile, but you can fix any cell directly: switch to <strong>Passability mode</strong> and click the tile to cycle auto → block → pass. For custom tiles, filename suffixes like <code>.pass</code> and <code>.terrain</code> set defaults. See <a href="Maps-and-Tiles.html#passability--where-the-player-can-walk">Maps & Tiles</a>.</p>
+<h3 id="my-hd-2d-map-looks-flat-like-normal-2d">My HD-2D map looks flat / like normal 2D</h3>
+<p>HD-2D is <strong>opt-in per map</strong> (enable it in Map Properties) and <strong>falls back to flat 2D</strong> on devices that can't run WebGL2. Heights only extrude in HD-2D maps. See <a href="Maps-and-Tiles.html#hd-2d-heights">Maps & Tiles</a>.</p>
+<hr>
+<h2 id="events">Events</h2>
+<h3 id="my-event-does-nothing-the-wrong-page-runs">My event does nothing / the wrong page runs</h3>
+<ul><li>Check the <strong>trigger</strong> — Action Button needs the player to face it and press Z/Enter; Player Touch needs them to step on it.</li><li>Remember pages resolve <strong>last-match-wins</strong>. If a later page's conditions are met, it overrides earlier ones. See <a href="Events.html#pages-and-conditions">Events</a>.</li></ul>
+<h3 id="the-game-froze-during-a-cutscene">The game froze during a cutscene</h3>
+<p>An <strong>Autorun</strong> page with no end condition runs forever. Make the page flip a <strong>switch/self-switch</strong> at its end, and add an empty page whose condition is that flag, so the event stops. See <a href="Events.html#triggers--what-starts-an-event">Events</a>.</p>
+<h3 id="a-chest-gives-its-item-every-time">A chest gives its item every time</h3>
+<p>You're missing the <strong>self-switch</strong>. Set Self-Switch A = ON after the reward, and add a second page conditioned on Self-Switch A being ON. See <a href="Events.html#recipes">Events</a>.</p>
+<hr>
+<h2 id="battles">Battles</h2>
+<h3 id="battles-are-too-hard-too-easy">Battles are too hard / too easy</h3>
+<p>Tune enemy <strong>stats and rewards</strong> and your <strong>class growth</strong> in the <a href="The-Database.html">Database</a>. Playtest a fresh party through the area. See <a href="Battles-and-States.html#tips-for-fun-fair-combat">Battles & States</a>.</p>
+<h3 id="random-encounters-never-happen-or-happen-constantly">Random encounters never happen (or happen constantly)</h3>
+<p>Encounters and their <strong>rate</strong> live in <strong>Map Properties</strong>, and the map needs <strong>troops</strong> assigned. A lower rate means <em>more</em> frequent battles. See <a href="Maps-and-Tiles.html#random-encounters">Maps & Tiles</a>.</p>
+<hr>
+<h2 id="accessibility">Accessibility</h2>
+<p>Every game made with RPGAtlas ships with these player-side options (in-game <strong>Options</strong> menu, saved per player, no authoring needed):</p>
+<ul><li><strong>Reduced Motion</strong> (Auto / On / Off) — stills screen shake, battle sprite bobbing and lunges, HUD flash effects, halves full-screen flashes, and thins weather particles. <em>Auto</em> follows the player's operating-system "reduce motion" setting.</li><li><strong>Text Size</strong> (Small / Normal / Large / Huge) — scales dialogue and menu text over the game's authored base font size.</li><li><strong>Colorblind Assist</strong> — switches HP/MP gauges to a colorblind-safe orange/sky-blue palette (damage and healing popups always carry explicit −/+ signs, so color is never the only signal).</li><li>Screen Shake (Off / Reduced / Full) and per-channel volume sliders have been there since earlier releases.</li></ul>
+<p>Editor side: <strong>Help ▸ Interface Language…</strong> now also sets a <strong>UI Font Size</strong> (90–125%) for the editor chrome on this device.</p>
+<hr>
+<h2 id="performance">Performance</h2>
+<h3 id="how-do-i-see-what-my-games-frame-rate-is">How do I see what my game's frame rate is?</h3>
+<p>Press <strong>F3</strong> during play (playtest or an exported game), or add <code>?perf=1</code> to the player URL. The performance overlay shows fps, frame time (average and 95th percentile), the engine's per-frame work time, HD-2D draw calls and triangles, live GPU resource counts, and JS heap use (Chromium browsers). Press F3 again to hide it.</p>
+<h3 id="my-hd-2d-map-is-slow-on-an-older-machine">My HD-2D map is slow on an older machine</h3>
+<p>Every HD-2D feature is a per-map toggle in <strong>Map Properties</strong> — shadows, water reflections, SSAO, depth of field, and bloom are the heaviest. Turn them off map-by-map, or lower the game's screen size in the <strong>Database ▸ System</strong> tab. The engine is tuned to hold 60 fps at 1080p on integrated GPUs with everything on, but very old GPUs (or browsers with hardware acceleration disabled — check the overlay's frame time) may need trimming.</p>
+<h3 id="does-a-huge-map-hurt-performance">Does a huge map hurt performance?</h3>
+<p>Big maps are fine: terrain renders in view-culled chunks, so a 160×160 map with hundreds of events holds the same frame budget as a small one (this is enforced by an automated stress test). What <em>does</em> add up is hundreds of <strong>parallel-trigger events running long command loops</strong> — prefer touch/action triggers where possible.</p>
+<hr>
+<h2 id="publishing">Publishing</h2>
+<h3 id="my-exported-exe-triggers-a-virussecurity-warning">My exported EXE triggers a virus/security warning</h3>
+<p>The launcher is unsigned, so SmartScreen/antivirus may flag downloaded builds. Players use <strong>More info ▸ Run anyway</strong>, or distribute the <strong>Standalone HTML</strong> build instead. See <a href="Publishing-Your-Game.html#the-unsigned-exe-warning">Publishing Your Game</a>.</p>
+<h3 id="players-say-their-saves-disappeared">Players say their saves disappeared</h3>
+<p>Browser saves are <strong>per browser/computer</strong>. If a player switches browsers or clears data, their saves go with it — that's inherent to browser games, not a bug.</p>
+<hr>
+<h2 id="frequently-asked">Frequently asked</h2>
+<p><strong>Do I need to know how to code?</strong> No. Maps, events, and the database cover full games. Code (via <a href="Plugins.html">Plugins</a> or the Script command) is optional.</p>
+<p><strong>Does it cost anything?</strong> No. RPGAtlas is free and open-source (GPL-3.0).</p>
+<p><strong>Can I sell games I make?</strong> Yes — your content is yours, no credit required.</p>
+<p><strong>Does it work offline?</strong> Yes. Once you have the folder, nothing needs the internet.</p>
+<p><strong>Can I use my own music or art?</strong> Yes for art (drop files in <code>img/</code>). Audio is procedural; custom audio tracks aren't a built-in feature, but plugins can extend the engine.</p>
+<p><strong>Where do old Driftwood Engine projects go?</strong> They open and migrate automatically — autosaves, save slots, and bundled plugins all carry forward.</p>
+<p><strong>Next:</strong> <a href="Resources-and-Glossary.html">Resources & Glossary →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

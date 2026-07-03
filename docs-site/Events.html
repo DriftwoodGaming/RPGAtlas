@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Events — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a class="active" href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="events">Events</h1>
+<p>Events are how your game <em>does</em> anything: a villager talks, a chest opens, a door unlocks, a cutscene plays, a battle begins. If maps are the stage, events are the actors and the script. Master events and you can build almost any RPG.</p>
+<blockquote><p>New to eventing? Walk through <a href="Your-First-Game.html">Make Your First Game</a> first — it builds an NPC, a chest, a transfer, and a battle step by step. This page is the deeper reference.</p></blockquote>
+<hr>
+<h2 id="the-anatomy-of-an-event">The anatomy of an event</h2>
+<p>Create an event by <strong>double-clicking a tile in Event mode</strong>. An event has:</p>
+<ul><li>A <strong>position</strong> on the map (drag to move it).</li><li>One or more <strong>pages</strong>.</li></ul>
+<p>Each <strong>page</strong> has:</p>
+<ul><li><strong>Conditions</strong> — when this page is the active one (switches, variables, self-switches, quest status/objectives, and a <strong>time of day</strong> band — morning/day/evening/night — so a shop can simply have a night page that says it's closed).</li><li>A <strong>graphic</strong> — how the event looks (a sprite, a chest, nothing/invisible).</li><li>A <strong>trigger</strong> — what makes its commands run.</li><li>A <strong>command list</strong> — the sequence of things that happen.</li></ul>
+<hr>
+<h2 id="pages-and-conditions">Pages and conditions</h2>
+<p>An event can have several pages, but only <strong>one is active at a time</strong>. The engine checks pages <strong>top to bottom and uses the last page whose conditions are all met.</strong> Order matters: put your "default" page first and more-specific states later.</p>
+<p>Page conditions can require:</p>
+<ul><li>A <strong>Switch</strong> is ON (a game-wide on/off flag).</li><li>A <strong>Variable</strong> meets a value (a game-wide number).</li><li>A <strong>Self-Switch</strong> (A/B/C/D) is ON — a flag <em>local to this one event</em>.</li></ul>
+<p><strong>This is the core of stateful eventing.</strong> A chest's page 2 ("opened") activates once its self-switch A is ON. A drawbridge lowers once switch <code>12</code> is ON. A boss vanishes once <code>BossDefeated</code> is ON.</p>
+<hr>
+<h2 id="triggers-what-starts-an-event">Triggers — what starts an event</h2>
+<table><thead><tr><th>Trigger</th><th>Fires when…</th></tr></thead><tbody><tr><td><strong>Action Button</strong></td><td>The player faces the event and presses Z/Enter. <em>(Talking to NPCs, opening chests.)</em></td></tr><tr><td><strong>Player Touch</strong></td><td>The player steps onto the event's tile. <em>(Doorways, traps, transfer tiles.)</em></td></tr><tr><td><strong>Autorun</strong></td><td>Automatically, locking player control until it finishes. <em>(Forced cutscenes.)</em></td></tr><tr><td><strong>Parallel</strong></td><td>Continuously in the background, alongside the player. <em>(Ambient effects, timers, watchers.)</em></td></tr></tbody></table>
+<blockquote><p><strong>Careful with Autorun and Parallel:</strong> an Autorun page with no end condition freezes the game. The usual pattern is for the page to flip a switch/self-switch at the end so a <em>different</em>, empty page becomes active and the event stops running.</p></blockquote>
+<hr>
+<h2 id="action-combat-events">Action Combat events</h2>
+<p>Event pages can also act as real-time map enemies. In the page's <strong>Action Combat</strong> section:</p>
+<ul><li>Turn <strong>Enabled</strong> on.</li><li>Pick an <strong>Enemy</strong> from the Database. HP 0 uses that enemy's database HP.</li><li>Pick an <strong>AI</strong> behavior. <strong>None</strong> keeps the normal event movement; <strong>Chase player</strong> makes the enemy close distance when the player is nearby.</li><li>Set optional <strong>Touch damage</strong>, <strong>Knockback</strong>, and <strong>Invuln frames</strong>.</li><li>Choose a <strong>Defeat switch</strong> if you want the event to change pages when defeated; otherwise it erases for the current play session.</li></ul>
+<p>During play, use the remappable <strong>Attack</strong> action on the map to swing the sword. A swing checks the tile in front of the player plus its short-lived visual collider, damages each enemy once, flashes the target, and applies knockback when the next tile is open. Enemies with <strong>Touch damage</strong> can strike from the adjacent tile; assign <strong>Chase player</strong> AI when you want them to actively pursue the player. Defeated action-combat enemies also count for Kill quest objectives that target the same enemy.</p>
+<p>For player-facing instructions, write text such as <code>Press \input[attack] to swing.</code> The prompt shows the player's current keyboard or gamepad binding instead of assuming a specific key.</p>
+<hr>
+<h2 id="common-events">Common events</h2>
+<p><strong>Database ▸ Common Events</strong> stores reusable command sequences that are not tied to one map event. Use <strong>Call Common Event</strong> in any event command list to run one immediately, or call <code>game.callCommonEvent(id)</code> from a Script command. The script API returns a Promise; use <code>return game.callCommonEvent(id)</code> when later event commands must wait for the common event to finish.</p>
+<p>Each common event has a trigger:</p>
+<ul><li><strong>None</strong> — runs only when explicitly called.</li><li><strong>Autorun</strong> — repeatedly runs as a blocking event while its activation switch is ON.</li><li><strong>Parallel</strong> — repeatedly runs in the background while its activation switch is ON.</li></ul>
+<p>The activation switch controls only Autorun and Parallel behavior. Direct calls still run when that switch is OFF. Use a Control Switch command inside an Autorun common event to turn off its activation switch, or it will continue to restart and hold player control.</p>
+<hr>
+<h2 id="command-reference">Command reference</h2>
+<p>Add commands with <strong>+</strong> inside a page. Each picker page holds up to 24 command buttons; use the numbered page tabs across the top to jump directly between pages. Commands run top to bottom.</p>
+<p>The final picker page includes <strong>+Add New</strong>. It creates a named, project-saved JavaScript button for tasks you reuse across many events. Clicking a saved button inserts its script command; right-click the button to edit or delete it.</p>
+<h3 id="messages-flow">Messages & flow</h3>
+<table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Show Text</strong></td><td>Display a message window. Optional speaker <strong>name</strong> and <strong>face</strong> portrait. Supports <a href="Message-Text-Codes.html">text codes</a>.</td></tr><tr><td><strong>Call Common Event</strong></td><td>Run a reusable command sequence from Database ▸ Common Events.</td></tr><tr><td><strong>Show Choices</strong></td><td>Offer the player options, each branching to its own sub-list of commands.</td></tr><tr><td><strong>Conditional Branch</strong></td><td>Run commands only <strong>if</strong> a condition is true (switch, self-switch, variable, quest, item, gold, actor, <a href="Maps-and-Tiles.html#regions--numbered-zone-tags">player region</a>, time-of-day clock window…), with an optional <strong>else</strong>.</td></tr><tr><td><strong>Loop</strong></td><td>Repeat its body until a <strong>Break Loop</strong> command runs inside it.</td></tr><tr><td><strong>Break Loop</strong></td><td>Exit the innermost enclosing Loop and continue after it.</td></tr><tr><td><strong>Wait</strong></td><td>Pause for a number of frames.</td></tr><tr><td><strong>Script</strong></td><td>Run raw JavaScript for anything the commands don't cover (advanced — see <a href="Plugins.html">Plugins</a>).</td></tr></tbody></table>
+<h3 id="game-state">Game state</h3>
+<table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Control Switch</strong></td><td>Turn a named on/off flag ON or OFF (affects the whole game).</td></tr><tr><td><strong>Control Self-Switch</strong></td><td>Turn this event's local A/B/C/D flag ON or OFF.</td></tr><tr><td><strong>Control Variable</strong></td><td>Set, add, subtract, or randomize a named number.</td></tr></tbody></table>
+<h3 id="party-items-money">Party, items & money</h3>
+<table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Gain/Lose Item</strong></td><td>Give or take an item, weapon, or armor (with a quantity).</td></tr><tr><td><strong>Change Gold</strong></td><td>Give or take currency.</td></tr><tr><td><strong>Change Party</strong></td><td>Add or remove an actor from the party.</td></tr><tr><td><strong>Heal / Recover</strong></td><td>Restore HP/MP by an amount, or fully recover the party.</td></tr></tbody></table>
+<h3 id="movement-the-world">Movement & the world</h3>
+<table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Transfer Player</strong></td><td>Move the player to a tile on any map (with a facing direction).</td></tr><tr><td><strong>Set Move Route</strong></td><td>Make the player <em>or</em> this event walk a scripted path (steps include <code>jump</code> — a 2-tile arc hop).</td></tr><tr><td><strong>Camera Zoom</strong></td><td>Zoom the map camera out or in over a chosen number of frames. <code>1.0</code> is normal, lower values zoom out, and higher values zoom in.</td></tr><tr><td><strong>Change Transparency</strong></td><td>Hide or show the player sprite (the player still moves and triggers events).</td></tr><tr><td><strong>Erase Event</strong></td><td>Remove this event for the rest of the play session.</td></tr></tbody></table>
+<h3 id="battle-shops-audio">Battle, shops & audio</h3>
+<table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Start Battle</strong></td><td>Begin a fight with a troop; choose escape allowed and what losing does.</td></tr><tr><td><strong>Open Shop</strong></td><td>Open a buy/sell shop stocked with chosen goods.</td></tr><tr><td><strong>Play Sound</strong></td><td>Play a procedural sound effect.</td></tr><tr><td><strong>Change Music</strong></td><td>Switch the background music theme.</td></tr><tr><td><strong>Play Animation</strong></td><td>Play a <a href="The-Database.html#animations">battle animation</a> over the player, this event, or the screen center.</td></tr></tbody></table>
+<h3 id="scene-control">Scene control</h3>
+<table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Save Screen</strong></td><td>Open the save menu.</td></tr><tr><td><strong>Game Over</strong></td><td>Send the player to the game-over screen.</td></tr><tr><td><strong>Return to Title</strong></td><td>Go back to the title screen.</td></tr></tbody></table>
+<hr>
+<h2 id="atlas-graph-visual-scripting">Atlas Graph — visual scripting</h2>
+<p>Every event page can also be authored as a <strong>node graph</strong>. Above the command list sits a <strong>List | Graph</strong> toggle: pressing <strong>Graph</strong> on a classic page converts it to a graph — losslessly, one node per command, already wired in order.</p>
+<p>The graph is an authoring view, not a different engine: it <strong>compiles into the exact command list</strong> the game already runs. Playtest, saves, plugins, and exported games see only the compiled commands, so a graph page behaves identically to the same page written as a list (and costs nothing at runtime).</p>
+<p>Working on the canvas:</p>
+<ul><li><strong>Wire</strong> flow by dragging from a node's output port onto another node. Drop a wire on empty canvas to pick a command and add-and-connect it in one motion. Branch nodes (Conditional Branch, Show Choices, Loop) expose one port per branch plus an <strong>After</strong> port — what runs once the branch completes.</li><li><strong>Add</strong> nodes from the right-click menu (or double-click empty canvas): every command in the Add Command picker is a node, including your saved Script buttons — which is also how plugin commands join the graph.</li><li><strong>Edit</strong> a node with a double-click (the command's normal dialog) or the inspector on the right.</li><li><strong>Navigate</strong>: drag the background to pan, mouse-wheel to zoom, use the corner minimap to jump. Comments, resizable frames, and reroute dots keep large graphs readable.</li><li><strong>Validation</strong> runs live: cycles (use a Loop node instead), unreachable nodes, and a disconnected Start are flagged in a banner. Errors keep the page's last good compile, so it never breaks mid-edit.</li><li><strong>List</strong> view shows the compiled commands read-only while a graph owns the page; <strong>Convert to list…</strong> removes the graph and returns the compiled commands to normal editing.</li></ul>
+<p>Ctrl+Z / Ctrl+Y inside the event editor undo graph edits and their compiled commands as one step.</p>
+<h2 id="switches-vs-variables-vs-self-switches">Switches vs. Variables vs. Self-Switches</h2>
+<table><thead><tr><th>Tool</th><th>Scope</th><th>Holds</th><th>Use it for</th></tr></thead><tbody><tr><td><strong>Switch</strong></td><td>Whole game</td><td>ON / OFF</td><td>Story flags: "met the king", "bridge repaired"</td></tr><tr><td><strong>Variable</strong></td><td>Whole game</td><td>A number</td><td>Counts and progress: gold goals, quest stages, puzzle states</td></tr><tr><td><strong>Self-Switch</strong></td><td>One event</td><td>ON / OFF (A–D)</td><td>Per-event memory: this chest is opened, this NPC already spoke</td></tr></tbody></table>
+<p>Name your switches and variables (in the <a href="The-Database.html">Database</a>) so your logic stays readable.</p>
+<hr>
+<h2 id="recipes">Recipes</h2>
+<h3 id="talking-npc">Talking NPC</h3>
+<p>Graphic: a sprite. Trigger: <strong>Action Button</strong>. One command: <strong>Show Text</strong>. Done.</p>
+<h3 id="treasure-chest-one-time">Treasure chest (one-time)</h3>
+<p>Page 1 (closed chest, Action Button): <strong>Play Sound</strong> → <strong>Gain Item</strong> → <strong>Show Text</strong> "You found…" → <strong>Control Self-Switch A = ON</strong>. Page 2 (open chest, condition Self-Switch A is ON): empty. <em>Full walkthrough in <a href="Your-First-Game.html#6-add-a-treasure-chest-the-classic-switch-trick">Your First Game</a>.</em></p>
+<h3 id="locked-door-that-needs-a-key">Locked door that needs a key</h3>
+<p>Page 1 (door, Action Button): <strong>Conditional Branch</strong> — <em>if party has the Key item</em> → <strong>Play Sound</strong>, <strong>Show Text</strong> "The door opens.", <strong>Control Self-Switch A = ON</strong>; <em>else</em> → <strong>Show Text</strong> "It's locked." Page 2 (condition Self-Switch A is ON): make the tile passable / show an open door.</p>
+<h3 id="healing-spring-inn-substitute">Healing spring (inn substitute)</h3>
+<p>Trigger: <strong>Action Button</strong> or <strong>Player Touch</strong>. Commands: <strong>Show Text</strong> "You feel rested." → <strong>Heal / Recover All</strong>.</p>
+<h3 id="a-simple-cutscene">A simple cutscene</h3>
+<p>Trigger: <strong>Autorun</strong>, with a page <strong>condition</strong> of a switch that's OFF at first. Commands: move characters with <strong>Set Move Route</strong>, <strong>Show Text</strong> dialogue, then <strong>Control Switch = ON</strong> at the very end. Add an empty page whose condition is that switch being ON, so the scene plays exactly once.</p>
+<h3 id="branching-conversation">Branching conversation</h3>
+<p>Trigger: <strong>Action Button</strong>. <strong>Show Text</strong> a question → <strong>Show Choices</strong> ("Yes" / "No") → put different commands under each choice's branch.</p>
+<h3 id="random-encounters">Random encounters</h3>
+<p>You usually don't need an event — turn on encounters in <strong>Map Properties</strong>. See <a href="Maps-and-Tiles.html#random-encounters">Maps & Tiles</a>.</p>
+<hr>
+<h2 id="finding-things-later">Finding things later</h2>
+<p>As your game grows, use the <strong>Event Searcher</strong> (Tools menu) to locate message text, event names, or everywhere a particular switch or variable is used. Indispensable once you have dozens of events.</p>
+<p><strong>Next:</strong> <a href="The-Database.html">The Database →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

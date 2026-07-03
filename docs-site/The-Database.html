@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Database — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a class="active" href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="the-database">The Database</h1>
+<p>The Database is the brain of your game — all the numbers and definitions that maps and events draw on. Open it from the <strong>Tools ▸ Database</strong> button. It uses a vertical tab rail down the left side; click a tab to edit that category.</p>
+<p>You don't have to fill in everything before you start. The default project already has working actors, classes, skills, items, and enemies. Tweak as you go.</p>
+<hr>
+<h2 id="the-tabs">The tabs</h2>
+<h3 id="actors">Actors</h3>
+<p>The individual heroes the player controls. Each actor has a <strong>name</strong>, a <strong>class</strong>, a starting <strong>level</strong>, a walking <strong>sprite</strong>, and <strong>starting equipment</strong>. Actors join and leave the party via the <strong>Change Party</strong> event command.</p>
+<h3 id="classes">Classes</h3>
+<p>The template behind an actor: <strong>base stats</strong>, <strong>per-level growth</strong>, <strong>traits</strong> (stat boosts, elemental resistances, skill bonuses), which <strong>equipment</strong> they may use, and the <strong>skills they learn</strong> at each level. Two actors can share a class or each have their own.</p>
+<h3 id="skills">Skills</h3>
+<p>Actions used in battle (and sometimes the field). A skill has an <strong>icon</strong>, a type (<strong>physical / magical / heal</strong>), a <strong>power</strong>, an <strong>MP cost</strong>, and a <strong>scope</strong> (one enemy, all enemies, one ally, the whole party…). Skills can also <strong>inflict or cure <a href="Battles-and-States.html#states">states</a></strong>, play a custom <strong><a href="#animations">battle animation</a></strong>, and strike multiple times (<strong>Hits</strong>).</p>
+<h3 id="items">Items</h3>
+<p>Consumables and key items. Like skills, they have effects, a scope, an icon, and a <strong>price</strong> (for shops). Healing potions, antidotes, and quest keys all live here.</p>
+<h3 id="weapons">Weapons</h3>
+<p>Equippable arms with parameters (attack power, etc.), an icon, and a price. Which classes can use which weapons is set in <strong>Classes</strong>.</p>
+<h3 id="armors">Armors</h3>
+<p>Equippable defense — same idea as weapons (defense parameters, icon, price, class permissions).</p>
+<h3 id="enemies">Enemies</h3>
+<p>The monsters you fight. Each enemy has <strong>stats</strong>, <strong>rewards</strong> (EXP and gold), a <strong>weighted action list</strong> (what it tends to do each turn), and a <strong>procedural sprite + color tint</strong>. Twelve distinct monster families ship with the engine. See <a href="Battles-and-States.html">Battles & States</a>.</p>
+<h3 id="troops">Troops</h3>
+<p><strong>Groups of enemies</strong> that appear together in one battle. A fixed encounter or a random encounter always references a <em>troop</em>, not a single enemy. A troop can be one slime or a whole pack.</p>
+<h3 id="animations">Animations</h3>
+<p><strong>Battle animations</strong> (Phase 5): keyframed effect timelines built from timed items — <strong>particle bursts</strong> (with ring / rain / spiral emitter shapes), <strong>flashes</strong> (over a battler or the whole screen), <strong>screen shake</strong>, <strong>sounds</strong>, <strong>source→target projectiles</strong>, and <strong>flipbooks</strong> (icon-strip or image-sheet frame playback). Item start times are in ticks (60 per second); drag the chips on the timeline strip to retime them, and use the <strong>preview arena</strong> to play the animation with the exact runtime the game uses. Assign animations to <strong>skills</strong> and <strong>weapons</strong> (the <em>Battle animation</em> picker), or show one on the map with the <strong>Play Animation</strong> event command. A skill without an animation keeps the engine's classic built-in effects.</p>
+<h3 id="common-events">Common Events</h3>
+<p>Reusable event-command sequences that can be called from map events or scripts. They can also run automatically as <strong>Autorun</strong> or <strong>Parallel</strong> processes, optionally gated by a switch. See <a href="Events.html#common-events">Common events</a>.</p>
+<h3 id="states">States</h3>
+<p>Status effects: poison, stun, regen, and the like. Each state has a <strong>per-turn HP change (%)</strong>, an <strong>action restriction</strong>, a <strong>duration</strong>, whether it's <strong>removed after battle</strong>, and colors/icons. Skills and items reference states to inflict or cure them. See <a href="Battles-and-States.html#states">Battles & States</a>.</p>
+<h3 id="switches">Switches</h3>
+<p>The named <strong>on/off flags</strong> your events read and write. Naming them ("BridgeRepaired", "MetTheKing") keeps your eventing readable. See <a href="Events.html#switches-vs-variables-vs-self-switches">Events</a>.</p>
+<h3 id="variables">Variables</h3>
+<p>The named <strong>numbers</strong> your events read and write — quest stages, counters, puzzle values.</p>
+<h3 id="types">Types</h3>
+<p>The customizable <strong>lists</strong> that populate dropdowns elsewhere: <strong>elements</strong> (fire, ice…) and <strong>skill types</strong>, plus the <strong>weapon / armor / equip types</strong>. Edit these to fit your world's flavor (e.g. rename "Ice" to "Frost", add a "Holy" element) and they appear throughout the other tabs.</p>
+<h3 id="system">System</h3>
+<p>Game-wide presentation and rules. This tab is worth a careful look:</p>
+<table><thead><tr><th>Setting</th><th>Effect</th></tr></thead><tbody><tr><td><strong>Game Title</strong></td><td>Shown to players; used as the export filename</td></tr><tr><td><strong>Screen width / height</strong></td><td>The game's resolution</td></tr><tr><td><strong>UI area size & screen scale</strong></td><td>How big the playfield and interface are</td></tr><tr><td><strong>Message & menu fonts, font size</strong></td><td>Typography for all windows</td></tr><tr><td><strong>Window color & opacity</strong></td><td>The shared color and transparency of Show Text boxes and menus</td></tr><tr><td><strong>System sounds & music themes</strong></td><td>Remappable cursor/confirm/cancel sounds and default music</td></tr><tr><td><strong>Battle view</strong></td><td><strong>Side view</strong> (animated party sprites) or classic <strong>front view</strong></td></tr><tr><td><strong>Battle system</strong></td><td><strong>Turn-based</strong>, <strong>ATB</strong> (active-time gauges), or <strong>CTB</strong> (turn-order timeline) — see <a href="Battles-and-States.html#the-three-battle-systems">Battles & States</a></td></tr><tr><td><strong>Party followers</strong></td><td>Party members trail the leader on the map</td></tr><tr><td><strong>Minimap</strong></td><td>Corner minimap + quest-tracker HUD in play (M / gamepad Select toggles; per-map opt-out in Map Properties)</td></tr><tr><td><strong>Vehicles</strong></td><td>Boat / ship / airship sprites and starting docks — see <a href="Maps-and-Tiles.html#movement-upgrades">Maps & Tiles</a></td></tr><tr><td><strong>Start transparent</strong></td><td>Begin with the player sprite hidden (great for intro cutscenes)</td></tr><tr><td><strong>Party, gold, currency name</strong></td><td>Starting party, starting money, and what you call money</td></tr><tr><td><strong>Switch / variable names</strong></td><td>(Also editable from their own tabs)</td></tr></tbody></table>
+<blockquote><p>Your game's whole <em>feel</em> — its size, fonts, and battle style — comes from the System tab. Set it early so everything you build matches.</p></blockquote>
+<hr>
+<h2 id="working-with-the-lists">Working with the lists</h2>
+<p>Every list tab (Actors, Items, Skills, Enemies, …) shares the same toolkit:</p>
+<ul><li><strong>Search</strong> — the box above the list filters by id or name as you type. Press <strong>↑ / ↓</strong> in the search box to walk the (filtered) list without touching the mouse.</li><li><strong>Multi-select & bulk actions</strong> — tick the checkbox on any rows to reveal the bulk bar: <strong>Bulk Edit</strong> a shared numeric field (set / add / multiply), <strong>Duplicate</strong>, <strong>Copy</strong>, or <strong>Delete</strong> the whole selection.</li><li><strong>Copy / Paste between projects</strong> — Copy uses a clipboard that survives switching projects: copy entries in one project, open another, and press <strong>Paste</strong>.</li><li><strong>Undo</strong> — every Database change (typing, New/Delete, bulk edits, pastes) commits to the same <code>Ctrl+Z</code> history as map painting, and <code>Ctrl+Z</code> / <code>Ctrl+Y</code> work right inside the dialog (text boxes keep the browser's native text undo while you're typing in them).</li></ul>
+<hr>
+<h2 id="a-workflow-that-scales">A workflow that scales</h2>
+<ol><li>Sketch your <strong>classes</strong> and the <strong>stats</strong> that define your game's math.</li><li>Add the <strong>skills</strong> and <strong>items</strong> the player will actually use.</li><li>Build <strong>enemies</strong>, then group them into <strong>troops</strong>.</li><li>Define <strong>states</strong> if you want status-effect depth.</li><li>Name <strong>switches</strong> and <strong>variables</strong> as your story needs them — don't pre-make hundreds.</li></ol>
+<p><strong>Next:</strong> <a href="Battles-and-States.html">Battles & States →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

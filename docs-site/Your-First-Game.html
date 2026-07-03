@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Make Your First Game — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a class="active" href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="make-your-first-game">Make Your First Game</h1>
+<p>This is a guided tour. In about 30 minutes you'll build a tiny but <em>complete</em> playable game: a town with a talking villager, a treasure chest, a doorway to a cave, and a monster battle — then you'll export it so a friend can play. Every RPGAtlas concept you'll use again starts here.</p>
+<blockquote><p><strong>Before you start:</strong> make sure the editor is open in your browser. If it isn't, see <a href="Installation-and-Setup.html">Installation & Setup</a>.</p></blockquote>
+<hr>
+<h2 id="1-start-a-fresh-project">1. Start a fresh project</h2>
+<ol><li><strong>File ▸ New Project.</strong> Confirm if it asks — this clears the sample game from the editor.</li><li><strong>File ▸ (Database) ▸ System tab</strong>, or click the <strong>Database</strong> toolbar button and pick <strong>System</strong>. Set your <strong>Game Title</strong> (this is the name players see and the filename when you export).</li><li>Close the Database for now.</li></ol>
+<p>Your work auto-saves to the browser, but do <strong>File ▸ Save Project</strong> now and again to keep a <code>.json</code> backup you control.</p>
+<hr>
+<h2 id="2-paint-your-first-map">2. Paint your first map</h2>
+<p>You start with one empty map. Let's make it a small town.</p>
+<ol><li>Make sure you're in <strong>Map mode</strong> (the <strong>Mode</strong> menu, or it's the default).</li><li>Look at the <strong>tile palette</strong> on the side. Click a grass or dirt tile to select it.</li><li>With the <strong>Auto layer</strong> active (press <code>0</code>), just <strong>click and drag</strong> on the map to paint. Auto layer is the beginner's best friend: it figures out whether a tile is ground or a decoration and puts it on the correct layer for you.</li><li>Paint a field of grass across the whole map. Then pick a path tile and draw a road. Pick a tree or house tile and dot a few around.</li></ol>
+<p><strong>Useful while painting:</strong></p>
+<table><thead><tr><th>Action</th><th>How</th></tr></thead><tbody><tr><td>Bigger area at once</td><td>Press <code>R</code> for the <strong>Rectangle</strong> tool, then drag</td></tr><tr><td>Pick a tile already on the map</td><td><strong>Right-click</strong> it</td></tr><tr><td>Zoom</td><td><code>+</code> / <code>-</code>, or <code>Ctrl</code> + mouse wheel; <code>Ctrl+0</code> resets to 1:1</td></tr><tr><td>Made a mistake</td><td><code>Ctrl+Z</code> to undo, <code>Ctrl+Y</code> to redo</td></tr></tbody></table>
+<blockquote><p>Want a bigger or smaller town? <strong>Map Properties</strong> (right-click the map in the map list, or the <strong>Map</strong> menu) lets you rename and resize. See <a href="Maps-and-Tiles.html">Maps & Tiles</a>.</p></blockquote>
+<hr>
+<h2 id="3-decide-where-walls-and-water-block-the-player">3. Decide where walls and water block the player</h2>
+<p>By default the engine guesses passability from your tiles, but let's see it.</p>
+<ol><li>Switch to <strong>Passability mode</strong> (the <strong>Mode</strong> menu).</li><li>Every tile now shows <strong>○</strong> (walkable) or <strong>✕</strong> (blocked). Click any tile to override it — it cycles <strong>auto → force block → force pass</strong>. Use this to wall off the edges of the map or make a pond impassable.</li><li>Switch back to <strong>Map mode</strong> when you're happy.</li></ol>
+<hr>
+<h2 id="4-set-where-the-player-starts">4. Set where the player starts</h2>
+<ol><li>In <strong>Event mode</strong>, find the <strong>Set Start Position</strong> option (the <strong>Game</strong> menu, or right-click a tile). Click the tile where the hero should appear when the game begins.</li><li>That's your spawn point. Make sure it's on a walkable tile and not inside a tree!</li></ol>
+<hr>
+<h2 id="5-add-a-villager-who-talks">5. Add a villager who talks</h2>
+<p>Events are how <em>things happen</em> in your game. Let's make an NPC.</p>
+<ol><li>In <strong>Event mode</strong>, <strong>double-click</strong> an empty tile where the villager should stand. The event editor opens.</li><li>Give the event a <strong>graphic</strong>: pick a character sprite so the villager is visible.</li><li>Set the <strong>Trigger</strong> to <strong>Action Button</strong> (the player presses Z/Enter while facing them).</li><li>In the command list, click <strong>+</strong> and choose <strong>Show Text</strong>.<ul><li>Type what they say, e.g. <code>Welcome to Atlasville, traveler!</code></li><li>Optionally pick a <strong>face</strong> portrait and a <strong>name</strong> for the speaker.</li></ul></li><li>Click <strong>OK</strong> to save the event.</li></ol>
+<p><strong>Try it:</strong> hit <strong>▶ Playtest</strong>, walk up to the villager, face them, and press <strong>Z</strong> or <strong>Enter</strong>. They talk! Press <strong>X</strong> or <strong>Esc</strong>, or close the playtest, to come back.</p>
+<blockquote><p>You can make dialogue fancier with icons, colors, and the hero's name — see <a href="Message-Text-Codes.html">Message Text Codes</a>.</p></blockquote>
+<hr>
+<h2 id="6-add-a-treasure-chest-the-classic-switch-trick">6. Add a treasure chest (the classic switch trick)</h2>
+<p>A chest should give an item <strong>once</strong> and then stay open. This teaches the single most important eventing pattern in any RPG maker: the <strong>self-switch</strong>.</p>
+<ol><li>Double-click an empty tile and give the event a <strong>chest</strong> graphic (closed chest).</li><li>Trigger: <strong>Action Button.</strong></li><li>Add these commands in order: <a href="The-Database.html">The Database</a> to add one, or pick <strong>Gain Gold</strong> instead.*<ul><li><strong>Play Sound</strong> (a chime, optional, for feedback)</li><li><strong>Gain Item</strong> → choose an item and a quantity (e.g. 1 Potion). *No items yet? See</li><li><strong>Show Text</strong> → <code>You found a Potion!</code></li><li><strong>Control Self-Switch</strong> → set <strong>A</strong> to <strong>ON</strong>.</li></ul></li><li>Now make a <strong>second page</strong> for this event (the <strong>New Page</strong> button in the event editor):<ul><li><strong>Page Condition:</strong> Self-Switch <strong>A</strong> is ON.</li><li><strong>Graphic:</strong> an <em>open</em> chest.</li><li>Leave its command list empty (or add a "It's empty." message).</li></ul></li></ol>
+<p><strong>Why this works:</strong> pages are checked top to bottom, and the <strong>last page whose conditions are met</strong> becomes active. Once self-switch A is ON, page 2 takes over — so the chest shows as open and can't be looted again. You'll reuse this pattern constantly (opened doors, defeated bosses, finished quests).</p>
+<hr>
+<h2 id="7-build-a-second-map-and-connect-it">7. Build a second map and connect it</h2>
+<ol><li>In the <strong>map list</strong>, add a <strong>New Map</strong>. Name it <code>Cave</code> and paint some cave/rock tiles.</li><li>Back on your <strong>town</strong> map, double-click the tile in front of a cave entrance or doorway.<ul><li>Trigger: <strong>Player Touch</strong> (it fires when the player steps on it).</li><li>Command: <strong>Transfer Player</strong> → choose the <strong>Cave</strong> map and click the destination tile.</li></ul></li><li>On the <strong>Cave</strong> map, make a matching <strong>Transfer Player</strong> event that sends the player back to town.</li></ol>
+<p><strong>Try it:</strong> playtest and walk between your two maps.</p>
+<hr>
+<h2 id="8-add-a-monster-battle">8. Add a monster battle</h2>
+<ol><li>Open the <strong>Database</strong> and look at <strong>Enemies</strong> — there are ready-made monsters. Note one you like.</li><li>Go to <strong>Troops</strong> and make a troop (a group for one battle) containing that enemy.</li><li>Back on the <strong>Cave</strong> map, double-click a tile and add a <strong>Start Battle</strong> command:<ul><li>Choose your <strong>troop</strong>.</li><li>Decide whether the player <strong>can escape</strong>, and whether <strong>losing</strong> ends the game or continues.</li></ul></li><li>Want random battles instead of a fixed one? Open <strong>Map Properties</strong> for the Cave and turn on <strong>random encounters</strong>, then add troops and an encounter rate. See <a href="Battles-and-States.html">Battles & States</a>.</li></ol>
+<p><strong>Try it:</strong> playtest, enter the cave, and fight. Combat, leveling, and rewards all just work.</p>
+<hr>
+<h2 id="9-playtest-the-whole-thing">9. Playtest the whole thing</h2>
+<p>Hit <strong>▶ Playtest</strong> and play from the start:</p>
+<ul><li>Walk around. Talk to the villager. Open the chest (then confirm it stays open).</li><li>Travel to the cave and back.</li><li>Win a battle.</li></ul>
+<p>Controls while playing: <strong>Arrows/WASD</strong> move, <strong>Shift</strong> dashes, <strong>Z/Enter</strong> confirm/interact, <strong>X/Esc</strong> open the menu or cancel. The mouse works too.</p>
+<p>Found a problem? Close the playtest, fix the event or tile, and playtest again. This loop — <strong>edit, playtest, repeat</strong> — is the whole craft of making a game.</p>
+<hr>
+<h2 id="10-share-it-with-the-world">10. Share it with the world</h2>
+<p>When you're proud of it:</p>
+<ol><li><strong>File ▸ Export Standalone Game.</strong></li><li>Choose:<ul><li><strong>Windows EXE</strong> — a single file your friend double-clicks. No RPGAtlas needed.</li><li><strong>Standalone HTML</strong> — one file that opens in any modern browser, on any platform.</li></ul></li><li>Send them the file. They play; their saves live in their own browser.</li></ol>
+<p>Full details and distribution tips: <a href="Publishing-Your-Game.html">Publishing Your Game</a>.</p>
+<hr>
+<h2 id="tour-the-hd-2d-showcase">Tour the HD-2D showcase</h2>
+<p>The bundled sample game doubles as the engine's showcase. Take the back passage in the <strong>Whispering Cave</strong> (east wall, past the crystals) out to <strong>Driftwood Shore</strong>: a dusk day/night sun with long soft shadows, animated water with a lantern-lit dock, auto-textured cliffs, bloom + warm color grade, and the full post stack — every effect is a per-map toggle you can inspect in <strong>Game ▸ Map Properties…</strong> and reuse in your own maps.</p>
+<hr>
+<h2 id="you-did-it">You did it 🎉</h2>
+<p>You've used maps, tiles, passability, events, pages, self-switches, transfers, the database, and a battle — the core of every RPG. From here:</p>
+<ul><li>Deepen any topic from the <strong>sidebar</strong>.</li><li>Read <a href="Events.html">Events</a> for a full command reference and more recipes (locked doors, shops, healing springs, cutscenes).</li><li>Make it <em>yours</em> with the <a href="Characters-and-Custom-Assets.html">Character Generator and custom art</a>.</li></ul>
+<p><strong>Next:</strong> <a href="The-Editor-Interface.html">The Editor Interface →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

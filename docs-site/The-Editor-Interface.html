@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Editor Interface — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a class="active" href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="the-editor-interface">The Editor Interface</h1>
+<p>The editor (<code>index.html</code>) uses a classic RPG-maker layout: a <strong>menu bar</strong> along the top, an <strong>icon toolbar</strong> with one-click actions, and a <strong>dockable workspace</strong> of panels (Maps, Tiles, Map) below. This page is your map of the map-maker.</p>
+<hr>
+<h2 id="the-dockable-workspace">The dockable workspace</h2>
+<p>The Maps, Tiles, and Map views are <strong>panels</strong> you can rearrange freely:</p>
+<ul><li><strong>Drag a panel by its tab</strong> to move it. Drop it on the <strong>center</strong> of another region to add it there as a tab; drop it near a region's <strong>edge</strong> to split that region; drag it <strong>out</strong> (e.g. onto the menu bar) to pop it into a <strong>floating window</strong> you can move and resize.</li><li><strong>Drag the dividers</strong> between panels to resize them.</li><li>Your arrangement is <strong>saved automatically</strong> and restored next time you open the editor.</li><li>The <strong>View</strong> menu shows/hides the Maps and Tiles panels, focuses the Map, cycles focus with <code>F6</code>, <strong>Resets</strong> the layout to default, and <strong>saves/loads named layouts</strong>. Every one of these is also in the Command Palette (<code>Ctrl+P</code>).</li></ul>
+<hr>
+<h2 id="the-live-hd-2d-viewport">The live HD-2D Viewport</h2>
+<p>Press <strong><code>F2</code></strong> (or <strong>View ▸ HD-2D Viewport</strong>) to dock a panel that renders the current map through the game's real HD-2D (three.js) engine, using that map's own HD-2D settings. It's a full workspace panel — split it beside the map, tab it, or float it — and it updates <strong>live</strong> as you paint tiles, edit heights, place events, or change <strong>Map Properties</strong>.</p>
+<ul><li><strong>Fly the camera</strong> — it's independent of the in-game camera. <strong>Drag</strong> to pan across the map, <strong>scroll</strong> the wheel to zoom toward the cursor, and <strong>Shift-drag</strong> (or <strong>right-drag</strong>) to change the camera tilt. <strong>Reset view</strong> re-centers it. None of this changes the map's saved HD-2D tilt.</li><li><strong>Place point lights with drag gizmos</strong> — <strong>double-click</strong> empty space to drop a light where you click, <strong>drag</strong> its handle to move it in the scene, and use the inspector at the bottom to set its <strong>colour</strong> and <strong>radius</strong> or <strong>Delete</strong> it. (Lights only glow when <strong>Point lights</strong> is enabled in Map Properties; you can also still create lights as events named <code>light #rrggbb radius</code>.)</li></ul>
+<p>The viewport needs WebGL2; on a browser without it the panel shows a short notice instead.</p>
+<hr>
+<h2 id="the-world-view">The World View</h2>
+<p>Press <strong><code>F3</code></strong> (or <strong>View ▸ World View</strong>) to dock a bird's-eye graph of your whole game. Every map is a node; every <strong>Transfer Player</strong> command becomes an arrow between maps, parsed live from your events — so the picture always matches the game.</p>
+<ul><li><strong>Arrange it</strong> — <strong>drag</strong> a map node to move it; its spot is saved on the map. <strong>Auto-arrange</strong> re-lays everything out, and <strong>Ctrl+scroll</strong> zooms.</li><li><strong>Navigate</strong> — <strong>click</strong> a map to select it (and edit its <strong>Notes</strong> in the inspector), <strong>double-click</strong> to open it in the editor.</li><li><strong>Re-link connections</strong> — <strong>drag</strong> the small <strong>↻</strong> handle on an arrow onto another map to retarget every Transfer command behind that link at once. Arrows to a deleted map are flagged as broken.</li></ul>
+<h2 id="the-menu-bar">The menu bar</h2>
+<table><thead><tr><th>Menu</th><th>What lives there</th></tr></thead><tbody><tr><td><strong>File</strong></td><td>New Project, Open/Save Project (<code>.json</code>), Export Standalone Game (<code>.exe</code>/<code>.html</code>)</td></tr><tr><td><strong>Edit</strong></td><td>Undo, Redo, Cut, Copy, Paste</td></tr><tr><td><strong>Mode</strong></td><td>Switch between <strong>Map</strong>, <strong>Event</strong>, <strong>Passability</strong>, and <strong>Height</strong> modes</td></tr><tr><td><strong>Draw</strong></td><td>Choose a drawing tool (Pen, Eraser, Rectangle, Circle, Fill, Shadow Pen)</td></tr><tr><td><strong>Layer</strong></td><td>Choose which layer you're painting (Auto, Ground, Decor, Decor 2, Overhead)</td></tr><tr><td><strong>Scale</strong></td><td>Zoom level for the canvas</td></tr><tr><td><strong>Tools</strong></td><td>The big managers: Database, Plugin Manager, Audio Manager, Event Searcher, Resource Manager, Character Generator — plus the <strong>Command Palette</strong></td></tr><tr><td><strong>Game</strong></td><td>Set Start Position, Playtest, and game-wide settings</td></tr><tr><td><strong>Help</strong></td><td>Newest-first Patch Notes, Quick Help, and About RPGAtlas</td></tr></tbody></table>
+<p>The <strong>icon toolbar</strong> duplicates the most common actions so they're always one click away, including the <strong>▶ Playtest</strong> button.</p>
+<hr>
+<h2 id="the-four-modes">The four modes</h2>
+<p>You're always in exactly one mode. Modes decide what clicking the map <em>does</em>.</p>
+<table><thead><tr><th>Mode</th><th>What you do</th><th>Key idea</th></tr></thead><tbody><tr><td><strong>Map</strong></td><td>Paint tiles to build the world</td><td>Most of your time is spent here</td></tr><tr><td><strong>Event</strong></td><td>Double-click a cell to create/edit an event; drag events to move them</td><td>Where <em>things happen</em> — see <a href="Events.html">Events</a></td></tr><tr><td><strong>Passability</strong></td><td>See ○/✕ per tile; click to override (auto → block → pass)</td><td>Controls where the player can walk</td></tr><tr><td><strong>Height (HD-2D)</strong></td><td>Paint per-tile elevation; raised tiles extrude into 3D in HD-2D maps</td><td>Optional; see <a href="Maps-and-Tiles.html#hd-2d-heights">Maps & Tiles</a></td></tr></tbody></table>
+<hr>
+<h2 id="drawing-tools-map-height-modes">Drawing tools (Map & Height modes)</h2>
+<table><thead><tr><th>Tool</th><th>Shortcut</th><th>What it does</th></tr></thead><tbody><tr><td><strong>Pen</strong></td><td><code>Q</code></td><td>Paint one tile at a time (click and drag)</td></tr><tr><td><strong>Eraser</strong></td><td><code>W</code></td><td>Clear tiles</td></tr><tr><td><strong>Rectangle</strong></td><td><code>E</code></td><td>Drag a filled rectangle</td></tr><tr><td><strong>Circle</strong></td><td><code>R</code></td><td>Drag an ellipse</td></tr><tr><td><strong>Fill</strong></td><td><code>T</code></td><td>Flood-fill a connected area</td></tr><tr><td><strong>Shadow Pen</strong></td><td><code>Y</code></td><td>Paint half-tile shadow quadrants (Map mode)</td></tr></tbody></table>
+<p>In <strong>Height mode</strong>, keys <code>0</code>–<code>9</code> set the elevation value the tools paint.</p>
+<hr>
+<h2 id="layers">Layers</h2>
+<p>Maps are built from <strong>four tile layers</strong>, drawn bottom to top:</p>
+<table><thead><tr><th>Layer</th><th>Shortcut</th><th>Typical use</th></tr></thead><tbody><tr><td><strong>Auto layer</strong></td><td>`<code> </code> ``</td><td>The smart default — sorts terrain vs. decoration automatically</td></tr><tr><td><strong>Layer 1 — Ground</strong></td><td><code>1</code></td><td>Grass, dirt, water, floors</td></tr><tr><td><strong>Layer 2 — Decor</strong></td><td><code>2</code></td><td>Bushes, rocks, furniture</td></tr><tr><td><strong>Layer 3 — Decor 2</strong></td><td><code>3</code></td><td>A second decoration layer for stacking</td></tr><tr><td><strong>Layer 4 — Overhead</strong></td><td><code>4</code></td><td>Draws <em>above</em> the player — treetops, roof edges, archways</td></tr></tbody></table>
+<p>Beginners can stay on <strong>Auto layer</strong> almost always. Reach for explicit layers when you want fine control over what stacks on what, or to use the Overhead layer for things the player walks behind.</p>
+<hr>
+<h2 id="keyboard-shortcuts-at-a-glance">Keyboard shortcuts at a glance</h2>
+<table><thead><tr><th>Keys</th><th>Action</th></tr></thead><tbody><tr><td><code>Q</code> <code>W</code> <code>E</code> <code>R</code> <code>T</code> <code>Y</code></td><td>Pen · Eraser · Rectangle · Circle · Fill · Shadow Pen</td></tr><tr><td>`<code> </code> ``</td><td>Auto layer · <code>1</code>–<code>4</code> choose layer</td></tr><tr><td><code>0</code>–<code>9</code></td><td>Set the painted elevation (Height mode only)</td></tr><tr><td><code>Tab</code> / <code>Shift+Tab</code></td><td>Cycle to the next / previous mode</td></tr><tr><td><code>+</code> / <code>-</code></td><td>Zoom in/out · <code>Ctrl</code>+wheel zoom · <code>0</code> reset to 1:1</td></tr><tr><td><strong>Right-click</strong></td><td>Pick the tile under the cursor</td></tr><tr><td><code>F1</code></td><td>Open the <strong>Database</strong></td></tr><tr><td><code>F2</code></td><td>Show the live <strong>HD-2D Viewport</strong> panel</td></tr><tr><td><code>F3</code></td><td>Show the <strong>World View</strong> map-connection graph</td></tr><tr><td><code>F5</code></td><td><strong>Playtest</strong> (save and run the game)</td></tr><tr><td><code>F6</code></td><td>Focus the next workspace panel</td></tr><tr><td><code>Ctrl+P</code></td><td><strong>Command Palette</strong> — type a few letters of any editor command and press Enter to run it</td></tr><tr><td><code>Ctrl+Z</code> / <code>Ctrl+Y</code></td><td>Undo / Redo — <strong>one history across everything</strong>: map painting, events, Map Properties, and Database edits. Works inside the Database and Map Properties dialogs too (text boxes keep the browser's native text undo while you type). The Edit menu names the next step, e.g. <em>Undo — Database edit</em></td></tr><tr><td><code>Ctrl+X</code> / <code>Ctrl+C</code> / <code>Ctrl+V</code></td><td>Cut / Copy / Paste</td></tr><tr><td><strong>Shift+drag</strong></td><td>Select a tile region (all layers + shadows + heights)</td></tr><tr><td><code>Del</code></td><td>Delete the selected event</td></tr></tbody></table>
+<hr>
+<h2 id="the-big-managers-tools-menu">The big managers (Tools menu)</h2>
+<table><thead><tr><th>Manager</th><th>What it's for</th></tr></thead><tbody><tr><td><strong>Database</strong></td><td>The data behind your game — actors, classes, skills, items, enemies, system settings. See <a href="The-Database.html">The Database</a></td></tr><tr><td><strong>Plugin Manager</strong></td><td>Add or edit JavaScript plugins. See <a href="Plugins.html">Plugins</a></td></tr><tr><td><strong>Audio Manager</strong></td><td>Preview every procedural sound effect and music theme. See <a href="Audio.html">Audio</a></td></tr><tr><td><strong>Event Searcher</strong></td><td>Find message text, event names, or switch/variable usage across <em>all</em> maps</td></tr><tr><td><strong>Resource Manager</strong></td><td>Browse every generated tile/sprite/battler and export them as PNGs</td></tr><tr><td><strong>Character Generator</strong></td><td>Compose original walking sprites (skin/hair/outfit/style). See <a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></td></tr></tbody></table>
+<hr>
+<h2 id="selecting-copying-and-pasting-regions">Selecting, copying, and pasting regions</h2>
+<p>Hold <strong>Shift</strong> and drag in Map mode to select a rectangular region. The selection grabs <strong>all four tile layers plus shadows and heights</strong>. Copy it (<code>Ctrl+C</code>) and paste (<code>Ctrl+V</code>) elsewhere — perfect for repeating a building, a forest patch, or a room. Events can be copied and pasted too.</p>
+<p><strong>Next:</strong> <a href="Maps-and-Tiles.html">Maps & Tiles →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

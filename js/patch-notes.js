@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 3, 2026",
+    title: "RPGAtlas 1.0 — the Atlas HD overhaul is complete",
+    summary:
+      "Eight phases, one goal: a modern HD-2D RPG maker that stays true to what made RPGAtlas special. Version 1.0 caps it with a documentation site, an API reference, a migration guide, and a full release QA pass.",
+    items: [
+      "New docs site: the whole manual rendered as a fast static site (docs-site/, GitHub Pages-ready), generated straight from the project wiki — including two new reference pages: the frozen Plugin & Script API and the Migration Guide.",
+      "The 1.0 promise: every project ever saved by RPGAtlas (Driftwood included) opens and auto-migrates; the plugin/script API is frozen for 1.x; exported games are forever self-contained.",
+      "The overhaul in one breath — modern toolchain and test safety net; the engine split into typed modules; a three.js HD-2D renderer with shadows, water, materials, day/night, weather, and a full post stack; a dockable editor with live viewport, autotiles, world view, and command palette; Atlas Graph node scripting; animation, ATB/CTB battles, pathfinding, followers, vehicles, minimap; a real asset pipeline with importers, streamed audio, and starter packs; and this release's performance, accessibility, translation, showcase, and export work.",
+      "Thank you for making games with RPGAtlas. Chart your world. Tell your story.",
+    ],
+  },
+  {
+    date: "July 3, 2026",
     title: "Export upgrades — itch.io-ready zip, installable offline PWA & native EXE packaging",
     summary:
       "Publishing gets three big upgrades: a one-click web zip shaped for itch.io that doubles as an installable offline app, and a repo script that packages any game as a real native desktop executable.",

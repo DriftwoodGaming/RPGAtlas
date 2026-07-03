@@ -9,7 +9,7 @@
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { PATCH_NOTES } from "../../js/patch-notes.js?v=25";
+import { PATCH_NOTES } from "../../js/patch-notes.js?v=26";
 import { editorI18n } from "./editor-state";
 import { $, h, field } from "./dom";
 import { modal } from "./modals";
@@ -196,7 +196,7 @@ export function openAbout() {
 <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
   <img src="img/system/rpgatlas-logo.svg" alt="" width="56" height="56">
   <div>
-    <div style="font-size:20px;font-weight:800">RPG<span style="font-weight:300">Atlas</span></div>
+    <div style="font-size:20px;font-weight:800">RPG<span style="font-weight:300">Atlas</span> <span style="font-weight:400;font-size:14px;color:#ffd86a">1.0.0</span></div>
     <div class="dim">Chart your world. Tell your story.</div>
   </div>
 </div>

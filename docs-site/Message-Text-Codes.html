@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Message Text Codes — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a class="active" href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="message-text-codes">Message Text Codes</h1>
+<p>Message windows (<strong>Show Text</strong> and <strong>Show Choices</strong>) aren't limited to plain words. You can weave in the player's data, icons, colors, and formatting using short <strong>text codes</strong>. Type them right into the message text.</p>
+<hr>
+<h2 id="built-in-codes">Built-in codes</h2>
+<p>These work out of the box:</p>
+<table><thead><tr><th>Code</th><th>Inserts</th></tr></thead><tbody><tr><td><code>\v[n]</code></td><td>The current value of <strong>variable</strong> number <code>n</code></td></tr><tr><td><code>\n[id]</code></td><td>The <strong>name</strong> of actor <code>id</code> (so dialogue can say the hero's name)</td></tr><tr><td><code>\g</code></td><td>The <strong>currency/gold</strong> amount (or label)</td></tr><tr><td><code>\input[action]</code></td><td>The <strong>button glyph</strong> for a bound control, auto-matched to the player's keyboard or gamepad</td></tr></tbody></table>
+<p>The <code>\input</code> action is one of the input actions from <strong>Database ▸ Controls</strong>: <code>up</code>, <code>down</code>, <code>left</code>, <code>right</code>, <code>ok</code>, <code>cancel</code>, <code>dash</code>, <code>attack</code>. The glyph follows whatever the player has bound and which device they're using — e.g. <code>Press \input[ok] to continue</code> shows the <strong>Z</strong> key-cap on a keyboard, or <strong>A</strong> / <strong>✕</strong> / <strong>B</strong> on an Xbox / PlayStation / Switch pad. It's chosen when the message opens. Action-combat tutorials should likewise use <code>Press \input[attack] to swing</code> rather than naming the default attack key, since players can remap that action.</p>
+<p>Messages also use <strong>typewriter</strong> display by default — text appears letter by letter.</p>
+<p><strong>Example</strong></p>
+<pre><code>\n[1]: I've saved up \v[5] \g already!</code></pre>
+<p>…might render as <em>"Rowan: I've saved up 250 gold already!"</em> depending on your data.</p>
+<hr>
+<h2 id="rich-text-from-the-atlas_textcodes-plugin">Rich text from the Atlas_TextCodes plugin</h2>
+<p>Every new project ships with the <strong>Atlas_TextCodes</strong> plugin enabled, which adds inline icons, color codes, and BBCode-style formatting:</p>
+<table><thead><tr><th>Code</th><th>Effect</th></tr></thead><tbody><tr><td><code>\i[n]</code></td><td>Inline <strong>icon</strong> number <code>n</code> from the icon sheet</td></tr><tr><td><code>\c[n]</code></td><td>Switch text <strong>color</strong> to palette color <code>n</code></td></tr><tr><td><code>[b]…[/b]</code></td><td><strong>Bold</strong></td></tr><tr><td><code>[i]…[/i]</code></td><td><em>Italic</em></td></tr><tr><td><code>[color=#ff8800]…[/color]</code></td><td>Custom <strong>color</strong></td></tr><tr><td><code>[size=20]…[/size]</code></td><td>Custom <strong>font size</strong></td></tr></tbody></table>
+<p><strong>Example</strong></p>
+<pre><code>You received \i[12] [b]Mythril Sword[/b]! [color=#7fd]Its edge gleams.[/color]</code></pre>
+<blockquote><p>Because this is a plugin, it's also a great model for <a href="Plugins.html">writing your own</a>. If you ever disable Atlas_TextCodes in the Plugin Manager, the <code>\i</code>, <code>\c</code>, and BBCode features turn off (the built-in <code>\v</code>, <code>\n</code>, <code>\g</code> codes keep working).</p></blockquote>
+<hr>
+<h2 id="tips">Tips</h2>
+<ul><li><strong>Show Choices</strong> supports the same codes — you can color or icon-label options.</li><li>Keep lines short enough to fit your window; the <strong>screen size and font size</strong> in <a href="The-Database.html#system">Database ▸ System</a> determine how much fits.</li><li>Use <code>\n[id]</code> instead of hard-coding a name, so renaming an actor updates all their dialogue.</li></ul>
+<p><strong>Next:</strong> <a href="Plugins.html">Plugins →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installation & Setup — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a class="active" href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="installation-setup">Installation & Setup</h1>
+<p>RPGAtlas runs in your web browser, but it can't just be opened from a file on your disk — browsers block the saving and asset features that the editor needs unless the files are <em>served</em> over a tiny local web address (<code>http://localhost</code>). Don't worry: you don't have to understand any of that. On Windows there's a one-click launcher that does it for you.</p>
+<hr>
+<h2 id="windows-the-easy-way-recommended">Windows: the easy way (recommended)</h2>
+<ol><li><strong>Download RPGAtlas</strong> and unzip it somewhere you'll remember, like your Desktop or Documents. Keep all the files together in the <code>RPGAtlas</code> folder.</li><li><strong>Double-click <code>RPGAtlas.exe</code>.</strong></li><li>A small black window appears and your web browser opens to the editor automatically. That's it — you're making games.</li></ol>
+<p><strong>Keep the little black window open</strong> while you work. It's the local server that powers the editor; closing it stops RPGAtlas. When you're done for the day, close the browser tab and then close that window.</p>
+<h3 id="put-rpgatlas-on-your-desktop">Put RPGAtlas on your Desktop</h3>
+<p>Want to launch it like any other app? Double-click <strong><code>Create Desktop Shortcut.cmd</code></strong> once. An RPGAtlas icon appears on your Desktop — use it any time to start the engine.</p>
+<h3 id="windows-protected-your-pc-unknown-publisher">"Windows protected your PC" / unknown publisher</h3>
+<p>The first time you run <code>RPGAtlas.exe</code>, Windows SmartScreen may warn you because the launcher is <strong>unsigned</strong> (code-signing certificates cost money, and this is free software). The launcher only starts a local server and opens your browser — it doesn't change anything on your system.</p>
+<p>To run it: click <strong>More info</strong>, then <strong>Run anyway</strong>.</p>
+<hr>
+<h2 id="any-platform-the-manual-way">Any platform: the manual way</h2>
+<p>If you're on macOS or Linux, or you'd rather not use the <code>.exe</code>, you can serve the folder yourself with <a href="https://www.python.org/">Python</a> (most Macs and Linux machines already have it):</p>
+<pre><code>cd RPGAtlas
+python -m http.server 8080</code></pre>
+<p>Then open <strong>http://localhost:8080/</strong> in your browser. That page <em>is</em> the editor.</p>
+<blockquote><p><strong>Why a server at all?</strong> Browsers refuse to let a page saved on your disk (<code>file://...</code>) use <code>localStorage</code> (where your work is auto-saved) or scan folders for custom art. Serving the folder over <code>http://localhost</code> — whether by the <code>.exe</code> or by Python — solves both. Nothing leaves your computer; "localhost" means "this machine."</p></blockquote>
+<hr>
+<h2 id="first-launch-what-youll-see">First launch: what you'll see</h2>
+<p>When the editor opens you'll already have a complete sample game loaded, called <strong>Atlas Quest</strong>. It's there so you can poke around immediately:</p>
+<ul><li>Hit <strong>▶ Playtest</strong> (top toolbar) to play it.</li><li>Or open <strong><code>play.html</code></strong> directly (e.g. <code>http://localhost:8080/play.html</code>) to play the bundled sample without the editor.</li></ul>
+<p>When you're ready to make your own, choose <strong>File ▸ New Project</strong> — and head to <a href="Your-First-Game.html">Make Your First Game</a>.</p>
+<hr>
+<h2 id="saving-your-work">Saving your work</h2>
+<p>RPGAtlas <strong>auto-saves to your browser</strong> as you go (using <code>localStorage</code>). That's convenient, but it lives inside <em>one browser on one computer</em>. For real safety:</p>
+<ul><li><strong>File ▸ Save / Export Project</strong> writes a <code>.json</code> file you control — back this up like any document.</li><li><strong>File ▸ Open Project</strong> loads a <code>.json</code> back in.</li></ul>
+<p>Treat the <code>.json</code> as your master copy. See <a href="Publishing-Your-Game.html">Publishing Your Game</a> for turning a project into something other people can play.</p>
+<blockquote><p><strong>Heads up:</strong> Clearing your browser data, or using a different browser/computer, means the auto-save won't be there. Always keep a recent <code>.json</code> backup.</p></blockquote>
+<hr>
+<h2 id="building-the-launcher-from-source-advanced">Building the launcher from source (advanced)</h2>
+<p>If you cloned the source and there's no <code>RPGAtlas.exe</code> yet, you can build it on Windows — the only tool required is the .NET Framework compiler that ships with Windows:</p>
+<pre><code>tools\build-engine-launcher.ps1</code></pre>
+<p>This generates the app icon and produces <code>RPGAtlas.exe</code> in the project root.</p>
+<p><strong>Next:</strong> <a href="Your-First-Game.html">Make Your First Game →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

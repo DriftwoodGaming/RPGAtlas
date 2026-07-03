@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plugin & Script API Reference — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a class="active" href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="plugin-script-api-reference">Plugin & Script API Reference</h1>
+<p>The complete reference for code that runs <em>inside</em> your game: <strong>plugins</strong> (project JavaScript run once at boot) and the <strong>Script event command</strong> (snippets run mid-event). For a gentler introduction with examples, start at <a href="Plugins.html">Plugins</a>.</p>
+<p>Every plugin function is called as <code>fn(atlas, game, dw)</code> — <code>atlas</code> is the engine bridge, <code>game</code> is the same state API the Script command gets, and <code>dw</code> is a legacy alias of <code>atlas</code> kept for pre-rebrand plugins. The Script event command receives <code>atlas</code> and <code>game</code> as globals.</p>
+<hr>
+<h2 id="the-atlas-bridge">The <code>atlas</code> bridge</h2>
+<h3 id="live-state-read-only-getters">Live state (read-only getters)</h3>
+<table><thead><tr><th>Property</th><th>What you get</th></tr></thead><tbody><tr><td><code>atlas.project</code></td><td>The whole project document (maps, actors, items, system…)</td></tr><tr><td><code>atlas.map</code></td><td>The currently loaded map (its tiles, events, <code>hd2d</code> settings, lights)</td></tr><tr><td><code>atlas.player</code></td><td>The player entity — position (<code>x</code>,<code>y</code>), facing (<code>dir</code>), movement state</td></tr><tr><td><code>atlas.scene</code></td><td><code>"title"</code>, <code>"map"</code>, <code>"battle"</code>, or <code>"gameover"</code></td></tr><tr><td><code>atlas.SCREEN_W</code> / <code>atlas.SCREEN_H</code></td><td>Game resolution in pixels (from Database ▸ System)</td></tr><tr><td><code>atlas.TILE</code></td><td>Tile size in pixels (48)</td></tr><tr><td><code>atlas.stage</code> / <code>atlas.uiLayer</code> / <code>atlas.fader</code></td><td>The stage DOM element, the UI overlay layer, and the fade-to-black element</td></tr></tbody></table>
+<h3 id="engine-services">Engine services</h3>
+<table><thead><tr><th>Property</th><th>What it is</th></tr></thead><tbody><tr><td><code>atlas.Assets</code></td><td>The asset registry — charsets, facesets, tiles, icons (e.g. <code>Assets.iconHtml(id)</code>)</td></tr><tr><td><code>atlas.Sfx</code></td><td>Sound effects — <code>Sfx.play(name)</code>, positional <code>Sfx.playAt(name, pan, vol)</code></td></tr><tr><td><code>atlas.Music</code></td><td>Music — <code>Music.play(themeOrAssetKey, fadeMs?)</code>, <code>Music.stop()</code></td></tr></tbody></table>
+<p><code>Sfx</code>/<code>Music</code> accept both procedural names (<code>"cursor"</code>, <code>"town"</code>…) and imported audio keys (<code>"asset:audio/my-track"</code> — see <a href="Audio.html">Audio</a>).</p>
+<h3 id="hooks">Hooks</h3>
+<table><thead><tr><th>Hook</th><th>Fires</th></tr></thead><tbody><tr><td><code>atlas.onMapLoad(fn)</code></td><td>After a map finishes loading — <code>fn(map)</code></td></tr><tr><td><code>atlas.onUpdate(fn)</code></td><td>Every logic tick (60/s) while on the map</td></tr><tr><td><code>atlas.onRender(fn)</code></td><td>Every rendered frame — <code>fn(ctx2d, info)</code> where <code>info</code> has <code>w</code>, <code>h</code>, <code>t</code> (tick), <code>map</code>, <code>camX</code>, <code>camY</code>, <code>cameraZoom</code>, <code>playerX</code>, <code>playerY</code>, <code>alpha</code> (sub-tick interpolation)</td></tr><tr><td><code>atlas.onMessageText(fn)</code></td><td>Before message HTML displays — <code>fn(html) → html</code> transforms it</td></tr></tbody></table>
+<p><code>onRender</code> draws onto the 2D overlay canvas above the scene in both classic and HD-2D modes.</p>
+<h3 id="extending-the-engine">Extending the engine</h3>
+<table><thead><tr><th>Call</th><th>Effect</th></tr></thead><tbody><tr><td><code>atlas.registerCommand(type, fn)</code></td><td>Adds a new event command; <code>fn(cmd, interp)</code> may be <code>async</code> — the event waits for it. Registered commands are also usable from Atlas Graph pages (as command-list nodes) and are error-isolated per call.</td></tr><tr><td><code>atlas.setTransition({ out, in })</code></td><td>Replaces the map-transfer fade; each is <code>async () =&gt; {}</code></td></tr><tr><td><code>atlas.startBattle(troopId, canEscape)</code></td><td>Starts a battle → <code>Promise&lt;"win" | "lose" | "escape"&gt;</code></td></tr></tbody></table>
+<hr>
+<h2 id="the-game-script-api">The <code>game</code> script API</h2>
+<p>Available to plugins (second argument) and to every <strong>Script</strong> event command.</p>
+<h3 id="switches-variables-gold">Switches, variables & gold</h3>
+<table><thead><tr><th>Call</th><th>Notes</th></tr></thead><tbody><tr><td><code>game.setSwitch(id, on)</code> / <code>game.getSwitch(id)</code></td><td>Setting re-evaluates quest failure conditions</td></tr><tr><td><code>game.setVar(id, value)</code> / <code>game.getVar(id)</code></td><td>Same re-evaluation on set</td></tr><tr><td><code>game.addGold(n)</code></td><td>Clamped to 0…9,999,999; negative subtracts</td></tr></tbody></table>
+<h3 id="party-state">Party & state</h3>
+<table><thead><tr><th>Call</th><th>Notes</th></tr></thead><tbody><tr><td><code>game.party()</code></td><td>The live party array (actors with <code>hp</code>, <code>mp</code>, <code>level</code>, equipment…)</td></tr><tr><td><code>game.state()</code></td><td>The whole mutable game state — switches, vars, inventory, position. The save file is this object; touch with care.</td></tr></tbody></table>
+<h3 id="quests">Quests</h3>
+<p><code>game.quest(id)</code>, <code>game.questStatus(id)</code>, <code>game.startQuest(id)</code>, <code>game.completeQuest(id)</code>, <code>game.failQuest(id)</code>, <code>game.abandonQuest(id)</code>, <code>game.advanceQuestObjective(id, index, amount)</code>, <code>game.setQuestObjective(id, index, value)</code>.</p>
+<h3 id="camera-time-flow">Camera, time & flow</h3>
+<table><thead><tr><th>Call</th><th>Notes</th></tr></thead><tbody><tr><td><code>game.setCameraZoom(z)</code> / <code>game.getCameraZoom()</code></td><td>0.25–4</td></tr><tr><td><code>game.setTimeOfDay(h)</code> / <code>game.getTimeOfDay()</code></td><td>0–24; drives HD-2D day/night maps (dawn ≈ 6, dusk ≈ 17.5, night ≈ 22)</td></tr><tr><td><code>game.callCommonEvent(id)</code></td><td>Runs a common event (recursion-guarded); <code>await</code>-able</td></tr></tbody></table>
+<hr>
+<h2 id="where-code-can-run">Where code can run</h2>
+<table><thead><tr><th>Surface</th><th>When</th><th>Gets</th></tr></thead><tbody><tr><td><strong>Plugin</strong> (Plugin Manager)</td><td>Once at game boot, in load order</td><td><code>(atlas, game, dw)</code></td></tr><tr><td><strong>Script event command</strong></td><td>When its event runs</td><td><code>atlas</code>, <code>game</code> globals</td></tr><tr><td><strong>Damage/stat formulas</strong> (Database)</td><td>During battle calculations</td><td>formula-local variables (<code>a</code>, <code>b</code>, <code>v</code>) — see <a href="Battles-and-States.html">Battles & States</a></td></tr></tbody></table>
+<h2 id="compatibility-promise">Compatibility promise</h2>
+<p>This surface is <strong>frozen for 1.x</strong>: existing properties and calls keep working across updates (new ones may be added). Plugins and graphs written against it survive engine upgrades and ship unchanged inside exported games — see the <a href="Migration-Guide.html">Migration Guide</a>.</p>
+<p><strong>Next:</strong> <a href="Migration-Guide.html">Migration Guide →</a></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

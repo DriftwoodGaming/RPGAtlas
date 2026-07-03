@@ -1,6 +1,7 @@
 # RPGAtlas Production Roadmap — "Atlas HD" Overhaul
 
-**Status:** Approved direction, awaiting phase-by-phase execution
+**Status:** COMPLETE — all eight phases shipped; **RPGAtlas 1.0** released 2026-07-03
+(tags `phase-0` … `phase-7`, `v1.0.0`; per-phase specs in `docs/phase-N-spec.md`)
 **Authored:** 2026-07-01 by Claude Fable 5 (grand designer / orchestrator)
 **Goal:** Bring RPGAtlas to feature and quality parity with modern engines (reference point:
 Godot 4.5 Forward+) for its niche — HD-2D RPG creation — while keeping the things that make
