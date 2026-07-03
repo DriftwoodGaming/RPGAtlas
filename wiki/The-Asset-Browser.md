@@ -67,5 +67,20 @@ this device.
 - **Delete** warns when the current project still uses the asset.
 - **Export** downloads the original file back out of the library.
 
+## Starter packs
+
+The **Packs** tab installs curated asset bundles into your library with one
+click. Every pack asset is tagged `pack:<id>` so it can be filtered, audited,
+and uninstalled as a set; installs are content-deduped, so Reinstall (or
+retrying a failed download) is always safe.
+
+- **Driftwood Starter** ships with RPGAtlas (CC0 — generated from the
+  engine's own procedural art): terrain recolors, four villagers, three
+  battlers, two chiptune loops, rain ambience, a victory fanfare, and a
+  chime.
+- **Add registry URL…** points the tab at any hosted `index.json` (same
+  format as `img/packs/index.json`) to install third-party packs. Mind the
+  license shown on each pack — exports embed the assets your game uses.
+
 The **Resource Manager** remains the browser for the built-in procedural
 tiles, characters, and icons.

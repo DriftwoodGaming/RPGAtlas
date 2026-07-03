@@ -17,6 +17,7 @@ import { touch } from "../persistence";
 import { wizardImport } from "../importers/import-wizard";
 import {
   ASSET_TYPES,
+  importAssets,
   libraryAvailable,
   libraryCatalog,
   libraryImageEntries,
@@ -36,7 +37,47 @@ const TYPE_LABELS: Record<string, string> = {
   enemies: "Enemies",
   tilesets: "Tiles",
   audio: "Audio",
+  packs: "Packs",
 };
+
+/** Extra pack-registry URLs (device setting, not project data). */
+const REGISTRY_LS_KEY = "rpgatlas_pack_registries";
+function extraRegistries(): string[] {
+  try {
+    const list = JSON.parse(localStorage.getItem(REGISTRY_LS_KEY) || "[]");
+    return Array.isArray(list) ? list.filter((u) => typeof u === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+interface PackFile {
+  type: AssetMeta["type"];
+  name: string;
+  url: string;
+  kind?: string;
+  tags?: string[];
+}
+interface PackDef {
+  id: string;
+  name: string;
+  desc?: string;
+  license?: string;
+  version?: number;
+  files: PackFile[];
+  /** Which registry it came from (resolves relative file URLs). */
+  base: string;
+}
+
+async function fetchRegistry(url: string): Promise<PackDef[]> {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(url + " → " + res.status);
+  const parsed = await res.json();
+  const packs = Array.isArray(parsed && parsed.packs) ? parsed.packs : [];
+  return packs
+    .filter((p: any) => p && p.id && Array.isArray(p.files))
+    .map((p: any) => ({ ...p, base: url }));
+}
 const IMAGE_TYPE_OPTIONS = ["characters", "facesets", "enemies", "tilesets"];
 
 const EXT_BY_MIME: Record<string, string> = {
@@ -156,13 +197,117 @@ export function openAssetBrowser() {
     rail.innerHTML = "";
     const counts: Record<string, number> = {};
     for (const m of libraryMetas()) counts[m.type] = (counts[m.type] || 0) + 1;
-    for (const ty of ["all", ...ASSET_TYPES]) {
+    for (const ty of ["all", ...ASSET_TYPES, "packs"]) {
       const n = ty === "all" ? libraryMetas().length : counts[ty] || 0;
       rail.appendChild(h("button", {
         class: "ab-railbtn" + (curType === ty ? " sel" : ""),
         onclick() { curType = ty; refresh(); },
-      }, TYPE_LABELS[ty] + (n ? " (" + n + ")" : "")));
+      }, TYPE_LABELS[ty] + (n && ty !== "packs" ? " (" + n + ")" : "")));
     }
+  }
+
+  // ---- starter packs (Stage E) ----------------------------------------------
+  let packsCache: PackDef[] | null = null;
+  let packsErrors: string[] = [];
+  async function loadPacks(force = false): Promise<PackDef[]> {
+    if (packsCache && !force) return packsCache;
+    const out: PackDef[] = [];
+    packsErrors = [];
+    for (const url of ["img/packs/index.json", ...extraRegistries()]) {
+      try {
+        out.push(...await fetchRegistry(url));
+      } catch (e: any) {
+        if (url !== "img/packs/index.json") packsErrors.push(String((e && e.message) || e));
+      }
+    }
+    packsCache = out;
+    return out;
+  }
+
+  async function installPack(pack: PackDef, status: (msg: string) => void) {
+    const items: any[] = [];
+    let done = 0;
+    for (const file of pack.files) {
+      status("Downloading " + (++done) + "/" + pack.files.length + "…");
+      const url = new URL(file.url, new URL(pack.base, location.href)).href;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(file.url + " → " + res.status);
+      items.push({
+        blob: await res.blob(),
+        name: file.url.replace(/^.*\//, ""),
+        exactName: file.name,
+        type: file.type,
+        kind: file.kind,
+        tags: ["pack:" + pack.id, ...(file.tags || [])],
+      });
+    }
+    status("Importing…");
+    const metas = await importAssets(items);
+    if (metas.some((m) => m.type !== "audio")) {
+      await Assets.registerExternalAssets(libraryImageEntries(), S.proj);
+      editorHooks.rebuildAll();
+      touch();
+    }
+  }
+
+  function packCard(pack: PackDef): any {
+    const installed = libraryMetas().filter((m) => (m.tags || []).includes("pack:" + pack.id));
+    const status = h("span", { class: "dim" });
+    const bytes = installed.reduce((sum, m) => sum + (m.bytes || 0), 0);
+    const actions = h("div", { class: "ab-actions" });
+    actions.appendChild(h("button", { class: "primary", async onclick(ev: any) {
+      ev.target.disabled = true;
+      try {
+        await installPack(pack, (msg) => { status.textContent = msg; });
+        refresh();
+      } catch (e: any) {
+        status.textContent = "Install failed: " + ((e && e.message) || e) + " — retry resumes (already-fetched files are deduped).";
+        ev.target.disabled = false;
+      }
+    } }, installed.length ? "Reinstall" : "Install"));
+    if (installed.length) {
+      actions.appendChild(h("button", { class: "mini danger", onclick() {
+        const used = usedAssetKeys(S.proj, libraryCatalog());
+        const usedCount = installed.filter((m) => used.has(m.key)).length;
+        confirmBox(
+          "Remove all " + installed.length + " \"" + pack.name + "\" assets from the library?" +
+          (usedCount ? " " + usedCount + " are USED by the current project and will show fallbacks." : ""),
+          async () => {
+            for (const m of installed) await removeAsset(m.key);
+            refresh();
+          });
+      } }, "Uninstall"));
+    }
+    return h("div", { class: "ab-card ab-pack" },
+      h("div", { class: "ab-name" }, pack.name),
+      h("div", { class: "ab-meta dim" },
+        (pack.license || "?") + " · " + pack.files.length + " files · installed " + installed.length + "/" + pack.files.length +
+        (bytes ? " · " + fmtBytes(bytes) : "")),
+      pack.desc ? h("div", { class: "ab-packdesc dim" }, pack.desc) : null,
+      status,
+      actions);
+  }
+
+  function renderPacks() {
+    grid.innerHTML = "";
+    grid.appendChild(h("div", { class: "dim", style: "padding:8px" }, "Loading pack registries…"));
+    loadPacks().then((packs) => {
+      if (curType !== "packs") return;
+      grid.innerHTML = "";
+      for (const pack of packs) grid.appendChild(packCard(pack));
+      if (!packs.length) grid.appendChild(h("div", { class: "dim", style: "padding:20px" }, "No packs found."));
+      for (const err of packsErrors) grid.appendChild(h("div", { class: "dim", style: "padding:4px 8px" }, "Registry failed: " + err));
+      grid.appendChild(h("div", { style: "padding:8px" }, h("button", { class: "mini", onclick() {
+        promptBox("Add Pack Registry", "", "URL of a packs index.json (see img/packs/index.json for the format). Stored on this device.",
+          (value) => {
+            const url = value.trim();
+            if (!url) return;
+            localStorage.setItem(REGISTRY_LS_KEY, JSON.stringify([...extraRegistries(), url]));
+            packsCache = null;
+            refresh();
+          });
+      } }, "+ Add registry URL…")));
+    });
   }
 
   function renderTags() {
@@ -259,6 +404,12 @@ export function openAssetBrowser() {
 
   function refresh() {
     renderRail();
+    if (curType === "packs") {
+      tagRow.innerHTML = "";
+      foot.textContent = "Packs install into this device's library, tagged pack:<id>; installs are content-deduped, so reinstalling is safe.";
+      renderPacks();
+      return;
+    }
     renderTags();
     const { list, used } = visibleMetas();
     unusedBtn.classList.toggle("sel", unusedOnly);

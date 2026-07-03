@@ -1,0 +1,128 @@
+{
+ "packs": [
+  {
+   "id": "driftwood-starter",
+   "name": "Driftwood Starter",
+   "desc": "HD-2D-ready terrain recolors, four generated villagers, three battlers, and a small chiptune soundtrack (two loops, rain ambience, a victory fanfare, and a chime). Generated from RPGAtlas's own procedural art — CC0, no attribution needed.",
+   "license": "CC0",
+   "version": 1,
+   "files": [
+    {
+     "type": "tilesets",
+     "name": "autumn-grass.terrain",
+     "url": "driftwood-starter/tilesets.autumn-grass.terrain.png"
+    },
+    {
+     "type": "tilesets",
+     "name": "ashen-grass.terrain",
+     "url": "driftwood-starter/tilesets.ashen-grass.terrain.png"
+    },
+    {
+     "type": "tilesets",
+     "name": "spring-grass.terrain",
+     "url": "driftwood-starter/tilesets.spring-grass.terrain.png"
+    },
+    {
+     "type": "tilesets",
+     "name": "autumn-flowers.pass",
+     "url": "driftwood-starter/tilesets.autumn-flowers.pass.png"
+    },
+    {
+     "type": "tilesets",
+     "name": "frost-flowers.pass",
+     "url": "driftwood-starter/tilesets.frost-flowers.pass.png"
+    },
+    {
+     "type": "tilesets",
+     "name": "crimson-tallgrass.pass",
+     "url": "driftwood-starter/tilesets.crimson-tallgrass.pass.png"
+    },
+    {
+     "type": "tilesets",
+     "name": "golden-tallgrass.pass",
+     "url": "driftwood-starter/tilesets.golden-tallgrass.pass.png"
+    },
+    {
+     "type": "tilesets",
+     "name": "ash-dunes.terrain",
+     "url": "driftwood-starter/tilesets.ash-dunes.terrain.png"
+    },
+    {
+     "type": "tilesets",
+     "name": "rose-dunes.terrain",
+     "url": "driftwood-starter/tilesets.rose-dunes.terrain.png"
+    },
+    {
+     "type": "tilesets",
+     "name": "abyss-water",
+     "url": "driftwood-starter/tilesets.abyss-water.png"
+    },
+    {
+     "type": "characters",
+     "name": "pack-villager-rose",
+     "url": "driftwood-starter/characters.pack-villager-rose.png"
+    },
+    {
+     "type": "characters",
+     "name": "pack-villager-moss",
+     "url": "driftwood-starter/characters.pack-villager-moss.png"
+    },
+    {
+     "type": "characters",
+     "name": "pack-villager-sky",
+     "url": "driftwood-starter/characters.pack-villager-sky.png"
+    },
+    {
+     "type": "characters",
+     "name": "pack-elder-dune",
+     "url": "driftwood-starter/characters.pack-elder-dune.png"
+    },
+    {
+     "type": "enemies",
+     "name": "frost-slime",
+     "url": "driftwood-starter/enemies.frost-slime.png"
+    },
+    {
+     "type": "enemies",
+     "name": "ember-wolf",
+     "url": "driftwood-starter/enemies.ember-wolf.png"
+    },
+    {
+     "type": "enemies",
+     "name": "gloom-golem",
+     "url": "driftwood-starter/enemies.gloom-golem.png"
+    },
+    {
+     "type": "audio",
+     "name": "driftwood-theme",
+     "kind": "bgm",
+     "url": "driftwood-starter/audio.driftwood-theme.wav"
+    },
+    {
+     "type": "audio",
+     "name": "deepwood-theme",
+     "kind": "bgm",
+     "url": "driftwood-starter/audio.deepwood-theme.wav"
+    },
+    {
+     "type": "audio",
+     "name": "rain-ambience",
+     "kind": "bgs",
+     "url": "driftwood-starter/audio.rain-ambience.wav"
+    },
+    {
+     "type": "audio",
+     "name": "victory-fanfare",
+     "kind": "me",
+     "url": "driftwood-starter/audio.victory-fanfare.wav"
+    },
+    {
+     "type": "audio",
+     "name": "signal-chime",
+     "kind": "se",
+     "url": "driftwood-starter/audio.signal-chime.wav"
+    }
+   ]
+  }
+ ]
+}

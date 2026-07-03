@@ -665,3 +665,46 @@ test.describe("import wizard (phase 6)", () => {
     await expect(page.locator(".ab-grid .ab-card")).toHaveCount(0);
   });
 });
+
+test.describe("starter packs (phase 6)", () => {
+  test("the bundled Driftwood Starter pack installs, tags its assets, and uninstalls", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.goto("/index.html");
+    const saveIndicator = page.locator("#save-ind");
+    await expect(saveIndicator).toBeVisible();
+    await page.evaluate(() => new Promise((done) => {
+      const req = indexedDB.deleteDatabase("rpgatlas_library");
+      req.onsuccess = req.onerror = req.onblocked = () => done(null);
+    }));
+    await page.reload();
+    await expect(saveIndicator).toBeVisible();
+
+    await page.keyboard.press("Control+p");
+    await page.locator(".cmdpal-input").fill("Asset Browser");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".assetbrowser")).toBeVisible();
+
+    await page.locator(".ab-railbtn", { hasText: "Packs" }).click();
+    const card = page.locator(".ab-pack", { hasText: "Driftwood Starter" });
+    await expect(card).toBeVisible();
+    await expect(card.locator(".ab-meta")).toContainText("installed 0/22");
+
+    await card.locator("button", { hasText: "Install" }).click();
+    await expect(card.locator(".ab-meta")).toContainText("installed 22/22", { timeout: 60_000 });
+
+    // Installed assets are tagged with the pack id and visible in the grid.
+    await page.locator(".ab-railbtn", { hasText: "Tiles" }).click();
+    await expect(page.locator(".ab-grid .ab-card .ab-name", { hasText: "autumn-grass.terrain" })).toBeVisible();
+    await page.locator(".ab-railbtn", { hasText: "Audio" }).click();
+    await expect(page.locator(".ab-grid .ab-card")).toHaveCount(5);
+    await expect(page.locator(".ab-cardtags").first()).toContainText("pack:driftwood-starter");
+
+    // Uninstall removes every pack asset (nothing referenced by the sample project).
+    await page.locator(".ab-railbtn", { hasText: "Packs" }).click();
+    await card.locator("button", { hasText: "Uninstall" }).click();
+    await page.locator(".overlay").last().locator("button", { hasText: "OK" }).click();
+    await expect(card.locator(".ab-meta")).toContainText("installed 0/22");
+    await page.locator(".ab-railbtn", { hasText: "All" }).click();
+    await expect(page.locator(".ab-grid .ab-card")).toHaveCount(0);
+  });
+});
