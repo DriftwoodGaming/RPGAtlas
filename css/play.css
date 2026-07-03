@@ -20,7 +20,8 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
   --win-name-top-rgb: 28, 37, 71;
   --win-name-bottom-rgb: 14, 19, 36;
   font-family: var(--font-text);
-  font-size: var(--font-size);
+  /* --ui-scale: the player's Text Size option (Phase 7) over the author size */
+  font-size: calc(var(--font-size) * var(--ui-scale, 1));
 }
 #glcanvas { position: absolute; inset: 0; z-index: 0; image-rendering: pixelated; }
 #gamecanvas { position: absolute; inset: 0; z-index: 1; image-rendering: pixelated; }
@@ -584,7 +585,16 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
   .enemy-spr canvas, .actor-spr canvas { animation: none; }
   .battlewin.shake { animation: none; }
   .actor-spr.acting, .battlewin.side .enemy-spr.acting { transform: none; }
+  .quest-hud.flash { animation: none; }
 }
+/* Reduced Motion option (Phase 7): the engine mirrors the resolved
+   preference (option OR media query) onto #stage, so "On" works even when
+   the OS setting is off — same rules as the media query above. */
+#stage.reduced-motion .enemy-spr canvas, #stage.reduced-motion .actor-spr canvas { animation: none; }
+#stage.reduced-motion .battlewin.shake { animation: none; }
+#stage.reduced-motion .actor-spr.acting,
+#stage.reduced-motion .battlewin.side .enemy-spr.acting { transform: none; }
+#stage.reduced-motion .quest-hud.flash { animation: none; }
 
 /* ---------- game over ---------- */
 .gameoverwin {

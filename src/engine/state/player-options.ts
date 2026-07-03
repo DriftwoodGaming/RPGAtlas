@@ -11,6 +11,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Music, Sfx } from "../../shared/deps.js";
+import { gaugePalette, resolveMotion, resolveTextScale } from "../../shared/a11y.js";
 import { clamp } from "../util.js";
 import { ctx } from "./engine-context.js";
 import {
@@ -53,6 +54,39 @@ export function setOptTextSpeed(v: any): void {
   saveOptions();
   if (ctx.setMsgSpeed) ctx.setMsgSpeed(v);
 }
+// ---- accessibility (Phase 7 Stage B) ----
+// Reduced motion: playerOptions.reducedMotion "auto" | "on" | "off"; "auto"
+// (the default) follows the OS/browser prefers-reduced-motion setting live.
+const reducedMotionQuery =
+  typeof window !== "undefined" && window.matchMedia
+    ? window.matchMedia("(prefers-reduced-motion: reduce)")
+    : null;
+export function motionReduced(): boolean {
+  return resolveMotion(ctx.playerOptions.reducedMotion, !!(reducedMotionQuery && reducedMotionQuery.matches));
+}
+/** Reflect the resolved preference as a class on #stage (play.css stills
+ *  battle sprite bobbing/lunges, shake keyframes, and HUD flashes on it). */
+export function applyMotionClass(): void {
+  if (ctx.stage) ctx.stage.classList.toggle("reduced-motion", motionReduced());
+}
+export function watchMotionPreference(): void {
+  if (reducedMotionQuery && reducedMotionQuery.addEventListener) {
+    reducedMotionQuery.addEventListener("change", applyMotionClass);
+  }
+}
+/** Text Size option: multiplies the author's base font size via --ui-scale
+ *  (see play.css #stage font-size). */
+export function textScale(): number {
+  return resolveTextScale(ctx.playerOptions.textScale);
+}
+export function applyTextScale(): void {
+  if (ctx.stage) ctx.stage.style.setProperty("--ui-scale", String(textScale()));
+}
+/** HP/MP gauge fills honoring the Colorblind Assist option. */
+export function gaugeColors(): { hp: string; mp: string } {
+  return gaugePalette(!!ctx.playerOptions.colorAssist);
+}
+
 // Dash mode (Options): Hold = held button; Toggle = tap to latch; Always On = always run.
 export function wantsDash(): boolean {
   const m = ctx.playerOptions.dashMode || "hold";

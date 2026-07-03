@@ -41,7 +41,12 @@ import {
   setOpt,
   setOptTextSpeed,
   saveOptions,
+  applyMotionClass,
+  applyTextScale,
+  gaugeColors,
+  textScale,
 } from "../state/player-options.js";
+import { TEXT_SCALE_STEPS } from "../../shared/a11y.js";
 
 export function bar(cur: any, max: any, color: any): string {
   const pct = max > 0 ? clamp((cur / max) * 100, 0, 100) : 0;
@@ -76,14 +81,14 @@ function actorRowHTML(a: any): string {
     "/" +
     param(a, "mhp") +
     " " +
-    bar(a.hp, param(a, "mhp"), "#58c46a") +
+    bar(a.hp, param(a, "mhp"), gaugeColors().hp) +
     "<br>" +
     "MP " +
     a.mp +
     "/" +
     param(a, "mmp") +
     " " +
-    bar(a.mp, param(a, "mmp"), "#5a8ad8") +
+    bar(a.mp, param(a, "mmp"), gaugeColors().mp) +
     "</div></div>"
   );
 }
@@ -299,6 +304,16 @@ export async function optionsMenu(): Promise<void> {
       choiceRow("Text Speed", OPT_TEXT_SPEED, () => ctx.playerOptions.textSpeed || 2, (v: any) => setOptTextSpeed(v)),
       choiceRow("Dash", OPT_DASH, () => ctx.playerOptions.dashMode || "hold", (v: any) => setOpt("dashMode", v)),
       choiceRow("Screen Shake", OPT_SHAKE, () => (ctx.playerOptions.shakeScale == null ? 1 : ctx.playerOptions.shakeScale), (v: any) => setOpt("shakeScale", v)),
+      // Accessibility (Phase 7 Stage B)
+      choiceRow("Reduced Motion", [["Auto", "auto"], ["On", "on"], ["Off", "off"]],
+        () => ctx.playerOptions.reducedMotion || "auto",
+        (v: any) => { setOpt("reducedMotion", v); applyMotionClass(); }),
+      choiceRow("Text Size", TEXT_SCALE_STEPS.map((s) => [s[0], s[1]]),
+        () => textScale(),
+        (v: any) => { setOpt("textScale", v); applyTextScale(); }),
+      choiceRow("Colorblind Assist", [["Off", false], ["On", true]],
+        () => !!ctx.playerOptions.colorAssist,
+        (v: any) => setOpt("colorAssist", v)),
       choiceRow("Fullscreen", [["Off", false], ["On", true]],
         () => !!document.fullscreenElement,
         (v: any) => {

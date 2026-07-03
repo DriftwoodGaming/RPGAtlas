@@ -31,6 +31,7 @@ import {
   noteBattleFailure,
 } from "../state/game-state.js";
 import { useItemOn, iconEntryHtml, bar } from "./menus.js";
+import { gaugeColors } from "../state/player-options.js";
 import { createBattleFx } from "./battle-fx.js";
 import { playAnimation } from "../../shared/anim-player.js";
 import { resolvePlaybackSheet } from "../../shared/asset-library.js";
@@ -203,13 +204,13 @@ export const Battle: any = {
             "/" +
             param(a, "mhp") +
             " " +
-            bar(a.hp, param(a, "mhp"), "#58c46a") +
+            bar(a.hp, param(a, "mhp"), gaugeColors().hp) +
             " MP " +
             a.mp +
             "/" +
             param(a, "mmp") +
             " " +
-            bar(a.mp, param(a, "mmp"), "#5a8ad8") +
+            bar(a.mp, param(a, "mmp"), gaugeColors().mp) +
             stateTagsHtml(a) +
             "</div>",
         )

@@ -9,7 +9,7 @@
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { PATCH_NOTES } from "../../js/patch-notes.js?v=21";
+import { PATCH_NOTES } from "../../js/patch-notes.js?v=22";
 import { editorI18n } from "./editor-state";
 import { $, h, field } from "./dom";
 import { modal } from "./modals";
@@ -29,20 +29,45 @@ export function refreshLocalizedChrome() {
   else if (saveIndicator.textContent.startsWith("⚠")) saveIndicator.textContent = "⚠ " + t("save failed");
   else saveIndicator.textContent = "✓ " + t("saved");
 }
+// Editor UI font scale (Phase 7 Stage B): a device setting like the locale.
+// Chromium (the browser target and the Tauri shell) scales the whole px-based
+// chrome cleanly via zoom; unsupported engines simply ignore the property.
+export const EDITOR_FONT_SCALE_KEY = "rpgatlas_editor_font_scale";
+const FONT_SCALE_CHOICES: Array<[string, number]> = [
+  ["90%", 0.9], ["100%", 1], ["110%", 1.1], ["125%", 1.25],
+];
+export function editorFontScale(): number {
+  try {
+    const v = Number(localStorage.getItem(EDITOR_FONT_SCALE_KEY));
+    return FONT_SCALE_CHOICES.some(([, s]) => s === v) ? v : 1;
+  } catch { return 1; }
+}
+export function applyEditorFontScale(scale?: number) {
+  const v = scale == null ? editorFontScale() : scale;
+  (document.documentElement.style as any).zoom = v === 1 ? "" : String(v);
+}
 export function openLanguageSettings() {
   let selectedLocale = editorI18n.locale;
+  let selectedScale = editorFontScale();
   const languageSelect = h("select", {
     onchange(e: any) { selectedLocale = e.target.value; },
   }, ...editorI18n.locales().map((locale: any) =>
     h("option", { value: locale.id, ...(locale.id === selectedLocale ? { selected: "" } : {}) }, locale.label)));
+  const scaleSelect = h("select", {
+    onchange(e: any) { selectedScale = Number(e.target.value); },
+  }, ...FONT_SCALE_CHOICES.map(([label, scale]) =>
+    h("option", { value: String(scale), ...(scale === selectedScale ? { selected: "" } : {}) }, label)));
   modal({
     title: "Interface Language",
     content: h("div", null,
       h("p", null, t("Choose the language used by the editor. Project content is not translated.")),
-      field("Language", languageSelect)),
+      field("Language", languageSelect),
+      field(t("UI Font Size"), scaleSelect)),
     buttons: [
       { label: "Apply", primary: true, onClick(close: any) {
         editorI18n.setLocale(selectedLocale);
+        try { localStorage.setItem(EDITOR_FONT_SCALE_KEY, String(selectedScale)); } catch { /* device setting only */ }
+        applyEditorFontScale(selectedScale);
         close();
         refreshLocalizedChrome();
       } },

@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 3, 2026",
+    title: "Accessibility — reduced motion, colorblind assist & text scaling",
+    summary:
+      "Every RPGAtlas game now ships with player-side accessibility options, and the editor gains an adjustable UI font size.",
+    items: [
+      "Options ▸ Reduced Motion (Auto/On/Off): stills screen shake, battle sprite bobbing and lunges, and HUD flashes, halves full-screen flash intensity, and thins weather particles. Auto follows the player's system-wide reduce-motion setting live.",
+      "Options ▸ Text Size (Small/Normal/Large/Huge): scales dialogue and menu text over the game's authored base size.",
+      "Options ▸ Colorblind Assist: HP/MP gauges switch to a colorblind-safe orange/sky-blue palette; damage and heal popups already carry explicit −/+ signs so color is never the only signal.",
+      "Editor: Help ▸ Interface Language… now also sets a UI Font Size (90–125%) for the editor on this device.",
+      "All three options persist per player, per game, like the volume sliders.",
+    ],
+  },
+  {
+    date: "July 3, 2026",
     title: "Performance pass — perf overlay, load budgets & a leak-free bill of health",
     summary:
       "The engine gets an in-game performance overlay and the project gains automated load-time, big-map stress, and memory-stability gates, keeping RPGAtlas fast as 1.0 approaches.",

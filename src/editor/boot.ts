@@ -29,7 +29,7 @@ import {
   setMode, setTool, setLayer, setZoom, zoomStep, cycleMode,
   closeMenus, isMenuOpen,
 } from "./workspace";
-import { openKeyboardShortcuts } from "./help";
+import { applyEditorFontScale, openKeyboardShortcuts } from "./help";
 import { dispatchKey, type KeyBinding } from "./keymap";
 import { activeEditScope } from "./edit-scope";
 import { initDockWorkspace } from "./dock/panels";
@@ -136,6 +136,7 @@ async function boot() {
   S.palCanvas = $("palette");
 
   editorI18n.localizeStatic();
+  applyEditorFontScale(); // device UI-font-size setting (Phase 7 Stage B)
   // Build the dockable workspace (registers the View-menu commands the menubar
   // references) before the menubar/toolbar are built.
   initDockWorkspace();

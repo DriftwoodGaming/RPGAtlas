@@ -2,6 +2,34 @@
 
 **Status:** IN PROGRESS (started 2026-07-03). Stage log below, newest first.
 
+Stage B COMPLETE (2026-07-03): accessibility. **Pure resolvers**
+(`src/shared/a11y.ts`, 8-test vitest suite): `resolveMotion` (auto/on/off
+over the system preference), `resolveTextScale` (0.5–2 clamp, else 1),
+`gaugePalette` (classic green/blue vs Okabe–Ito #e69f00/#56b4e9),
+`weatherMotionScale` (0.3 reduced), `TEXT_SCALE_STEPS`. **Player options**
+(player-options.ts wraps them with ctx + the prefers-reduced-motion
+matchMedia, watched live while "auto"): `motionReduced()` /
+`applyMotionClass()` (a `reduced-motion` class on #stage) /
+`textScale()`+`applyTextScale()` (`--ui-scale` custom property) /
+`gaugeColors()`. **Engine gates** (render-glue, one resolve/frame): shake
+amp zeroed, full-screen flash alpha halved (photosensitivity), weather
+density → `extra.motionScale` consumed in three-renderer (absent = 1, so
+goldens + editor viewport byte-identical). **CSS**: #stage font-size becomes
+`calc(var(--font-size) * var(--ui-scale, 1))`; `.reduced-motion` class
+mirrors the media-query block (sprite bob/lunge/shake/HUD-flash off) and the
+media query gains quest-HUD flash. **Options menu** rows: Reduced Motion
+(Auto/On/Off), Text Size (4 steps), Colorblind Assist (gauges via
+`gaugeColors()` at the 4 bar() call sites; popups already sign-redundant).
+**Editor**: Help ▸ Interface Language… gains UI Font Size (90/100/110/125%,
+`rpgatlas_editor_font_scale` device setting, applied via documentElement
+zoom at boot). New e2e (`a11y.spec.mjs`, 2 specs): seeded options apply at
+boot (class + 19.5px computed + Okabe–Ito rgb() in pause-menu bar fills) and
+defaults stay authored with the three rows visible in Options. Patch note;
+wiki (Troubleshooting: Accessibility section); `play.css?v=24`;
+`patch-notes.js?v=22` (+shim +help.ts). Full gate green: tsc, eslint,
+node --test (16), vitest (**194**), Playwright **44/44** (goldens
+byte-stable).
+
 Stage A COMPLETE (2026-07-03): the performance pass. **Perf overlay**
 (`src/engine/perf-hud.ts`, wired in boot + loop): `?perf=1` or F3 (capture-
 phase listener) toggles a `.perf-hud` DOM box on #stage — fps / frame ms

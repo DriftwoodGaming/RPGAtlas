@@ -101,6 +101,26 @@ lower rate means *more* frequent battles. See [Maps & Tiles](Maps-and-Tiles#rand
 
 ---
 
+## Accessibility
+
+Every game made with RPGAtlas ships with these player-side options (in-game **Options** menu, saved
+per player, no authoring needed):
+
+- **Reduced Motion** (Auto / On / Off) — stills screen shake, battle sprite bobbing and lunges,
+  HUD flash effects, halves full-screen flashes, and thins weather particles. *Auto* follows the
+  player's operating-system "reduce motion" setting.
+- **Text Size** (Small / Normal / Large / Huge) — scales dialogue and menu text over the game's
+  authored base font size.
+- **Colorblind Assist** — switches HP/MP gauges to a colorblind-safe orange/sky-blue palette
+  (damage and healing popups always carry explicit −/+ signs, so color is never the only signal).
+- Screen Shake (Off / Reduced / Full) and per-channel volume sliders have been there since earlier
+  releases.
+
+Editor side: **Help ▸ Interface Language…** now also sets a **UI Font Size** (90–125%) for the
+editor chrome on this device.
+
+---
+
 ## Performance
 
 ### How do I see what my game's frame rate is?
