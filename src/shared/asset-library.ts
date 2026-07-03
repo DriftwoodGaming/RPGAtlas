@@ -139,8 +139,8 @@ function scanCommands(commands: any[] | undefined, hit: (key: any) => void): voi
   for (const c of commands || []) {
     if (!c) continue;
     if (c.t === "text" && c.face) hit(c.face);
-    if (c.t === "playSE" && c.name) hit(c.name);
-    if (c.t === "playMusic" && c.theme) hit(c.theme);
+    if (c.t === "se" && c.name) hit(c.name); // Play Sound
+    if (c.t === "music" && c.theme) hit(c.theme); // Change Music
     if (c.t === "choices") for (const b of c.branches || []) scanCommands(b, hit);
     else if (c.t === "if") {
       scanCommands(c.then, hit);
@@ -232,8 +232,8 @@ export function rewriteAssetKey(project: any, oldKey: string, newKey: string): n
     for (const c of commands || []) {
       if (!c) continue;
       if (c.t === "text") swap(c, "face");
-      if (c.t === "playSE") swap(c, "name");
-      if (c.t === "playMusic") swap(c, "theme");
+      if (c.t === "se") swap(c, "name");
+      if (c.t === "music") swap(c, "theme");
       if (c.t === "choices") for (const b of c.branches || []) swapCommands(b);
       else if (c.t === "if") {
         swapCommands(c.then);
@@ -587,6 +587,23 @@ export async function embedUsedAssets<T extends { assets?: any }>(project: T): P
   }
   if (!entries.length) return base;
   return { ...base, assets: { ...(base.assets || { tiles: {} }), external: entries } };
+}
+
+/** Standalone-game export: the used AUDIO assets as embeddable entries
+ *  ({type:"audio", name, src(data URL), kind, meta}) — the image types ride
+ *  the existing js/assets.js exportUsedExternalAssets path; audio lives only
+ *  in the library, so the export merges this list in (see persistence.ts). */
+export async function exportUsedAudioAssets(project: any): Promise<any[]> {
+  if (!store) return [];
+  const used = usedAssetKeys(project, libraryCatalog());
+  const out: any[] = [];
+  for (const meta of metas) {
+    if (meta.type !== "audio" || !used.has(meta.key)) continue;
+    const blob = await store.get(meta.key);
+    if (!blob) continue;
+    out.push({ type: "audio", name: meta.name, src: await blobToDataUrl(blob), kind: meta.kind, meta: meta.meta });
+  }
+  return out;
 }
 
 /** File-load intake: import any embedded assets into this device's library

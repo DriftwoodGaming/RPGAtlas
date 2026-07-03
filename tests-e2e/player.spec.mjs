@@ -4,7 +4,7 @@
    GPL-3.0-or-later. */
 
 import { test, expect } from "@playwright/test";
-import { gotoWithAtlasQuest } from "./fixtures/atlas-quest.mjs";
+import { gotoWithAtlasQuest, atlasQuestJson } from "./fixtures/atlas-quest.mjs";
 
 // A screenshot of a genuinely blank/uniform region PNG-compresses to a very
 // small buffer (long runs of identical pixels compress extremely well); a
@@ -274,5 +274,82 @@ test.describe("save/load round-trip", () => {
     // dropping the player back onto the map.
     await expect(page.locator(".titlewin")).toHaveCount(0);
     await expect(page.locator("#gamecanvas")).toBeVisible();
+  });
+});
+
+test.describe("audio v2 (phase 6)", () => {
+  test("an imported BGM + ambience layer stream through the deck on map entry", async ({ page }) => {
+    const errors = [];
+    page.on("pageerror", (err) => errors.push(String(err)));
+    page.on("console", (msg) => {
+      if (msg.type() !== "error") return;
+      if (/Failed to load resource.*404/.test(msg.text())) return;
+      errors.push(msg.text());
+    });
+
+    // Prime the origin, seed the project (start map wired to imported audio)
+    // and write two tiny WAV assets into the IndexedDB library the engine
+    // shares with the editor.
+    await page.goto("/play.html");
+    const json = atlasQuestJson();
+    await page.evaluate(async (seeded) => {
+      const project = JSON.parse(seeded);
+      const startMap = project.maps.find((m) => m.id === (project.system.startMapId || project.maps[0].id));
+      startMap.music = "asset:audio/test-bgm";
+      startMap.ambience = [{ key: "asset:audio/test-rain", vol: 0.5 }];
+      localStorage.setItem("rpgatlas_project", JSON.stringify(project));
+
+      // 0.25s 440Hz sine, 8kHz mono 16-bit PCM WAV.
+      function makeWav() {
+        const rate = 8000, n = Math.floor(rate * 0.25);
+        const buf = new ArrayBuffer(44 + n * 2);
+        const v = new DataView(buf);
+        const str = (off, s) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+        str(0, "RIFF"); v.setUint32(4, 36 + n * 2, true); str(8, "WAVE");
+        str(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+        v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+        str(36, "data"); v.setUint32(40, n * 2, true);
+        for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(Math.sin((i / rate) * 440 * 2 * Math.PI) * 12000), true);
+        return new Blob([buf], { type: "audio/wav" });
+      }
+      const db = await new Promise((resolve, reject) => {
+        const req = indexedDB.open("rpgatlas_library", 1);
+        req.onupgradeneeded = () => {
+          const d = req.result;
+          if (!d.objectStoreNames.contains("meta")) d.createObjectStore("meta", { keyPath: "key" });
+          if (!d.objectStoreNames.contains("blobs")) d.createObjectStore("blobs");
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction(["meta", "blobs"], "readwrite");
+        for (const [name, kind, hash] of [["test-bgm", "bgm", "e2e1"], ["test-rain", "bgs", "e2e2"]]) {
+          const key = "asset:audio/" + name;
+          const blob = makeWav();
+          tx.objectStore("meta").put({ key, type: "audio", name, tags: [], bytes: blob.size, hash, addedAt: Date.now(), mime: "audio/wav", kind });
+          tx.objectStore("blobs").put(blob, key);
+        }
+        tx.oncomplete = () => resolve(null);
+        tx.onerror = () => reject(tx.error);
+      });
+      db.close();
+    }, json);
+
+    await page.goto("/play.html");
+    await expect(page.getByText("New Game", { exact: true })).toBeVisible();
+    await page.getByText("New Game", { exact: true }).click();
+    await expect(page.locator(".titlewin")).toHaveCount(0);
+
+    // The deck owns the streamed BGM and the diffed ambience layer. (Autoplay
+    // may hold actual playback until a gesture; ownership is the signal.)
+    await expect.poll(async () => page.evaluate(() => window.AtlasAudioDeck.deckState())).toEqual({
+      bgmKey: "asset:audio/test-bgm",
+      ambience: [{ key: "asset:audio/test-rain", vol: 0.5 }],
+    });
+
+    // Positional playback path stays quiet on errors too.
+    await page.evaluate(() => window.Sfx.playAt("asset:audio/test-bgm", 0.5, 0.4));
+    expect(errors, `console/page errors:\n${errors.join("\n")}`).toEqual([]);
   });
 });

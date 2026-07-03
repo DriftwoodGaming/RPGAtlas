@@ -8,14 +8,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { registerCommand, type InterpContext } from "../registry.js";
+import { panGainForTile } from "../../../shared/audio-math.js";
 
 export function registerPresentationCommands(): void {
-  registerCommand("se", (c: any, { services }: InterpContext) => {
+  registerCommand("se", (c: any, { interp, state, services }: InterpContext) => {
+    // Positional playback (Phase 6): `at:"event"` pans/attenuates an imported
+    // SE by the firing event's tile offset from the player (the listener).
+    // Procedural SEs and absent `at` play exactly as before.
+    const player = state && state.player;
+    if (c.at === "event" && interp && interp.evRT && player && services.Sfx.playAt) {
+      const { pan, vol } = panGainForTile(interp.evRT.x - player.x, interp.evRT.y - player.y);
+      services.Sfx.playAt(c.name, pan, vol);
+      return;
+    }
     services.Sfx.play(c.name);
   });
 
   registerCommand("music", (c: any, { services }: InterpContext) => {
-    services.Music.play(c.theme);
+    services.Music.play(c.theme, c.fadeMs);
   });
 
   registerCommand("cameraZoom", async (c: any, { services }: InterpContext) => {

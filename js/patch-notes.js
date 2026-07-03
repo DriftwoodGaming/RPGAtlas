@@ -4,6 +4,21 @@
 
 export const PATCH_NOTES = [
   {
+    date: "July 3, 2026",
+    title: "Audio v2 — streamed music, ambience layers, jingles & positional sound",
+    summary:
+      "Imported OGG/MP3/WAV files now play everywhere the procedural chiptunes do: maps can stream real music with crossfades, layer looping ambience, duck for victory jingles, and pan sound effects by distance.",
+    items: [
+      "Imported music appears in every music picker (Map Properties, System themes, the Change Music command) and crossfades between tracks — set the fade length on the Change Music command.",
+      "Ambience layers: Map Properties gains looping background-sound layers (rain, crowds, surf…) with per-layer volume, crossfaded seamlessly across map transfers.",
+      "Jingles: audio imported as ME (victory fanfares etc.) automatically ducks the music while it plays and restores it after.",
+      "Positional sound: the Play Sound command's new Positional toggle pans and fades an imported sound by the event's distance from the player.",
+      "Options ▸ Ambience Volume: a new mixer slider for the ambience bus, saved per player like the rest.",
+      "The Audio Manager previews your imported audio next to the procedural sets; system sounds and animation Sound items can use imported effects too.",
+      "Game exports embed the imported audio your game actually uses — procedural audio remains zero-file, zero-copyright.",
+    ],
+  },
+  {
     date: "July 2, 2026",
     title: "Importers — tileset slicer, sprite sheets with frame tags, Aseprite",
     summary:

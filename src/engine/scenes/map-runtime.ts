@@ -21,6 +21,7 @@ import { clamp, rnd, compareVariable, sysSe } from "../util.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G, Quests, objectiveDone, onEnemyKilled, param } from "../state/game-state.js";
 import { Plugins } from "../plugin-runtime.js";
+import { setAmbience } from "../../shared/audio-deck.js";
 
 const TILE = Assets.TILE;
 
@@ -212,6 +213,9 @@ export async function loadMap(mapId: any): Promise<void> {
   ctx.parallels.clear();
   await prerenderMap();
   Music.play(ctx.map.music || "none");
+  // Ambience layers (Phase 6): diffed against the previous map's, so shared
+  // layers keep looping seamlessly across a transfer.
+  setAmbience(ctx.map.ambience || []);
   Plugins.fire("mapLoad", ctx.map);
 }
 

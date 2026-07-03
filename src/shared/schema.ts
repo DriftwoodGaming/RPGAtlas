@@ -593,11 +593,19 @@ export interface CmdWait {
 }
 export interface CmdSe {
   t: "se";
+  /** Procedural SE name, or an "asset:audio/…" library key (Phase 6). */
   name: string;
+  /** Positional playback origin (Phase 6): "event" pans/attenuates an
+   *  imported SE by the firing event's offset from the player. Absent =
+   *  centered, exactly as before. */
+  at?: "event" | "player";
 }
 export interface CmdMusic {
   t: "music";
+  /** Procedural theme, "none", or an "asset:audio/…" key (Phase 6). */
   theme: string;
+  /** Streamed-BGM crossfade length, ms (Phase 6; default 800). */
+  fadeMs?: number;
 }
 export interface CmdMove {
   t: "move";
@@ -880,7 +888,11 @@ export interface GameMap {
   width: number;
   height: number;
   tilesetId?: number;
+  /** Procedural theme, "none", or an "asset:audio/…" key (Phase 6). */
   music?: string;
+  /** Looping ambience layers (Phase 6): imported BGS assets mixed on the bgs
+   *  bus, diffed across transfers. Optional; absent = none. */
+  ambience?: { key: string; vol?: number }[];
   encounters?: MapEncounters;
   layers: MapLayers;
   /** 4-bit quadrant shadow mask per tile. */

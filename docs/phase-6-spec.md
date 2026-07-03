@@ -3,6 +3,44 @@
 **Status:** IN PROGRESS (branch `phase-6-assets`, off `main` after the Phase 5
 merge). Stage log will be prepended here, newest first, as stages land.
 
+Stage D COMPLETE (2026-07-03): audio v2. **Mixer** (js/sfx.js): bgs + me
+gains join master (me rides the bgm volume), `setBgsVolume`, `getBuses()`
+hands the live context/buses to the deck, `playAt(name, pan, vol)`.
+**Routing** (one seam): `Sfx.play`/`playAt` and `Music.play(name, fadeMs?)`
+detect `asset:` references and delegate to `window.AtlasAudioDeck`
+(registered by `src/shared/audio-deck.ts` — imported for side effect by both
+boots); procedural behavior is byte-for-byte otherwise, and Music enforces
+one BGM owner (chiptune timer OR deck, never both). **Deck**: two-slot BGM
+crossfade (equal linear ramps on per-slot gains, default 800 ms), N looping
+**BGS ambience layers** diffed per map (shared layers keep playing across
+transfers), **ME** duck-to-20%-and-restore one-shots, **SE** decodeAudioData
+LRU cache + BufferSource with optional StereoPanner + distance gain;
+autoplay rejections retry on the next gesture; URLs resolve via the library
+(object URLs) or RPGATLAS_ASSETS data URLs in exports; `deckState()` for
+tests. Pure math split into window-free `audio-math.ts` (`ambienceDiff`,
+`panGainForTile`; 7-test vitest suite) — a lesson re-learned: presentation.ts
+originally imported G from game-state, dragging the deps bridge into the
+sandboxed interpreter test bundle (2 node suites red) → use
+InterpContext.state instead. **Schema (additive)**: `map.ambience[]`,
+`CmdSe.at`, `CmdMusic.fadeMs`; map.music/system.sounds accept audio keys.
+**Engine**: map load syncs ambience; `se` command's `at:"event"` pans by
+event↔player tile offset; options menu gains **Ambience Volume**
+(playerOptions.audio.bgs, boot-restored). **Editor**: MUSIC_OPTS/SE_OPTS/
+BGS_OPTS list imported audio (♪-prefixed) → Map Properties (music +
+ambience-layer rows), System sounds, Change Music (crossfade ms field),
+Play Sound (Positional checkbox), animation Sound items; Audio Manager v2
+previews library audio (bgm/bgs toggle like themes, se/me one-shot).
+**Export**: persistence wraps exportUsedExternalAssets to merge
+`exportUsedAudioAssets` (library data URLs); assets.js skips audio entries
+at prepare time (never image-bound). New player e2e (37th spec): WAV assets
+seeded into IDB + start map wired → deck owns bgm + the 0.5-vol ambience
+layer after New Game, positional call clean. Verified live (deck state,
+AudioContext running, zero console errors). Patch note, wiki (Audio.md
+rewrite: four roles, layer tips), `sfx.js?v=10` both HTMLs,
+`patch-notes.js?v=19` (+shim +help.ts). Full gate green: tsc, eslint,
+node --test (16), vitest (**186**), Playwright **37/37** (goldens
+byte-stable).
+
 Stage C COMPLETE (2026-07-03): the importers. **Pure math**
 (`src/editor/importers/sheet-math.ts`, 12-test vitest suite): `gridCells`
 (offset/gap, partial-edge exclusion), `cellName`, `isCharsetSheet` (3×4 +

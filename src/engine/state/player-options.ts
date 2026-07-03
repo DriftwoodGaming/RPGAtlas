@@ -40,7 +40,8 @@ export function setOptAudio(ch: any, v: any): void {
   else if (ch === "bgm") {
     Sfx.setBgmVolume(v);
     if (v > 0 && !Music.enabled) Music.setEnabled(true);
-  } else if (ch === "se") Sfx.setSeVolume(v);
+  } else if (ch === "bgs") Sfx.setBgsVolume(v);
+  else if (ch === "se") Sfx.setSeVolume(v);
   saveOptions();
 }
 export function setOpt(key: any, v: any): void {

@@ -10,7 +10,7 @@ import { Assets, RA, Sfx, editorState as S } from "../editor-state";
 import {
   h, tIn, nIn, sel, chk, field, row,
   dbOpts, switchOpts, varOpts, cmpOpts, charsetOpts,
-  DIR_OPTS, SE_NAMES, MUSIC_OPTS, stringSelOpts,
+  DIR_OPTS, SE_OPTS, MUSIC_OPTS, stringSelOpts,
 } from "../dom";
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
@@ -392,17 +392,18 @@ import { openLocationPicker } from "./location-picker";
       } },
     { t: "se", label: "Play Sound", make: () => ({ t: "se", name: "ok" }),
       form(c: any, box: any) {
-        const w = { name: c.name };
-        const s = sel(w, "name", SE_NAMES.map((n: any) => ({ v: n, l: n })));
-        s.options[0].parentNode.stringValues = true;
+        const w = { name: c.name, positional: c.at === "event" };
+        const s = sel(w, "name", SE_OPTS());
         box.appendChild(row(field("Sound", s), h("button", { class: "mini", onclick() { Sfx.play(w.name); } }, "▶ test")));
-        return () => { c.name = w.name; };
+        box.appendChild(row(field("Positional (pan/fade by this event's distance — imported sounds)", chk(w, "positional"))));
+        return () => { c.name = w.name; if (w.positional) c.at = "event"; else delete c.at; };
       } },
     { t: "music", label: "Change Music", make: () => ({ t: "music", theme: "field" }),
       form(c: any, box: any) {
-        const w = { theme: c.theme };
-        box.appendChild(field("Theme", sel(w, "theme", MUSIC_OPTS())));
-        return () => { c.theme = w.theme; };
+        const w = { theme: c.theme, fadeMs: c.fadeMs == null ? 800 : c.fadeMs };
+        box.appendChild(row(field("Theme", sel(w, "theme", MUSIC_OPTS())),
+          field("Crossfade ms (imported music)", nIn(w, "fadeMs", 0, 10000))));
+        return () => { c.theme = w.theme; if (w.fadeMs !== 800) c.fadeMs = w.fadeMs; else delete c.fadeMs; };
       } },
     { t: "move", label: "Set Move Route", make: () => ({ t: "move", target: "this", steps: [], wait: true }),
       form(c: any, box: any) {

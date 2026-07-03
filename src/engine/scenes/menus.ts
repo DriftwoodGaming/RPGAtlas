@@ -294,6 +294,7 @@ export async function optionsMenu(): Promise<void> {
     const rows: any[] = [
       sliderRow("Master Volume", () => audioVol("master"), (v: any) => setOptAudio("master", v)),
       sliderRow("Music Volume", () => audioVol("bgm"), (v: any) => setOptAudio("bgm", v)),
+      sliderRow("Ambience Volume", () => audioVol("bgs"), (v: any) => setOptAudio("bgs", v)),
       sliderRow("SFX Volume", () => audioVol("se"), (v: any) => setOptAudio("se", v)),
       choiceRow("Text Speed", OPT_TEXT_SPEED, () => ctx.playerOptions.textSpeed || 2, (v: any) => setOptTextSpeed(v)),
       choiceRow("Dash", OPT_DASH, () => ctx.playerOptions.dashMode || "hold", (v: any) => setOpt("dashMode", v)),

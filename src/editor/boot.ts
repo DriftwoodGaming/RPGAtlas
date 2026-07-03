@@ -37,6 +37,9 @@ import { initAutotileUI, renderAutotileBar, stepBrush } from "./map-editor/autot
 import { syncAutotileRegistry } from "./autotile-store";
 import { consumeEmbeddedAssets, initAssetLibrary } from "../shared/asset-library";
 import { createDefaultAssetStore } from "../platform/default-asset-store";
+// Side effect: registers window.AtlasAudioDeck so imported audio previews
+// (Audio Manager, command "▶ test" buttons) play in the editor too.
+import "../shared/audio-deck";
 
 // The editor's global key bindings (Phase 3 Stage A). This table replaces the
 // old hardcoded keydown cascade one branch per binding, IN ORDER — the order

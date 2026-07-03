@@ -9,7 +9,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, Sfx, editorState as S } from "../editor-state";
-import { h, nIn, sel, chk, field, row, SE_NAMES, stringSelOpts } from "../dom";
+import { h, nIn, sel, chk, field, row, SE_OPTS, stringSelOpts } from "../dom";
 import { touch } from "../persistence";
 import { listFormTab, nameRefresher } from "./shared";
 import { createBattleFx } from "../../shared/battle-fx";
@@ -188,7 +188,7 @@ export const animationsTab = () => listFormTab({
           field("Speed (1-9)", nIn(item, "speed", 1, 9)),
           field("Duration (frames)", nIn(item, "duration", 1, 600))));
       } else if (item.type === "sound") {
-        const w = sel(item, "se", stringSelOpts(SE_NAMES));
+        const w = sel(item, "se", SE_OPTS());
         params.appendChild(row(field("Sound", w),
           h("button", { class: "mini", onclick() { Sfx.play(item.se); } }, "▶ test")));
       } else if (item.type === "projectile") {

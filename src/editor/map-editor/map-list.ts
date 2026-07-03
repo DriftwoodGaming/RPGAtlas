@@ -7,7 +7,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, DataDefaults, RA, LAYER_ORDER, editorState as S, curMap } from "../editor-state";
-import { $, h, tIn, nIn, sel, chk, field, row, dbOpts, MUSIC_OPTS } from "../dom";
+import { $, h, tIn, nIn, sel, chk, field, row, dbOpts, MUSIC_OPTS, BGS_OPTS } from "../dom";
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 import { renderMap } from "./map-render";
@@ -655,6 +655,28 @@ import { beginEdit, endEdit } from "../edit-scope";
         h("button", { class: "mini", onclick() { if (pick.id) { encTroops.push(pick.id); redrawTroops(); } } }, "+ add")));
     }
     redrawTroops();
+    // Ambience layers (Phase 6): looping imported audio mixed on the bgs bus.
+    const amb: any[] = (m.ambience || []).map((l: any) => ({ key: l.key, vol: l.vol == null ? 1 : l.vol }));
+    const ambBox = h("div", { class: "minilist" });
+    function redrawAmbience() {
+      ambBox.innerHTML = "";
+      amb.forEach((l: any) => {
+        ambBox.appendChild(h("div", { class: "minirow" },
+          sel(l, "key", BGS_OPTS()),
+          h("span", { class: "dim" }, " vol "),
+          nIn(l, "vol", 0, 1, 0.05),
+          h("button", { class: "mini", onclick() { amb.splice(amb.indexOf(l), 1); redrawAmbience(); } }, "✕")));
+      });
+      const opts = BGS_OPTS();
+      ambBox.appendChild(h("div", { class: "minirow" },
+        h("button", { class: "mini", onclick() {
+          if (!opts.length) { alert("Import ambience audio (OGG/MP3/WAV) in Tools ▸ Asset Browser first."); return; }
+          amb.push({ key: opts[0].v, vol: 1 });
+          redrawAmbience();
+        } }, "+ add layer"),
+        opts.length ? null : h("span", { class: "dim" }, " (no imported BGS/BGM audio yet)")));
+    }
+    redrawAmbience();
     // Region encounter pools (Phase 5): region id → troop list that replaces
     // the default pool while the player stands on that region.
     const byRegion: any = {};
@@ -730,6 +752,7 @@ import { beginEdit, endEdit } from "../edit-scope";
       field("Name", tIn(work, "name")),
       row(field("Width", nIn(work, "width", 5, 200)), field("Height", nIn(work, "height", 5, 200))),
       row(field("Tileset", sel(work, "tilesetId", dbOpts(tilesets))), field("Music", sel(work, "music", MUSIC_OPTS()))),
+      h("div", { class: "fld" }, h("span", null, "Ambience layers (looping imported audio, crossfaded on transfer)"), ambBox),
       field("Encounter rate (steps, 0 = off)", nIn(work, "rate", 0, 999)),
       h("div", { class: "fld" }, h("span", null, "Encounter troops"), troopBox),
       h("div", { class: "fld" }, h("span", null, "Region encounter pools (paint regions in Region mode)"), regionBox),
@@ -772,6 +795,7 @@ import { beginEdit, endEdit } from "../edit-scope";
           m.name = work.name;
           m.tilesetId = work.tilesetId;
           m.music = work.music;
+          { const layers = amb.filter((l: any) => l.key); if (layers.length) m.ambience = layers; else delete m.ambience; }
           m.encounters = { rate: work.rate, troops: encTroops };
           if (Object.keys(byRegion).length) m.encounters.byRegion = byRegion;
           if (nightTroops.length) m.encounters.byTime = { night: nightTroops };

@@ -7,6 +7,7 @@
 
 import { Assets, RA, Sfx, t, editorState as S } from "./editor-state";
 import { touch } from "./persistence";
+import { libraryMetas } from "../shared/asset-library";
 
 export const $ = (id: any): any => document.getElementById(id);
 
@@ -93,7 +94,27 @@ export const $ = (id: any): any => document.getElementById(id);
   }
   export const DIR_OPTS = [{ v: 0, l: "Down" }, { v: 1, l: "Left" }, { v: 2, l: "Right" }, { v: 3, l: "Up" }];
   export const SE_NAMES = ["cursor", "ok", "cancel", "buzzer", "hit", "crit", "magic", "heal", "item", "chest", "door", "levelup", "save", "escape", "miss", "encounter", "gameover"];
-  export const MUSIC_OPTS = () => [{ v: "none", l: "(none)" }].concat(Sfx.THEMES.map((t: any) => ({ v: t, l: t })));
+  // Imported library audio (Phase 6) joins the pickers behind the procedural
+  // entries: bgm-kind assets in music selects, se/me-kind in SE selects,
+  // bgs-kind (and bgm) in ambience-layer rows.
+  const audioAssetOpts = (kinds: string[]) =>
+    libraryMetas()
+      .filter((m: any) => m.type === "audio" && kinds.includes(m.kind || "se"))
+      .map((m: any) => ({ v: m.key, l: "♪ " + m.name }));
+  export const MUSIC_OPTS = () =>
+    [{ v: "none", l: "(none)" }]
+      .concat(Sfx.THEMES.map((t: any) => ({ v: t, l: t })))
+      .concat(audioAssetOpts(["bgm"]));
+  export const SE_OPTS = () => {
+    const o: any = SE_NAMES.map((n) => ({ v: n, l: n })).concat(audioAssetOpts(["se", "me"]));
+    o.stringValues = true;
+    return o;
+  };
+  export const BGS_OPTS = () => {
+    const o: any = audioAssetOpts(["bgs", "bgm"]);
+    o.stringValues = true;
+    return o;
+  };
 
   // Type-list options (sourced from Database ▸ Types) ---------------------
   export function elementSelOpts() {

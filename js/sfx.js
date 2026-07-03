@@ -4,21 +4,29 @@
 
 const Sfx = (() => {
   let actx = null;
-  // Mixer: each note's gain connects to a bus (bgm or se) -> master -> destination, so volume
-  // is controllable per channel. vols hold the last-set levels so they survive (re)creation.
-  let masterGain = null, bgmGain = null, seGain = null;
-  const vols = { master: 1, bgm: 1, se: 1 };
+  // Mixer: each note's gain connects to a bus -> master -> destination, so volume is
+  // controllable per channel. Phase 6 adds the streamed buses: bgs (ambience layers)
+  // and me (one-shot jingles; me rides the bgm volume so jingles duck consistently).
+  // vols hold the last-set levels so they survive (re)creation.
+  let masterGain = null, bgmGain = null, bgsGain = null, meGain = null, seGain = null;
+  const vols = { master: 1, bgm: 1, bgs: 1, se: 1 };
   function ctx() {
     if (!actx) {
       actx = new (window.AudioContext || window.webkitAudioContext)();
       masterGain = actx.createGain();
       bgmGain = actx.createGain();
+      bgsGain = actx.createGain();
+      meGain = actx.createGain();
       seGain = actx.createGain();
       bgmGain.connect(masterGain);
+      bgsGain.connect(masterGain);
+      meGain.connect(masterGain);
       seGain.connect(masterGain);
       masterGain.connect(actx.destination);
       masterGain.gain.value = vols.master;
       bgmGain.gain.value = vols.bgm;
+      bgsGain.gain.value = vols.bgs;
+      meGain.gain.value = vols.bgm;
       seGain.gain.value = vols.se;
     }
     if (actx.state === "suspended") actx.resume();
@@ -26,8 +34,15 @@ const Sfx = (() => {
   }
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   function setMasterVolume(v) { vols.master = clamp01(v); if (masterGain) masterGain.gain.value = vols.master; }
-  function setBgmVolume(v) { vols.bgm = clamp01(v); if (bgmGain) bgmGain.gain.value = vols.bgm; }
+  function setBgmVolume(v) { vols.bgm = clamp01(v); if (bgmGain) bgmGain.gain.value = vols.bgm; if (meGain) meGain.gain.value = vols.bgm; }
+  function setBgsVolume(v) { vols.bgs = clamp01(v); if (bgsGain) bgsGain.gain.value = vols.bgs; }
   function setSeVolume(v) { vols.se = clamp01(v); if (seGain) seGain.gain.value = vols.se; }
+  // The streamed-audio deck (src/shared/audio-deck.ts) taps the live mixer here:
+  // creating the context on demand and handing back the per-channel buses.
+  function getBuses() {
+    const a = ctx();
+    return { actx: a, master: masterGain, bgm: bgmGain, bgs: bgsGain, me: meGain, se: seGain };
+  }
 
   // bus defaults to the SE channel; music routes through bgmGain by passing it explicitly.
   function tone(freq, dur, type, vol, slideTo, bus) {
@@ -87,7 +102,24 @@ const Sfx = (() => {
     gameover: () => arp([392, 370, 349, 330], 220, 0.4, "triangle", 0.07),
   };
 
-  function play(name) { if (fx[name]) fx[name](); }
+  // Asset keys (Phase 6) route to the streamed deck when it has registered;
+  // everything else is the procedural table, byte-for-byte as before.
+  function play(name) {
+    if (typeof name === "string" && name.startsWith("asset:")) {
+      if (window.AtlasAudioDeck) window.AtlasAudioDeck.playSound(name);
+      return;
+    }
+    if (fx[name]) fx[name]();
+  }
+  // Positional variant (Phase 6): pan -1..1, vol 0..1. Procedural SEs have no
+  // per-note pan path, so they play centered at full volume as before.
+  function playAt(name, pan, vol) {
+    if (typeof name === "string" && name.startsWith("asset:")) {
+      if (window.AtlasAudioDeck) window.AtlasAudioDeck.playSound(name, { pan, vol });
+      return;
+    }
+    if (fx[name]) fx[name]();
+  }
 
   // ---------- generative music ----------
   function mulberry(seed) {
@@ -139,10 +171,20 @@ const Sfx = (() => {
   const Music = {
     enabled: true,
     current: null,
-    play(name) {
+    play(name, fadeMs) {
       if (!this.enabled) { this.current = name; return; }
+      // Streamed asset BGM (Phase 6): the deck owns playback; the chiptune
+      // timer stops so there is exactly one BGM owner at a time.
+      const deck = window.AtlasAudioDeck;
+      if (typeof name === "string" && name.startsWith("asset:")) {
+        if (name === this.current && !musicTimer) return;
+        if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+        this.current = name;
+        if (deck) deck.playBgm(name, { fadeMs });
+        return;
+      }
       if (name === this.current && musicTimer) return;
-      this.stop();
+      this.stop(fadeMs);
       const th = THEMES[name];
       this.current = name;
       if (!th || name === "none") return;
@@ -153,8 +195,9 @@ const Sfx = (() => {
       musicStep(th);
       musicTimer = setInterval(() => musicStep(th), interval);
     },
-    stop() {
+    stop(fadeMs) {
       if (musicTimer) { clearInterval(musicTimer); musicTimer = null; }
+      if (window.AtlasAudioDeck) window.AtlasAudioDeck.stopBgm({ fadeMs });
       this.current = null;
     },
     setEnabled(on) {
@@ -164,7 +207,7 @@ const Sfx = (() => {
     },
   };
 
-  return { play, tone, noise, Music, THEMES: Object.keys(THEMES), setMasterVolume, setBgmVolume, setSeVolume };
+  return { play, playAt, tone, noise, Music, THEMES: Object.keys(THEMES), getBuses, setMasterVolume, setBgmVolume, setBgsVolume, setSeVolume };
 })();
 const Music = Sfx.Music;
 if (typeof window !== "undefined") {

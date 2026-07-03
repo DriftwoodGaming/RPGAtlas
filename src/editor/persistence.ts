@@ -16,6 +16,7 @@ import { BrowserProjectRepository } from "../platform/browser/project-repository
 import {
   consumeEmbeddedAssets,
   embedUsedAssets,
+  exportUsedAudioAssets,
   libraryImageEntries,
 } from "../shared/asset-library";
 import { Assets, RA, t, editorState as S, editorHooks } from "./editor-state";
@@ -91,6 +92,16 @@ const projectRepo = new BrowserProjectRepository(
       alert("Project export failed: " + ((e && e.message) || e));
     }
   }
+  // Standalone exports embed images through the js/assets.js used-asset walk;
+  // audio lives only in the library, so this wrapper merges the used audio
+  // entries into the same RPGATLAS_ASSETS payload (Phase 6).
+  const assetsWithAudio = {
+    ...Assets,
+    async exportUsedExternalAssets(project: any) {
+      const images = await Assets.exportUsedExternalAssets(project);
+      return images.concat(await exportUsedAudioAssets(project));
+    },
+  };
   export function openStandaloneExport() {
     const content = h("div", null,
       h("p", null, "Build the current project as one self-contained game file. The editor, engine folder, web server, and project .json are not required."),
@@ -103,7 +114,7 @@ const projectRepo = new BrowserProjectRepository(
       buttons: [
         { label: "Windows EXE", primary: true, async onClick(close: any) {
           try {
-            await writeWindowsExecutable(S.proj, Assets);
+            await writeWindowsExecutable(S.proj, assetsWithAudio);
             close();
             flashStatus("Windows game executable exported");
           } catch (e: any) {
@@ -112,7 +123,7 @@ const projectRepo = new BrowserProjectRepository(
         } },
         { label: "Standalone HTML", async onClick(close: any) {
           try {
-            await writeStandaloneHtml(S.proj, Assets);
+            await writeStandaloneHtml(S.proj, assetsWithAudio);
             close();
             flashStatus("Standalone HTML game exported");
           } catch (e: any) {

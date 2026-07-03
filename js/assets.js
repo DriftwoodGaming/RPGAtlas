@@ -299,6 +299,9 @@ const Assets = (() => {
   async function prepareExternalAssets(catalog) {
     const ready = [];
     for (const item of catalog || []) {
+      // Audio entries (Phase 6) ride the same embedded catalog in exports but
+      // never bind here — the streamed deck resolves them by key.
+      if (item.type === "audio") continue;
       try {
         ready.push({ ...item, image: await loadImage(item.src) });
       } catch (e) { console.warn(e.message); }

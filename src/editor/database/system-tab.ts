@@ -7,7 +7,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, RA, Sfx, editorState as S } from "../editor-state";
-import { h, tIn, nIn, sel, chk, rangeIn, field, row, dbOpts, charsetOpts, DIR_OPTS, SE_NAMES, MUSIC_OPTS } from "../dom";
+import { h, tIn, nIn, sel, chk, rangeIn, field, row, dbOpts, charsetOpts, DIR_OPTS, SE_OPTS, MUSIC_OPTS } from "../dom";
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 
@@ -90,8 +90,7 @@ export function systemTab() {
     field("Window color", windowColor)));
 
   box.appendChild(h("div", { class: "subhead" }, "System sounds"));
-  const seOpts: any = SE_NAMES.map((n: any) => ({ v: n, l: n }));
-  seOpts.stringValues = true;
+  const seOpts: any = SE_OPTS(); // procedural + imported (Phase 6)
   const sgrid = h("div", { class: "sysgrid" });
   for (const def of RA.SYSTEM_SOUNDS) {
     sgrid.appendChild(field(def.label, h("span", { class: "frow", style: "gap:4px; flex-wrap:nowrap" },

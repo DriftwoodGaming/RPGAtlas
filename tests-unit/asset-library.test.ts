@@ -156,8 +156,8 @@ function fixtureProject(): any {
     actors: [{ charset: "asset:characters/hero" }],
     enemies: [{ sprite: "asset:enemies/dragon" }],
     animations: [{ items: [{ type: "flipbook", sheet: "asset:characters/fx-sheet" }] }],
-    commonEvents: [{ commands: [{ t: "playSE", name: "asset:audio/boom" }] }],
-    troops: [{ pages: [{ commands: [{ t: "playMusic", theme: "asset:audio/boss-bgm" }] }] }],
+    commonEvents: [{ commands: [{ t: "se", name: "asset:audio/boom" }] }],
+    troops: [{ pages: [{ commands: [{ t: "music", theme: "asset:audio/boss-bgm" }] }] }],
     maps: [
       {
         music: "asset:audio/town-bgm",
@@ -172,9 +172,9 @@ function fixtureProject(): any {
                   {
                     t: "if",
                     then: [{ t: "text", face: "asset:characters/hero", msg: "hi" }],
-                    else: [{ t: "choices", branches: [[{ t: "playSE", name: "asset:audio/ding" }]] }],
+                    else: [{ t: "choices", branches: [[{ t: "se", name: "asset:audio/ding" }]] }],
                   },
-                  { t: "loop", body: [{ t: "playMusic", theme: "field" }] },
+                  { t: "loop", body: [{ t: "music", theme: "field" }] },
                 ],
               },
             ],

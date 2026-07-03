@@ -50,6 +50,9 @@ import { gameOver } from "./scenes/gameover.js";
 import { playMapAnimation } from "./anim-glue.js";
 import { initAssetLibrary } from "../shared/asset-library.js";
 import { createDefaultAssetStore } from "../platform/default-asset-store.js";
+// Side effect: registers window.AtlasAudioDeck, the seam js/sfx.js routes
+// "asset:" music/sound references through (Phase 6 audio v2).
+import "../shared/audio-deck.js";
 
 const TILE = Assets.TILE;
 // defaults (overridden at boot from system.screenWidth/Height)
@@ -223,6 +226,7 @@ async function boot(): Promise<void> {
   const av = ctx.playerOptions.audio || {};
   Sfx.setMasterVolume(av.master == null ? 1 : av.master);
   Sfx.setBgmVolume(av.bgm == null ? 1 : av.bgm);
+  Sfx.setBgsVolume(av.bgs == null ? 1 : av.bgs);
   Sfx.setSeVolume(av.se == null ? 1 : av.se);
   if (ctx.setMsgSpeed && ctx.playerOptions.textSpeed) ctx.setMsgSpeed(ctx.playerOptions.textSpeed);
   applyScreenSettings();
