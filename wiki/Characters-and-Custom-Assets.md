@@ -69,9 +69,9 @@ You can always override any individual cell later in **Passability mode** — se
 
 ## Reskinning the database icons
 
-Items, skills, weapons, armors, and classes each pick an icon from a shared **8×8 icon sheet** (64
-icons). To reskin all 64 at once, replace `img/system/icon_set.png` with your own transparent
-**256×256** sheet laid out 8×8.
+Items, skills, weapons, armors, and classes each pick an icon from a shared **8×16 icon sheet** (128
+icons). To reskin all 128 at once, replace `img/system/icon_set.png` with your own transparent
+**256×512** sheet laid out 8×16.
 
 ---
 

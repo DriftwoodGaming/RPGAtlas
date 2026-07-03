@@ -46,7 +46,7 @@
 <p>You can always override any individual cell later in <strong>Passability mode</strong> — see <a href="Maps-and-Tiles.html#passability--where-the-player-can-walk">Maps & Tiles</a>.</p>
 <hr>
 <h2 id="reskinning-the-database-icons">Reskinning the database icons</h2>
-<p>Items, skills, weapons, armors, and classes each pick an icon from a shared <strong>8×8 icon sheet</strong> (64 icons). To reskin all 64 at once, replace <code>img/system/icon_set.png</code> with your own transparent <strong>256×256</strong> sheet laid out 8×8.</p>
+<p>Items, skills, weapons, armors, and classes each pick an icon from a shared <strong>8×16 icon sheet</strong> (128 icons). To reskin all 128 at once, replace <code>img/system/icon_set.png</code> with your own transparent <strong>256×512</strong> sheet laid out 8×16.</p>
 <hr>
 <h2 id="if-custom-art-doesnt-show-up">If custom art doesn't show up</h2>
 <p>The editor discovers your files by scanning the <code>img</code> folders. On downloaded copies this just works — the <code>RPGAtlas.exe</code> launcher's server provides the directory listings the scan reads. On a <strong>source checkout</strong> the Vite dev server doesn't, so run <code>tools/update-assets.ps1</code> to write a manifest (<code>img/assets.json</code>) the editor can read instead. More in <a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a>.</p>

@@ -75,7 +75,7 @@ export function openResourceManager() {
       }
       return h("div", null,
         h("div", { class: "dim", style: "margin-bottom:8px" },
-          "64 icons from img/system/icon_set.png. Assign them in the Classes, Skills, Items, Weapons, and Armors tabs."),
+          Assets.ICON_COUNT + " icons from img/system/icon_set.png. Assign them in the Classes, Skills, Items, Weapons, and Armors tabs."),
         grid);
     } },
   ];

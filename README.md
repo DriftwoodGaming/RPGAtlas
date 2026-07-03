@@ -112,7 +112,7 @@ the directory listings the scan needs; on a source checkout the Vite dev server 
 Projects save references rather than image copies, and standalone exports embed only referenced files.
 
 Classes, skills, items, weapons, and armors each have a selectable icon. Replace
-`img/system/icon_set.png` with another transparent 256x256, 8x8 sheet to reskin all 64 choices.
+`img/system/icon_set.png` with another transparent 256x512, 8x16 sheet to reskin all 128 choices.
 
 Shortcuts: `B/E/R/O/F/S` tools · `0` auto layer, `1–4` layers · `+/-` & `Ctrl`+wheel zoom, `Ctrl+0` 1:1 ·
 right-click = pick tile · `Ctrl+Z/Y` undo/redo · `Ctrl+X/C/V` clipboard · `Del` delete selected event.

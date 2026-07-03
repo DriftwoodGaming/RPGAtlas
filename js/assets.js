@@ -11,7 +11,7 @@ const Assets = (() => {
   const faceByName = new Map();
   const ICON_SIZE = 32;
   const ICON_COLS = 8;
-  const ICON_COUNT = 64;
+  const ICON_COUNT = 128;
   let iconSetSrc = "";
   let iconSetImage = null;
 

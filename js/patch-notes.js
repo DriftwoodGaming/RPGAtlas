@@ -5,6 +5,20 @@
 export const PATCH_NOTES = [
   {
     date: "July 3, 2026",
+    title: "Twice the icons, twice the starting database",
+    summary:
+      "The icon sheet doubles from 64 to 128 icons, and new projects now start with twice as many classes, skills, items, weapons, and armors — more ready-made pieces to build with before you add your own.",
+    items: [
+      "64 new icons (numbers 64–127): class emblems, elemental sigils, enchanted and tiered weapons, more armor, elemental scrolls, tomes, consumables, status marks, and treasure — derived from the original art so everything stays in one style.",
+      "Four new starting classes: Paladin (stalwart defender), Ranger (swift archer), Dark Knight (all-out attacker), and Sage (magic and healing hybrid), each with their own stat curves, traits, and learned skills.",
+      "Twelve new starting skills, including Blizzard, Inferno, Chain Lightning, Meteor, Holy Smite, Sanctuary, Regrowth (applies Regen), and Venom Volley.",
+      "Four new starting items (Herbal Tonic, Golden Apple, Mega Ether, Life Elixir), weapons (Hunting Bow, Battle Axe, Flame Sword, Gale Bow), and armors (Iron Shield, Steel Helm, Golden Mail, Swift Boots).",
+      "Reskinning note: img/system/icon_set.png is now 256×512 (8×16 grid of 32×32 cells). Existing projects keep their icon numbers — the original 64 icons are unchanged.",
+      "Existing projects aren't touched: the new database entries only appear in newly created projects.",
+    ],
+  },
+  {
+    date: "July 3, 2026",
     title: "Database sub-tabs — big tabs, digestible pages",
     summary:
       "The Database's busiest tabs now split their settings across sub-tabs inside the main panel, so each screen shows one topic at a time. Nothing moved out of its tab and nothing was removed — same settings, better organized.",
