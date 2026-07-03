@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 3, 2026",
+    title: "Export upgrades — itch.io-ready zip, installable offline PWA & native EXE packaging",
+    summary:
+      "Publishing gets three big upgrades: a one-click web zip shaped for itch.io that doubles as an installable offline app, and a repo script that packages any game as a real native desktop executable.",
+    items: [
+      "File ▸ Export Standalone Game… ▸ Web / itch.io (.zip): your game as index.html at the zip root (exactly what itch.io's HTML5 uploader wants) plus a web-app manifest, generated icons, and a service worker — players on any static host can install the game like an app and replay it fully offline.",
+      "The offline promise is machine-checked: an automated test exports the zip through the real menu, installs the service worker, cuts the network, and replays the game.",
+      "node scripts/package-game-exe.mjs <project.json> builds a true native desktop EXE (own window, no browser) from any exported project, reusing the same desktop shell as RPGAtlas itself. Needs the Rust toolchain; the classic no-toolchain launcher EXE remains.",
+      "Under the hood the standalone HTML template moved to a module shared by the editor export and the native packager, so the formats can never drift apart.",
+    ],
+  },
+  {
+    date: "July 3, 2026",
     title: "Atlas Quest HD — the sample game becomes the showcase",
     summary:
       "The bundled sample game now shows off the whole HD-2D toolbox, capped by a brand-new dusk map: Driftwood Shore.",

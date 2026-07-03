@@ -47,17 +47,7 @@ export function safeFileName(name, fallback) {
   return (name || fallback).replace(/[^\w\- ]+/g, "").trim().replace(/ +/g, "_") || fallback;
 }
 
-function htmlText(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function scriptText(value) {
-  return String(value).replace(/<\/script/gi, "<\\/script");
-}
+// htmlText/scriptText moved to js/standalone-template.mjs with the HTML assembly.
 
 async function fetchBuildSource(path) {
   const response = await fetch(path, { cache: "no-store" });
@@ -65,23 +55,37 @@ async function fetchBuildSource(path) {
   return response.text();
 }
 
-// The standalone-export file list lives in the shared build manifest so the
-// export, the Tauri staging step, and the packaged exe never drift apart. In the
-// browser (Vite serves js/build-manifest.mjs) a direct dynamic import resolves;
-// in the Node test harness this module is evaluated from a data: URL where a
-// relative import cannot be resolved, so we fall back to fetching the manifest
-// source and importing it as a data: URL.
+// The standalone-export file list lives in the shared build manifest, and the
+// HTML assembly in the shared template module, so the in-editor export, the
+// Tauri staging step, the packaged exe, AND the native game packager never
+// drift apart. In the browser (Vite serves js/*.mjs) a direct dynamic import
+// resolves; in the Node test harness this module is evaluated from a data:
+// URL where a relative import cannot be resolved, so we fall back to fetching
+// the module source and importing it as a data: URL.
+async function importViaFetch(fetchPath) {
+  const source = await fetchBuildSource(fetchPath);
+  // btoa() is Latin1-only; the module sources have UTF-8 comment characters,
+  // so encode the bytes first. This path only runs in the Node test harness.
+  const base64 = btoa(
+    String.fromCharCode(...new TextEncoder().encode(source)),
+  );
+  return import("data:text/javascript;base64," + base64);
+}
+// NOTE: the relative imports below stay LITERAL so Vite statically bundles
+// them into the built editor (a variable-specifier import would try to
+// resolve against /assets/ at runtime and 404 in builds).
 async function loadBuildManifest() {
   try {
     return await import("../build-manifest.mjs");
   } catch {
-    const source = await fetchBuildSource("js/build-manifest.mjs");
-    // btoa() is Latin1-only; the manifest source has UTF-8 comment characters,
-    // so encode the bytes first. This path only runs in the Node test harness.
-    const base64 = btoa(
-      String.fromCharCode(...new TextEncoder().encode(source)),
-    );
-    return import("data:text/javascript;base64," + base64);
+    return importViaFetch("js/build-manifest.mjs");
+  }
+}
+export async function loadStandaloneTemplate() {
+  try {
+    return await import("../standalone-template.mjs");
+  } catch {
+    return importViaFetch("js/standalone-template.mjs");
   }
 }
 
@@ -172,51 +176,15 @@ export async function exportProjectFile(project) {
 
 export async function buildStandaloneGame(project, Assets) {
   const paths = await loadStandaloneExportPaths();
-  const [files, usedAssets, iconSet] = await Promise.all([
+  const [template, files, usedAssets, iconSet] = await Promise.all([
+    loadStandaloneTemplate(),
     Promise.all(paths.map(fetchBuildSource)),
     Assets.exportUsedExternalAssets(project),
     fetchDataUrl("img/system/icon_set.png"),
   ]);
-
-  const title = project.system.title || "RPGAtlas Game";
-  const baseName = safeFileName(title, "RPGAtlas_Game");
-  const gameId = safeFileName(title, "rpgatlas-game").toLowerCase();
-  const projectJson = JSON.stringify(project).replace(/</g, "\\u003c");
-  const assetsJson = JSON.stringify(usedAssets).replace(/</g, "\\u003c");
-  // files[0] is the CSS and the last entry is the player bundle (module); every
-  // file between them is a classic script inlined in manifest order.
-  const classicScripts = files
-    .slice(1, -1)
-    .map((source) => `  <script>${scriptText(source)}<\/script>`)
-    .join("\n");
-
-  const html = `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${htmlText(title)}</title>
-<style>${scriptText(files[0])}</style>
-</head>
-<body>
-  <div id="stage"><canvas id="gamecanvas"></canvas></div>
-  <script id="rpgatlas-project" type="application/json">${projectJson}</script>
-  <script id="rpgatlas-assets" type="application/json">${assetsJson}</script>
-  <script>
-window.RPGATLAS_PROJECT = JSON.parse(document.getElementById("rpgatlas-project").textContent);
-window.RPGATLAS_ASSETS = JSON.parse(document.getElementById("rpgatlas-assets").textContent);
-window.RPGATLAS_ICON_SET = ${JSON.stringify(iconSet)};
-window.RPGATLAS_GAME_ID = ${JSON.stringify(gameId)};
-  <\/script>
-${classicScripts}
-  <script>
-window.RPGAtlasDeps = { Assets, DataDefaults, Music, RA, Sfx };
-  <\/script>
-  <script type="module">${scriptText(files[files.length - 1])}<\/script>
-</body>
-</html>
-`;
-  return { html, baseName };
+  // The HTML assembly lives in js/standalone-template.mjs (shared with the
+  // native game packager, scripts/package-game-exe.mjs).
+  return template.assembleStandaloneHtml(project, files, usedAssets, iconSet);
 }
 
 export async function exportStandaloneHtml(project, Assets) {

@@ -3,6 +3,9 @@ node_modules/
 src-tauri/target/
 src-tauri/dist/
 src-tauri/gen/
+# per-game native packaging stage (scripts/package-game-exe.mjs)
+src-tauri/game-dist/
+src-tauri/game.conf.json
 
 # Build artifacts
 *.log

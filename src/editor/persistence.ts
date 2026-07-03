@@ -6,10 +6,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import {
+  buildStandaloneGame,
+  downloadBlob,
   exportProjectFile,
   exportStandaloneHtml as writeStandaloneHtml,
   exportWindowsExecutable as writeWindowsExecutable,
+  loadStandaloneTemplate,
 } from "../../js/editor/project-io.js";
+import { buildWebZipEntries, buildZip, renderGameIcon } from "./export-web";
 import * as host from "../../js/editor/host.js";
 import { isProjectLike, validateProject } from "../shared/schema";
 import { BrowserProjectRepository } from "../platform/browser/project-repository";
@@ -102,11 +106,27 @@ const projectRepo = new BrowserProjectRepository(
       return images.concat(await exportUsedAudioAssets(project));
     },
   };
+  // Web / itch.io zip (Phase 7 Stage E): the standalone HTML at the zip root
+  // (itch.io's HTML5 layout) wired up as an installable, offline-capable PWA.
+  async function exportWebZip() {
+    const [game, template] = await Promise.all([
+      buildStandaloneGame(S.proj, assetsWithAudio),
+      loadStandaloneTemplate(),
+    ]);
+    const title = S.proj.system.title || "RPGAtlas Game";
+    const [icon192, icon512] = await Promise.all([
+      renderGameIcon(title, 192).then(async (b: Blob) => new Uint8Array(await b.arrayBuffer())),
+      renderGameIcon(title, 512).then(async (b: Blob) => new Uint8Array(await b.arrayBuffer())),
+    ]);
+    const entries = buildWebZipEntries(game.html, title, template, icon192, icon512);
+    const zipBytes = buildZip(entries);
+    downloadBlob(new Blob([zipBytes as any], { type: "application/zip" }), game.baseName + "-web.zip");
+  }
   export function openStandaloneExport() {
     const content = h("div", null,
       h("p", null, "Build the current project as one self-contained game file. The editor, engine folder, web server, and project .json are not required."),
-      h("p", null, "Windows EXE includes a small launcher that extracts the game and opens it in the player's default browser. Standalone HTML works across platforms."),
-      h("p", { class: "dim" }, "The launcher is unsigned, so Windows may show a security warning. Save slots are kept in the player's browser."),
+      h("p", null, "Windows EXE includes a small launcher that extracts the game and opens it in the player's default browser. Standalone HTML works across platforms. Web (.zip) is ready to upload to itch.io or any static host — players can install it as an app and replay offline."),
+      h("p", { class: "dim" }, "The launcher is unsigned, so Windows may show a security warning. Save slots are kept in the player's browser. A fully native desktop EXE (no browser) can be built from the repo with: node scripts/package-game-exe.mjs <project.json> (needs the Rust toolchain)."),
     );
     modal({
       title: "Export Standalone Game",
@@ -126,6 +146,15 @@ const projectRepo = new BrowserProjectRepository(
             await writeStandaloneHtml(S.proj, assetsWithAudio);
             close();
             flashStatus("Standalone HTML game exported");
+          } catch (e: any) {
+            alert("Game export failed: " + e.message);
+          }
+        } },
+        { label: "Web / itch.io (.zip)", async onClick(close: any) {
+          try {
+            await exportWebZip();
+            close();
+            flashStatus("Web game zip exported (itch.io-ready, offline-capable)");
           } catch (e: any) {
             alert("Game export failed: " + e.message);
           }

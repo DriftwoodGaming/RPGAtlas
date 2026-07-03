@@ -2,6 +2,39 @@
 
 **Status:** IN PROGRESS (started 2026-07-03). Stage log below, newest first.
 
+Stage E COMPLETE (2026-07-03): export upgrades. **Shared template** (new
+`js/standalone-template.mjs`, importable from browser AND Node like
+build-manifest): `assembleStandaloneHtml` extracted verbatim from
+project-io's buildStandaloneGame (which now just fetches + delegates;
+literal dynamic imports kept so Vite bundles them — a variable-specifier
+import 404s in builds, caught during refactor), plus the PWA pieces:
+`injectPwaHooks` (manifest link + SW registration, zip variant ONLY;
+file:// guarded), `webManifestFor`, `serviceWorkerFor` (cache name =
+content CRC). **Zip writer** (`src/editor/export-web.ts`): dependency-free
+STORE zip (local headers + central dir + CRC-32, UTF-8 flag, fixed-date
+deterministic), `renderGameIcon` (canvas: dark tile + gold ring +
+initial), `buildWebZipEntries` (index.html/manifest/sw/icon-192/512 —
+itch.io layout). **Modal**: "Web / itch.io (.zip)" button + native-exe
+hint. **Native packager** (`scripts/package-game-exe.mjs`): vite build →
+assemble via the SAME template/manifest (embedded assets ride along;
+shipped asset: refs embedded from img/ with warnings) → stages
+src-tauri/game-dist + a per-game --config overlay (productName/identifier/
+frontendDist/single window sized from system.screenW/H, bundle off,
+RFC-7396 merge drops the playtest window) → `tauri build --no-bundle` →
+copies the exe out; game-dist + game.conf.json gitignored. **Validated for
+real**: packaged Atlas_Quest.json → 3.7 MB native exe, launched, alive at
+6 s with window title "Atlas Quest", killed clean (1m46s warm cargo).
+**Tests**: vitest ×8 (CRC vectors incl. 0xCBF43926, zip parsed back
+structurally + roundtrip + determinism, template order/PWA/manifest/SW
+content) → 212; new e2e (`export-web.spec.mjs`): real menu click →
+download → STORE unzip → itch layout assert → served on a local http
+server → SW controller claimed → context.setOffline(true) → reload →
+FULL OFFLINE REPLAY into a new game. Wiki (Publishing rewrite: format
+table + static-host/PWA + native packaging section); patch note;
+`patch-notes.js?v=25` (+shim +help.ts). Full gate green: tsc, eslint,
+node --test (16, incl. the refactored export harness), vitest (**212**),
+Playwright **46/46** (goldens byte-stable).
+
 Stage D COMPLETE (2026-07-03): Atlas Quest HD. **Spec correction learned up
 front**: the renderer goldens do NOT synthesize their own maps — all eleven
 render Meridian Village's real tiles/heights/lights/events (several without
