@@ -11,7 +11,7 @@ import { $, h, tIn, nIn, sel, chk, field, row, dbOpts, MUSIC_OPTS } from "../dom
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 import { renderMap } from "./map-render";
-import { heightsOf } from "./painting";
+import { heightsOf, regionsOf } from "./painting";
 import { setStatus, flashStatus } from "./status";
 import { viewportDirty } from "./hd-viewport";
 import { walkCommands } from "../event-editor/command-list";
@@ -152,9 +152,10 @@ import { beginEdit, endEdit } from "../edit-scope";
       },
       shadows: new Array(n).fill(0),
       passOv: new Array(n).fill(0),
+      regions: new Array(n).fill(0),
       events: [],
     };
-    
+
     const T = Assets.T;
     
     const themes: any = {
@@ -654,6 +655,34 @@ import { beginEdit, endEdit } from "../edit-scope";
         h("button", { class: "mini", onclick() { if (pick.id) { encTroops.push(pick.id); redrawTroops(); } } }, "+ add")));
     }
     redrawTroops();
+    // Region encounter pools (Phase 5): region id → troop list that replaces
+    // the default pool while the player stands on that region.
+    const byRegion: any = {};
+    for (const [rid, list] of Object.entries(m.encounters.byRegion || {})) {
+      if (Array.isArray(list) && list.length) byRegion[rid] = (list as any[]).slice();
+    }
+    const regionBox = h("div", { class: "minilist" });
+    function redrawRegions() {
+      regionBox.innerHTML = "";
+      for (const rid of Object.keys(byRegion).sort((a, b) => Number(a) - Number(b))) {
+        const names = byRegion[rid]
+          .map((tid: any) => { const tr = RA.byId(S.proj.troops, tid); return tr ? tr.name : "(missing)"; })
+          .join(", ");
+        regionBox.appendChild(h("div", { class: "minirow" },
+          h("span", null, "Region " + rid + ": " + names),
+          h("button", { class: "mini", onclick() { delete byRegion[rid]; redrawRegions(); } }, "✕")));
+      }
+      const pick = { region: 1, id: S.proj.troops.length ? S.proj.troops[0].id : 0 };
+      regionBox.appendChild(h("div", { class: "minirow" },
+        h("span", null, "Region"), nIn(pick, "region", 1, 63),
+        sel(pick, "id", dbOpts(S.proj.troops)),
+        h("button", { class: "mini", onclick() {
+          if (!pick.id || !pick.region) return;
+          (byRegion[pick.region] = byRegion[pick.region] || []).push(pick.id);
+          redrawRegions();
+        } }, "+ add")));
+    }
+    redrawRegions();
     const hd = m.hd2d || {};
     const hdW = {
       enabled: !!hd.enabled,
@@ -685,6 +714,7 @@ import { beginEdit, endEdit } from "../edit-scope";
       row(field("Tileset", sel(work, "tilesetId", dbOpts(tilesets))), field("Music", sel(work, "music", MUSIC_OPTS()))),
       field("Encounter rate (steps, 0 = off)", nIn(work, "rate", 0, 999)),
       h("div", { class: "fld" }, h("span", null, "Encounter troops"), troopBox),
+      h("div", { class: "fld" }, h("span", null, "Region encounter pools (paint regions in Region mode)"), regionBox),
       h("div", { class: "fld" }, h("span", null, "Notes (World View)"), notesIn),
       h("div", { class: "fld" }, h("span", null, "HD-2D (3D perspective rendering)")),
       row(field("Enabled", chk(hdW, "enabled")), field("Camera tilt (25–89°)", nIn(hdW, "tilt", 25, 89))),
@@ -723,6 +753,7 @@ import { beginEdit, endEdit } from "../edit-scope";
           m.tilesetId = work.tilesetId;
           m.music = work.music;
           m.encounters = { rate: work.rate, troops: encTroops };
+          if (Object.keys(byRegion).length) m.encounters.byRegion = byRegion;
           { const nv = String(notesIn.value || ""); if (nv) m.notes = nv; else delete m.notes; }
           m.hd2d = {
             enabled: hdW.enabled, tilt: hdW.tilt,
@@ -764,6 +795,7 @@ import { beginEdit, endEdit } from "../edit-scope";
     m.shadows = remap(m.shadows, 0);
     m.passOv = remap(m.passOv, 0);
     m.heights = remap(heightsOf(m), 0);
+    m.regions = remap(regionsOf(m), 0);
     m.width = w; m.height = h2;
     m.events = m.events.filter((e: any) => e.x < w && e.y < h2);
   }

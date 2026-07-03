@@ -13,7 +13,7 @@ import { clamp, esc, sysSe } from "../util.js";
 import { showList } from "../ui-stack.js";
 import { ctx } from "./engine-context.js";
 import { G, sanitizeEquipment, param } from "./game-state.js";
-import { loadMap, initPlayer } from "../scenes/map-runtime.js";
+import { loadMap, initPlayer, syncFollowers } from "../scenes/map-runtime.js";
 import { browserSaveRepository as saves } from "../../platform/browser/save-repository.js";
 
 export function slotInfo(slot: any): any {
@@ -62,6 +62,8 @@ export async function saveLoadMenu(mode: any): Promise<boolean> {
         steps: G.steps,
         cameraZoom: ctx.cameraZoom,
         timeOfDay: G.timeOfDay,
+        vehicles: G.vehicles,
+        vehicle: G.vehicle,
         mapId: G.mapId,
         player: {
           x: G.player.x,
@@ -106,11 +108,15 @@ async function applySave(d: any): Promise<void> {
   });
   G.gold = d.gold || 0;
   G.steps = d.steps || 0;
+  // vehicles (Phase 5): old saves lack the fields — start parked at System
+  G.vehicles = d.vehicles || {};
+  G.vehicle = d.vehicle || null;
   ctx.cameraZoom = clamp(Number(d.cameraZoom) || 1, 0.25, 4);
   const p = d.player || {};
   initPlayer(p.x || 0, p.y || 0, p.dir);
   G.player.transparent = !!p.transparent;
   await loadMap(d.mapId);
+  syncFollowers(true);
   // After loadMap: the saved clock wins over the map's on-entry pin (the
   // player was already on this map at that time). Old saves lack the field.
   if (d.timeOfDay != null) G.timeOfDay = clamp(Number(d.timeOfDay) || 0, 0, 24);

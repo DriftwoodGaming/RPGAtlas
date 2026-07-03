@@ -21,8 +21,8 @@ assert.match(
 
 assert.match(
   mapRenderSource,
-  /if \(S\.mode !== "pass" && S\.mode !== "height"\) \{/,
-  "editor draws event pins outside Event mode",
+  /if \(S\.mode !== "pass" && S\.mode !== "height" && S\.mode !== "region"\) \{/,
+  "editor draws event pins outside the overlay paint modes (pass/height/region)",
 );
 
 assert.match(

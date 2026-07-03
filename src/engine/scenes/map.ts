@@ -10,8 +10,9 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { RA } from "../../shared/deps.js";
-import { rnd, sleep, sysSe } from "../util.js";
+import { Assets, RA } from "../../shared/deps.js";
+import { clamp, rnd, sleep, sysSe } from "../util.js";
+import { findPath } from "../../shared/pathfind.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G } from "../state/game-state.js";
 import { wantsDash } from "../state/player-options.js";
@@ -36,6 +37,15 @@ import {
   combatChaseDir,
   combatStaggered,
   startPlayerAttack,
+  setRoute,
+  regionAt,
+  playerStepPassable,
+  tryVehicleAction,
+  syncFollowers,
+  updateFollowers,
+  startJump,
+  updateJumpMotion,
+  ledgeAt,
 } from "./map-runtime.js";
 
 let frameWaiters: any[] = [];
@@ -125,7 +135,9 @@ export async function transferPlayer(mapId: any, x: any, y: any, dir: any): Prom
   await loadMap(mapId);
   const p = G.player;
   p.x = p.tx = x; p.y = p.ty = y; p.rx = x; p.ry = y; p.prx = x; p.pry = y; p.moving = false;
+  p.route = null;
   if (dir != null) p.dir = dir;
+  syncFollowers(true); // pile the chain onto the arrival tile
   await render();
   if (tr && tr.in) await tr.in();
   else await fadeTo(0, 250);
@@ -166,37 +178,59 @@ export function update(): void {
   // player motion — advance the current step, then (if it finished this tick) start the
   // next one immediately, so there's no dead frame at each tile. activePlayerControl()
   // stays false during events/battles, so chaining can't spawn a spurious move.
-  if (p.moving) {
-    const arrived = updateEntityMotion(p, wantsDash() ? 0.13 : 0.085);
+  const playerSpeed = wantsDash() ? 0.13 : 0.085;
+  if (p.jumping) {
+    if (updateJumpMotion(p)) onPlayerStep(); // landed: triggers/encounters fire
+  } else if (p.moving) {
+    const arrived = updateEntityMotion(p, playerSpeed);
     if (arrived) onPlayerStep();
   }
-  if (!p.moving && p.route) {
+  // touch-to-move routes yield to the player: any directional press cancels
+  if (p.route && p.route.touch && ctx.Input.dir() >= 0) p.route = null;
+  if (!p.moving && !p.jumping && p.route) {
     updateRoute(p);
-  } else if (!p.moving && activePlayerControl()) {
+  } else if (!p.moving && !p.jumping && activePlayerControl()) {
     const d = ctx.Input.dir();
     if (ctx.Input.consume("attack")) {
-      startPlayerAttack();
+      if (!G.vehicle) startPlayerAttack();
     } else if (d >= 0) {
       p.dir = d;
       const [dx, dy] = DIRD[d];
       const nx = p.x + dx,
         ny = p.y + dy;
-      const blocker = blockingEventAt(nx, ny);
-      if (
-        blocker &&
-        blocker.page.trigger === "touch" &&
-        blocker.page.commands.length
+      if (G.vehicle) {
+        // vehicle terrain rules; no touch triggers from the deck
+        if (playerStepPassable(nx, ny)) {
+          startMove(p, d);
+          p.animT = p.animT || 0;
+        }
+      } else if (
+        ledgeAt(nx, ny) &&
+        tilePassable(p.x + dx * 2, p.y + dy * 2) &&
+        !blockingEventAt(p.x + dx * 2, p.y + dy * 2)
       ) {
-        runEventBlocking(blocker);
-      } else if (tilePassable(nx, ny) && !blocker) {
-        startMove(p, d);
-        p.animT = p.animT || 0;
+        startJump(p, d, 2); // one-way ledge hop
+      } else {
+        const blocker = blockingEventAt(nx, ny);
+        if (
+          blocker &&
+          blocker.page.trigger === "touch" &&
+          blocker.page.commands.length
+        ) {
+          runEventBlocking(blocker);
+        } else if (tilePassable(nx, ny) && !blocker) {
+          startMove(p, d);
+          p.animT = p.animT || 0;
+        }
       }
     }
-    if (ctx.Input.consume("ok")) checkActionTrigger();
+    if (ctx.Input.consume("ok")) {
+      if (!tryVehicleAction()) checkActionTrigger();
+    }
     if (ctx.Input.consume("cancel")) fns.openMenu();
   }
   if (p.moving) p.animT = (p.animT || 0) + 0; // animT advanced in motion fn
+  updateFollowers(playerSpeed);
   updateMapCombat();
 
   // events
@@ -251,8 +285,8 @@ export function update(): void {
 function onPlayerStep(): void {
   G.steps++;
   const p = G.player;
-  // touch events on the tile we stepped onto
-  if (!ctx.blockingRun) {
+  // touch events on the tile we stepped onto (not from a vehicle's deck)
+  if (!ctx.blockingRun && !G.vehicle) {
     const here = entityAt(p.x, p.y).find(
       (rt: any) =>
         rt.page.trigger === "touch" &&
@@ -264,13 +298,17 @@ function onPlayerStep(): void {
       return;
     }
   }
-  // random encounters
+  // random encounters (airships fly above them; regions can swap the pool)
   const enc = ctx.map.encounters;
-  if (enc && enc.rate > 0 && enc.troops.length && !ctx.blockingRun) {
+  if (enc && enc.rate > 0 && enc.troops.length && !ctx.blockingRun && G.vehicle !== "airship") {
     G.encSteps++;
     if (G.encSteps >= enc.rate * (0.7 + Math.random() * 0.6)) {
       G.encSteps = 0;
-      const troopId = enc.troops[rnd(enc.troops.length)];
+      let pool = enc.troops;
+      const region = regionAt(p.x, p.y);
+      const regionPool = region && enc.byRegion ? enc.byRegion[region] : null;
+      if (Array.isArray(regionPool) && regionPool.length) pool = regionPool;
+      const troopId = pool[rnd(pool.length)];
       sysSe("encounter");
       (async () => {
         const result = await fns.Battle.run(troopId, true);
@@ -278,6 +316,46 @@ function onPlayerStep(): void {
       })();
     }
   }
+}
+
+// ---- touch/click-to-move (Phase 5 Stage C) ----
+// A tap on the map canvas paths the player there (A* around obstacles,
+// best-effort when the exact tile is blocked). Tapping an action event's
+// tile walks adjacent, faces it, and triggers it.
+export function handleMapTap(clientX: number, clientY: number): void {
+  const p = G.player;
+  if (ctx.scene !== "map" || !p || UIStack.length || ctx.blockingRun || ctx.menuOpen) return;
+  if (G.vehicle || p.jumping) return;
+  const TILE = Assets.TILE;
+  const rect = ctx.stage.getBoundingClientRect();
+  const scale = rect.width / ctx.SCREEN_W || 1;
+  const sx = (clientX - rect.left) / scale;
+  const sy = (clientY - rect.top) / scale;
+  const viewW = ctx.SCREEN_W / ctx.cameraZoom;
+  const viewH = ctx.SCREEN_H / ctx.cameraZoom;
+  const camX = clamp(p.rx * TILE + TILE / 2 - viewW / 2, 0, Math.max(0, ctx.map.width * TILE - viewW));
+  const camY = clamp(p.ry * TILE + TILE / 2 - viewH / 2, 0, Math.max(0, ctx.map.height * TILE - viewH));
+  const tx = Math.floor((sx / ctx.cameraZoom + camX) / TILE);
+  const ty = Math.floor((sy / ctx.cameraZoom + camY) / TILE);
+  if (tx < 0 || ty < 0 || tx >= ctx.map.width || ty >= ctx.map.height) return;
+  const passable = (x: number, y: number) => tilePassable(x, y) && !blockingEventAt(x, y);
+  const target = entityAt(tx, ty).find(
+    (rt: any) => rt.page.trigger === "action" && rt.page.commands.length,
+  );
+  const triggerIfAdjacent = () => {
+    if (!target || target.erased || !target.page) return;
+    if (Math.abs(p.x - tx) + Math.abs(p.y - ty) === 1) {
+      p.dir = dirTo(p.x, p.y, tx, ty);
+      runEventBlocking(target);
+    }
+  };
+  const path = findPath(passable, p.x, p.y, tx, ty, { near: true, maxNodes: 800 });
+  if (!path || !path.length) {
+    triggerIfAdjacent(); // already next to it (or nothing to do)
+    return;
+  }
+  setRoute(p, path, target ? triggerIfAdjacent : null);
+  (p.route as any).touch = true;
 }
 
 function checkActionTrigger(): void {

@@ -51,10 +51,11 @@ export interface EditorState {
   curMapId: number;
   layer: string;             // auto | ground | decor | decor2 | over
   tool: string;              // pen | erase | rect | circle | fill | shadow
-  mode: string;              // map | event | pass | start | height
+  mode: string;              // map | event | pass | start | height | region
   selectedTile: number;
   brushSize: number;         // pen/erase footprint (odd; 1 = single cell)
   heightVal: number;         // HD-2D elevation value painted in height mode (0–9)
+  regionVal: number;         // region id painted in region mode (0–63)
   zoom: number;
   selectedEvent: any;
   hoverCell: any;
@@ -95,6 +96,7 @@ export const editorState: EditorState = {
   selectedTile: 1,
   brushSize: 1,
   heightVal: 1,
+  regionVal: 1,
   zoom: 0.75,
   selectedEvent: null,
   hoverCell: null,

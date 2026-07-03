@@ -72,6 +72,14 @@ const EDITOR_KEYS: KeyBinding[] = [
   { codes: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"],
     when: () => S.mode === "height",
     run(e) { S.heightVal = Number(e.code.slice(5)); setStatus(); } },
+  // Region mode (Phase 5): digits set the painted id; -/= step it up to 63.
+  { codes: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"],
+    when: () => S.mode === "region",
+    run(e) { S.regionVal = Number(e.code.slice(5)); setStatus(); } },
+  { codes: ["Minus"], when: () => S.mode === "region",
+    run() { S.regionVal = Math.max(0, S.regionVal - 1); setStatus(); } },
+  { codes: ["Equal"], when: () => S.mode === "region",
+    run() { S.regionVal = Math.min(63, S.regionVal + 1); setStatus(); } },
   // Tools (Map or Height mode)
   { codes: ["KeyQ"], when: mapOrHeight, run: () => setTool("pen") },
   { codes: ["KeyW"], when: mapOrHeight, run: () => setTool("erase") },

@@ -41,6 +41,7 @@ import { openLocationPicker } from "./location-picker";
           : k === "selfsw" ? "Self-Switch " + c.cond.key + " is ON"
           : k === "quest" ? "Quest " + questName(c.cond.questId) + " is " + (c.cond.status || "active")
           : k === "item" ? "Has " + dbName(c.cond.itemKind === "weapon" ? S.proj.weapons : c.cond.itemKind === "armor" ? S.proj.armors : S.proj.items, c.cond.id)
+          : k === "region" ? "Player in region " + (c.cond.id || 0)
           : "Gold " + (c.cond.cmp || ">=") + " " + c.cond.val;
         return "If " + d;
       }
@@ -185,13 +186,16 @@ import { openLocationPicker } from "./location-picker";
                 span.appendChild(h("span", { class: "dim" }, "N/A"));
               }
             }
+          } else if (w.kind === "region") {
+            sub.appendChild(row(field("Region id (0–63; player's tile)", nIn(w, "id", 0, 63))));
           } else {
             sub.appendChild(row(field("Gold", sel(w, "cmp", [{ v: ">=", l: "≥" }, { v: "<=", l: "≤" }])), field("Value", nIn(w, "val"))));
           }
         }
         box.appendChild(field("Condition type", sel(w, "kind", [
           { v: "switch", l: "Switch" }, { v: "var", l: "Variable" }, { v: "selfsw", l: "Self-Switch" },
-          { v: "quest", l: "Quest Status" }, { v: "item", l: "Has item" }, { v: "gold", l: "Gold" }, { v: "actor", l: "Actor" }
+          { v: "quest", l: "Quest Status" }, { v: "item", l: "Has item" }, { v: "gold", l: "Gold" }, { v: "actor", l: "Actor" },
+          { v: "region", l: "Player Region" }
         ], redraw)));
         if (w.kind === "item" && !w.itemKind) w.itemKind = "item";
         if (w.kind === "selfsw" && !w.key) w.key = "A";
@@ -401,7 +405,7 @@ import { openLocationPicker } from "./location-picker";
         const w = { target: c.target, wait: !!c.wait };
         const steps = c.steps.slice();
         const chipBox = h("div", { class: "minilist" });
-        const STEPS = ["up", "down", "left", "right", "forward", "turn_up", "turn_down", "turn_left", "turn_right", "wait15", "wait60"];
+        const STEPS = ["up", "down", "left", "right", "jump", "forward", "turn_up", "turn_down", "turn_left", "turn_right", "wait15", "wait60"];
         function redraw() {
           chipBox.innerHTML = "";
           steps.forEach((s: any, i: any) => chipBox.appendChild(h("span", { class: "chip", onclick() { steps.splice(i, 1); redraw(); }, title: "click to remove" }, s)));

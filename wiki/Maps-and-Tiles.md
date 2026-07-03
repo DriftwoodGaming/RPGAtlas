@@ -47,10 +47,40 @@ Passability decides which tiles block movement.
 - **Tile filenames can declare passability** for custom art (see
   [Characters & Custom Assets](Characters-and-Custom-Assets#tile-filenames-control-passability)).
 - **Override any cell** in **Passability mode**: click a tile to cycle **auto → force block →
-  force pass**. Tiles show **○** (walkable) or **✕** (blocked).
+  force pass → ledge**. Tiles show **○** (walkable), **✕** (blocked), or **⌒** (a **ledge**:
+  never stood on — walking into it makes the character **jump across** to the tile beyond, when
+  that landing tile is clear. Classic one-way cliff edges).
 
 Use overrides for the little exceptions: a walkable bridge over water, a decorative fence the player
 shouldn't cross, the impassable edge of the world.
+
+---
+
+## Movement upgrades
+
+- **Click / tap to move:** players can click anywhere on the map and the engine **pathfinds**
+  there, walking around obstacles. Clicking a talkable NPC walks up to it and starts the
+  conversation. Any arrow press cancels the walk.
+- **Party followers** (Database ▸ System ▸ Map systems): the other party members trail the leader
+  around the map and snap along through transfers.
+- **Vehicles:** configure a **boat** (shallow water), **ship** (any water), and **airship** (flies
+  over everything, lands on open ground) in Database ▸ System — each needs a sprite (three
+  built-in vehicle sprites ship with the engine) and a starting map/dock. Face a vehicle and press
+  the action key to board; press it again to disembark. Riding music is optional per vehicle.
+- **Jumping:** the `jump` move-route step hops an event or the player 2 tiles forward with an arc.
+
+---
+
+## Regions — numbered zone tags
+
+**Region mode** (Mode menu / Tab-cycle) paints invisible **zone numbers (1–63)** onto tiles —
+digits set the id, `-`/`=` step it, right-click picks up the id under the cursor, the Eraser
+clears. Regions do nothing by themselves; they *drive* other systems:
+
+- **Region encounter pools** (Map Properties): give a region its own troop list — swamp monsters
+  in the swamp, bats near the cave — while the rest of the map keeps the default pool.
+- **The “Player Region” event condition**: branch events (or graphs) on the zone the player is
+  standing in.
 
 ---
 

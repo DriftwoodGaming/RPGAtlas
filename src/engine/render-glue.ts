@@ -21,6 +21,7 @@ import {
   drawMapCombatOverlay,
   tilePassable,
   walkFrame,
+  vehicleDrawables,
 } from "./scenes/map-runtime.js";
 // The fixed tick length is owned by the loop (src/engine/loop.ts); render()
 // only uses it to interpolate by the leftover fraction. Function-scope use
@@ -69,6 +70,15 @@ export async function render(): Promise<void> {
     if (rt.erased || !rt.page || rt.charsetIdx < 0) continue;
     drawables.push(rt);
   }
+  // Phase 5: parked vehicles + party followers (followers hide while riding)
+  if (ctx.scene === "map") {
+    for (const v of vehicleDrawables()) drawables.push(v);
+    if (ctx.proj.system.followers && !G.vehicle) {
+      for (const f of G.followers || []) {
+        if (f.charsetIdx >= 0) drawables.push(f);
+      }
+    }
+  }
   if (!p.transparent) drawables.push(p);
   drawables.sort((a: any, b: any) => {
     const pa = a.page ? a.page.priority : "same",
@@ -85,7 +95,14 @@ export async function render(): Promise<void> {
       if (idx < 0) continue;
       const pri = d.page ? d.page.priority : "same";
       sprites.push({
-        id: d === p ? "player" : "ev_" + d.ev.id,
+        id:
+          d === p
+            ? "player"
+            : d.followerId != null
+              ? "fol_" + d.followerId
+              : d.vehicleId
+                ? "veh_" + d.vehicleId
+                : "ev_" + d.ev.id,
         canvas: Assets.charFrameCanvas(idx, d.dir, walkFrame(d)),
         rx: ip(d.prx, d.rx), ry: ip(d.pry, d.ry),
         pr: pri === "below" ? 0 : pri === "above" ? 2 : 1,

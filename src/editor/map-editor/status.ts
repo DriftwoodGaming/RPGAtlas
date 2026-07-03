@@ -16,9 +16,13 @@ import { topLayerAt, getCell, eventAt } from "./painting";
     let s = m ? m.name + " (" + m.width + "×" + m.height + ")" : "";
     s += "  ·  " + (S.mode === "map" ? t(TOOL_LABELS[S.tool]) + " / " + t(LAYER_LABELS[S.layer])
       : S.mode === "event" ? t("Event mode (double-click = new/edit, drag = move, right-click = menu)")
-      : S.mode === "pass" ? t("Passability (click cycles auto → ✕ block → ○ pass)")
+      : S.mode === "pass" ? t("Passability (click cycles auto → ✕ block → ○ pass → ⌒ ledge)")
       : S.mode === "height" ? t("Heights — painting {value} with {tool} (keys 0–9 set the value, right-click picks, Eraser clears)", {
         value: S.heightVal,
+        tool: t(TOOL_LABELS[S.tool]),
+      })
+      : S.mode === "region" ? t("Regions — painting id {value} with {tool} (digits set the id, -/= step it, right-click picks, Eraser clears)", {
+        value: S.regionVal,
         tool: t(TOOL_LABELS[S.tool]),
       })
       : t("Click the map to set the start position"));

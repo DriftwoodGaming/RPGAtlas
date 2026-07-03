@@ -7,7 +7,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, RA, Sfx, editorState as S } from "../editor-state";
-import { h, tIn, nIn, sel, chk, rangeIn, field, row, dbOpts, DIR_OPTS, SE_NAMES, MUSIC_OPTS } from "../dom";
+import { h, tIn, nIn, sel, chk, rangeIn, field, row, dbOpts, charsetOpts, DIR_OPTS, SE_NAMES, MUSIC_OPTS } from "../dom";
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 
@@ -45,6 +45,24 @@ export function systemTab() {
     { v: "ctb", l: "CTB (turn-order timeline)" },
   ]))));
   box.appendChild(h("div", { class: "dim" }, "ATB: gauges fill with agility; a battler acts when full (gauges pause during command input). CTB: one battler acts at a time in an agility-driven order shown at the top of the battle."));
+
+  // ---- map systems (Phase 5 Stage C) ----
+  box.appendChild(h("div", { class: "subhead" }, "Map systems"));
+  if (s.followers == null) s.followers = false;
+  box.appendChild(row(field("Party followers (members trail the player)", chk(s, "followers"))));
+  s.vehicles = s.vehicles && typeof s.vehicles === "object" ? s.vehicles : {};
+  const vehicleRows = h("div");
+  for (const [type, label] of [["boat", "Boat (shallow water)"], ["ship", "Ship (all water)"], ["airship", "Airship (flies anywhere)"]] as any[]) {
+    const v = (s.vehicles[type] = s.vehicles[type] || { charset: "", mapId: 0, x: 0, y: 0, music: "none" });
+    if (!v.music) v.music = "none";
+    vehicleRows.appendChild(row(
+      field(label + " — sprite", sel(v, "charset", charsetOpts())),
+      field("Map", sel(v, "mapId", dbOpts(S.proj.maps, "(unused)"))),
+      field("X", nIn(v, "x", 0, 200)), field("Y", nIn(v, "y", 0, 200)),
+      field("Music while riding", sel(v, "music", MUSIC_OPTS()))));
+  }
+  box.appendChild(vehicleRows);
+  box.appendChild(h("div", { class: "dim" }, "A vehicle needs a sprite AND a map to appear (the boat/ship/airship object sprites ship built in). Players board by facing it and pressing the action key; boats sail shallow water, ships any water, airships fly over everything and land on open ground."));
 
   box.appendChild(h("div", { class: "subhead" }, "Screen"));
   box.appendChild(row(field("Game width (px)", nIn(s, "screenWidth", 384, 3840)),

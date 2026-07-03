@@ -922,6 +922,47 @@ const Assets = (() => {
       g.fillStyle = shade("#a8f8c8", glow);
       g.beginPath(); g.moveTo(24, 8); g.lineTo(29, 24); g.lineTo(24, 34); g.lineTo(19, 24); g.fill();
     }],
+    // vehicles (Phase 5): boat / ship / airship — object charsets any event
+    // can also use, but primarily referenced by System ▸ Vehicles
+    ["boat", "Boat", (g, f) => {
+      const bob = f === 1 ? 1 : 0;
+      g.fillStyle = "rgba(16,24,40,0.35)";
+      g.beginPath(); g.ellipse(24, 41, 15, 4, 0, 0, 7); g.fill();
+      g.fillStyle = "#8a5c2c";
+      g.beginPath(); g.moveTo(8, 26 + bob); g.quadraticCurveTo(24, 40 + bob, 40, 26 + bob);
+      g.lineTo(36, 22 + bob); g.quadraticCurveTo(24, 30 + bob, 12, 22 + bob); g.fill();
+      g.fillStyle = "#a9763c";
+      g.beginPath(); g.moveTo(12, 22 + bob); g.quadraticCurveTo(24, 30 + bob, 36, 22 + bob);
+      g.lineTo(34, 19 + bob); g.quadraticCurveTo(24, 25 + bob, 14, 19 + bob); g.fill();
+      px(g, 22, 10 + bob, 3, 12, "#6a4520"); // oar/mast stub
+    }],
+    ["ship", "Ship", (g, f) => {
+      const bob = f === 1 ? 1 : 0;
+      g.fillStyle = "rgba(16,24,40,0.35)";
+      g.beginPath(); g.ellipse(24, 42, 17, 4, 0, 0, 7); g.fill();
+      g.fillStyle = "#6a4520";
+      g.beginPath(); g.moveTo(5, 27 + bob); g.quadraticCurveTo(24, 43 + bob, 43, 27 + bob);
+      g.lineTo(39, 21 + bob); g.quadraticCurveTo(24, 31 + bob, 9, 21 + bob); g.fill();
+      px(g, 9, 19 + bob, 30, 3, "#8a5c2c");
+      px(g, 22, 4 + bob, 3, 16, "#503418"); // mast
+      g.fillStyle = "#e8e0cc"; // sail
+      g.beginPath(); g.moveTo(25, 5 + bob); g.quadraticCurveTo(38, 10 + bob, 25, 18 + bob); g.fill();
+      g.fillStyle = "#c84a1f";
+      g.beginPath(); g.moveTo(22, 4 + bob); g.lineTo(22, 8 + bob); g.lineTo(15, 6 + bob); g.fill();
+    }],
+    ["airship", "Airship", (g, f) => {
+      const bob = f === 1 ? 2 : 0;
+      g.fillStyle = "rgba(16,24,40,0.3)";
+      g.beginPath(); g.ellipse(24, 43, 13, 3, 0, 0, 7); g.fill();
+      g.fillStyle = "#c8b06a"; // balloon
+      g.beginPath(); g.ellipse(24, 15 + bob, 15, 10, 0, 0, 7); g.fill();
+      g.fillStyle = "#a98c46";
+      g.beginPath(); g.ellipse(24, 15 + bob, 15, 10, 0, Math.PI * 0.15, Math.PI * 0.85); g.fill();
+      px(g, 23, 25 + bob, 2, 6, "#503418"); px(g, 14, 23 + bob, 2, 7, "#503418"); px(g, 32, 23 + bob, 2, 7, "#503418");
+      g.fillStyle = "#8a5c2c"; // gondola
+      g.beginPath(); g.moveTo(12, 30 + bob); g.quadraticCurveTo(24, 40 + bob, 36, 30 + bob);
+      g.lineTo(34, 27 + bob); g.quadraticCurveTo(24, 33 + bob, 14, 27 + bob); g.fill();
+    }],
   ];
 
   const charsets = [];

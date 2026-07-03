@@ -89,6 +89,13 @@ export class Interp {
         return invCount(cond.itemKind || "item", cond.id) > 0;
       case "gold":
         return cmp(G.gold, cond.val, cond.cmp || ">=");
+      case "region": {
+        // the player's tile region (Phase 5); 0 = untagged
+        const m = ctx.map;
+        const p = G.player;
+        if (!m || !p || !m.regions) return (Number(cond.id) || 0) === 0;
+        return (m.regions[p.y * m.width + p.x] || 0) === (Number(cond.id) || 0);
+      }
       case "actor": {
         const actor = G.party.find((a: any) => a.actorId === cond.actorId);
         if (!actor) return false;

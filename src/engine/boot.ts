@@ -39,6 +39,7 @@ import {
   waitFrames,
   frameWait,
   tickTween,
+  handleMapTap,
 } from "./scenes/map.js";
 import { startLoop } from "./loop.js";
 import { initJournalView } from "./scenes/menus.js";
@@ -224,6 +225,10 @@ async function boot(): Promise<void> {
   if (ctx.setMsgSpeed && ctx.playerOptions.textSpeed) ctx.setMsgSpeed(ctx.playerOptions.textSpeed);
   applyScreenSettings();
   window.addEventListener("resize", fitStage);
+  // touch/click-to-move (Phase 5): taps on the map canvas path the player
+  ctx.canvas.addEventListener("pointerdown", (ev: any) => {
+    if (ev.button === 0) handleMapTap(ev.clientX, ev.clientY);
+  });
   fitStage();
   Assets.registerCustomChars(ctx.proj.customChars);
   await Promise.all([Assets.loadIconSet(), Assets.loadExternalAssets(ctx.proj)]);
