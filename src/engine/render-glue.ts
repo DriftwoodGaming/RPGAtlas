@@ -24,6 +24,8 @@ import {
   vehicleDrawables,
 } from "./scenes/map-runtime.js";
 import { updateHud } from "./hud.js";
+import { motionReduced } from "./state/player-options.js";
+import { weatherMotionScale } from "../shared/a11y.js";
 // The fixed tick length is owned by the loop (src/engine/loop.ts); render()
 // only uses it to interpolate by the leftover fraction. Function-scope use
 // only, so the loop↔render-glue import cycle is eval-order safe.
@@ -48,9 +50,12 @@ export async function render(): Promise<void> {
   if (ctx.scene !== "map" && ctx.scene !== "battle") return;
   if (!ctx.map || !G.player) return;
   const p = G.player;
+  // Accessibility (Phase 7): one resolve per frame — stills the camera shake
+  // entirely, softens full-screen flashes, and thins weather particles.
+  const reduceMotion = motionReduced();
   let shakeX = 0,
     shakeY = 0;
-  if (ctx.shakeTimer > 0) {
+  if (ctx.shakeTimer > 0 && !reduceMotion) {
     const freq = ctx.shakeSpeed * 0.5;
     const decay = ctx.shakeTimer / (ctx.shakeDuration || 30);
     const amp =
@@ -139,6 +144,7 @@ export async function render(): Promise<void> {
       tilePassable,
       t: ctx.globalT, // renderer animations (water waves etc.) key off the engine tick
       timeOfDay: G.timeOfDay == null ? 12 : G.timeOfDay,
+      motionScale: weatherMotionScale(reduceMotion),
     });
   }
 
@@ -159,7 +165,9 @@ export async function render(): Promise<void> {
     const decay = ctx.flashTimer / (ctx.flashDuration || 15);
     ctx.g2d.save();
     ctx.g2d.fillStyle = ctx.flashColor;
-    ctx.g2d.globalAlpha = ctx.flashOpacity * decay;
+    // Reduced motion halves flash intensity (photosensitivity) while keeping
+    // the gameplay signal visible.
+    ctx.g2d.globalAlpha = ctx.flashOpacity * decay * (reduceMotion ? 0.5 : 1);
     ctx.g2d.fillRect(0, 0, ctx.SCREEN_W, ctx.SCREEN_H);
     ctx.g2d.restore();
   }

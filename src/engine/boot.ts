@@ -29,7 +29,13 @@ import {
   makeActor,
   param,
 } from "./state/game-state.js";
-import { loadOptions, saveOptions } from "./state/player-options.js";
+import {
+  applyMotionClass,
+  applyTextScale,
+  loadOptions,
+  saveOptions,
+  watchMotionPreference,
+} from "./state/player-options.js";
 import { saveLoadMenu } from "./state/save.js";
 import { initMessageSystem } from "./message.js";
 import { initInputSystem } from "./input.js";
@@ -232,6 +238,11 @@ async function boot(): Promise<void> {
   Sfx.setSeVolume(av.se == null ? 1 : av.se);
   if (ctx.setMsgSpeed && ctx.playerOptions.textSpeed) ctx.setMsgSpeed(ctx.playerOptions.textSpeed);
   applyScreenSettings();
+  // Accessibility (Phase 7): restore text scale + reduced-motion class, and
+  // track live prefers-reduced-motion changes while the option is "auto".
+  applyTextScale();
+  applyMotionClass();
+  watchMotionPreference();
   window.addEventListener("resize", fitStage);
   // touch/click-to-move (Phase 5): taps on the map canvas path the player
   ctx.canvas.addEventListener("pointerdown", (ev: any) => {

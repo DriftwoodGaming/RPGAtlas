@@ -2004,7 +2004,10 @@ export function createThreeRenderer(): any {
       ensureWeatherMesh();
       const [mode, count] = WEATHER_COUNTS[cfg.weather];
       weatherU.uWMode.value = mode;
-      weatherU.uWCount.value = count;
+      // Reduced-motion hosts thin the particle field (extra.motionScale < 1);
+      // absent = 1 keeps goldens and the editor viewport byte-identical.
+      const motionScale = extra.motionScale == null ? 1 : Number(extra.motionScale) || 1;
+      weatherU.uWCount.value = Math.max(1, Math.round(count * motionScale));
       weatherU.uArea.value[0] = tX;
       weatherU.uArea.value[1] = tZ - 40;
       weatherU.uArea.value[2] = w / zoom / 2 + 100;
