@@ -472,6 +472,9 @@ export interface Condition {
   actorId?: number;
   check?: "inParty" | "weapon" | "armor" | string;
   itemId?: number;
+  /** kind "time": clock window [from, to) in hours, wrap-around ok. */
+  from?: number;
+  to?: number;
 }
 
 export interface CmdText {
@@ -723,6 +726,9 @@ export interface EventPageCondition {
   objectiveQuestId?: number;
   objectiveIndex?: number;
   objectiveStatus?: QuestStatus;
+  /** In-game clock band gate (Phase 5): the page is active only during this
+   *  band (morning 5–10, day 10–17, evening 17–21, night 21–5). */
+  timeBand?: "morning" | "day" | "evening" | "night" | "";
 }
 
 export interface ActionCombat {
@@ -810,6 +816,9 @@ export interface MapEncounters {
    *  region r and byRegion[r] is non-empty, it replaces `troops` for the
    *  roll (the rate is unchanged). Absent/empty = the default list. */
   byRegion?: Record<number, number[]>;
+  /** Clock-driven pools (Phase 5): at night (21:00–5:00) a non-empty list
+   *  replaces `troops` (a region pool still wins over it). */
+  byTime?: { night?: number[] };
 }
 
 /** A map light source (HD-2D). rx/ry in tile units. */
@@ -881,6 +890,9 @@ export interface GameMap {
   events: MapEvent[];
   hd2d?: Hd2dConfig;
   lights?: MapLight[];
+  /** Hide the corner minimap on this map (Phase 5): false = hidden;
+   *  absent/true = shown when system.minimap is on. */
+  minimap?: boolean;
   /** Free-form author notes for this map (Phase 3 Stage E). Editor-only:
    *  purely additive, absent = no note; the engine never reads it. */
   notes?: string;

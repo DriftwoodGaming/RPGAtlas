@@ -56,9 +56,18 @@ export function tilePassable(x: any, y: any): boolean {
   if (g === 0) return false;
   return Assets.tiles[g] ? Assets.tiles[g].pass : false;
 }
+/** The clock's band: morning 5–10, day 10–17, evening 17–21, night 21–5. */
+export function timeBandOf(hour: any): string {
+  const h2 = ((Number(hour) || 0) % 24 + 24) % 24;
+  if (h2 >= 5 && h2 < 10) return "morning";
+  if (h2 >= 10 && h2 < 17) return "day";
+  if (h2 >= 17 && h2 < 21) return "evening";
+  return "night";
+}
 function pageActive(evId: any, page: any): boolean {
   const c = page.cond;
   if (c.switchId && !G.switches[c.switchId]) return false;
+  if (c.timeBand && timeBandOf(G.timeOfDay) !== c.timeBand) return false;
   if (c.varId && !compareVariable(G.vars[c.varId] || 0, c.varVal, c.cmp || ">=")) return false;
   if (c.selfSw && !G.selfSw[G.mapId + ":" + evId + ":" + c.selfSw]) return false;
   if (c.questId && Quests.status(c.questId) !== (c.questStatus || "active")) return false;

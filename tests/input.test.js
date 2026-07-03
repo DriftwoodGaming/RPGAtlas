@@ -39,9 +39,10 @@ assert.deepEqual(def.keyboard.up, ["ArrowUp", "KeyW"]);
 assert.deepEqual(def.keyboard.dash, ["ShiftLeft", "ShiftRight"]);
 assert.deepEqual(def.keyboard.attack, ["KeyF", "KeyJ"]);
 assert.equal(def.stickDeadzone, 0.5);
-// Every action has a keyboard + gamepad binding array.
+// Every action has a keyboard + gamepad binding array. "hud" toggles the
+// minimap/quest-tracker HUD (Phase 5).
 const actions = clone(evaluate("RA.INPUT_ACTIONS")).map((a) => a.key);
-assert.deepEqual(actions, ["up", "down", "left", "right", "ok", "cancel", "dash", "attack"]);
+assert.deepEqual(actions, ["up", "down", "left", "right", "ok", "cancel", "dash", "attack", "hud"]);
 for (const a of actions) {
   assert.ok(Array.isArray(def.keyboard[a]) && def.keyboard[a].length, "keyboard binding for " + a);
   assert.ok(Array.isArray(def.gamepad[a]) && def.gamepad[a].length, "gamepad binding for " + a);

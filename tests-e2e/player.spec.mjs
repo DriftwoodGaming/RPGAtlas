@@ -181,6 +181,39 @@ test.describe("battle v2 (phase 5)", () => {
   });
 });
 
+test.describe("hud (phase 5)", () => {
+  test("minimap + quest tracker render and the M key toggles them", async ({ page }) => {
+    await gotoWithAtlasQuest(page, "/play.html", {
+      transformProject(project) {
+        project.system.minimap = true;
+        return project;
+      },
+    });
+    await page.getByText("New Game", { exact: true }).click();
+    await expect(page.locator(".titlewin")).toHaveCount(0);
+    await expect
+      .poll(() => page.evaluate(() => window.Atlas && window.Atlas.atlas.scene), { timeout: 10_000 })
+      .toBe("map");
+
+    // the minimap builds from the map prerender on the first rendered frame
+    const hud = page.locator(".hud-root");
+    await expect(hud).toBeVisible();
+    const miniSize = await page.locator(".minimap canvas").first().evaluate((c) => c.width);
+    expect(miniSize).toBeGreaterThan(20);
+
+    // starting a quest populates the tracker
+    await page.evaluate(() => window.Atlas.game.startQuest(1));
+    await expect(page.locator(".quest-hud .qh-name")).toHaveText("Market Introduction");
+    await expect(page.locator(".quest-hud .qh-obj")).toContainText("Report to the merchant");
+
+    // M hides the whole HUD; M again restores it (persisted player option)
+    await page.keyboard.press("KeyM");
+    await expect(hud).toBeHidden();
+    await page.keyboard.press("KeyM");
+    await expect(hud).toBeVisible();
+  });
+});
+
 test.describe("save/load round-trip", () => {
   test("saving in slot 1 and loading it back restores the game", async ({ page }) => {
     await gotoWithAtlasQuest(page, "/play.html");

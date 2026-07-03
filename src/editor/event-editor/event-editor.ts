@@ -267,9 +267,21 @@ import { compileGraph, decompileCommands } from "../../shared/event-graph";
       const condBadge = h("span", { class: "ev-badge" });
       function refreshConditions() {
         const n = (pg.cond.switchId ? 1 : 0) + (pg.cond.varId ? 1 : 0) + (pg.cond.selfSw ? 1 : 0)
-          + (pg.cond.questId ? 1 : 0) + (pg.cond.objectiveQuestId ? 1 : 0);
+          + (pg.cond.questId ? 1 : 0) + (pg.cond.objectiveQuestId ? 1 : 0) + (pg.cond.timeBand ? 1 : 0);
         condBadge.textContent = n ? n + " active" : "";
         condBadge.style.display = n ? "" : "none";
+      }
+      // Day/night page gate (Phase 5): "(any)" = the pre-Phase-5 behavior.
+      function timeBandOpts() {
+        const o: any = [
+          { v: "", l: "(any time)" },
+          { v: "morning", l: "Morning (5–10)" },
+          { v: "day", l: "Day (10–17)" },
+          { v: "evening", l: "Evening (17–21)" },
+          { v: "night", l: "Night (21–5)" },
+        ];
+        o.stringValues = true;
+        return o;
       }
       // Quest objective condition: the objective dropdown depends on the chosen quest, so it
       // rebuilds whenever the objective-quest selection changes (preserved from the quest system).
@@ -296,7 +308,8 @@ import { compileGraph, decompileCommands } from "../../shared/event-graph";
           propRow("Obj. quest", sel(pg.cond, "objectiveQuestId", dbOpts(S.proj.quests, "(none)"),
             () => { refreshConditions(); redrawObjectiveList(); })),
           h("div", { class: "prop-row" }, h("span", { class: "prop-label" }, t("Objective")), objWrap),
-          propRow("Obj. is", sel(pg.cond, "objectiveStatus", stringSelOpts(["incomplete", "completed"])))),
+          propRow("Obj. is", sel(pg.cond, "objectiveStatus", stringSelOpts(["incomplete", "completed"]))),
+          propRow("Time of day", sel(pg.cond, "timeBand", timeBandOpts(), refreshConditions))),
       ], condBadge);
       refreshConditions();
 

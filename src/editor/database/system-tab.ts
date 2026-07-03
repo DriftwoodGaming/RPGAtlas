@@ -49,7 +49,10 @@ export function systemTab() {
   // ---- map systems (Phase 5 Stage C) ----
   box.appendChild(h("div", { class: "subhead" }, "Map systems"));
   if (s.followers == null) s.followers = false;
-  box.appendChild(row(field("Party followers (members trail the player)", chk(s, "followers"))));
+  if (s.minimap == null) s.minimap = false;
+  box.appendChild(row(
+    field("Party followers (members trail the player)", chk(s, "followers")),
+    field("Minimap (corner map + quest tracker HUD; M toggles)", chk(s, "minimap"))));
   s.vehicles = s.vehicles && typeof s.vehicles === "object" ? s.vehicles : {};
   const vehicleRows = h("div");
   for (const [type, label] of [["boat", "Boat (shallow water)"], ["ship", "Ship (all water)"], ["airship", "Airship (flies anywhere)"]] as any[]) {

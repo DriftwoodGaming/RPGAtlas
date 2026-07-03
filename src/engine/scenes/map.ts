@@ -21,6 +21,7 @@ import { Interp } from "../interpreter/interp.js";
 import { Plugins } from "../plugin-runtime.js";
 import { fadeTo } from "../message.js";
 import { render } from "../render-glue.js";
+import { toggleHud } from "../hud.js";
 import {
   refreshAllPages,
   loadMap,
@@ -39,6 +40,7 @@ import {
   startPlayerAttack,
   setRoute,
   regionAt,
+  timeBandOf,
   playerStepPassable,
   tryVehicleAction,
   syncFollowers,
@@ -49,6 +51,7 @@ import {
 } from "./map-runtime.js";
 
 let frameWaiters: any[] = [];
+let lastTimeBand = ""; // day/night page refresh edge (Phase 5)
 export function frameWait(): Promise<void> {
   return new Promise((r) => frameWaiters.push(r));
 }
@@ -171,6 +174,15 @@ export function update(): void {
     const dp = ctx.Input.pressed("dash");
     if (dp && !ctx.dashPrev) ctx.dashLatch = !ctx.dashLatch;
     ctx.dashPrev = dp;
+  }
+  // HUD toggle (Phase 5): works any time the map has control focus
+  if (!UIStack.length && !ctx.menuOpen && ctx.Input.consume("hud")) toggleHud();
+  // Day/night gameplay (Phase 5): pages with a timeBand condition flip when
+  // the clock crosses a band boundary (shops close at night, etc.)
+  const band = timeBandOf(G.timeOfDay);
+  if (band !== lastTimeBand) {
+    lastTimeBand = band;
+    if (!ctx.blockingRun) refreshAllPages();
   }
   // snapshot start-of-tick positions so render() can interpolate between ticks
   p.prx = p.rx; p.pry = p.ry;
@@ -305,6 +317,10 @@ function onPlayerStep(): void {
     if (G.encSteps >= enc.rate * (0.7 + Math.random() * 0.6)) {
       G.encSteps = 0;
       let pool = enc.troops;
+      // night pool first, then a region pool overrides (more specific wins)
+      if (timeBandOf(G.timeOfDay) === "night" && enc.byTime && Array.isArray(enc.byTime.night) && enc.byTime.night.length) {
+        pool = enc.byTime.night;
+      }
       const region = regionAt(p.x, p.y);
       const regionPool = region && enc.byRegion ? enc.byRegion[region] : null;
       if (Array.isArray(regionPool) && regionPool.length) pool = regionPool;

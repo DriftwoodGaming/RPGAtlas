@@ -683,6 +683,24 @@ import { beginEdit, endEdit } from "../edit-scope";
         } }, "+ add")));
     }
     redrawRegions();
+    // Night encounter pool (Phase 5): non-empty = replaces the default list
+    // between 21:00 and 5:00 on the in-game clock.
+    const nightTroops = ((m.encounters.byTime && m.encounters.byTime.night) || []).slice();
+    const nightBox = h("div", { class: "minilist" });
+    function redrawNight() {
+      nightBox.innerHTML = "";
+      nightTroops.forEach((tid: any, i: any) => {
+        const tr = RA.byId(S.proj.troops, tid);
+        nightBox.appendChild(h("div", { class: "minirow" },
+          h("span", null, tr ? tr.name : "(missing)"),
+          h("button", { class: "mini", onclick() { nightTroops.splice(i, 1); redrawNight(); } }, "✕")));
+      });
+      const pick = { id: S.proj.troops.length ? S.proj.troops[0].id : 0 };
+      nightBox.appendChild(h("div", { class: "minirow" }, sel(pick, "id", dbOpts(S.proj.troops)),
+        h("button", { class: "mini", onclick() { if (pick.id) { nightTroops.push(pick.id); redrawNight(); } } }, "+ add")));
+    }
+    redrawNight();
+    const miniW = { show: m.minimap !== false };
     const hd = m.hd2d || {};
     const hdW = {
       enabled: !!hd.enabled,
@@ -715,6 +733,8 @@ import { beginEdit, endEdit } from "../edit-scope";
       field("Encounter rate (steps, 0 = off)", nIn(work, "rate", 0, 999)),
       h("div", { class: "fld" }, h("span", null, "Encounter troops"), troopBox),
       h("div", { class: "fld" }, h("span", null, "Region encounter pools (paint regions in Region mode)"), regionBox),
+      h("div", { class: "fld" }, h("span", null, "Night encounter pool (21:00–5:00; empty = default troops)"), nightBox),
+      row(field("Show on the minimap (when System ▸ Minimap is on)", chk(miniW, "show"))),
       h("div", { class: "fld" }, h("span", null, "Notes (World View)"), notesIn),
       h("div", { class: "fld" }, h("span", null, "HD-2D (3D perspective rendering)")),
       row(field("Enabled", chk(hdW, "enabled")), field("Camera tilt (25–89°)", nIn(hdW, "tilt", 25, 89))),
@@ -754,6 +774,8 @@ import { beginEdit, endEdit } from "../edit-scope";
           m.music = work.music;
           m.encounters = { rate: work.rate, troops: encTroops };
           if (Object.keys(byRegion).length) m.encounters.byRegion = byRegion;
+          if (nightTroops.length) m.encounters.byTime = { night: nightTroops };
+          if (miniW.show) delete m.minimap; else m.minimap = false;
           { const nv = String(notesIn.value || ""); if (nv) m.notes = nv; else delete m.notes; }
           m.hd2d = {
             enabled: hdW.enabled, tilt: hdW.tilt,

@@ -23,6 +23,7 @@ import {
   walkFrame,
   vehicleDrawables,
 } from "./scenes/map-runtime.js";
+import { updateHud } from "./hud.js";
 // The fixed tick length is owned by the loop (src/engine/loop.ts); render()
 // only uses it to interpolate by the leftover fraction. Function-scope use
 // only, so the loop↔render-glue import cycle is eval-order safe.
@@ -32,6 +33,7 @@ const TILE = Assets.TILE;
 
 export async function render(): Promise<void> {
   if (!ctx.g2d) return;
+  updateHud(); // minimap + quest tracker (Phase 5; hides itself off-map)
   if (ctx.scene === "title" || ctx.scene === "gameover") return; // backdrop persists
   // hdActive is cached per map-load; if the GL context is lost mid-map, fall
   // back to the Canvas 2D path for as long as the loss lasts instead of

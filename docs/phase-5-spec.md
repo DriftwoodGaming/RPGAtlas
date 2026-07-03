@@ -1,6 +1,43 @@
 # Phase 5 Spec — Gameplay Systems
 
-**Status:** IN PROGRESS. Stage log accumulates here, phase-2/3/4-spec style.
+**Status:** COMPLETE (Stages A–D, 2026-07-02). Stage log below, newest first.
+
+Stage D COMPLETE (2026-07-02): player-facing systems — phase exit.
+**HUD** `src/engine/hud.ts` (one per-rendered-frame `updateHud()` from
+render-glue's top — before the title early-return so it hides off-map):
+corner **minimap** (`system.minimap`, per-map `map.minimap === false`
+opt-out; lowerBuf downscaled once per map object + live dots: events faint
+blue, parked vehicles bright blue, player gold-on-dark) and the **quest
+tracker** (first 3 active visible quests via `Quests.objectiveDisplay`,
+rebuilt only when a cheap signature changes, `.flash` on updates). New
+**"hud" input action** (RA.INPUT_ACTIONS + defaults KeyM / pad select —
+tests/input.test.js pin updated; mergeInputBindings backfills old projects),
+toggled in map update, persisted `playerOptions.hudHidden`. **Options ▸
+Fullscreen** row (web Fullscreen API, catch()ed). **Day/night gameplay**:
+`timeBandOf(hour)` (morning 5–10 / day 10–17 / evening 17–21 / night 21–5)
+in map-runtime; `EventPage.cond.timeBand` gates pages (pageActive) with a
+band-change edge in map.update() calling refreshAllPages; `Condition
+kind:"time"` `{from,to}` wrap-around clock window (if-command + graphs);
+`encounters.byTime.night` pool (region pool still wins). Editor: System-tab
+minimap checkbox, Map Properties night-pool rows + "Show on the minimap",
+event-editor Time-of-day page condition (badge counts it), if-form Time of
+Day kind + summary. Verified live (screenshot: minimap with building/road/
+pond pixels + gold player and blue boat dots, tracker "Market Introduction ▸
+Report to the merchant"; M toggles off/on; noon → "Default page", 23:00 →
+night page "The shop is CLOSED" flipping live via the band edge; zero
+console errors) + new player e2e (minimap size, tracker text after
+startQuest, M toggle). `data.js?v=27`, `play.css?v=22`,
+`patch-notes.js?v=16` (+shim), patch note, wiki (The-Database system rows,
+Events page conditions + if-cond). Full gate green — see acceptance run in
+the merge commit: tsc, eslint, node --test (16), vitest (146), Playwright
+**34/34** (goldens byte-stable).
+
+**Phase deviations from the plan (accumulated):** ATB ships wait-flavor only
+(`atbWait` reserved); troop pages are command-list-only (graphs stay
+page-local to events); the in-game **rebinding screen already existed**
+(Phase 1 options menu) so Stage D added fullscreen + the hud action instead
+of rebuilding it; enemy rows deferred (party-only rows); flipbook sheets
+beyond "icons"/URLs wait for Phase 6 importers as planned.
 
 Stage C COMPLETE (2026-07-02): movement & world. **A\*** `src/shared/
 pathfind.ts` (pure; injected passability oracle, binary heap, FIFO tie-break

@@ -541,6 +541,37 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
 .ctb-chip.foe { background: rgba(216,90,90,.28); border-color: rgba(255,150,150,.4); }
 .ctb-chip.now { outline: 2px solid #ffe79a; font-weight: 700; }
 
+/* ---------- on-map HUD (Phase 5): minimap + quest tracker ---------- */
+.hud-root {
+  position: absolute; top: 10px; right: 10px; z-index: 5;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  pointer-events: none;
+}
+.minimap {
+  position: relative; border: 2px solid rgba(255,255,255,.35);
+  border-radius: 6px; overflow: hidden; background: #101018;
+  box-shadow: 0 2px 10px rgba(0,0,0,.5); opacity: .92; line-height: 0;
+}
+.minimap canvas { display: block; }
+.minimap canvas + canvas { position: absolute; inset: 0; }
+.quest-hud {
+  max-width: 240px; padding: 7px 10px; border-radius: 8px;
+  background: rgba(16, 20, 38, .82);
+  border: 1px solid rgba(255,255,255,.22);
+  font: 600 12px/1.45 var(--font-menu, "Segoe UI", sans-serif);
+  color: #eef1fa; text-align: left;
+}
+.qh-quest + .qh-quest { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.12); }
+.qh-name { color: #ffd86a; font-weight: 700; margin-bottom: 1px; }
+.qh-obj { opacity: .92; }
+.qh-obj.done { opacity: .55; text-decoration: line-through; }
+.qh-count { color: #9adcff; font-variant-numeric: tabular-nums; }
+.quest-hud.flash { animation: qh-flash .9s ease-out; }
+@keyframes qh-flash {
+  0% { box-shadow: 0 0 0 2px #ffd86a, 0 0 18px rgba(255,216,106,.7); }
+  100% { box-shadow: 0 0 0 0 rgba(255,216,106,0); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .enemy-spr canvas, .actor-spr canvas { animation: none; }
   .battlewin.shake { animation: none; }

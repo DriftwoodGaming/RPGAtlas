@@ -18,7 +18,9 @@ Create an event by **double-clicking a tile in Event mode**. An event has:
 
 Each **page** has:
 
-- **Conditions** — when this page is the active one.
+- **Conditions** — when this page is the active one (switches, variables, self-switches, quest
+  status/objectives, and a **time of day** band — morning/day/evening/night — so a shop can simply
+  have a night page that says it's closed).
 - A **graphic** — how the event looks (a sprite, a chest, nothing/invisible).
 - A **trigger** — what makes its commands run.
 - A **command list** — the sequence of things that happen.
@@ -115,7 +117,7 @@ the button to edit or delete it.
 | **Show Text** | Display a message window. Optional speaker **name** and **face** portrait. Supports [text codes](Message-Text-Codes). |
 | **Call Common Event** | Run a reusable command sequence from Database ▸ Common Events. |
 | **Show Choices** | Offer the player options, each branching to its own sub-list of commands. |
-| **Conditional Branch** | Run commands only **if** a condition is true (switch, self-switch, variable, quest, item, gold, actor, [player region](Maps-and-Tiles#regions--numbered-zone-tags)…), with an optional **else**. |
+| **Conditional Branch** | Run commands only **if** a condition is true (switch, self-switch, variable, quest, item, gold, actor, [player region](Maps-and-Tiles#regions--numbered-zone-tags), time-of-day clock window…), with an optional **else**. |
 | **Loop** | Repeat its body until a **Break Loop** command runs inside it. |
 | **Break Loop** | Exit the innermost enclosing Loop and continue after it. |
 | **Wait** | Pause for a number of frames. |

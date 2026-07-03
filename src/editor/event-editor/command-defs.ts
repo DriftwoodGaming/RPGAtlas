@@ -42,6 +42,7 @@ import { openLocationPicker } from "./location-picker";
           : k === "quest" ? "Quest " + questName(c.cond.questId) + " is " + (c.cond.status || "active")
           : k === "item" ? "Has " + dbName(c.cond.itemKind === "weapon" ? S.proj.weapons : c.cond.itemKind === "armor" ? S.proj.armors : S.proj.items, c.cond.id)
           : k === "region" ? "Player in region " + (c.cond.id || 0)
+          : k === "time" ? "Clock is " + (c.cond.from || 0) + ":00–" + (c.cond.to || 0) + ":00"
           : "Gold " + (c.cond.cmp || ">=") + " " + c.cond.val;
         return "If " + d;
       }
@@ -188,6 +189,9 @@ import { openLocationPicker } from "./location-picker";
             }
           } else if (w.kind === "region") {
             sub.appendChild(row(field("Region id (0–63; player's tile)", nIn(w, "id", 0, 63))));
+          } else if (w.kind === "time") {
+            sub.appendChild(row(field("From hour (0–24)", nIn(w, "from", 0, 24)),
+              field("Until hour (wraps past midnight)", nIn(w, "to", 0, 24))));
           } else {
             sub.appendChild(row(field("Gold", sel(w, "cmp", [{ v: ">=", l: "≥" }, { v: "<=", l: "≤" }])), field("Value", nIn(w, "val"))));
           }
@@ -195,7 +199,7 @@ import { openLocationPicker } from "./location-picker";
         box.appendChild(field("Condition type", sel(w, "kind", [
           { v: "switch", l: "Switch" }, { v: "var", l: "Variable" }, { v: "selfsw", l: "Self-Switch" },
           { v: "quest", l: "Quest Status" }, { v: "item", l: "Has item" }, { v: "gold", l: "Gold" }, { v: "actor", l: "Actor" },
-          { v: "region", l: "Player Region" }
+          { v: "region", l: "Player Region" }, { v: "time", l: "Time of Day" }
         ], redraw)));
         if (w.kind === "item" && !w.itemKind) w.itemKind = "item";
         if (w.kind === "selfsw" && !w.key) w.key = "A";

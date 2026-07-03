@@ -192,6 +192,7 @@ const RA = {
     { key: "cancel", label: "Cancel" },
     { key: "dash", label: "Dash" },
     { key: "attack", label: "Attack" },
+    { key: "hud", label: "Minimap / HUD" },
   ],
   // Default bindings. keyboard = arrays of KeyboardEvent.code; gamepad = arrays of PAD_BUTTONS
   // names. Attack keeps F for older players and J for the previous remappable-action default.
@@ -202,6 +203,7 @@ const RA = {
         left: ["ArrowLeft", "KeyA"], right: ["ArrowRight", "KeyD"],
         ok: ["KeyZ", "Enter", "Space"], cancel: ["KeyX", "Escape"],
         dash: ["ShiftLeft", "ShiftRight"], attack: ["KeyF", "KeyJ"],
+        hud: ["KeyM"],
       },
       gamepad: {
         // Directions bind both the D-Pad and the left stick (the poller synthesizes
@@ -209,6 +211,7 @@ const RA = {
         up: ["dpad_up", "lstick_up"], down: ["dpad_down", "lstick_down"],
         left: ["dpad_left", "lstick_left"], right: ["dpad_right", "lstick_right"],
         ok: ["face_south"], cancel: ["face_east"], dash: ["face_west"], attack: ["face_north"],
+        hud: ["select"],
       },
       stickDeadzone: 0.5,
     };

@@ -96,6 +96,14 @@ export class Interp {
         if (!m || !p || !m.regions) return (Number(cond.id) || 0) === 0;
         return (m.regions[p.y * m.width + p.x] || 0) === (Number(cond.id) || 0);
       }
+      case "time": {
+        // in-game clock window [from, to) hours, wrap-around ok (Phase 5)
+        const h = ((Number(G.timeOfDay) || 0) % 24 + 24) % 24;
+        const from = Number(cond.from) || 0;
+        const to = Number(cond.to) || 0;
+        if (from === to) return true; // degenerate window = whole day
+        return from < to ? h >= from && h < to : h >= from || h < to;
+      }
       case "actor": {
         const actor = G.party.find((a: any) => a.actorId === cond.actorId);
         if (!actor) return false;

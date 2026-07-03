@@ -94,6 +94,7 @@ Game-wide presentation and rules. This tab is worth a careful look:
 | **Battle view** | **Side view** (animated party sprites) or classic **front view** |
 | **Battle system** | **Turn-based**, **ATB** (active-time gauges), or **CTB** (turn-order timeline) — see [Battles & States](Battles-and-States#the-three-battle-systems) |
 | **Party followers** | Party members trail the leader on the map |
+| **Minimap** | Corner minimap + quest-tracker HUD in play (M / gamepad Select toggles; per-map opt-out in Map Properties) |
 | **Vehicles** | Boat / ship / airship sprites and starting docks — see [Maps & Tiles](Maps-and-Tiles#movement-upgrades) |
 | **Start transparent** | Begin with the player sprite hidden (great for intro cutscenes) |
 | **Party, gold, currency name** | Starting party, starting money, and what you call money |

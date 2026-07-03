@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 2, 2026",
+    title: "Player HUD & day/night — minimap, quest tracker, fullscreen, time gates",
+    summary:
+      "Games get a player-facing polish pass: a corner minimap with a live quest tracker, a fullscreen toggle in Options, and day/night gameplay — event pages and encounter pools that change with the in-game clock.",
+    items: [
+      "Minimap (Database ▸ System ▸ Map systems): a corner map rendered from the real map art with live dots for the player, NPCs, and parked vehicles. Maps can opt out individually in Map Properties.",
+      "Quest tracker: the HUD lists up to three active quests with live objective progress, flashing when anything advances. The new Minimap/HUD action (default M, gamepad Select — rebindable like everything else) toggles the whole HUD.",
+      "Options ▸ Fullscreen: players can toggle fullscreen from the pause menu.",
+      "Day/night gameplay: event pages gain a Time of day condition (morning/day/evening/night) — a shop that closes at night is just a night page; the Conditional Branch command and graphs gain a Time of Day clock-window condition; Map Properties gains a night encounter pool (21:00–5:00).",
+      "The in-game clock still only moves when you move it (scripts, the HD-2D day/night pin) — these are the gameplay hooks for it.",
+    ],
+  },
+  {
+    date: "July 2, 2026",
     title: "Movement & world — click-to-move, followers, vehicles, jumps & regions",
     summary:
       "The map got a movement overhaul: click/tap anywhere to pathfind there, party members can follow the leader, boats/ships/airships sail and fly, characters jump ledges, and paintable region tags drive zoned encounters and event conditions.",

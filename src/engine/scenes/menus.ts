@@ -298,6 +298,12 @@ export async function optionsMenu(): Promise<void> {
       choiceRow("Text Speed", OPT_TEXT_SPEED, () => ctx.playerOptions.textSpeed || 2, (v: any) => setOptTextSpeed(v)),
       choiceRow("Dash", OPT_DASH, () => ctx.playerOptions.dashMode || "hold", (v: any) => setOpt("dashMode", v)),
       choiceRow("Screen Shake", OPT_SHAKE, () => (ctx.playerOptions.shakeScale == null ? 1 : ctx.playerOptions.shakeScale), (v: any) => setOpt("shakeScale", v)),
+      choiceRow("Fullscreen", [["Off", false], ["On", true]],
+        () => !!document.fullscreenElement,
+        (v: any) => {
+          if (v) document.documentElement.requestFullscreen().catch(() => {});
+          else if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        }),
       { label: "Controls", nav: true },
       { label: "Back", nav: true },
     ];
