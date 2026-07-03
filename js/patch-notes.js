@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 2, 2026",
+    title: "Movement & world — click-to-move, followers, vehicles, jumps & regions",
+    summary:
+      "The map got a movement overhaul: click/tap anywhere to pathfind there, party members can follow the leader, boats/ships/airships sail and fly, characters jump ledges, and paintable region tags drive zoned encounters and event conditions.",
+    items: [
+      "Click or tap the map to walk there — A* pathfinding routes around obstacles (and walks up to blocked targets); clicking an NPC walks over and talks to it. Any arrow press cancels the route.",
+      "Party followers (Database ▸ System ▸ Map systems): the rest of the party trails the leader across the map and through transfers.",
+      "Vehicles: configure a boat (shallow water), ship (all water), and airship (flies anywhere) with sprites and starting docks in Database ▸ System. Face one and press the action key to board; press it again to land. Three new built-in object sprites: Boat, Ship, Airship.",
+      "Jumping: the new “jump” move-route step hops 2 tiles with an arc, and ledge tiles (the new ⌒ value in Passability mode's click cycle) auto-jump the player across cliff edges.",
+      "Regions: a new Region paint mode tags tiles with numbered zones (0–63). Zones drive per-region encounter pools (Map Properties) and the new “Player Region” event condition — zone your world map without invisible event walls.",
+    ],
+  },
+  {
+    date: "July 2, 2026",
     title: "Battle systems — ATB, CTB, battle events, smarter enemies & rows",
     summary:
       "Choose your battle flow: beside the classic turn-based rounds, battles can now run as ATB (active-time gauges) or CTB (a turn-order timeline). Troops gain mid-battle event pages, enemies gain conditional AI, and the party gains front/back rows.",

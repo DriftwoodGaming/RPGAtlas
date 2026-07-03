@@ -92,6 +92,9 @@ Game-wide presentation and rules. This tab is worth a careful look:
 | **Window color & opacity** | The shared color and transparency of Show Text boxes and menus |
 | **System sounds & music themes** | Remappable cursor/confirm/cancel sounds and default music |
 | **Battle view** | **Side view** (animated party sprites) or classic **front view** |
+| **Battle system** | **Turn-based**, **ATB** (active-time gauges), or **CTB** (turn-order timeline) — see [Battles & States](Battles-and-States#the-three-battle-systems) |
+| **Party followers** | Party members trail the leader on the map |
+| **Vehicles** | Boat / ship / airship sprites and starting docks — see [Maps & Tiles](Maps-and-Tiles#movement-upgrades) |
 | **Start transparent** | Begin with the player sprite hidden (great for intro cutscenes) |
 | **Party, gold, currency name** | Starting party, starting money, and what you call money |
 | **Switch / variable names** | (Also editable from their own tabs) |

@@ -47,7 +47,7 @@ export function tilePassable(x: any, y: any): boolean {
   if (x < 0 || y < 0 || x >= ctx.map.width || y >= ctx.map.height) return false;
   const ov = ctx.map.passOv ? ctx.map.passOv[y * ctx.map.width + x] : 0;
   if (ov === 1) return true;
-  if (ov === 2) return false;
+  if (ov === 2 || ov === 3) return false; // 3 = ledge: blocked for walking, jumped over (Phase 5)
   const d2 = tileAt("decor2", x, y);
   if (d2 !== 0) return Assets.tiles[d2] ? Assets.tiles[d2].pass : false;
   const d = tileAt("decor", x, y);
@@ -242,6 +242,8 @@ function canCombatChasePass(rt: any, nx: any, ny: any): boolean {
   return !ctx.evRTs.some((other: any) => eventBlocksChaseTile(rt, other, nx, ny));
 }
 export function startMove(ent: any, dir: any): void {
+  // followers trail the tile the player just left (Phase 5 Stage C)
+  if (ent === G.player) noteFollowerCrumb(ent.x, ent.y, dir);
   ent.dir = dir;
   const dx = dir === 1 ? -1 : dir === 2 ? 1 : 0;
   const dy = dir === 0 ? 1 : dir === 3 ? -1 : 0;
@@ -551,7 +553,7 @@ export function setRoute(ent: any, steps: any, onDone: any): void {
 }
 export function updateRoute(ent: any): void {
   const r = ent.route;
-  if (!r || ent.moving) return;
+  if (!r || ent.moving || ent.jumping) return;
   if (r.wait > 0) {
     r.wait--;
     return;
@@ -563,16 +565,23 @@ export function updateRoute(ent: any): void {
   }
   const s = r.steps[r.idx++];
   const dirs: any = { up: 3, down: 0, left: 1, right: 2 };
+  const stepOk = (x: any, y: any) =>
+    ent === G.player
+      ? tilePassable(x, y) && !blockingEventAt(x, y)
+      : canEntityPass(ent, x, y);
   if (s in dirs) {
     const d = dirs[s];
     ent.dir = d;
     const [dx, dy] = DIRD[d];
-    const ok2 =
-      ent === G.player
-        ? tilePassable(ent.x + dx, ent.y + dy) &&
-          !blockingEventAt(ent.x + dx, ent.y + dy)
-        : canEntityPass(ent, ent.x + dx, ent.y + dy);
+    const ok2 = stepOk(ent.x + dx, ent.y + dy);
     if (ok2) startMove(ent, d);
+    else if (r.touch) ent.route = null; // touch-to-move: obstruction cancels
+  } else if (s === "jump") {
+    // hop 2 tiles in the facing direction; blocked → 1; both → in-place hop
+    const [dx, dy] = DIRD[ent.dir] || [0, 0];
+    if (stepOk(ent.x + dx * 2, ent.y + dy * 2)) startJump(ent, ent.dir, 2);
+    else if (stepOk(ent.x + dx, ent.y + dy)) startJump(ent, ent.dir, 1);
+    else startJump(ent, ent.dir, 0);
   } else if (s === "forward") {
     r.steps.splice(r.idx, 0, ["down", "left", "right", "up"][ent.dir]);
   } else if (s.startsWith("turn_")) {
@@ -594,7 +603,239 @@ export function initPlayer(x: any, y: any, dir?: any): void {
   refreshPlayerCharset();
 }
 export function refreshPlayerCharset(): void {
+  // riding a vehicle swaps the player sprite for the vehicle's (Phase 5)
+  if (G.vehicle) {
+    const def = (ctx.proj.system.vehicles || {})[G.vehicle];
+    const ci = def && def.charset ? Assets.charsetIndex(def.charset) : -1;
+    if (ci >= 0) {
+      G.player.charsetIdx = ci;
+      G.player.kind = Assets.charsets[ci].kind;
+      return;
+    }
+  }
+  G.player.kind = "human";
   const lead = G.party[0];
   if (lead)
     G.player.charsetIdx = Math.max(0, Assets.charsetIndex(lead.charset));
+}
+
+// ============================================================================
+// Phase 5 Stage C — regions, vehicles, followers, jumps
+// ============================================================================
+
+/** The region tag under a tile (0 = none). */
+export function regionAt(x: any, y: any): number {
+  const m = ctx.map;
+  if (!m || !m.regions || x < 0 || y < 0 || x >= m.width || y >= m.height) return 0;
+  return m.regions[y * m.width + x] || 0;
+}
+
+function groundKeyAt(x: any, y: any): string {
+  if (x < 0 || y < 0 || x >= ctx.map.width || y >= ctx.map.height) return "";
+  const t = Assets.tiles[tileAt("ground", x, y)];
+  return t ? t.key : "";
+}
+
+// ---- vehicles ----
+// Terrain rules: boat = bare shallow water; ship = bare water or deep water;
+// airship = anywhere in bounds. "Bare" = no decor on the cell (bridges and
+// lilies block hulls).
+function vehicleCanPass(type: any, nx: any, ny: any): boolean {
+  if (nx < 0 || ny < 0 || nx >= ctx.map.width || ny >= ctx.map.height) return false;
+  if (type === "airship") return true;
+  if (tileAt("decor", nx, ny) !== 0 || tileAt("decor2", nx, ny) !== 0) return false;
+  const k = groundKeyAt(nx, ny);
+  if (type === "boat") return k === "water";
+  return k === "water" || k === "deepwater";
+}
+/** Player step passability, forked on the ridden vehicle (null = on foot). */
+export function playerStepPassable(nx: any, ny: any): boolean {
+  if (G.vehicle) return vehicleCanPass(G.vehicle, nx, ny);
+  return tilePassable(nx, ny) && !blockingEventAt(nx, ny);
+}
+function vehicleDef(type: any): any {
+  const v = (ctx.proj.system.vehicles || {})[type];
+  return v && v.charset ? v : null;
+}
+/** Live position record for a configured vehicle (lazily seeded from the
+ *  System-tab definition; persisted in saves via G.vehicles). */
+export function vehicleState(type: any): any {
+  const def = vehicleDef(type);
+  if (!def) return null;
+  G.vehicles = G.vehicles || {};
+  if (!G.vehicles[type]) {
+    G.vehicles[type] = { mapId: Number(def.mapId) || 0, x: Number(def.x) || 0, y: Number(def.y) || 0 };
+  }
+  return G.vehicles[type];
+}
+export const VEHICLE_TYPES = ["boat", "ship", "airship"];
+function vehicleAtTile(x: any, y: any): any {
+  for (const type of VEHICLE_TYPES) {
+    if (G.vehicle === type) continue; // being ridden
+    const st = vehicleState(type);
+    if (st && st.mapId === G.mapId && st.x === x && st.y === y) return type;
+  }
+  return null;
+}
+/** Parked vehicles on the current map, as render drawables. */
+export function vehicleDrawables(): any[] {
+  const out: any[] = [];
+  for (const type of VEHICLE_TYPES) {
+    if (G.vehicle === type) continue;
+    const st = vehicleState(type);
+    if (!st || st.mapId !== G.mapId) continue;
+    const ci = Assets.charsetIndex(vehicleDef(type).charset);
+    if (ci < 0) continue;
+    out.push({
+      vehicleId: type, x: st.x, y: st.y, rx: st.x, ry: st.y, prx: st.x, pry: st.y,
+      dir: 0, moving: false, animT: 0, page: null,
+      charsetIdx: ci, kind: Assets.charsets[ci].kind,
+    });
+  }
+  return out;
+}
+/** Board (facing or standing on a vehicle) / disembark on the action key.
+ *  Returns true when the press was consumed by a vehicle. */
+export function tryVehicleAction(): boolean {
+  const p = G.player;
+  if (!p) return false;
+  if (G.vehicle) return tryDisembark();
+  const [dx, dy] = DIRD[p.dir] || [0, 0];
+  const type = vehicleAtTile(p.x + dx, p.y + dy) || vehicleAtTile(p.x, p.y);
+  if (!type) return false;
+  const st = vehicleState(type);
+  G.vehicle = type;
+  p.route = null;
+  p.x = p.tx = st.x; p.y = p.ty = st.y;
+  p.rx = p.prx = st.x; p.ry = p.pry = st.y;
+  p.moving = false;
+  refreshPlayerCharset();
+  const def = vehicleDef(type);
+  if (def.music && def.music !== "none") Music.play(def.music);
+  sysSe("ok");
+  return true;
+}
+function tryDisembark(): boolean {
+  const p = G.player;
+  const type = G.vehicle;
+  // land on the tile ahead (airship: set down on the spot)
+  let lx = p.x, ly = p.y;
+  if (type !== "airship") {
+    const [dx, dy] = DIRD[p.dir] || [0, 0];
+    lx = p.x + dx; ly = p.y + dy;
+  }
+  if (!tilePassable(lx, ly) || blockingEventAt(lx, ly)) {
+    sysSe("buzzer");
+    return true;
+  }
+  const st = vehicleState(type);
+  st.mapId = G.mapId; st.x = p.x; st.y = p.y;
+  G.vehicle = null;
+  p.x = p.tx = lx; p.y = p.ty = ly;
+  p.rx = p.prx = lx; p.ry = p.pry = ly;
+  p.moving = false;
+  refreshPlayerCharset();
+  Music.play(ctx.map.music || "none");
+  sysSe("ok");
+  return true;
+}
+
+// ---- party followers ----
+/** (Re)build follower records from party[1..]; snap = pile onto the player
+ *  (transfers, new game, load). */
+export function syncFollowers(snap: any): void {
+  const p = G.player;
+  if (!ctx.proj.system.followers || !p) {
+    G.followers = [];
+    G.followerTrail = [];
+    return;
+  }
+  const prevList = G.followers || [];
+  G.followers = G.party.slice(1, 4).map((a: any, i: any) => {
+    const prev = prevList[i] || {};
+    const f: any = {
+      followerId: i + 1,
+      x: prev.x, y: prev.y, tx: prev.tx, ty: prev.ty,
+      rx: prev.rx, ry: prev.ry, prx: prev.prx, pry: prev.pry,
+      dir: prev.dir == null ? p.dir : prev.dir,
+      moving: snap ? false : !!prev.moving,
+      animT: prev.animT || 0, frame: 1, kind: "human", page: null,
+      charsetIdx: Math.max(0, Assets.charsetIndex(a.charset)),
+    };
+    if (snap || f.x == null) {
+      f.x = f.tx = p.x; f.y = f.ty = p.y;
+      f.rx = f.prx = p.x; f.ry = f.pry = p.y;
+      f.moving = false;
+      f.dir = p.dir;
+    }
+    return f;
+  });
+  if (snap || !G.followerTrail) G.followerTrail = [];
+}
+/** Record the tile the player just left; follower i heads for crumb i. */
+export function noteFollowerCrumb(x: any, y: any, dir: any): void {
+  if (!ctx.proj || !ctx.proj.system.followers) return;
+  const trail = G.followerTrail || (G.followerTrail = []);
+  trail.unshift({ x, y, dir });
+  if (trail.length > 8) trail.length = 8;
+}
+/** Advance followers one tick (ghosts: no collision, pure visuals). */
+export function updateFollowers(speed: any): void {
+  if (!ctx.proj.system.followers) return;
+  const want = Math.max(0, Math.min(3, G.party.length - 1));
+  if ((G.followers || []).length !== want) syncFollowers(false);
+  const trail = G.followerTrail || [];
+  (G.followers || []).forEach((f: any, i: any) => {
+    f.prx = f.rx; f.pry = f.ry;
+    if (f.moving) {
+      updateEntityMotion(f, speed);
+      return;
+    }
+    const crumb = trail[i];
+    if (!crumb) return;
+    if (f.x === crumb.x && f.y === crumb.y) {
+      f.dir = crumb.dir;
+      return;
+    }
+    startMove(f, dirTo(f.x, f.y, crumb.x, crumb.y));
+  });
+}
+
+// ---- jumps (route step "jump" + ledge tiles passOv === 3) ----
+export function startJump(ent: any, dir: any, tiles: any): void {
+  const [dx, dy] = DIRD[dir] || [0, 0];
+  if (ent === G.player) noteFollowerCrumb(ent.x, ent.y, dir);
+  ent.dir = dir;
+  ent.jumping = {
+    fx: ent.x, fy: ent.y,
+    tx: ent.x + dx * tiles, ty: ent.y + dy * tiles,
+    t: 0, total: Math.max(10, 8 * tiles + 6),
+  };
+  sysSe("miss"); // the whoosh
+}
+/** Advance a jump one tick; true when the hop lands this tick. The arc is
+ *  applied through ry so both render paths (and depth sort) see it. */
+export function updateJumpMotion(ent: any): boolean {
+  const j = ent.jumping;
+  if (!j) return false;
+  j.t++;
+  const k = Math.min(1, j.t / j.total);
+  ent.rx = j.fx + (j.tx - j.fx) * k;
+  ent.ry = j.fy + (j.ty - j.fy) * k - Math.sin(Math.PI * k) * 0.85;
+  ent.animT++;
+  if (k >= 1) {
+    ent.x = ent.tx = j.tx;
+    ent.y = ent.ty = j.ty;
+    ent.rx = j.tx;
+    ent.ry = j.ty;
+    ent.jumping = null;
+    return true;
+  }
+  return false;
+}
+/** The ledge value under a target tile (passOv 3), bounds-safe. */
+export function ledgeAt(x: any, y: any): boolean {
+  const m = ctx.map;
+  if (!m || !m.passOv || x < 0 || y < 0 || x >= m.width || y >= m.height) return false;
+  return m.passOv[y * m.width + x] === 3;
 }

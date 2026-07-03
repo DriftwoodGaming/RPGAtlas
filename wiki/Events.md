@@ -115,7 +115,7 @@ the button to edit or delete it.
 | **Show Text** | Display a message window. Optional speaker **name** and **face** portrait. Supports [text codes](Message-Text-Codes). |
 | **Call Common Event** | Run a reusable command sequence from Database ▸ Common Events. |
 | **Show Choices** | Offer the player options, each branching to its own sub-list of commands. |
-| **Conditional Branch** | Run commands only **if** a condition is true (switch, self-switch, variable…), with an optional **else**. |
+| **Conditional Branch** | Run commands only **if** a condition is true (switch, self-switch, variable, quest, item, gold, actor, [player region](Maps-and-Tiles#regions--numbered-zone-tags)…), with an optional **else**. |
 | **Loop** | Repeat its body until a **Break Loop** command runs inside it. |
 | **Break Loop** | Exit the innermost enclosing Loop and continue after it. |
 | **Wait** | Pause for a number of frames. |
@@ -140,7 +140,7 @@ the button to edit or delete it.
 | Command | What it does |
 |---|---|
 | **Transfer Player** | Move the player to a tile on any map (with a facing direction). |
-| **Set Move Route** | Make the player *or* this event walk a scripted path. |
+| **Set Move Route** | Make the player *or* this event walk a scripted path (steps include `jump` — a 2-tile arc hop). |
 | **Camera Zoom** | Zoom the map camera out or in over a chosen number of frames. `1.0` is normal, lower values zoom out, and higher values zoom in. |
 | **Change Transparency** | Hide or show the player sprite (the player still moves and triggers events). |
 | **Erase Event** | Remove this event for the rest of the play session. |

@@ -2,6 +2,48 @@
 
 **Status:** IN PROGRESS. Stage log accumulates here, phase-2/3/4-spec style.
 
+Stage C COMPLETE (2026-07-02): movement & world. **A\*** `src/shared/
+pathfind.ts` (pure; injected passability oracle, binary heap, FIFO tie-break
+→ deterministic, node budget, `near` best-effort mode; emits route-native
+step strings; 9-test vitest suite). **Touch-to-move**: canvas pointerdown →
+`handleMapTap` (map.ts) — stage-rect → camera-inverse → tile; A\* (near,
+budget 800) → `setRoute` with `route.touch` (any directional press cancels;
+a blocked step cancels instead of skipping); tapping an action event's tile
+walks adjacent, faces, triggers. **Followers** (`system.followers`):
+G.followers records from party[1..] + a breadcrumb trail unshifted in
+`startMove` (player only) — follower i heads for crumb i, ghost-through, one
+lazy party-size resync per tick; snapped by transfers/new game/load;
+rendered via render-glue drawables (HD sprite ids fol_N/veh_T — the old
+`"ev_"+d.ev.id` would crash on them). **Vehicles** (`system.vehicles` +
+3 new procedural object charsets boat/ship/airship APPENDED to assets.js
+OBJECTS — append-only keeps charsetIndex stable): board = action key facing
+(or standing on), swaps the player charset/kind ("object" bobs), terrain
+fork `playerStepPassable` (boat = bare shallow water, ship = any bare water,
+airship = anywhere; decor blocks hulls), disembark ahead (airship: on the
+spot) onto land-passable; positions live in `G.vehicles` + `G.vehicle`
+(NEW save-payload fields, absent-tolerated), music optional ("none" =
+keep). **Jump/ledge**: `startJump/updateJumpMotion` (arc through ry so both
+renderers + depth sort see it), route step "jump" (2→1→0 fallback), ledge =
+`passOv 3` (blocked for walking incl. NPCs; player walking in auto-jumps
+over when the far tile is clear; pass-mode click cycle now auto→block→pass→
+ledge with a ⌒ glyph — tests/editor-playtest-sync source-pin updated for
+the third overlay mode). **Regions**: `map.regions` painted in a new
+editor **Region mode** (toolbar/Mode menu/Tab-cycle; digits + -/= set id
+0–63, right-click picks, fill/pen/erase; hued overlay with ids; resize +
+random-map generators keep the array), `encounters.byRegion` pools (Map
+Properties rows; roll swaps pool when the player's tile region has one),
+`Condition kind:"region"` (if-command + graphs; evaluated inline in interp
+via ctx.map). Verified live on the dev server (screenshot: pond + boat
+object + follower trailing; click-to-move 4 tiles exact; near-mode walk to
+pond edge; board→sprite swap→water-clamped sail→disembark; ledge hop both
+ways; region tiles rolled the Bat pool while default tiles rolled slimes;
+zero console errors) + new region-paint editor e2e. `assets.js?v=14`,
+`patch-notes.js?v=15` (+shim), patch note, wiki (Maps-and-Tiles: passability
+ledges + movement upgrades + regions; Events: jump step + region cond;
+The-Database: system rows). Full gate green: tsc, eslint, node --test (16,
+one source-pin updated), vitest (**146**), Playwright **33/33** (goldens
+byte-stable — vehicle charsets append-only, sample project untouched).
+
 Stage B COMPLETE (2026-07-02): battle v2. The per-command resolution body of
 the Phase 1 round loop was extracted VERBATIM into `resolveAction(c)`
 (anchor-scripted move: outer continue/break → return; the round loop calls

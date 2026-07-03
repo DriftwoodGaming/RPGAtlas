@@ -135,6 +135,31 @@ import { isAutotileId } from "../../shared/autotile-registry";
       stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
     }
   }
+  // Region tag layer (Phase 5): 0 = none, 1–63; painted like heights.
+  export function regionsOf(m: any) {
+    const n = m.width * m.height;
+    if (!m.regions || m.regions.length !== n) m.regions = new Array(n).fill(0);
+    return m.regions;
+  }
+  export function paintRegion(cell: any, val: any) {
+    const m = curMap();
+    regionsOf(m)[cell.y * m.width + cell.x] = val;
+    touch(); renderMap();
+  }
+  export function floodFillRegion(x: any, y: any, val: any) {
+    const m = curMap(), arr = regionsOf(m);
+    const target = arr[y * m.width + x] || 0;
+    if (target === val) return;
+    const stack: any[] = [[x, y]];
+    while (stack.length) {
+      const [cx, cy] = stack.pop();
+      if (cx < 0 || cy < 0 || cx >= m.width || cy >= m.height) continue;
+      const i = cy * m.width + cx;
+      if ((arr[i] || 0) !== target) continue;
+      arr[i] = val;
+      stack.push([cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1]);
+    }
+  }
   export function eventAt(x: any, y: any) { return curMap().events.find((e: any) => e.x === x && e.y === y) || null; }
   // Shared event-mode actions, reused by the canvas (double-click / right-click menu), keyboard, and
   // start-mode paths so they stay in lockstep. Undo is handled inside each as appropriate — callers
@@ -225,6 +250,11 @@ import { isAutotileId } from "../../shared/autotile-registry";
         setStatus();
         return;
       }
+      if (S.mode === "region") { // eyedropper: pick up the region id
+        S.regionVal = regionsOf(curMap())[cell.y * curMap().width + cell.x] || 0;
+        setStatus();
+        return;
+      }
       if (S.mode === "map") { // eyedropper from the topmost visible tile
         const ln = S.layer === "auto" ? topLayerAt(cell.x, cell.y) : S.layer;
         const t = getCell(cell.x, cell.y, ln) || getCell(cell.x, cell.y, "ground");
@@ -242,7 +272,8 @@ import { isAutotileId } from "../../shared/autotile-registry";
       pushUndo("Passability edit");
       const m = curMap();
       const cur = m.passOv[cell.y * m.width + cell.x] || 0;
-      S.passVal = cur === 0 ? 2 : cur === 2 ? 1 : 0; // auto → force block → force pass → auto
+      // auto → force block → force pass → ledge (jump over) → auto
+      S.passVal = cur === 0 ? 2 : cur === 2 ? 1 : cur === 1 ? 3 : 0;
       S.painting = true;
       paintPass(cell, S.passVal);
       return;
@@ -253,6 +284,13 @@ import { isAutotileId } from "../../shared/autotile-registry";
       if (S.tool === "rect" || S.tool === "circle") { S.rectStart = cell; renderMap(); }
       else if (S.tool === "fill") { floodFillHeight(cell.x, cell.y, S.heightVal); touch(); renderMap(); }
       else paintHeight(cell, S.tool === "erase" ? 0 : S.heightVal);
+      return;
+    }
+    if (S.mode === "region") {
+      pushUndo("Region edit");
+      S.painting = true;
+      if (S.tool === "fill") { floodFillRegion(cell.x, cell.y, S.regionVal); touch(); renderMap(); }
+      else paintRegion(cell, S.tool === "erase" ? 0 : S.regionVal);
       return;
     }
     if (S.mode === "event") {
@@ -293,6 +331,8 @@ import { isAutotileId } from "../../shared/autotile-registry";
       paintPass(cell, S.passVal);
     } else if (S.mode === "height" && S.painting && S.tool !== "rect" && S.tool !== "circle" && S.tool !== "fill") {
       paintHeight(cell, S.tool === "erase" ? 0 : S.heightVal);
+    } else if (S.mode === "region" && S.painting && S.tool !== "fill") {
+      paintRegion(cell, S.tool === "erase" ? 0 : S.regionVal);
     } else if (S.mode === "event" && S.dragEvent && (S.dragEvent.x !== cell.x || S.dragEvent.y !== cell.y)) {
       if (!eventAt(cell.x, cell.y)) {
         if (!S.dragPushed) { S.dragPushed = true; pushUndo("Move event"); S.dragEvent = curMap().events.find((ev: any) => ev.id === S.dragEvent.id); S.selectedEvent = S.dragEvent; }

@@ -806,6 +806,10 @@ export interface MapLayers {
 export interface MapEncounters {
   troops: number[];
   rate: number;
+  /** Region-specific troop pools (Phase 5): when the player's tile carries
+   *  region r and byRegion[r] is non-empty, it replaces `troops` for the
+   *  roll (the rate is unchanged). Absent/empty = the default list. */
+  byRegion?: Record<number, number[]>;
 }
 
 /** A map light source (HD-2D). rx/ry in tile units. */

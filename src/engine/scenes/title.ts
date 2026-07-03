@@ -15,7 +15,7 @@ import { UIStack, removeUI, showList } from "../ui-stack.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G, makeActor } from "../state/game-state.js";
 import { slotInfo, saveLoadMenu } from "../state/save.js";
-import { loadMap, initPlayer } from "./map-runtime.js";
+import { loadMap, initPlayer, syncFollowers } from "./map-runtime.js";
 import { optionsMenu } from "./menus.js";
 import { fadeTo } from "../message.js";
 import { render } from "../render-glue.js";
@@ -35,10 +35,13 @@ export async function newGame(): Promise<void> {
   if (!G.party.length && ctx.proj.actors.length)
     G.party = [makeActor(ctx.proj.actors[0].id)];
   G.steps = 0;
+  G.vehicles = {}; // fresh vehicle placements (lazily seeded from System)
+  G.vehicle = null;
   ctx.cameraZoom = 1;
   initPlayer(ctx.proj.system.startX, ctx.proj.system.startY, ctx.proj.system.startDir);
   G.player.transparent = !!ctx.proj.system.startTransparent;
   await loadMap(ctx.proj.system.startMapId);
+  syncFollowers(true);
   ctx.scene = "map";
 }
 

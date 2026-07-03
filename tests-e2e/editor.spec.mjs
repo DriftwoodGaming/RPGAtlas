@@ -403,6 +403,36 @@ test.describe("autotiles", () => {
   });
 });
 
+test.describe("region painting (phase 5)", () => {
+  test("Region mode paints region ids that persist through autosave", async ({ page }) => {
+    await page.goto("/index.html");
+    const saveIndicator = page.locator("#save-ind");
+    await expect(saveIndicator).toBeVisible();
+    await expect(saveIndicator).toHaveText(/^✓ /);
+
+    const readProject = () =>
+      page.evaluate(() => JSON.parse(localStorage.getItem("rpgatlas_project")));
+
+    // Mode ▸ Region Mode, then paint a cell near the map's top-left corner.
+    await page.locator("#menus .menu-label", { hasText: "Mode" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "Region Mode" }).click();
+    // digits set the painted id — pick 7
+    await page.keyboard.press("Digit7");
+    const mapBox = await page.locator("#mapcanvas").boundingBox();
+    await page.mouse.click(mapBox.x + 30, mapBox.y + 30);
+    await page.mouse.click(mapBox.x + 30 + 36, mapBox.y + 30); // second cell
+
+    await expect(saveIndicator).toHaveText(/^● /);
+    await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
+
+    const after = await readProject();
+    const mapId = after.system.startMapId || after.maps[0].id;
+    const m = after.maps.find((mm) => mm.id === mapId);
+    expect(Array.isArray(m.regions)).toBe(true);
+    expect(m.regions.filter((v) => v === 7).length).toBeGreaterThanOrEqual(2);
+  });
+});
+
 test.describe("battle animations (phase 5)", () => {
   test("Animations tab lists the samples, previews, and edits persist", async ({ page }) => {
     await page.goto("/index.html");

@@ -53,7 +53,16 @@ import { isAutotileId } from "../../shared/autotile-registry";
           g.fillStyle = "#ffd86a";
           g.beginPath(); g.moveTo(x * TILE, y * TILE); g.lineTo(x * TILE + 13, y * TILE); g.lineTo(x * TILE, y * TILE + 13); g.fill();
         }
-        if (effectivePass(x, y)) {
+        if (ov === 3) { // ledge: jumped over, never stood on
+          g.strokeStyle = "#7ac8ff";
+          g.beginPath();
+          g.arc(cx, cy + r * 0.5, r, Math.PI, 0);
+          g.stroke();
+          g.beginPath();
+          g.moveTo(cx + r, cy + r * 0.5); g.lineTo(cx + r * 0.55, cy + r * 0.15);
+          g.moveTo(cx + r, cy + r * 0.5); g.lineTo(cx + r * 1.35, cy + r * 0.1);
+          g.stroke();
+        } else if (effectivePass(x, y)) {
           g.strokeStyle = ov ? "#ffd86a" : "rgba(140,235,160,0.9)";
           g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke();
         } else {
@@ -77,6 +86,25 @@ import { isAutotileId } from "../../shared/autotile-registry";
         g.fillRect(x * TILE, y * TILE, TILE, TILE);
         g.fillStyle = "#eaf2ff";
         g.fillText(String(hv), x * TILE + TILE / 2, y * TILE + TILE / 2 + 1);
+      }
+    }
+  }
+  // Region overlay (Phase 5): each id gets a stable hue; a ledge-style badge
+  // shows the passOv=3 ledges too since region planning often pairs with them.
+  export function regionColor(id: any, alpha: any) {
+    return "hsla(" + ((id * 47) % 360) + ", 75%, 55%, " + alpha + ")";
+  }
+  function drawRegionOverlay(g: any, m: any) {
+    g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "bold 16px monospace";
+    for (let y = 0; y < m.height; y++) {
+      for (let x = 0; x < m.width; x++) {
+        const rv = (m.regions && m.regions[y * m.width + x]) || 0;
+        if (!rv) continue;
+        g.fillStyle = regionColor(rv, 0.34);
+        g.fillRect(x * TILE, y * TILE, TILE, TILE);
+        g.fillStyle = "#f4f7ff";
+        g.fillText(String(rv), x * TILE + TILE / 2, y * TILE + TILE / 2 + 1);
       }
     }
   }
@@ -114,9 +142,10 @@ import { isAutotileId } from "../../shared/autotile-registry";
     g.stroke();
     if (S.mode === "pass") drawPassOverlay(g, m);
     if (S.mode === "height") drawHeightOverlay(g, m);
+    if (S.mode === "region") drawRegionOverlay(g, m);
     // Event pins stay visible while painting so placed events do not appear to
     // vanish when leaving Event mode. Passability/Height keep their overlays clean.
-    if (S.mode !== "pass" && S.mode !== "height") {
+    if (S.mode !== "pass" && S.mode !== "height" && S.mode !== "region") {
       const interactiveEvents = S.mode === "event" || S.mode === "start";
       for (const ev of m.events) {
         g.fillStyle = interactiveEvents
