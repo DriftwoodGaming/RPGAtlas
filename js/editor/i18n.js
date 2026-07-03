@@ -579,6 +579,148 @@ const SHARED = {
       "selection": "선택 영역", "brush": "브러시", "passable": "통행 가능", "blocked": "차단됨", "override": "재정의",
     },
   },
+  it: {
+    label: "Italiano",
+    messages: {
+      // panels / static chrome (index.html data-i18n)
+      "Maps": "Mappe", "Tiles": "Tile", "Autotiles": "Autotile", "Brush": "Pennello",
+      "Import…": "Importa…", "(right-click map = pick)": "(clic destro sulla mappa = preleva)",
+      "Ready": "Pronto", "Zoom": "Zoom",
+      "saved": "salvato", "unsaved": "non salvato", "save failed": "salvataggio non riuscito",
+      "New map": "Nuova mappa", "Delete map": "Elimina mappa", "Generate random map": "Genera mappa casuale",
+      "Add sample map": "Aggiungi mappa di esempio",
+      // dock tab captions
+      "Map": "Mappa", "HD-2D": "HD-2D", "World": "Mondo", "Console": "Console",
+      // menus
+      "File": "File", "Edit": "Modifica", "Mode": "Modalità", "Draw": "Disegno", "Layer": "Livello",
+      "Scale": "Scala", "View": "Visualizza", "Tools": "Strumenti", "Game": "Gioco", "Help": "Aiuto",
+      // File
+      "New Project…": "Nuovo progetto…", "Open Project (.json)…": "Apri progetto (.json)…",
+      "Save Project": "Salva progetto", "Export Project As File…": "Esporta progetto come file…",
+      "Export Standalone Game…": "Esporta gioco autonomo…", "Playtest": "Prova di gioco",
+      // Game / map
+      "Map Properties…": "Proprietà della mappa…", "HD-2D Viewport": "Vista HD-2D",
+      "World View": "Vista del mondo", "Set Start Position…": "Imposta posizione iniziale…",
+      // Edit
+      "Undo": "Annulla", "Redo": "Ripristina", "Cut": "Taglia", "Copy": "Copia", "Paste": "Incolla",
+      "Clear Selection": "Cancella selezione",
+      // modes
+      "Map (Tile) Mode": "Modalità mappa (tile)", "Event Mode": "Modalità eventi",
+      "Passability Mode": "Modalità transitabilità", "Height Mode (HD-2D)": "Modalità altezza (HD-2D)",
+      "Region Mode": "Modalità regioni",
+      // layers
+      "Auto layer": "Livello automatico", "Layer 1 (Ground)": "Livello 1 (Terreno)",
+      "Layer 2 (Decor)": "Livello 2 (Decorazioni)", "Layer 3 (Decor 2)": "Livello 3 (Decorazioni 2)",
+      "Layer 4 (Overhead)": "Livello 4 (Sopraelevato)",
+      // tools
+      "Pen": "Penna", "Eraser": "Gomma", "Rectangle": "Rettangolo", "Circle": "Cerchio",
+      "Fill": "Riempimento", "Shadow Pen": "Penna ombra",
+      // zoom
+      "Zoom In": "Ingrandisci", "Zoom Out": "Riduci", "Zoom 1:1": "Zoom 1:1",
+      "Fit Map In View": "Adatta mappa alla vista",
+      // View menu / dock
+      "Maps Panel": "Pannello mappe", "Tiles Panel": "Pannello tile", "Focus Map": "Focus sulla mappa",
+      "Console Panel": "Pannello console",
+      "Focus Next Panel": "Focus sul pannello successivo", "Reset Panel Layout": "Ripristina disposizione pannelli",
+      "Save Layout As…": "Salva disposizione come…", "Saved Layouts…": "Disposizioni salvate…",
+      // Tools menu
+      "Database…": "Database…", "Plugin Manager…": "Gestore plugin…",
+      "Audio Manager…": "Gestore audio…", "Event Searcher…": "Ricerca eventi…",
+      "Resource Manager…": "Gestore risorse…", "Asset Browser…": "Browser degli asset…",
+      "Character Generator…": "Generatore di personaggi…",
+      "Import Autotile Sheet…": "Importa foglio autotile…",
+      "Command Palette…": "Palette dei comandi…",
+      // Help menu
+      "Interface Language…": "Lingua dell'interfaccia…", "Patch Notes": "Note di versione",
+      "Keyboard Shortcuts…": "Scorciatoie da tastiera…", "Quick Help": "Guida rapida",
+      "About RPGAtlas": "Informazioni su RPGAtlas",
+      // language / appearance dialog
+      "Interface Language": "Lingua dell'interfaccia", "Language": "Lingua",
+      "UI Font Size": "Dimensione del carattere dell'interfaccia",
+      "Choose the language used by the editor. Project content is not translated.": "Scegli la lingua dell'editor. Il contenuto del progetto non viene tradotto.",
+      // common buttons
+      "Apply": "Applica", "Close": "Chiudi", "Cancel": "Annulla", "Confirm": "Conferma",
+      "OK": "OK", "Save": "Salva", "Delete": "Elimina",
+      // status templates
+      "Event mode (double-click = new/edit, drag = move, right-click = menu)": "Modalità eventi (doppio clic = nuovo/modifica, trascina = sposta, clic destro = menu)",
+      "Passability (click cycles auto → ✕ block → ○ pass → ⌒ ledge)": "Transitabilità (il clic alterna auto → ✕ blocca → ○ passa → ⌒ sporgenza)",
+      "Heights — painting {value} with {tool} (keys 0–9 set the value, right-click picks, Eraser clears)": "Altezze — dipingendo {value} con {tool} (i tasti 0–9 impostano il valore, il clic destro lo preleva, la gomma cancella)",
+      "Regions — painting id {value} with {tool} (digits set the id, -/= step it, right-click picks, Eraser clears)": "Regioni — dipingendo id {value} con {tool} (le cifre impostano l'id, -/= lo cambia, il clic destro lo preleva, la gomma cancella)",
+      "Click the map to set the start position": "Fai clic sulla mappa per impostare la posizione iniziale",
+      "selection": "selezione", "brush": "pennello", "passable": "transitabile", "blocked": "bloccato", "override": "sostituzione",
+    },
+  },
+  ru: {
+    label: "Русский",
+    messages: {
+      // panels / static chrome (index.html data-i18n)
+      "Maps": "Карты", "Tiles": "Тайлы", "Autotiles": "Автотайлы", "Brush": "Кисть",
+      "Import…": "Импорт…", "(right-click map = pick)": "(ПКМ по карте = пипетка)",
+      "Ready": "Готово", "Zoom": "Масштаб",
+      "saved": "сохранено", "unsaved": "не сохранено", "save failed": "ошибка сохранения",
+      "New map": "Новая карта", "Delete map": "Удалить карту", "Generate random map": "Создать случайную карту",
+      "Add sample map": "Добавить образец карты",
+      // dock tab captions
+      "Map": "Карта", "HD-2D": "HD-2D", "World": "Мир", "Console": "Консоль",
+      // menus
+      "File": "Файл", "Edit": "Правка", "Mode": "Режим", "Draw": "Рисование", "Layer": "Слой",
+      "Scale": "Масштаб", "View": "Вид", "Tools": "Инструменты", "Game": "Игра", "Help": "Справка",
+      // File
+      "New Project…": "Новый проект…", "Open Project (.json)…": "Открыть проект (.json)…",
+      "Save Project": "Сохранить проект", "Export Project As File…": "Экспортировать проект в файл…",
+      "Export Standalone Game…": "Экспортировать автономную игру…", "Playtest": "Тестовая игра",
+      // Game / map
+      "Map Properties…": "Свойства карты…", "HD-2D Viewport": "Окно HD-2D",
+      "World View": "Вид мира", "Set Start Position…": "Задать стартовую позицию…",
+      // Edit
+      "Undo": "Отменить", "Redo": "Повторить", "Cut": "Вырезать", "Copy": "Копировать", "Paste": "Вставить",
+      "Clear Selection": "Снять выделение",
+      // modes
+      "Map (Tile) Mode": "Режим карты (тайлы)", "Event Mode": "Режим событий",
+      "Passability Mode": "Режим проходимости", "Height Mode (HD-2D)": "Режим высот (HD-2D)",
+      "Region Mode": "Режим регионов",
+      // layers
+      "Auto layer": "Автослой", "Layer 1 (Ground)": "Слой 1 (Земля)",
+      "Layer 2 (Decor)": "Слой 2 (Декор)", "Layer 3 (Decor 2)": "Слой 3 (Декор 2)",
+      "Layer 4 (Overhead)": "Слой 4 (Верхний)",
+      // tools
+      "Pen": "Перо", "Eraser": "Ластик", "Rectangle": "Прямоугольник", "Circle": "Круг",
+      "Fill": "Заливка", "Shadow Pen": "Перо теней",
+      // zoom
+      "Zoom In": "Приблизить", "Zoom Out": "Отдалить", "Zoom 1:1": "Масштаб 1:1",
+      "Fit Map In View": "Вписать карту в окно",
+      // View menu / dock
+      "Maps Panel": "Панель карт", "Tiles Panel": "Панель тайлов", "Focus Map": "Фокус на карту",
+      "Console Panel": "Панель консоли",
+      "Focus Next Panel": "Фокус на следующую панель", "Reset Panel Layout": "Сбросить расположение панелей",
+      "Save Layout As…": "Сохранить расположение как…", "Saved Layouts…": "Сохранённые расположения…",
+      // Tools menu
+      "Database…": "База данных…", "Plugin Manager…": "Менеджер плагинов…",
+      "Audio Manager…": "Менеджер аудио…", "Event Searcher…": "Поиск событий…",
+      "Resource Manager…": "Менеджер ресурсов…", "Asset Browser…": "Браузер ассетов…",
+      "Character Generator…": "Генератор персонажей…",
+      "Import Autotile Sheet…": "Импорт листа автотайлов…",
+      "Command Palette…": "Палитра команд…",
+      // Help menu
+      "Interface Language…": "Язык интерфейса…", "Patch Notes": "Список изменений",
+      "Keyboard Shortcuts…": "Горячие клавиши…", "Quick Help": "Краткая справка",
+      "About RPGAtlas": "О программе RPGAtlas",
+      // language / appearance dialog
+      "Interface Language": "Язык интерфейса", "Language": "Язык",
+      "UI Font Size": "Размер шрифта интерфейса",
+      "Choose the language used by the editor. Project content is not translated.": "Выберите язык редактора. Содержимое проекта не переводится.",
+      // common buttons
+      "Apply": "Применить", "Close": "Закрыть", "Cancel": "Отмена", "Confirm": "Подтвердить",
+      "OK": "OK", "Save": "Сохранить", "Delete": "Удалить",
+      // status templates
+      "Event mode (double-click = new/edit, drag = move, right-click = menu)": "Режим событий (двойной клик = создать/изменить, перетаскивание = переместить, ПКМ = меню)",
+      "Passability (click cycles auto → ✕ block → ○ pass → ⌒ ledge)": "Проходимость (клик переключает авто → ✕ блок → ○ проход → ⌒ уступ)",
+      "Heights — painting {value} with {tool} (keys 0–9 set the value, right-click picks, Eraser clears)": "Высоты — рисуем {value} инструментом {tool} (клавиши 0–9 задают значение, ПКМ подбирает, ластик стирает)",
+      "Regions — painting id {value} with {tool} (digits set the id, -/= step it, right-click picks, Eraser clears)": "Регионы — рисуем id {value} инструментом {tool} (цифры задают id, -/= меняет его, ПКМ подбирает, ластик стирает)",
+      "Click the map to set the start position": "Кликните по карте, чтобы задать стартовую позицию",
+      "selection": "выделение", "brush": "кисть", "passable": "проходимо", "blocked": "заблокировано", "override": "переопределение",
+    },
+  },
 };
 
 /** Test hook (i18n-parity vitest): the non-English message tables. */

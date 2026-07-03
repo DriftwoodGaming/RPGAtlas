@@ -50,6 +50,8 @@ class MemoryStorage {
 assert.equal(normalizeEditorLocale("fr-CA"), "fr");
 assert.equal(normalizeEditorLocale("unknown"), "en");
 assert.equal(normalizeEditorLocale("pt-BR"), "pt");
+assert.equal(normalizeEditorLocale("it-IT"), "it");
+assert.equal(normalizeEditorLocale("ru-RU"), "ru");
 assert.equal(normalizeEditorLocale("ja-JP"), "ja");
 assert.equal(normalizeEditorLocale("ko_KR"), "ko");
 assert.equal(normalizeEditorLocale("zh"), "zh-cn");
@@ -72,7 +74,7 @@ assert.equal(i18n.t("Maps"), "Karten");
 assert.equal(localeStorage.getItem(EDITOR_LOCALE_STORAGE_KEY), "de");
 assert.deepEqual(
   i18n.locales().map((locale) => locale.id),
-  ["en", "es", "fr", "de", "ja", "zh-tw", "zh-cn", "pt", "ko"],
+  ["en", "es", "fr", "de", "ja", "zh-tw", "zh-cn", "pt", "ko", "it", "ru"],
 );
 
 const storage = new MemoryStorage({
