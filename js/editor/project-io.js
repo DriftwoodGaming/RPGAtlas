@@ -69,7 +69,7 @@ async function importViaFetch(fetchPath) {
   const base64 = btoa(
     String.fromCharCode(...new TextEncoder().encode(source)),
   );
-  return import("data:text/javascript;base64," + base64);
+  return import(/* @vite-ignore */ "data:text/javascript;base64," + base64);
 }
 // NOTE: the relative imports below stay LITERAL so Vite statically bundles
 // them into the built editor (a variable-specifier import would try to

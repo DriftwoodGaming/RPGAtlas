@@ -8,12 +8,18 @@
    Vite can transpile and serve. A plain static file server (what this
    launcher used to be) hands the browser an unexecutable .ts file and the
    editor never boots, so the launcher now requires Node.js plus an installed
-   node_modules (npm install) and delegates serving to Vite. */
+   node_modules (npm install) and delegates serving to Vite.
+
+   Browser opening is delegated to Vite's --open flag: Vite only opens once
+   the server is actually accepting connections, which avoids any launcher-
+   side readiness polling (a hand-rolled TCP probe here previously mis-
+   handled IPv6 localhost and delayed the browser by up to a minute).
+   --clearScreen false keeps the RPGAtlas banner visible above Vite's own
+   output so first-time users always see the URL and how to stop. */
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Sockets;
-using System.Threading;
 
 internal static class RPGAtlasEngine
 {
@@ -37,7 +43,7 @@ internal static class RPGAtlasEngine
         if (!File.Exists(viteScript))
         {
             return Fail(
-                "RPGAtlas could not find the Vite dev server (node_modules\\vite).",
+                "RPGAtlas needs its one-time setup first.",
                 "Open a terminal in the RPGAtlas folder and run:  npm install");
         }
 
@@ -49,9 +55,21 @@ internal static class RPGAtlasEngine
                 "Close any other copy of RPGAtlas that may already be running, then try again.");
         }
 
+        string url = "http://localhost:" + port + "/";
+        Console.WriteLine();
+        Console.WriteLine("  RPGAtlas is starting...");
+        Console.WriteLine();
+        Console.WriteLine("  Editor:  " + url);
+        Console.WriteLine("  Player:  " + url + "play.html");
+        Console.WriteLine();
+        Console.WriteLine("  Your browser will open by itself in a moment.");
+        Console.WriteLine("  Keep this window open while you work. Close it to stop RPGAtlas.");
+        Console.WriteLine();
+
         ProcessStartInfo startInfo = new ProcessStartInfo();
         startInfo.FileName = "node";
-        startInfo.Arguments = "\"" + viteScript + "\" --port " + port + " --strictPort";
+        startInfo.Arguments = "\"" + viteScript + "\" --port " + port + " --strictPort --clearScreen false"
+            + (openBrowser ? " --open" : "");
         startInfo.WorkingDirectory = root;
         startInfo.UseShellExecute = false;
 
@@ -63,36 +81,20 @@ internal static class RPGAtlasEngine
         catch (Exception)
         {
             return Fail(
-                "RPGAtlas could not start Node.js (is it installed and on PATH?).",
+                "RPGAtlas could not start Node.js (is it installed?).",
                 "Install Node.js 18 or newer from https://nodejs.org/ and try again.");
-        }
-
-        string url = "http://localhost:" + port + "/";
-        Console.WriteLine();
-        Console.WriteLine("  RPGAtlas is starting (Vite dev server)...");
-        Console.WriteLine();
-        Console.WriteLine("  Editor:  " + url);
-        Console.WriteLine("  Player:  " + url + "play.html");
-        Console.WriteLine();
-        Console.WriteLine("  Keep this window open while you work. Close it to stop RPGAtlas.");
-        Console.WriteLine();
-
-        if (!WaitForServer(port, vite))
-        {
-            return Fail(
-                "The Vite dev server stopped before it was ready (see output above).",
-                "Fix the reported error, or run \"npm run dev\" in the RPGAtlas folder to debug.");
-        }
-
-        if (openBrowser)
-        {
-            try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
-            catch { Console.WriteLine("  (Open " + url + " in your browser to begin.)"); }
         }
 
         // Vite shares this console, so closing the window shuts both down.
         vite.WaitForExit();
-        return vite.ExitCode;
+
+        if (vite.ExitCode != 0)
+        {
+            return Fail(
+                "RPGAtlas stopped because of an error (see the messages above).",
+                "If you are stuck, ask for help and share a photo of this window.");
+        }
+        return 0;
     }
 
     private static int FindFreePort()
@@ -109,28 +111,6 @@ internal static class RPGAtlasEngine
             catch (SocketException) { /* port busy — try the next one */ }
         }
         return 0;
-    }
-
-    private static bool WaitForServer(int port, Process vite)
-    {
-        // Vite is normally up within a second or two; allow a cold minute.
-        for (int attempt = 0; attempt < 240; attempt++)
-        {
-            if (vite.HasExited) return false;
-            try
-            {
-                using (TcpClient client = new TcpClient())
-                {
-                    client.Connect("localhost", port);
-                    return true;
-                }
-            }
-            catch (SocketException)
-            {
-                Thread.Sleep(250);
-            }
-        }
-        return !vite.HasExited;
     }
 
     private static int Fail(string problem, string advice)
