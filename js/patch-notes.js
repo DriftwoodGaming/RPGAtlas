@@ -5,6 +5,17 @@
 export const PATCH_NOTES = [
   {
     date: "July 3, 2026",
+    title: "Performance pass — perf overlay, load budgets & a leak-free bill of health",
+    summary:
+      "The engine gets an in-game performance overlay and the project gains automated load-time, big-map stress, and memory-stability gates, keeping RPGAtlas fast as 1.0 approaches.",
+    items: [
+      "Press F3 during play (or add ?perf=1 to the player URL) to toggle the new performance overlay: fps, frame time (average and p95), per-frame work time, HD-2D draw calls/triangles, live GPU resource counts, and JS heap use where the browser reports it.",
+      "New automated budgets: editor and player boot-to-interactive times, a 160×160-map / 200-event / 16-light stress scene, and a map-transfer memory canary that fails if the renderer ever starts leaking GPU resources.",
+      "Audit result: repeated map transfers hold GPU geometry/texture counts exactly at their baseline — no disposal leaks.",
+    ],
+  },
+  {
+    date: "July 3, 2026",
     title: "Starter packs — one-click asset bundles in the Asset Browser",
     summary:
       "The Asset Browser gains a Packs tab: install curated asset bundles into your library with one click, starting with the bundled CC0 “Driftwood Starter” pack (terrain recolors, villagers, battlers, and a small chiptune soundtrack).",

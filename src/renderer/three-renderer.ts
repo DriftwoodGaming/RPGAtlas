@@ -2134,5 +2134,20 @@ export function createThreeRenderer(): any {
     return !ok || (!!gl && gl.isContextLost());
   }
 
-  return { available, setMap, renderFrame, isLost };
+  // Live GPU-side counters for the perf overlay and the memory-stability e2e
+  // (Phase 7): draw calls / triangles reset per frame; geometries / textures
+  // are three's alive-resource counts, the signal for dispose() leaks.
+  function stats(): any {
+    if (!renderer) return null;
+    const info = renderer.info;
+    return {
+      calls: info.render.calls,
+      triangles: info.render.triangles,
+      geometries: info.memory.geometries,
+      textures: info.memory.textures,
+      programs: info.programs ? info.programs.length : 0,
+    };
+  }
+
+  return { available, setMap, renderFrame, isLost, stats };
 }

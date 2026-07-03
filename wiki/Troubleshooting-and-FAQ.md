@@ -101,6 +101,29 @@ lower rate means *more* frequent battles. See [Maps & Tiles](Maps-and-Tiles#rand
 
 ---
 
+## Performance
+
+### How do I see what my game's frame rate is?
+Press **F3** during play (playtest or an exported game), or add `?perf=1` to the player URL. The
+performance overlay shows fps, frame time (average and 95th percentile), the engine's per-frame work
+time, HD-2D draw calls and triangles, live GPU resource counts, and JS heap use (Chromium browsers).
+Press F3 again to hide it.
+
+### My HD-2D map is slow on an older machine
+Every HD-2D feature is a per-map toggle in **Map Properties** — shadows, water reflections, SSAO,
+depth of field, and bloom are the heaviest. Turn them off map-by-map, or lower the game's screen
+size in the **Database ▸ System** tab. The engine is tuned to hold 60 fps at 1080p on integrated
+GPUs with everything on, but very old GPUs (or browsers with hardware acceleration disabled —
+check the overlay's frame time) may need trimming.
+
+### Does a huge map hurt performance?
+Big maps are fine: terrain renders in view-culled chunks, so a 160×160 map with hundreds of events
+holds the same frame budget as a small one (this is enforced by an automated stress test). What
+*does* add up is hundreds of **parallel-trigger events running long command loops** — prefer
+touch/action triggers where possible.
+
+---
+
 ## Publishing
 
 ### My exported EXE triggers a virus/security warning

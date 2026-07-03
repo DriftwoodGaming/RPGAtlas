@@ -37,6 +37,14 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
   background: rgba(120,20,20,0.92); border: 1px solid #f88; border-radius: 6px;
   padding: 8px 12px; font-size: 13px;
 }
+/* Perf overlay (?perf=1 / F3 — Phase 7) */
+.perf-hud {
+  position: absolute; left: 6px; top: 6px; z-index: 98; pointer-events: none;
+  background: rgba(8,10,18,0.78); border: 1px solid rgba(140,150,190,0.35);
+  border-radius: 5px; padding: 5px 8px; white-space: pre; text-align: left;
+  font: 11px/1.5 Consolas, "Cascadia Mono", monospace; color: #9adcff;
+  font-variant-numeric: tabular-nums;
+}
 
 /* ---------- windows ---------- */
 .win {

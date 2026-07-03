@@ -30,6 +30,7 @@
 import { ctx } from "./state/engine-context.js";
 import { update } from "./scenes/map.js";
 import { render } from "./render-glue.js";
+import { perfActive, perfSample } from "./perf-hud.js";
 
 /** The fixed game-logic tick length. Owned here — the loop defines the
  *  timestep; render-glue imports it for interpolation (function-scope use only,
@@ -43,11 +44,14 @@ export async function loop(now: number): Promise<void> {
   ctx.loopAcc += now - ctx.loopLast;
   ctx.loopLast = now;
   if (ctx.loopAcc > 250) ctx.loopAcc = 250; // clamp after a stall / tab switch (avoid spiral)
+  // Perf overlay (Phase 7): time the update+render work only while visible.
+  const perfT0 = perfActive() ? performance.now() : 0;
   while (ctx.loopAcc >= TICK_MS) {
     update();
     ctx.loopAcc -= TICK_MS;
   }
   await render();
+  if (perfT0 > 0) perfSample(now, performance.now() - perfT0);
   requestAnimationFrame(loop);
 }
 

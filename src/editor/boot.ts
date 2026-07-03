@@ -211,6 +211,9 @@ async function boot() {
   setMode("map");
   rebuildAll();
   saveNow();
+  // Boot-to-interactive mark (Phase 7 Stage A): read by the load-time budget
+  // e2e; performance.now() is relative to navigation start.
+  (window as any).RPGATLAS_BOOT_MS = performance.now();
 }
 
 // The "new" action (workspace.ts) and project import (persistence.ts) rebuild

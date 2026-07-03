@@ -48,6 +48,8 @@ import { Battle } from "./scenes/battle.js";
 import { toTitle, showTitle } from "./scenes/title.js";
 import { gameOver } from "./scenes/gameover.js";
 import { playMapAnimation } from "./anim-glue.js";
+import { initPerfHud } from "./perf-hud.js";
+import { Renderer } from "../renderer/index.js";
 import { initAssetLibrary } from "../shared/asset-library.js";
 import { createDefaultAssetStore } from "../platform/default-asset-store.js";
 // Side effect: registers window.AtlasAudioDeck, the seam js/sfx.js routes
@@ -250,6 +252,13 @@ async function boot(): Promise<void> {
   ctx.scene = "title";
   showTitle();
   startLoop(); // kick off the fixed-timestep loop (rAF, so it gets a real timestamp)
+  // Perf overlay (?perf=1 / F3) + diagnostics hooks (Phase 7 Stage A): the
+  // boot mark feeds the load-time budget e2e; the stats fn feeds the
+  // memory-stability e2e and stays handy for manual leak hunting.
+  initPerfHud();
+  (window as any).RPGATLAS_BOOT_MS = performance.now();
+  (window as any).RPGATLAS_RENDERER_STATS = () =>
+    (Renderer as any).stats ? (Renderer as any).stats() : null;
 
   // unlock audio on first interaction
   const unlock = () => {
