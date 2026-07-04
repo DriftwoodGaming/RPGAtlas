@@ -17,6 +17,7 @@ import { registerCommand } from "./interpreter/registry.js";
 import { ctx, fns } from "./state/engine-context.js";
 import { G } from "./state/game-state.js";
 import { scriptApi } from "./script-api.js";
+import { zonesAtTile } from "../shared/zone-geom.js";
 
 export const Plugins: any = {
   hooks: { mapLoad: [], update: [], render: [] },
@@ -110,6 +111,12 @@ export const Plugins: any = {
       },
       startBattle: (troopId: any, canEscape: any) =>
         fns.Battle.run(troopId, canEscape !== false),
+      // Gameplay zones (Phase 8): every zone covering tile (x, y) on the current
+      // map, in author draw order. The plugin-facing win of the zone model —
+      // "custom" zones are inert to the engine but readable here, so a plugin can
+      // give any zone kind its own meaning. Absent map.zones ⇒ [].
+      zonesAt: (x: any, y: any) =>
+        zonesAtTile(ctx.map && ctx.map.zones, Math.floor(x), Math.floor(y)),
     };
     Plugins.atlas = Plugins.dw = atlas; // .dw kept for pre-rebrand plugins
     Plugins.status = [];

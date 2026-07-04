@@ -29,14 +29,17 @@ const STACK_MAX = 60;
     const m = RA.byId(S.proj.maps, mapId);
     // layersAdv (Phase 8) carries the generalized stack incl. tile-layer data;
     // clone it too or Advanced-editor paints/reorders would not undo. Absent on
-    // classic maps — undefined round-trips as an absent key.
-    return { kind: "map", label: label || "Map edit", mapId, layers: RA.clone(m.layers), shadows: m.shadows.slice(), passOv: m.passOv.slice(), heights: heightsOf(m).slice(), events: RA.clone(m.events), layersAdv: m.layersAdv ? RA.clone(m.layersAdv) : undefined };
+    // classic maps — undefined round-trips as an absent key. zones (Phase 8
+    // Stage D) are captured the same way so drawing/editing a gameplay zone in
+    // the Advanced editor undoes as one step.
+    return { kind: "map", label: label || "Map edit", mapId, layers: RA.clone(m.layers), shadows: m.shadows.slice(), passOv: m.passOv.slice(), heights: heightsOf(m).slice(), events: RA.clone(m.events), layersAdv: m.layersAdv ? RA.clone(m.layersAdv) : undefined, zones: m.zones ? RA.clone(m.zones) : undefined };
   }
   export function applySnapshot(s: any) {
     const m = RA.byId(S.proj.maps, s.mapId);
     if (!m) return;
     m.layers = s.layers; m.shadows = s.shadows; m.passOv = s.passOv; m.heights = s.heights; m.events = s.events;
     m.layersAdv = s.layersAdv;
+    m.zones = s.zones;
     if (S.curMapId !== s.mapId) { S.curMapId = s.mapId; rebuildMapList(); }
     S.selectedEvent = null;
     touch(); renderMap(); refreshToolbar();

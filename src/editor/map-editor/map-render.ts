@@ -36,6 +36,16 @@ import { drawEntryTiles } from "../../shared/layer-composite";
     /** Advanced editor: id of the layer being edited (dims layers above it).
      *  Absent in the classic editor, which dims by the `layer` role instead. */
     activeLayerId?: number;
+    /** Advanced editor Objects mode (Phase 8 Stage D): when set, gameplay
+     *  zones are drawn as a translucent overlay on top of the tile render,
+     *  with the selected zone highlighted and the in-progress draft shown.
+     *  Absent in every other view ⇒ no zone overlay drawn. */
+    zoneOverlay?: {
+      zones: import("../../shared/schema").MapZone[];
+      selectedId: number | null;
+      /** an in-progress shape being drawn (rect drag / poly points / point). */
+      draft?: import("../../shared/schema").ZoneShape | null;
+    };
   }
   function viewFromS(): MapView {
     return {
@@ -179,6 +189,85 @@ import { drawEntryTiles } from "../../shared/layer-composite";
       }
     }
   }
+  // Gameplay-zone overlay (Phase 8 Stage D). Each kind gets a stable hue so
+  // authors can eyeball what a zone does; the selected zone is drawn brighter
+  // with a handle at each vertex; the in-progress draft is dashed.
+  const ZONE_COLORS: Record<string, string> = {
+    encounter: "#ff6a8a", transfer: "#7ac8ff", sound: "#8affc8", weather: "#c9a2ff",
+    spawn: "#ffd86a", collision: "#ff5555", nav: "#55dd88", custom: "#c0c0c0",
+  };
+  function zoneColor(kind: string) { return ZONE_COLORS[kind] || "#c0c0c0"; }
+  function shapePath(g: any, shape: any) {
+    g.beginPath();
+    if (shape.type === "rect") {
+      g.rect(shape.x * TILE, shape.y * TILE, shape.w * TILE, shape.h * TILE);
+    } else if (shape.type === "ellipse") {
+      g.ellipse(shape.cx * TILE, shape.cy * TILE, shape.rx * TILE, shape.ry * TILE, 0, 0, 7);
+    } else if (shape.type === "point") {
+      g.rect(shape.x * TILE, shape.y * TILE, TILE, TILE);
+    } else if (shape.type === "poly") {
+      const pts = shape.pts || [];
+      if (!pts.length) return;
+      g.moveTo(pts[0].x * TILE, pts[0].y * TILE);
+      for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x * TILE, pts[i].y * TILE);
+      g.closePath();
+    }
+  }
+  function shapeVertices(shape: any): { x: number; y: number }[] {
+    if (shape.type === "rect") return [{ x: shape.x, y: shape.y }, { x: shape.x + shape.w, y: shape.y }, { x: shape.x + shape.w, y: shape.y + shape.h }, { x: shape.x, y: shape.y + shape.h }];
+    if (shape.type === "ellipse") return [{ x: shape.cx, y: shape.cy }];
+    if (shape.type === "point") return [{ x: shape.x, y: shape.y }];
+    if (shape.type === "poly") return shape.pts || [];
+    return [];
+  }
+  function drawOneZone(g: any, z: any, v: MapView, selected: boolean) {
+    const col = zoneColor(z.kind);
+    g.fillStyle = col;
+    g.globalAlpha = selected ? 0.30 : 0.16;
+    shapePath(g, z.shape); g.fill();
+    g.globalAlpha = 1;
+    g.strokeStyle = col;
+    g.lineWidth = (selected ? 2.5 : 1.5) / v.zoom;
+    if (!selected) g.setLineDash([6 / v.zoom, 4 / v.zoom]);
+    shapePath(g, z.shape); g.stroke();
+    g.setLineDash([]);
+    // label (kind + name) at the shape's top-left-ish anchor
+    const anchor = shapeVertices(z.shape)[0] || { x: 0, y: 0 };
+    g.fillStyle = col;
+    g.font = "600 12px monospace";
+    g.textAlign = "left"; g.textBaseline = "top";
+    const label = z.name ? z.kind + ": " + z.name : z.kind;
+    g.fillText(label, anchor.x * TILE + 3, anchor.y * TILE + 2);
+    if (selected) {
+      // vertex handles for editing
+      g.fillStyle = "#ffffff";
+      g.strokeStyle = col; g.lineWidth = 1.5 / v.zoom;
+      for (const pt of shapeVertices(z.shape)) {
+        const hx = pt.x * TILE, hy = pt.y * TILE, r = 4 / v.zoom;
+        g.beginPath(); g.rect(hx - r, hy - r, r * 2, r * 2); g.fill(); g.stroke();
+      }
+    }
+  }
+  function drawZonesOverlay(g: any, v: MapView) {
+    const ov = v.zoneOverlay;
+    if (!ov) return;
+    for (const z of ov.zones) {
+      if (!z.shape) continue;
+      drawOneZone(g, z, v, z.id === ov.selectedId);
+    }
+    if (ov.draft) {
+      g.strokeStyle = "#ffffff"; g.lineWidth = 2 / v.zoom;
+      g.setLineDash([8 / v.zoom, 5 / v.zoom]);
+      shapePath(g, ov.draft); g.stroke();
+      g.setLineDash([]);
+      if (ov.draft.type === "poly") {
+        g.fillStyle = "#ffffff";
+        for (const pt of (ov.draft.pts || [])) {
+          g.beginPath(); g.arc(pt.x * TILE, pt.y * TILE, 3 / v.zoom, 0, 7); g.fill();
+        }
+      }
+    }
+  }
   /** The shared render core (Phase 8 Stage A): draw `m` onto `g`'s canvas
    *  under view-state `v`. The canvas is resized to fit the map at v.zoom. */
   export function renderMapView(g: any, m: any, v: MapView) {
@@ -313,6 +402,8 @@ import { drawEntryTiles } from "../../shared/layer-composite";
         g.strokeRect(v.hoverCell.x * TILE + 1, v.hoverCell.y * TILE + 1, TILE - 2, TILE - 2);
       }
     }
+    // Objects mode (Phase 8 Stage D): gameplay zones over everything else.
+    drawZonesOverlay(g, v);
   }
   export function renderMap() {
     const m = curMap();

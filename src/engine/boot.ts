@@ -46,6 +46,7 @@ import {
   frameWait,
   tickTween,
   handleMapTap,
+  armForcedEncounter,
 } from "./scenes/map.js";
 import { startLoop } from "./loop.js";
 import { initJournalView } from "./scenes/menus.js";
@@ -268,6 +269,9 @@ async function boot(): Promise<void> {
   if (!(window as any).RPGATLAS_PROJECT) initPlaytestBridge();
   if (ptStart) {
     await newGame(ptStart);
+    // "Test Encounter in This Area" (Phase 8): arm a one-shot forced roll so the
+    // first step inside the zone rolls immediately.
+    if (ptStart.forceEncounter) armForcedEncounter();
   } else {
     ctx.scene = "title";
     showTitle();

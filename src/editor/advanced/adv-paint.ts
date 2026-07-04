@@ -85,7 +85,8 @@ function paintAt(m: any, arr: number[], cell: { x: number; y: number }) {
 
 export function attachAdvPainting(canvas: HTMLCanvasElement) {
   canvas.addEventListener("mousedown", (e: MouseEvent) => {
-    if (e.button !== 0) return;
+    // Objects mode owns the canvas (zone drawing) — painting only in Layers mode.
+    if (e.button !== 0 || advState.rail !== "layers") return;
     const m = curMap();
     if (!m) return;
     const cell = cellFromMouse(canvas, e);
@@ -98,6 +99,7 @@ export function attachAdvPainting(canvas: HTMLCanvasElement) {
     else { paintAt(m, arr, cell); afterEdit(); }
   });
   canvas.addEventListener("mousemove", (e: MouseEvent) => {
+    if (advState.rail !== "layers") return; // zone-draw handles hover in Objects mode
     const m = curMap();
     if (!m) return;
     const cell = cellFromMouse(canvas, e);

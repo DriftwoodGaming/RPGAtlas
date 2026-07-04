@@ -1,7 +1,8 @@
 # Phase 8 Spec — Advanced Map Editor (Tiled-class mapping)
 
-**Status:** IN PROGRESS — Stages A & B landed 2026-07-04. Stage log accumulates
-below, phase-3-spec style, as stages land. Next: C/D/E (parallel worktrees).
+**Status:** IN PROGRESS — Stages A & B landed 2026-07-04; Stage D built in a
+parallel worktree 2026-07-04 (Objects & gameplay zones). Stage log accumulates
+below, phase-3-spec style, as stages land. Remaining: C/E (parallel worktrees), F, G.
 **Authored:** 2026-07-04 by Claude Fable 5 (grand designer / orchestrator)
 **Branch (when work starts):** `phase-8-advanced-map` (off `main`)
 **Sources:** Codex feasibility discussion (2026-07-03, recovered from
@@ -567,6 +568,109 @@ Stage B traps / decisions:
   (blend, tint, slot, visibility, lock) and structural ops all push one undo entry.
 - Dynamic `import()` in the preview returns a **fresh** module instance (proj null)
   — verify live editor state through the DOM + `localStorage`, not module imports.
+
+### Stage D — Objects & gameplay zones (landed 2026-07-04, Opus)
+
+`map.zones` (drawn in Stage A's schema) becomes live: authors draw gameplay
+zones in the Advanced editor's new Objects palette and the engine gives each
+kind behaviour, all behind a `map.zones` absence guard so a zone-free map is
+byte-identical (engine + export) and pays zero per-step cost.
+
+Shipped — pure shared cores (one impl for editor + engine, vitest-covered):
+
+- **`src/shared/zone-geom.ts`** (14 tests): `bboxOf`, `pointInShape`
+  (rect/ellipse/point/`poly` even-odd ray-cast), `pointInZoneTile` (tile sampled
+  at its CENTER so a 1×1 rect == exactly its tile), `distanceToZoneTile` (0
+  inside, nearest-edge outside — backs the sound falloff), and `zonesAtTile`
+  (every covering zone, author order). Bbox pre-filter before the real test.
+- **`src/shared/zone-raster.ts`** (7 tests): `rasterizeZones` bakes collision
+  (force-block=2) and nav (force-pass=1) zones into a passOv-compatible
+  `Int8Array` at load, iterating only each shape's clamped bbox. Returns **null**
+  when the map has no collision/nav zones (the engine then keeps its verbatim
+  passOv read). Force-block wins over force-pass (collision is the stronger rule).
+
+Shipped — engine runtime (`src/engine/scenes/zone-runtime.ts`, absence-guarded):
+
+- **collision / nav**: `resetZoneState(map)` (called at the end of `loadMap`,
+  after `Plugins.fire("mapLoad")` so the weather baseline is the map's intended
+  weather) bakes the overlay; `tilePassable` consults `zonePassAt` **only** when
+  `mapHasZones()` — the movement hot path stays a plain array read.
+- **encounter**: `onPlayerStep`'s roll now runs `zoneEncounterPool` as the top
+  tier of the `byRegion` precedence family (zone > region > time > default).
+- **transfer**: edge-triggered on tile-enter (`updateZonePresence` tracks an
+  `inside` id-set); `map.ts` fires it through the ordinary `transferPlayer`.
+- **sound**: `reconcileSound` merges covering sound zones onto the map's base
+  `ambience` and calls the Phase 6 `setAmbience` deck; the deck is touched only
+  while a sound zone is (or was) active.
+- **weather**: `reconcileWeather` applies a zone's weather on enter and restores
+  the captured baseline on exit, through the guarded `window.Atlas.weather`
+  surface (inert if the weather plugin isn't loaded).
+- **spawn**: no runtime code — resolved at edit time (documented in the inspector).
+- **custom**: inert; surfaced via **`atlas.zonesAt(x, y)`** added to both the
+  plugin `atlas` surface (`plugin-runtime.ts`) and the `script`-command `game`
+  surface (`script-api.ts`), both delegating to `zonesAtTile`.
+
+Shipped — editor (Objects palette + inspectors, mockup 3):
+
+- Advanced panel gains a right-rail tab strip (**Layers | Objects**); the paint
+  listeners and the zone listeners share the canvas and both gate on
+  `advState.rail`. `adv-zones.ts` (pure ops, 8 tests: promote-on-first-edit, id
+  alloc, per-kind default payloads, add/find/delete/patch/move). `adv-zone-draw.ts`
+  draws rect/ellipse/poly/point (snap to grid, double-click finishes a polygon,
+  Esc cancels) and edits the selected zone's vertices; `adv-objects.ts` renders
+  the kind picker, zone list, and per-kind inspectors (encounter troop checklist
+  + rate + **Test Encounter in This Area**, transfer destination via the shared
+  location picker, sound key/vol/falloff, weather kind/power, custom typed props).
+- **Zone overlay** in `renderMapView` (new optional `MapView.zoneOverlay`,
+  absent in every other view): translucent kind-coloured fills, dashed unselected
+  outlines, bright selected outline with vertex handles, and the live draft.
+- **Undo/round-trip**: `snapshotOf`/`applySnapshot` now clone/restore `map.zones`
+  (absent round-trips as an absent key), so zone draws/edits undo as one step and
+  survive save/load. e2e `tests-e2e/zones.spec.mjs` (authored, run by the
+  integrator) draws a polygon encounter zone and asserts it in the persisted JSON.
+- **Test Encounter in This Area**: writes `forceEncounter:true` into the playtest
+  handoff; `consumePlaytestStart` reads it and `boot` calls `armForcedEncounter()`
+  so the first step inside an encounter zone rolls immediately (one-shot).
+
+i18n: 36 new chrome keys added to all 10 locales + `CURATED_KEYS` (parity gate
+green). Long note/body strings use plain `t()` English fallback (not in dicts,
+per the file's scope rule) so they neither miss nor orphan. CSS: `.adv-rail-*` /
+`.adv-obj-*` / `.adv-zone-*` block appended; `editor.css?v=56 → 57`. Patch-notes
+"Advanced Map Editor — objects & gameplay zones"; `patch-notes.js ?v=37 → 38`
+(help.ts + shims.d.ts).
+
+Gate: tsc clean; eslint clean; `node --test` 16/16; vitest **356** (Stage B 324
++ zone-geom 14, zone-raster 7, adv-zones-ops 8, zone-perf 3, and the i18n-parity
+suite gained the Stage-D keys). The perf spec (`tests-unit/zone-perf.test.ts`)
+proves a 64×64 / 50-zone map's per-step `zonesAtTile` is sub-10µs (a rounding
+error on a 16ms tick) and that collision/nav rasterization is one-time — the "no
+measurable movement-loop regression" exit. Full Playwright NOT run here (three
+parallel worktrees; integrator runs it once at merge); the new zones e2e is
+authored but not executed.
+
+Stage D traps / decisions:
+- **Zone pass overlay precedes `passOv`** in `tilePassable` (a collision/nav zone
+  is an explicit author override, like passOv). It's checked ONLY under
+  `mapHasZones()`, so a zone-free map runs the byte-identical verbatim read.
+- **`resetZoneState` runs after `mapLoad`**, not before `prerenderMap` — the
+  weather plugin sets per-map weather on the `mapLoad` hook, so the restore
+  baseline must be captured afterwards or exiting a weather zone would restore
+  the wrong (previous-map) weather.
+- **Transfer is edge-triggered via a per-load `inside` id-set.** `transferPlayer`
+  resets zone state, and `onPlayerStep` fires only on movement, so arriving
+  *inside* a transfer zone does not immediately re-fire (matches transfer-event
+  semantics).
+- **`snapshotOf` did NOT capture `map.zones` before this stage** (Stage B added
+  `layersAdv` but not `zones`) — added here, or Advanced zone edits would not
+  undo. Any future map-level array needs the same treatment.
+- **Sound/weather reconciliation is level-triggered on tile-enter, bbox
+  pre-filtered.** Only `updateZonePresence` (once per step, guarded) touches the
+  audio deck / weather, and only when a sound/weather zone is or was active.
+- **`atlas.zonesAt` is added to BOTH surfaces** (plugin `atlas` and `script`
+  `game`); both are frozen-but-extendable, so this is additive. The `game`
+  addition means `script` event commands can read zones too.
+- Continuous sliders (sound volume, weather power) mutate + `touch()` live and
+  push one undo on `change` (release), same posture as Stage B's opacity slider.
 
 ## Open items to confirm before Stage A starts
 

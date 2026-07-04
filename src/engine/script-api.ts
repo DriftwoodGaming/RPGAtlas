@@ -12,6 +12,7 @@ import { clamp } from "./util.js";
 import { ctx } from "./state/engine-context.js";
 import { G, Quests, evaluateQuestFailures } from "./state/game-state.js";
 import { Interp } from "./interpreter/interp.js";
+import { zonesAtTile } from "../shared/zone-geom.js";
 
 export const scriptApi: any = {
   setSwitch(id: any, v: any) {
@@ -78,5 +79,11 @@ export const scriptApi: any = {
   },
   getTimeOfDay() {
     return G.timeOfDay == null ? 12 : G.timeOfDay;
+  },
+  // Gameplay zones (Phase 8): the zones covering tile (x, y) on the current map,
+  // in author draw order — the same surface plugins get as atlas.zonesAt. Absent
+  // map.zones ⇒ []. Additive (the frozen surface is extended, never changed).
+  zonesAt(x: any, y: any) {
+    return zonesAtTile(ctx.map && ctx.map.zones, Math.floor(x), Math.floor(y));
   },
 };

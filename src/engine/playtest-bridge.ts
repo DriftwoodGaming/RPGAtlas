@@ -25,7 +25,7 @@ import { transferPlayer } from "./scenes/map.js";
 export const PLAYTEST_START_KEY = "rpgatlas_playtest_start";
 export const PLAYTEST_CHANNEL = "rpgatlas_playtest_bridge";
 
-export interface PlaytestStart { mapId: number; x: number; y: number; }
+export interface PlaytestStart { mapId: number; x: number; y: number; forceEncounter?: boolean; }
 
 /** Read-and-clear the start-position handoff. Fresh entries only. */
 export function consumePlaytestStart(): PlaytestStart | null {
@@ -40,7 +40,9 @@ export function consumePlaytestStart(): PlaytestStart | null {
     const map = ctx.proj.maps.find((m: any) => m.id === mapId);
     const x = Math.max(0, Math.min(map.width - 1, Math.floor(Number(v.x) || 0)));
     const y = Math.max(0, Math.min(map.height - 1, Math.floor(Number(v.y) || 0)));
-    return { mapId, x, y };
+    // "Test Encounter in This Area" (Phase 8) sets forceEncounter so the first
+    // step inside an encounter zone rolls immediately.
+    return { mapId, x, y, forceEncounter: v.forceEncounter === true };
   } catch {
     return null;
   }

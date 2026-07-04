@@ -19,6 +19,7 @@ import { wantsDash } from "../state/player-options.js";
 import { UIStack } from "../ui-stack.js";
 import { Interp } from "../interpreter/interp.js";
 import { Plugins } from "../plugin-runtime.js";
+import { updateZonePresence, zoneEncounterPool, mapHasZones } from "./zone-runtime.js";
 import { fadeTo } from "../message.js";
 import { render } from "../render-glue.js";
 import { toggleHud } from "../hud.js";
@@ -310,11 +311,23 @@ function onPlayerStep(): void {
       return;
     }
   }
+  // Gameplay zones (Phase 8): sound/weather presence (level-triggered) and an
+  // edge-triggered transfer zone, checked only on tile-enter and only when the
+  // map has zones. A transfer zone routes through the ordinary transfer path
+  // (same as the transfer event command) and ends the step.
+  if (mapHasZones() && !ctx.blockingRun && !G.vehicle) {
+    const tr = updateZonePresence(ctx.map, p.x, p.y);
+    if (tr) {
+      transferPlayer(tr.mapId, tr.x, tr.y, tr.dir);
+      return;
+    }
+  }
   // random encounters (airships fly above them; regions can swap the pool)
   const enc = ctx.map.encounters;
   if (enc && enc.rate > 0 && enc.troops.length && !ctx.blockingRun && G.vehicle !== "airship") {
     G.encSteps++;
-    if (G.encSteps >= enc.rate * (0.7 + Math.random() * 0.6)) {
+    const forced = consumeForcedEncounter();
+    if (forced || G.encSteps >= enc.rate * (0.7 + Math.random() * 0.6)) {
       G.encSteps = 0;
       let pool = enc.troops;
       // night pool first, then a region pool overrides (more specific wins)
@@ -324,6 +337,9 @@ function onPlayerStep(): void {
       const region = regionAt(p.x, p.y);
       const regionPool = region && enc.byRegion ? enc.byRegion[region] : null;
       if (Array.isArray(regionPool) && regionPool.length) pool = regionPool;
+      // Encounter zones (Phase 8) are the strongest tier of the byRegion family:
+      // standing inside one replaces the pool for the roll. Absent ⇒ unchanged.
+      pool = zoneEncounterPool(ctx.map, p.x, p.y, pool);
       const troopId = pool[rnd(pool.length)];
       sysSe("encounter");
       (async () => {
@@ -332,6 +348,20 @@ function onPlayerStep(): void {
       })();
     }
   }
+}
+
+// "Test Encounter in This Area" (Phase 8): the editor writes a one-shot flag to
+// the playtest handoff; boot arms it, and the NEXT step inside an encounter
+// zone forces the roll immediately (so the tester doesn't have to wander for the
+// rate to trigger). One-shot: consumed on the first eligible step.
+let forcedEncounterArmed = false;
+export function armForcedEncounter(): void {
+  forcedEncounterArmed = true;
+}
+function consumeForcedEncounter(): boolean {
+  if (!forcedEncounterArmed) return false;
+  forcedEncounterArmed = false;
+  return true;
 }
 
 // ---- touch/click-to-move (Phase 5 Stage C) ----

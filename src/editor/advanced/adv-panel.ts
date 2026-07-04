@@ -23,10 +23,12 @@ import { touch } from "../persistence";
 import { renderMap, renderMapView, type MapView } from "../map-editor/map-render";
 import { rebuildMapList } from "../map-editor/map-list";
 import { setStatus } from "../map-editor/status";
-import type { MapFolder } from "../../shared/schema";
-import { advState, advHooks, type AdvTool } from "./adv-state";
+import type { MapFolder, MapZone } from "../../shared/schema";
+import { advState, advHooks, type AdvTool, type AdvRail } from "./adv-state";
 import { attachAdvPainting } from "./adv-paint";
 import { buildLayersToolbar, renderLayersList, renderLayerProps } from "./adv-layers";
+import { attachZoneDrawing, cancelZoneDraft } from "./adv-zone-draw";
+import { renderObjectsPanel } from "./adv-objects";
 
 export const ADV_PANEL = "adv";
 
@@ -37,6 +39,8 @@ let root: HTMLElement | null = null;
 let treeEl: HTMLElement | null = null;
 let layersEl: HTMLElement | null = null;
 let propsEl: HTMLElement | null = null;
+let objectsEl: HTMLElement | null = null;   // Objects palette body (Stage D)
+let railTabsEl: HTMLElement | null = null;   // Layers / Objects tab strip
 let canvas: HTMLCanvasElement | null = null;
 let zoomLabel: HTMLElement | null = null;
 let toolBtns: Record<string, HTMLElement> = {};
@@ -59,11 +63,35 @@ function rebuild() {
   dirty = false;
   rebuildTree();
   rebuildLayers();
+  rebuildObjects();
+  syncRail();
   renderAdvCanvas();
 }
 function rebuildLayers() {
   if (layersEl) renderLayersList(layersEl);
   if (propsEl) renderLayerProps(propsEl);
+}
+function rebuildObjects() {
+  if (objectsEl) renderObjectsPanel(objectsEl);
+}
+/** Show the active rail's body (Layers or Objects) and light its tab. */
+function syncRail() {
+  const objects = advState.rail === "objects";
+  const layersWrap = layersEl ? (layersEl.closest(".adv-rail-layers") as HTMLElement | null) : null;
+  if (layersWrap) layersWrap.style.display = objects ? "none" : "";
+  if (objectsEl) objectsEl.style.display = objects ? "" : "none";
+  if (railTabsEl) {
+    for (const b of Array.from(railTabsEl.children) as HTMLElement[]) {
+      b.classList.toggle("sel", b.dataset.rail === advState.rail);
+    }
+  }
+}
+function setRail(rail: AdvRail) {
+  if (advState.rail === rail) return;
+  advState.rail = rail;
+  cancelZoneDraft();
+  syncRail();
+  renderAdvCanvas();
 }
 
 // ============================ map tree ============================
@@ -205,13 +233,24 @@ function rebuildTree() {
 
 // ============================ canvas ============================
 function advView(): MapView {
+  const objects = advState.rail === "objects";
+  const m = curMap();
   return {
     zoom: advState.zoom, mode: "map", layer: "auto", tool: advState.tool,
     selection: null, hoverCell: advState.hoverCell, hoverQuad: 0,
     rectStart: advState.rectStart, painting: advState.painting,
     pasteMode: null, clipTiles: null, selectedEvent: null,
     system: S.proj.system,
-    activeLayerId: advState.activeLayerId ?? undefined,
+    // In Objects mode the active layer is not dimmed (the zones sit on top);
+    // in Layers mode dim above the active layer as before.
+    activeLayerId: objects ? undefined : (advState.activeLayerId ?? undefined),
+    zoneOverlay: objects && m
+      ? {
+          zones: (m.zones as MapZone[]) || [],
+          selectedId: advState.selectedZoneId,
+          draft: advState.zoneDraft,
+        }
+      : undefined,
   };
 }
 function renderAdvCanvas() {
@@ -239,6 +278,7 @@ export function mountAdvanced(): HTMLElement {
   treeEl = h("div", { class: "adv-tree" }) as HTMLElement;
   layersEl = h("div", { class: "adv-layers" }) as HTMLElement;
   propsEl = h("div", { class: "adv-layer-props" }) as HTMLElement;
+  objectsEl = h("div", { class: "adv-objects" }) as HTMLElement;
   zoomLabel = h("span", { class: "adv-zoom-label" }, "50%") as HTMLElement;
   const treeHead = h("div", { class: "adv-section-head" },
     h("span", null, t("Map Tree")),
@@ -275,16 +315,25 @@ export function mountAdvanced(): HTMLElement {
     h("button", { class: "adv-mini-btn", title: t("Zoom In"), onclick: () => stepZoom(1) }, "＋"),
   ) as HTMLElement;
 
+  // Right-rail tab strip: Layers stack vs. Objects & gameplay zones (Stage D).
+  const railTab = (rail: AdvRail, label: string) =>
+    h("button", { class: "adv-rail-tab", "data-rail": rail, onclick: () => setRail(rail) }, label);
+  railTabsEl = h("div", { class: "adv-rail-tabs" },
+    railTab("layers", t("Layers")),
+    railTab("objects", t("Objects")),
+  ) as HTMLElement;
+
   root = h("div", { class: "adv-root dock-panel-content" },
     h("div", { class: "adv-rail" },
       treeHead,
       treeEl,
-      h("div", { class: "adv-section-head" },
-        h("span", null, t("Layers")),
+      railTabsEl,
+      h("div", { class: "adv-rail-layers" },
+        buildLayersToolbar(),
+        layersEl,
+        propsEl,
       ),
-      buildLayersToolbar(),
-      layersEl,
-      propsEl,
+      objectsEl,
     ),
     h("div", { class: "adv-center" },
       toolStrip,
@@ -293,9 +342,16 @@ export function mountAdvanced(): HTMLElement {
   ) as HTMLElement;
 
   attachAdvPainting(canvas);
-  // Bind the refresh hooks the Layers / paint modules call (cycle-safe).
+  attachZoneDrawing(canvas);
+  // Esc cancels an in-progress polygon / draft while the Objects rail is active.
+  root.addEventListener("keydown", (e: KeyboardEvent) => {
+    if (e.key === "Escape" && advState.rail === "objects") { cancelZoneDraft(); renderAdvCanvas(); }
+  });
+  root.tabIndex = 0;
+  // Bind the refresh hooks the Layers / paint / zone modules call (cycle-safe).
   advHooks.render = renderAdvCanvas;
   advHooks.rebuildLayers = rebuildLayers;
+  advHooks.rebuildObjects = rebuildObjects;
   advHooks.rebuild = rebuild;
 
   // Catch "shown while dirty" (the dock displays the tab after edits landed

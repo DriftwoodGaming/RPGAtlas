@@ -23,6 +23,7 @@ import { ctx, fns } from "../state/engine-context.js";
 import { G, Quests, objectiveDone, onEnemyKilled, param } from "../state/game-state.js";
 import { Plugins } from "../plugin-runtime.js";
 import { setAmbience } from "../../shared/audio-deck.js";
+import { resetZoneState, zonePassAt, mapHasZones } from "./zone-runtime.js";
 
 const TILE = Assets.TILE;
 
@@ -47,6 +48,15 @@ function tileAt(layer: any, x: any, y: any): any {
 }
 export function tilePassable(x: any, y: any): boolean {
   if (x < 0 || y < 0 || x >= ctx.map.width || y >= ctx.map.height) return false;
+  // Collision/nav zones (Phase 8) are baked into a passOv-compatible overlay at
+  // map load; a non-zero cell is an explicit force-block/force-pass that wins
+  // over the tile's own passability. Guarded so a map with no such zones keeps
+  // the verbatim passOv read below — byte-identical movement (goldens gate it).
+  if (mapHasZones()) {
+    const zo = zonePassAt(x, y);
+    if (zo === 1) return true;
+    if (zo === 2) return false;
+  }
   const ov = ctx.map.passOv ? ctx.map.passOv[y * ctx.map.width + x] : 0;
   if (ov === 1) return true;
   if (ov === 2 || ov === 3) return false; // 3 = ledge: blocked for walking, jumped over (Phase 5)
@@ -226,6 +236,11 @@ export async function loadMap(mapId: any): Promise<void> {
   // layers keep looping seamlessly across a transfer.
   setAmbience(ctx.map.ambience || []);
   Plugins.fire("mapLoad", ctx.map);
+  // Gameplay zones (Phase 8): bake collision/nav into the pass overlay and reset
+  // presence tracking. Runs AFTER mapLoad so the weather baseline captures the
+  // map's intended weather (the weather plugin sets per-map weather on mapLoad).
+  // Absent `zones` ⇒ empty state, zero per-step work.
+  resetZoneState(ctx.map);
 }
 
 export function entityAt(x: any, y: any, exclude?: any): any[] {

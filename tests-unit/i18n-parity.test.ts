@@ -37,6 +37,13 @@ const CURATED_KEYS = [
   "Delete Layer", "Layer name", "Group", "Toggle Visibility", "Toggle Lock",
   "Opacity", "Blend", "Tint", "Clear Tint", "Draw slot",
   "Below characters", "Above (overhead)",
+  // Advanced Map Editor — Objects & gameplay zones (Phase 8 Stage D, adv-objects.ts)
+  "Objects", "New zone kind", "Zones", "Zone name", "Name", "Kind", "Delete Zone",
+  "Encounter", "Transfer", "Sound", "Weather", "Spawn Point", "Navigation", "Custom",
+  "Select / Edit", "Rectangle Zone", "Ellipse Zone", "Polygon Zone", "Point Zone",
+  "Encounter rate", "Troops", "Test Encounter in This Area", "Destination", "Facing",
+  "Pick Destination", "Keep facing", "Down", "Left", "Right", "Up",
+  "Audio key", "Volume", "Falloff", "None", "Linear (by distance)", "Power",
 ];
 
 /** Command labels that are dynamic composites or deliberately English-only

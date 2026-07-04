@@ -5,6 +5,20 @@
 export const PATCH_NOTES = [
   {
     date: "July 4, 2026",
+    title: "Advanced Map Editor — objects & gameplay zones",
+    summary:
+      "The Advanced tab gains an Objects palette: draw gameplay zones straight onto the map and give them behaviour. Fence off an area that spawns tougher monsters, a doorway that warps the player elsewhere, a grove that loops birdsong, a storm that only rains in one valley, or invisible walls and walkways — no scripting. Each zone kind has its own little inspector, and a map with no zones plays exactly as before.",
+    items: [
+      "Switch the right rail to Objects, pick a zone kind, and draw a Rectangle, Ellipse, Polygon, or Point on the canvas (double-click finishes a polygon). Select tool drags the corner handles to reshape a zone.",
+      "Encounter zones replace the map's random-battle pool while you stand inside — with a one-click “Test Encounter in This Area” that playtests right there and forces a battle.",
+      "Transfer zones warp the player on entry; Sound zones loop an ambience (with optional distance falloff); Weather zones apply weather while inside and restore it on exit.",
+      "Collision zones make tiles solid and Navigation zones make them walkable — baked in at load, so movement stays fast.",
+      "Custom zones do nothing on their own but are readable by plugins and Script through atlas.zonesAt(x, y) — build whatever you like on top.",
+      "Everything round-trips through save/load and Undo (Ctrl+Z), and a map you never give a zone is byte-for-byte identical to before.",
+    ],
+  },
+  {
+    date: "July 4, 2026",
     title: "Advanced Map Editor — paintable layers",
     summary:
       "The Advanced tab's layer list is now fully editable. Add your own tile layers on top of the classic four, paint straight onto whichever layer is selected, and give each one an opacity, a blend mode (add / multiply / screen), or a colour tint. Everything you build shows up identically in the regular editor, in play-testing, and in exported games — and a map you never touch here is saved exactly as before.",

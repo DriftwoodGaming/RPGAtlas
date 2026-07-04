@@ -1031,3 +1031,41 @@ a.console-link:hover { text-decoration: underline; color: var(--text-bright); }
 .adv-prop-tint { flex: 1; display: flex; align-items: center; gap: 5px; }
 .adv-prop-color { width: 34px; height: 20px; padding: 0; border: 1px solid var(--line-3); background: none; }
 .adv-tool-sep { flex: 0 0 auto; width: 1px; height: 18px; background: var(--line-2); margin: 0 3px; }
+/* ---------- Advanced Map Editor — Objects & gameplay zones (Phase 8 Stage D) ---------- */
+.adv-rail-tabs { display: flex; gap: 2px; padding: 4px 6px 0; border-top: 1px solid var(--line-2); }
+.adv-rail-tab { flex: 1; padding: 4px 6px; font-size: var(--fs-small); cursor: pointer;
+  border: 1px solid var(--line-2); border-bottom: none; border-radius: 5px 5px 0 0;
+  background: var(--bar-2); color: var(--text-mid); }
+.adv-rail-tab.sel { background: var(--panel); color: var(--text-hi); border-color: var(--line-3); }
+.adv-objects { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 4px 8px 8px; background: var(--panel); }
+.adv-obj-kinds, .adv-obj-tools { display: flex; flex-wrap: wrap; gap: 3px; padding: 3px 0; }
+.adv-obj-kinds .adv-mini-btn { font-size: 11px; padding: 2px 6px; }
+.adv-obj-hint, .adv-prop-note { font-size: var(--fs-small); margin: 3px 0; line-height: 1.35; }
+.adv-zone-list { display: flex; flex-direction: column; gap: 1px; margin: 2px 0; }
+.adv-zone-row { display: flex; align-items: center; gap: 5px; padding: 2px 4px; cursor: pointer;
+  border-radius: 4px; font-size: var(--fs-small); }
+.adv-zone-row:hover { background: var(--bar-2); }
+.adv-zone-row.sel { background: var(--accent); color: #fff; }
+.adv-zone-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adv-zone-swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+.adv-zone-encounter { background: #ff6a8a; } .adv-zone-transfer { background: #7ac8ff; }
+.adv-zone-sound { background: #8affc8; } .adv-zone-weather { background: #c9a2ff; }
+.adv-zone-spawn { background: #ffd86a; } .adv-zone-collision { background: #ff5555; }
+.adv-zone-nav { background: #55dd88; } .adv-zone-custom { background: #c0c0c0; }
+.adv-zone-btn { flex: 0 0 auto; width: 18px; padding: 0; background: none; border: none;
+  color: var(--text-dim); cursor: pointer; font-size: 11px; }
+.adv-zone-row.sel .adv-zone-btn { color: #fff; }
+.adv-zone-inspector { border-top: 1px solid var(--line-2); margin-top: 6px; padding-top: 6px; }
+.adv-prop-input { flex: 1; min-width: 0; }
+.adv-prop-num { flex: 0 0 70px; }
+.adv-prop-dest { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adv-troop-list { max-height: 140px; overflow: auto; border: 1px solid var(--line-2);
+  border-radius: 5px; padding: 3px 5px; margin: 3px 0; }
+.adv-troop-item { display: flex; align-items: center; gap: 5px; font-size: var(--fs-small); padding: 1px 0; }
+.adv-obj-testbtn { width: 100%; margin: 6px 0 2px; padding: 5px; cursor: pointer;
+  border: 1px solid var(--accent); border-radius: 5px; background: var(--bar-2); color: var(--text-hi); }
+.adv-obj-testbtn:hover { background: var(--accent); color: #fff; }
+.adv-prop-props { display: flex; flex-direction: column; gap: 2px; margin: 3px 0; }
+.adv-prop-kv { display: flex; align-items: center; gap: 4px; }
+.adv-prop-key { flex: 0 0 70px; font-size: var(--fs-small); color: var(--text-mid);
+  overflow: hidden; text-overflow: ellipsis; }
