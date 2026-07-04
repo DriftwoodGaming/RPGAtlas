@@ -18,6 +18,7 @@ import { quickTransfer, quickSign, quickChest } from "../event-editor/quick-even
 import { openEventEditor } from "../event-editor/event-editor";
 import { setMode, refreshToolbar } from "../workspace";
 import { isAutotileId } from "../../shared/autotile-registry";
+import { tileId } from "../../shared/tile-flags";
 
   // ============================ painting ============================
   export function cellFromMouse(e: any) {
@@ -257,7 +258,9 @@ import { isAutotileId } from "../../shared/autotile-registry";
       }
       if (S.mode === "map") { // eyedropper from the topmost visible tile
         const ln = S.layer === "auto" ? topLayerAt(cell.x, cell.y) : S.layer;
-        const t = getCell(cell.x, cell.y, ln) || getCell(cell.x, cell.y, "ground");
+        // Mask Stage-E flags: the palette selection is always a clean id (the
+        // Advanced brush carries transform flags separately).
+        const t = tileId(getCell(cell.x, cell.y, ln) || getCell(cell.x, cell.y, "ground"));
         if (t > 0) { S.selectedTile = t; renderPalette(); setStatus(); }
       }
       return;

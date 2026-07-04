@@ -23,17 +23,26 @@
 
 import { cornerSources, neighborMask } from "./autotile";
 import { resolveTile, pickVariant, cellHash, frameTileGrid, type TerrainKind } from "./terrain-kinds";
+import { TILE_ID_MASK } from "./tile-flags";
 
 /** Reserved tile-id base for autotile groups. Far above any real/imported tile
  *  index, so a plain `Assets.drawTile` on an un-intercepted path is a harmless
- *  no-op (its guard rejects ids past the tiles array) rather than a mis-draw. */
+ *  no-op (its guard rejects ids past the tiles array) rather than a mis-draw.
+ *  AUTOTILE_BASE (1,000,000) sits far below the transform-flag bits (1<<28),
+ *  so the two id spaces never collide. */
 export const AUTOTILE_BASE = 1_000_000;
 
+/** True when `id` is an autotile reserved id. Masks the Stage-E transform-flag
+ *  bits off first so a flag-bearing value can never be mis-classified (flags are
+ *  v1-scoped to plain tiles, but masking here makes every call site flag-safe by
+ *  construction — the audit's belt-and-braces). A clean id masks to itself, so
+ *  the classic path is unchanged. */
 export function isAutotileId(id: unknown): boolean {
-  return typeof id === "number" && id >= AUTOTILE_BASE;
+  return typeof id === "number" && (id & TILE_ID_MASK) >= AUTOTILE_BASE;
 }
 export function tileIdOf(groupId: number): number { return AUTOTILE_BASE + groupId; }
-export function groupIdOf(tileId: number): number { return tileId - AUTOTILE_BASE; }
+/** Group id from a reserved tile id. Masks transform-flag bits first. */
+export function groupIdOf(tileId: number): number { return (tileId & TILE_ID_MASK) - AUTOTILE_BASE; }
 
 /** Per-kind / anim / variant metadata registered alongside a source block. All
  *  optional; the defaults reproduce the classic blob47 A2 group exactly. */

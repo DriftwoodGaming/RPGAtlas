@@ -14,7 +14,6 @@
 
 import { curMap, t, LAYER_LABELS } from "../editor-state";
 import { h } from "../dom";
-import { modal } from "../modals";
 import { touch } from "../persistence";
 import { pushUndo } from "../map-editor/history";
 import { classicStack, type BlendMode } from "../../shared/layer-view";
@@ -23,6 +22,7 @@ import {
   advState, advHooks, findLayer, addTileLayer, addGroup,
   groupLayer, ungroupLayer, deleteLayer, moveLayer, patchLayer,
 } from "./adv-state";
+import { nameDialog } from "./adv-dialogs";
 
 const BLEND_MODES: BlendMode[] = ["normal", "add", "multiply", "screen"];
 
@@ -52,27 +52,6 @@ function commit(label: string, fn: () => void) {
   fn();
   touch();
   advHooks.rebuild();
-}
-
-function nameDialog(title: string, initial: string, onOk: (name: string) => void) {
-  const input = h("input", {
-    type: "text", value: initial, placeholder: t("Layer name"),
-    style: "width:100%", spellcheck: "false",
-  }) as HTMLInputElement;
-  modal({
-    title,
-    content: input,
-    buttons: [
-      { label: "Save", primary: true, onClick(c: any) {
-        const name = input.value.trim();
-        if (!name) return;
-        onOk(name); c();
-      } },
-      { label: "Cancel" },
-    ],
-    dialogKeys: true,
-  });
-  setTimeout(() => { input.focus(); input.select(); }, 0);
 }
 
 // ---- toolbar ----

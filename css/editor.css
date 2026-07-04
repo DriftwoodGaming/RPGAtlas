@@ -1091,3 +1091,47 @@ a.console-link:hover { text-decoration: underline; color: var(--text-bright); }
 .studio-check.warn { color: #ffc477; }
 .studio-foot { align-items: center; }
 .studio-foot-sep { flex: 1; }
+/* ---------- Advanced Map Editor — stamps, transforms & palette (Phase 8 Stage E) ---------- */
+.adv-xfm-label { min-width: 34px; text-align: center; color: var(--text-dim);
+  font-size: var(--fs-small); letter-spacing: 1px; }
+.adv-xfm-label.active { color: var(--gold-edge); font-weight: 700; }
+/* right rail: tiles / stamps */
+.adv-rail-right { flex: 0 0 240px; display: flex; flex-direction: column; min-height: 0;
+  border-left: 1px solid var(--line-2); background: var(--panel); }
+.adv-rail-tabs { display: flex; flex: 0 0 auto; border-bottom: 1px solid var(--line-2); }
+.adv-rail-tab { flex: 1; padding: 6px 4px; background: var(--bar-2); border: none;
+  border-right: 1px solid var(--line-2); color: var(--text-mid); font-size: var(--fs-small);
+  cursor: pointer; }
+.adv-rail-tab:last-child { border-right: none; }
+.adv-rail-tab.sel { background: var(--accent); color: #fff; font-weight: 600; }
+.adv-rail-tiles, .adv-rail-stamps { flex: 1 1 auto; overflow-y: auto; min-height: 0;
+  display: flex; flex-direction: column; }
+.adv-rail-search { margin: 6px; padding: 4px 6px; font-size: var(--fs-small);
+  background: var(--bg-deep); border: 1px solid var(--line-3); color: var(--text); border-radius: 4px; }
+.adv-rail-cats { display: flex; flex-wrap: wrap; gap: 3px; padding: 0 6px 6px; }
+.adv-cat-chip { padding: 2px 7px; font-size: var(--fs-tiny); border: 1px solid var(--line-3);
+  border-radius: 10px; background: var(--bar-2); color: var(--text-mid); cursor: pointer; }
+.adv-cat-chip:hover { background: var(--hover-2); }
+.adv-cat-chip.sel { background: var(--accent); color: #fff; border-color: var(--accent); }
+.adv-tile-grid { display: grid; grid-template-columns: repeat(auto-fill, 40px); gap: 3px;
+  padding: 0 6px 8px; align-content: start; }
+.adv-tile-swatch { width: 40px; height: 40px; border: 1px solid var(--line-3); border-radius: 3px;
+  overflow: hidden; cursor: pointer; background: #15151d; }
+.adv-tile-swatch:hover { border-color: var(--text-mid); }
+.adv-tile-swatch.sel { border-color: var(--gold-edge); box-shadow: 0 0 0 1px var(--gold-edge); }
+.adv-tile-swatch-c { display: block; image-rendering: pixelated; }
+.adv-rail-empty { padding: 10px; font-size: var(--fs-small); }
+/* stamps */
+.adv-rail-actions { padding: 6px; border-bottom: 1px solid var(--line-2); }
+.adv-mini-btn.wide { width: 100%; padding: 5px; }
+.adv-stamp-row { display: flex; gap: 8px; padding: 6px; border-bottom: 1px solid var(--line-2);
+  align-items: flex-start; }
+.adv-stamp-row.sel { background: var(--hover-2); }
+.adv-stamp-thumb-c { flex: 0 0 auto; border: 1px solid var(--line-3); border-radius: 3px;
+  image-rendering: pixelated; }
+.adv-stamp-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.adv-stamp-name { font-size: var(--fs-small); color: var(--text); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; cursor: text; }
+.adv-stamp-btns { display: flex; gap: 3px; }
+.adv-stamp-prob { display: flex; align-items: center; gap: 5px; font-size: var(--fs-tiny);
+  color: var(--text-dim); }

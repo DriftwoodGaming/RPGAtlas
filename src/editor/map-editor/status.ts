@@ -10,6 +10,7 @@ import { Assets, TOOL_LABELS, LAYER_LABELS, t, editorState as S, curMap } from "
 import { $ } from "../dom";
 import { effectivePass } from "./map-render";
 import { topLayerAt, getCell, eventAt } from "./painting";
+import { tileId } from "../../shared/tile-flags";
 
   export function setStatus() {
     const m = curMap();
@@ -30,7 +31,7 @@ import { topLayerAt, getCell, eventAt } from "./painting";
       s += "  ·  " + S.hoverCell.x + "," + S.hoverCell.y;
       if (S.mode === "map") {
         const ln = S.layer === "auto" ? topLayerAt(S.hoverCell.x, S.hoverCell.y) : S.layer;
-        const t = getCell(S.hoverCell.x, S.hoverCell.y, ln);
+        const t = tileId(getCell(S.hoverCell.x, S.hoverCell.y, ln)); // mask Stage-E flags
         s += "  ·  " + ln + ": " + (Assets.tiles[t] ? Assets.tiles[t].name : "?");
       }
       if (S.mode === "pass") {

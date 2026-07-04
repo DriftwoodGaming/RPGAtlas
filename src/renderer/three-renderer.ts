@@ -69,6 +69,11 @@ export function createThreeRenderer(): any {
   // waves/foam/specular, just not a geometrically exact reflection.
   const WATER_Y = 3;
   const T = ((window as any).Assets && (window as any).Assets.T) || {};
+  // Phase 8 Stage E: strip the transform-flag bits off a stored tile id before
+  // any equality / set-membership test, so a flipped-or-rotated water/stairs
+  // tile is still classified by its base id. Kept as a local const to preserve
+  // this module's window-global, importless posture. (1<<28)-1 = TILE_ID_MASK.
+  const TID = (v: number) => (v | 0) & ((1 << 28) - 1);
   const WATER_TILES = new Set([T.water, T.deepwater, T.swamp].filter((v: any) => v != null));
   // Auto-material tile classes: specular (wet/ice/crystal floors) and
   // emissive (glowing at night — scaled by pixel luminance so window panes
@@ -1128,7 +1133,7 @@ export function createThreeRenderer(): any {
       ty1 = Math.min(map.height, (ch.y + ch.h) / TILE);
     for (let ty = ty0; ty < ty1; ty++) {
       for (let tx = tx0; tx < tx1; tx++) {
-        const ids = [tileAt(L.ground, tx, ty), tileAt(L.decor, tx, ty), tileAt(L.decor2, tx, ty)];
+        const ids = [tileAt(L.ground, tx, ty), tileAt(L.decor, tx, ty), tileAt(L.decor2, tx, ty)].map(TID);
         const isSpec = ids.some((id) => SPEC_TILES.has(id));
         const isEmis = ids.some((id) => EMIS_TILES.has(id));
         if (!isSpec && !isEmis) continue;
@@ -1279,9 +1284,9 @@ export function createThreeRenderer(): any {
         if (T.stairs == null) return false;
         const i = ty * mapW + tx;
         return (
-          (Lyr.ground && Lyr.ground[i] === T.stairs) ||
-          (Lyr.decor && Lyr.decor[i] === T.stairs) ||
-          (Lyr.decor2 && Lyr.decor2[i] === T.stairs)
+          (Lyr.ground && TID(Lyr.ground[i]) === T.stairs) ||
+          (Lyr.decor && TID(Lyr.decor[i]) === T.stairs) ||
+          (Lyr.decor2 && TID(Lyr.decor2[i]) === T.stairs)
         );
       };
       for (let ty = ty0; ty < ty1; ty++) {
@@ -1366,7 +1371,7 @@ export function createThreeRenderer(): any {
         const ground = map.layers && map.layers.ground;
         const isWater = (tx: number, ty: number) =>
           !!ground && tx >= 0 && ty >= 0 && tx < mapW && ty < mapH &&
-          WATER_TILES.has(ground[ty * mapW + tx]);
+          WATER_TILES.has(TID(ground[ty * mapW + tx]));
         // foam at corners that touch any non-water tile
         const foamAt = (cx: number, cy: number) =>
           isWater(cx - 1, cy - 1) && isWater(cx, cy - 1) && isWater(cx - 1, cy) && isWater(cx, cy) ? 0 : 1;

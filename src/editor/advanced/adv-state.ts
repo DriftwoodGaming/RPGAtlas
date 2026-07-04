@@ -16,10 +16,13 @@
    editorHooks). Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later. */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import type { AdvLayer } from "../../shared/schema";
+import type { AdvLayer, Stamp } from "../../shared/schema";
 import { classicStack, repairLayersAdv, nextLayerId, type CoreRole } from "../../shared/layer-view";
+import type { TileFlags } from "../../shared/tile-flags";
 
 export type AdvTool = "pen" | "erase" | "fill" | "rect";
+/** Which right-rail tab the Advanced panel shows. */
+export type AdvRailTab = "tiles" | "stamps";
 
 export const advState = {
   zoom: 0.5,
@@ -28,6 +31,19 @@ export const advState = {
   hoverCell: null as { x: number; y: number } | null,
   rectStart: null as { x: number; y: number } | null,
   painting: false,
+  /** Brush transform (Stage E): flip/rotate applied to plain tiles as painted.
+   *  Reused by both editors' Advanced-panel brush; autotile ids ignore it. */
+  brushFlags: { h: false, v: false, r: false } as TileFlags,
+  /** Right-rail tab + tile-palette search / category filter (Stage E). */
+  railTab: "tiles" as AdvRailTab,
+  paletteSearch: "",
+  paletteCategory: "all" as string,
+  /** Stamp placement (Stage E): the stamp being placed (paste-on-click), and
+   *  whether random-scatter mode is armed. null = normal painting. */
+  placingStamp: null as Stamp | null,
+  stampRandom: false,
+  /** Bumped each scatter click so repeated clicks fill different cells. */
+  scatterSalt: 0,
 };
 
 /** Panel refresh callbacks, bound on mount so the Layers/paint modules can
@@ -36,6 +52,7 @@ export const advHooks = {
   render: () => {},        // redraw only the canvas (live paint feedback)
   rebuildLayers: () => {}, // rebuild the Layers list
   rebuild: () => {},       // full panel rebuild (tree + layers + canvas)
+  rebuildRail: (() => {}) as () => void, // rebuild the right rail (tiles / stamps)
 };
 
 /** Promote a classic map to a stored generalized stack the first time the

@@ -34,6 +34,7 @@ import { applyEditorFontScale, openKeyboardShortcuts } from "./help";
 import { dispatchKey, type KeyBinding } from "./keymap";
 import { activeEditScope } from "./edit-scope";
 import { initDockWorkspace } from "./dock/panels";
+import { advFocus } from "./advanced/adv-transform";
 import { initAutotileUI, renderAutotileBar, stepBrush } from "./map-editor/autotile-ui";
 import { syncAutotileRegistry } from "./autotile-store";
 import { consumeEmbeddedAssets, initAssetLibrary } from "../shared/asset-library";
@@ -75,6 +76,14 @@ const EDITOR_KEYS: KeyBinding[] = [
   { codes: ["F4"], preventDefault: true, run: () => runAct("panel-advanced") },
   { codes: ["F5"], preventDefault: true, run: () => runAct("play") },
   { codes: ["F6"], preventDefault: true, run: () => runAct("focus-next-panel") },
+  // Advanced editor brush transforms (Stage E). Guarded on Advanced-panel focus
+  // so X/Y/R keep their Standard-editor meanings (cut chord / shadow / circle)
+  // everywhere else. Must precede the Map-mode KeyY/KeyR tool bindings below;
+  // when the Advanced panel is focused S.mode is irrelevant, and when it isn't
+  // these `when`s fail and the later bindings run as before.
+  { codes: ["KeyX"], ctrl: false, when: () => advFocus.isFocused(), preventDefault: true, run: () => runAct("adv-flip-h") },
+  { codes: ["KeyY"], ctrl: false, when: () => advFocus.isFocused(), preventDefault: true, run: () => runAct("adv-flip-v") },
+  { codes: ["KeyR"], ctrl: false, when: () => advFocus.isFocused(), preventDefault: true, run: () => runAct("adv-rotate") },
   // Height mode consumes ALL digits for the painted elevation (0–9). Must stay above the layer gate.
   { codes: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"],
     when: () => S.mode === "height",

@@ -1,7 +1,9 @@
 # Phase 8 Spec — Advanced Map Editor (Tiled-class mapping)
 
-**Status:** IN PROGRESS — Stages A, B & C landed 2026-07-04. Stage log accumulates
-below, phase-3-spec style, as stages land. Next: D/E (parallel worktrees), then F/G.
+**Status:** IN PROGRESS — Stages A–E landed 2026-07-04 (C/D/E built in parallel
+worktrees off B and integrated together). Stage log accumulates below, phase-3-spec
+style, as stages land. Next: F (needs C+E terrain/stamp predicates) then G (closes
+the phase).
 **Authored:** 2026-07-04 by Claude Fable 5 (grand designer / orchestrator)
 **Branch (when work starts):** `phase-8-advanced-map` (off `main`)
 **Sources:** Codex feasibility discussion (2026-07-03, recovered from
@@ -675,6 +677,134 @@ Stage C traps / decisions:
 - Vite dev/preview served stale `?v=55/56` from a concurrent chat's dev server
   sharing this worktree's `.vite` cache — a live-preview artifact, not a code issue;
   the built bundle + the fresh-build e2e are the ground truth (both correct).
+
+### Stage E — Stamps, tile transforms & palette upgrades (landed 2026-07-04, Opus)
+
+Built in an isolated worktree in parallel with Stages C (terrain studio) and D
+(zones); scope kept to the stamps / tile-transform / palette surface, and the
+`drawLayerCell` change kept **tightly additive** (decode raw→{id,flags} at the
+top, transform the drawImage, autotile-resolve logic untouched) so it composes
+with Stage C's separate registry/anim extension of the same seam.
+
+Shipped:
+
+- **`src/shared/tile-flags.ts`** (pure, 14 unit tests in
+  `tests-unit/tile-flags.test.ts`): `TILE_FLAG_H/V/R` at bits 28/29/30,
+  `TILE_ID_MASK = (1<<28)-1`, `tileId` / `tileFlags` / `hasFlags` / `withFlags`
+  / `setFlags`, the interactive `toggleH` / `toggleV` / `rotateCW` composers
+  (four CW rotations = identity for any start flip; H/V fold under a rotation
+  the Tiled way), and `flagTransform(flags, size)` → the per-cell affine
+  (identity / H mirror / V mirror / 90° CW verified by geometry tests). The
+  autotile-adjacent fixture proves id checks stay flag-safe.
+- **Central transform decode in `drawLayerCell`** (`src/shared/autotile-draw.ts`):
+  the stored value is split raw→`{id, flags}` once, at the top, so **all four
+  draw paths** (2D editor `renderMapView`, live HD-2D `buildBuffers`, paste
+  preview, engine `prerenderMap`) get flip/rotate together. Autotile groups
+  resolve their own shape and are never transformed (v1). A plain no-flag cell
+  takes the identical fast path as before — byte-identical (goldens gate it). A
+  flag-bearing plain tile draws under `g.transform(...)` (save/restore-scoped so
+  callers' globalAlpha/composite are untouched). `sameLayer` compares MASKED ids
+  so a flipped tile still autotiles with its unflipped neighbour.
+- **Brush flip/rotate UI** (`src/editor/advanced/adv-transform.ts`): X / Y / R
+  toggle `advState.brushFlags`; folded into the painted value for **plain tiles
+  only** via `adv-paint.brushValue` (autotile ids written flag-free). Registered
+  commands `adv-flip-h` / `adv-flip-v` / `adv-rotate` (palette/menu-reachable);
+  the X/Y/R **key bindings in boot.ts are gated on Advanced-panel focus**
+  (`advFocus.isFocused` = `getFocusedPanel() === "adv"`) so they keep their
+  Standard-editor meanings (cut chord / shadow / circle) everywhere else, and
+  are ordered before the Map-mode tool bindings. Toolbar buttons + a transform
+  indicator (↔↕⟳) sit in the Advanced tool strip.
+- **Stamps** (`src/shared/stamp-ops.ts` pure + `src/editor/advanced/adv-stamps.ts`
+  editor wrapper, 6 unit tests in `tests-unit/stamp-ops.test.ts`):
+  `captureStampData` reads a rect out of the four role arrays + shadows (same
+  shape as the tile clipboard, transform-flag bits preserved verbatim);
+  `writeStampData` places at an offset, clipped, **non-empty cells only** (holes
+  fall through to the terrain below). `proj.stamps` is created lazily (a project
+  that never captures keeps NO stamps key — byte-identical). Placement funnels
+  through `pushUndo`/`touch()`; undo already deep-clones `layers`/`shadows` from
+  Stage B, so a placed stamp undoes as one entry. **Random-scatter mode**
+  scatters the stamp across the brush footprint with a per-stamp probability
+  (`props.prob`, default 0.5, round-trips in the save), a per-cell LCG salted per
+  click so repeated clicks fill in gradually.
+- **Categorized & searchable palette** (`src/shared/tile-categories.ts` pure, 13
+  unit tests + `src/editor/advanced/adv-rail.ts`): the Advanced right rail's
+  Tiles tab derives categories from tile metadata (`key` + Assets-derived
+  `terrain`) into Terrain / Water / Floor / Walls / Nature / Objects / Other,
+  with a search box over name+key. The derivation module is pure and reusable by
+  the Standard palette. A Stamps tab lists `proj.stamps` with thumbnail, place
+  (📌), random (🎲), rename, delete, and a scatter-% slider. `adv-dialogs.ts`
+  extracts the shared single-field `nameDialog` (Layers rename + Stamp name).
+- **i18n**: 23 new keys × 10 locales (`js/editor/i18n.js`); command labels
+  (Flip/Rotate/Save-Selection/Random-Scatter) are auto-collected from
+  `panels.ts`, the rail/dialog strings added to `CURATED_KEYS`. **CSS**: `.adv-
+  rail-right` / `.adv-tile-grid` / `.adv-cat-chip` / `.adv-stamp-*` / `.adv-xfm-
+  label` block; `?v=56 → 57`. Patch-notes "Advanced Map Editor — stamps, flip &
+  rotate, searchable tiles"; `?v=37 → 38` (help.ts + shims.d.ts).
+
+**Flag-bit comparison-site audit** (the required Fable sign-off artifact — every
+`>= AUTOTILE_BASE` / id-equality / tile-def-lookup site that reads a stored tile
+id, and how each was made flag-safe). Since flags ride on bit 28+ and
+`AUTOTILE_BASE = 1,000,000 < 1<<28`, masking the low 28 bits (`tileId`) before
+any such check is correct and is a no-op on clean ids (classic path unchanged):
+
+| # | Site | File:fn | Fix |
+|---|---|---|---|
+| 1 | `isAutotileId` | `shared/autotile-registry.ts` | now masks internally (`(id & TILE_ID_MASK) >= AUTOTILE_BASE`) — makes **every** caller flag-safe by construction |
+| 2 | `groupIdOf` | `shared/autotile-registry.ts` | masks before subtracting AUTOTILE_BASE |
+| 3 | `sameLayer` neighbour equality | `shared/autotile-draw.ts` | compares `tileId(base)` vs `tileId(neighbour)` — a flipped tile still autotiles with its unflipped neighbour |
+| 4 | `drawLayerCell` id decode | `shared/autotile-draw.ts` | the central decode itself: `id = tileId(raw)`, transform applied only for plain flag-bearing tiles |
+| 5 | engine `tilePassable` (decor2/decor/ground → `Assets.tiles[t]`) | `engine/scenes/map-runtime.ts` | masks each layer read before the tile-def lookup — a flipped floor keeps its passability |
+| 6 | engine `groundKeyAt` (`Assets.tiles[...].key`) | `engine/scenes/map-runtime.ts` | masks before the def lookup (bush/terrain-key reads) |
+| 7 | renderer `stairsAt` (`Lyr.* === T.stairs`) | `renderer/three-renderer.ts` | `TID(...)` local mask before the ramp-geometry equality |
+| 8 | renderer `isWater` (`WATER_TILES.has(...)`) | `renderer/three-renderer.ts` | `TID(...)` before the water-surface set membership |
+| 9 | renderer material classes (`SPEC_TILES` / `EMIS_TILES` `.has(id)`) | `renderer/three-renderer.ts` | the `ids` array is `.map(TID)` before spec/emissive membership |
+| 10 | editor `effectivePassOn` (`Assets.tiles[t]`) | `editor/map-editor/map-render.ts` | masks each layer read before the def lookup (passability overlay) |
+| 11 | editor eyedropper (`S.selectedTile = getCell(...)`) | `editor/map-editor/painting.ts` | masks so the palette selection is always a clean id (the brush carries flags separately) |
+| 12 | editor status bar tile name (`Assets.tiles[t].name`) | `editor/map-editor/status.ts` | masks the hovered-cell read before the name lookup |
+
+Sites deliberately **not** masked (verified clean by construction, no flags can
+reach them): `renderPalette` highlight / `resolvePaintLayer` / `autotile-ui`
+selection checks all operate on `S.selectedTile`, which is guaranteed a clean id
+(the eyedropper masks at the source, site 11); `boot.ts` palette-click reads an
+id from grid coordinates, never from a map layer; Database `tilesets-tab.ts`
+reads palette/DB indices, not map cells.
+
+Gate: tsc clean, eslint clean; `node --test` 16/16; vitest **357** (+33 vs Stage
+B's 324: tile-flags 14, tile-categories 13, stamp-ops 6). Two new **editor-only**
+e2e specs (`tests-e2e/advanced-stampsE.spec.mjs`) run green against the built app
+(`RPGATLAS_E2E_PORT=4519`, workers=1): (a) flip+rotate the brush → paint on the
+Advanced canvas → a flag-bearing tile is persisted on the ground layer AND
+survives a full reload (proves flags round-trip through the save format); (b)
+capture a Map-view selection as a stamp → place it via the Stamps tab → stamp
+round-trips in `proj.stamps`. Per the parallel-worktree rule, the **renderer
+golden suite was NOT run** here (three worktrees would thrash GPU/ports; the
+integrator runs it once per branch at merge). The 2D no-flag path is byte-
+identical by construction (the decode fast-path is the pre-Stage-E code) and the
+flag path is only entered when a stored value carries flag bits — absent on
+every existing golden fixture.
+
+Stage E traps / decisions:
+- **`isAutotileId` masks internally now.** This is the single highest-leverage
+  audit fix — it makes all four of its call sites flag-safe without touching
+  them. If a future stage adds a NEW id space above bit 28 it must revisit this.
+- **Flags are v1-scoped to plain tiles.** Autotile groups resolve their own
+  shape; the brush drops flags when an autotile is selected (`adv-paint.brushValue`).
+  Terrain-set transform completion (`allowFlipH/V/Rot`) is Stage C's, not this.
+- **X/Y/R key gating is by dock focus, not `S.mode`.** The bindings sit above the
+  Map-mode KeyY(shadow)/KeyR(circle) bindings with a `when: advFocus.isFocused()`
+  guard; the global keydown handler already bails inside inputs, so renaming a
+  layer/stamp doesn't trigger them. `advFocus.isFocused` is bound in `panels.ts`
+  so boot's key table stays dock-import-free.
+- **Stamp scatter determinism:** a per-cell LCG seeded from `(x,y,stampId,salt)`;
+  `scatterSalt` bumps each click so repeated clicks fill different cells rather
+  than re-rolling the same set. Not pushed through undo mid-drag — one click =
+  one `pushUndo`.
+- **Shared-file collision risk with siblings** (integrator reconciles at merge):
+  `css/editor.css?v` (→57), `js/patch-notes.js?v` (→38 in help.ts + shims.d.ts),
+  the `js/editor/i18n.js` locale blocks, and `dock/panels.ts` (new command
+  registrations) will collide with Stages C/D's bumps/keys. The
+  `drawLayerCell`/`autotile-registry.ts` edits are additive and localized to
+  minimize the Stage C merge (which extends the same seam for terrain kinds).
 
 ## Open items to confirm before Stage A starts
 

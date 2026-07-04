@@ -19,6 +19,19 @@ export const PATCH_NOTES = [
   },
   {
     date: "July 4, 2026",
+    title: "Advanced Map Editor — stamps, flip & rotate, searchable tiles",
+    summary:
+      "The Advanced tab gets three big painting upgrades. Flip or rotate the tile you're painting (X, Y, and R keys, or the toolbar buttons) so one tile can face any direction. Save any selection as a reusable Stamp and drop it anywhere — with a random-scatter mode for quickly sprinkling grass, rocks, or props. And the new right-hand tile palette is searchable and sorted into simple categories (Terrain, Water, Floor, Walls, Nature, Objects). A map that uses none of this saves exactly as before.",
+    items: [
+      "Press X to flip the brush left-right, Y to flip up-down, R to rotate 90° — the little indicator by the zoom shows the current brush transform. Flipped and rotated tiles look right in the editor, in play-testing, and in exported games.",
+      "Select an area in the Map view, then Save Selection as Stamp to add it to the Stamps tab; click 📌 and place it anywhere. Undo works on stamp placement like any other paint.",
+      "Turn on 🎲 random scatter to sprinkle a stamp across your brush with an adjustable chance per spot — great for foliage and rubble.",
+      "The Advanced editor's Tiles tab has a search box and category chips, so you can find the tile you want without scrolling the whole sheet.",
+      "Autotile terrain brushes keep resolving their own shape — flip/rotate applies to ordinary tiles.",
+    ],
+  },
+  {
+    date: "July 4, 2026",
     title: "Advanced Map Editor — paintable layers",
     summary:
       "The Advanced tab's layer list is now fully editable. Add your own tile layers on top of the classic four, paint straight onto whichever layer is selected, and give each one an opacity, a blend mode (add / multiply / screen), or a colour tint. Everything you build shows up identically in the regular editor, in play-testing, and in exported games — and a map you never touch here is saved exactly as before.",

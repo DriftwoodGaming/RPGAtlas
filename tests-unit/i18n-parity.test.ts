@@ -49,6 +49,15 @@ const CURATED_KEYS = [
   "Pattern completion",
   "Terrain (A2 · 47-blob)", "Edge / Fence (16)", "Corner (16)",
   "Animated (A1)", "Building (A3)", "Wall (A4)",
+  // Stamps, tile transforms & palette (Phase 8 Stage E, adv-rail/adv-stamps/
+  // adv-dialogs). Command labels (Flip/Rotate/Save Selection/Random Scatter)
+  // are collected from panels.ts; these are the rail/dialog strings used via t().
+  "Stamps", "Stamp",
+  "Search tiles…", "All Tiles", "Water", "Floor", "Walls",
+  "Nature", "Objects", "Other", "No tiles match your search.",
+  "Capture Selection", "Place Stamp", "Scatter %",
+  "No stamps yet — select an area in the Map editor, then Capture Selection.",
+  "Brush transform (X flip / Y flip / R rotate)",
 ];
 
 /** Command labels that are dynamic composites or deliberately English-only

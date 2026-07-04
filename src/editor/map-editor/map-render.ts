@@ -12,6 +12,7 @@ import { Assets, TILE, LAYER_ORDER, editorState as S, curMap } from "../editor-s
 import { drawLayerCell } from "../../shared/autotile-draw";
 import { isAutotileId, anyAutotileAnimated } from "../../shared/autotile-registry";
 import { frameAt } from "../../shared/autotile-anim";
+import { tileId } from "../../shared/tile-flags";
 import { layerView, shadowIndex, entryArray, BLEND_COMPOSITE } from "../../shared/layer-view";
 import { drawEntryTiles } from "../../shared/layer-composite";
 
@@ -95,11 +96,13 @@ import { drawEntryTiles } from "../../shared/layer-composite";
     const ov = m.passOv[i];
     if (ov === 1) return true;
     if (ov === 2) return false;
+    // Mask Stage-E transform-flag bits before the tile-def lookup so a flipped/
+    // rotated floor keeps its base tile's passability (matches engine tilePassable).
     for (const ln of ["decor2", "decor"]) {
-      const t = m.layers[ln][i];
+      const t = tileId(m.layers[ln][i]);
       if (t) return Assets.tiles[t] ? Assets.tiles[t].pass : false;
     }
-    const t = m.layers.ground[i];
+    const t = tileId(m.layers.ground[i]);
     return t && Assets.tiles[t] ? Assets.tiles[t].pass : false;
   }
   export function effectivePass(x: any, y: any) {
