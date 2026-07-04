@@ -53,6 +53,10 @@ const SHARED = {
       // View menu / dock
       "Maps Panel": "Panel de mapas", "Tiles Panel": "Panel de mosaicos", "Focus Map": "Enfocar mapa",
       "Console Panel": "Panel de consola",
+      // Advanced Map Editor (Phase 8)
+      "Advanced": "Avanzado", "Advanced Map Editor": "Editor de mapas avanzado",
+      "Map Tree": "Árbol de mapas", "Layers": "Capas", "Events": "Eventos", "Collision": "Colisión",
+      "New Folder…": "Nueva carpeta…", "Rename…": "Renombrar…", "Folder name": "Nombre de la carpeta",
       "Focus Next Panel": "Enfocar siguiente panel", "Reset Panel Layout": "Restablecer disposición",
       "Save Layout As…": "Guardar disposición como…", "Saved Layouts…": "Disposiciones guardadas…",
       // Tools menu
@@ -124,6 +128,10 @@ const SHARED = {
       // View menu / dock
       "Maps Panel": "Panneau des cartes", "Tiles Panel": "Panneau des tuiles", "Focus Map": "Focus sur la carte",
       "Console Panel": "Panneau de console",
+      // Advanced Map Editor (Phase 8)
+      "Advanced": "Avancé", "Advanced Map Editor": "Éditeur de cartes avancé",
+      "Map Tree": "Arborescence des cartes", "Layers": "Calques", "Events": "Événements", "Collision": "Collision",
+      "New Folder…": "Nouveau dossier…", "Rename…": "Renommer…", "Folder name": "Nom du dossier",
       "Focus Next Panel": "Panneau suivant", "Reset Panel Layout": "Réinitialiser la disposition",
       "Save Layout As…": "Enregistrer la disposition sous…", "Saved Layouts…": "Dispositions enregistrées…",
       // Tools menu
@@ -195,6 +203,10 @@ const SHARED = {
       // View menu / dock
       "Maps Panel": "Kartenpanel", "Tiles Panel": "Kachelpanel", "Focus Map": "Karte fokussieren",
       "Console Panel": "Konsolenpanel",
+      // Advanced Map Editor (Phase 8)
+      "Advanced": "Erweitert", "Advanced Map Editor": "Erweiterter Karteneditor",
+      "Map Tree": "Kartenbaum", "Layers": "Ebenen", "Events": "Ereignisse", "Collision": "Kollision",
+      "New Folder…": "Neuer Ordner…", "Rename…": "Umbenennen…", "Folder name": "Ordnername",
       "Focus Next Panel": "Nächstes Panel fokussieren", "Reset Panel Layout": "Panel-Layout zurücksetzen",
       "Save Layout As…": "Layout speichern unter…", "Saved Layouts…": "Gespeicherte Layouts…",
       // Tools menu
@@ -266,6 +278,10 @@ const SHARED = {
       // View menu / dock
       "Maps Panel": "マップパネル", "Tiles Panel": "タイルパネル", "Focus Map": "マップにフォーカス",
       "Console Panel": "コンソールパネル",
+      // Advanced Map Editor (Phase 8)
+      "Advanced": "高度", "Advanced Map Editor": "高度なマップエディター",
+      "Map Tree": "マップツリー", "Layers": "レイヤー", "Events": "イベント", "Collision": "コリジョン",
+      "New Folder…": "新しいフォルダー…", "Rename…": "名前を変更…", "Folder name": "フォルダー名",
       "Focus Next Panel": "次のパネルにフォーカス", "Reset Panel Layout": "パネル配置をリセット",
       "Save Layout As…": "配置に名前を付けて保存…", "Saved Layouts…": "保存した配置…",
       // Tools menu
@@ -337,6 +353,10 @@ const SHARED = {
       // View menu / dock
       "Maps Panel": "地圖面板", "Tiles Panel": "圖塊面板", "Focus Map": "聚焦地圖",
       "Console Panel": "主控台面板",
+      // Advanced Map Editor (Phase 8)
+      "Advanced": "進階", "Advanced Map Editor": "進階地圖編輯器",
+      "Map Tree": "地圖樹", "Layers": "圖層", "Events": "事件", "Collision": "碰撞",
+      "New Folder…": "新增資料夾…", "Rename…": "重新命名…", "Folder name": "資料夾名稱",
       "Focus Next Panel": "聚焦下一個面板", "Reset Panel Layout": "重設面板配置",
       "Save Layout As…": "另存配置…", "Saved Layouts…": "已儲存的配置…",
       // Tools menu
@@ -408,6 +428,10 @@ const SHARED = {
       // View menu / dock
       "Maps Panel": "地图面板", "Tiles Panel": "图块面板", "Focus Map": "聚焦地图",
       "Console Panel": "控制台面板",
+      // Advanced Map Editor (Phase 8)
+      "Advanced": "高级", "Advanced Map Editor": "高级地图编辑器",
+      "Map Tree": "地图树", "Layers": "图层", "Events": "事件", "Collision": "碰撞",
+      "New Folder…": "新建文件夹…", "Rename…": "重命名…", "Folder name": "文件夹名称",
       "Focus Next Panel": "聚焦下一个面板", "Reset Panel Layout": "重置面板布局",
       "Save Layout As…": "布局另存为…", "Saved Layouts…": "已保存的布局…",
       // Tools menu
@@ -479,6 +503,10 @@ const SHARED = {
       // View menu / dock
       "Maps Panel": "Painel de mapas", "Tiles Panel": "Painel de tiles", "Focus Map": "Focar no mapa",
       "Console Panel": "Painel do console",
+      // Advanced Map Editor (Phase 8)
+      "Advanced": "Avançado", "Advanced Map Editor": "Editor de mapas avançado",
+      "Map Tree": "Árvore de mapas", "Layers": "Camadas", "Events": "Eventos", "Collision": "Colisão",
+      "New Folder…": "Nova pasta…", "Rename…": "Renomear…", "Folder name": "Nome da pasta",
       "Focus Next Panel": "Focar no próximo painel", "Reset Panel Layout": "Redefinir disposição dos painéis",
       "Save Layout As…": "Salvar disposição como…", "Saved Layouts…": "Disposições salvas…",
       // Tools menu
@@ -550,6 +578,10 @@ const SHARED = {
       // View menu / dock
       "Maps Panel": "맵 패널", "Tiles Panel": "타일 패널", "Focus Map": "맵으로 포커스",
       "Console Panel": "콘솔 패널",
+      // Advanced Map Editor (Phase 8)
+      "Advanced": "고급", "Advanced Map Editor": "고급 맵 에디터",
+      "Map Tree": "맵 트리", "Layers": "레이어", "Events": "이벤트", "Collision": "충돌",
+      "New Folder…": "새 폴더…", "Rename…": "이름 바꾸기…", "Folder name": "폴더 이름",
       "Focus Next Panel": "다음 패널로 포커스", "Reset Panel Layout": "패널 배치 초기화",
       "Save Layout As…": "배치를 다른 이름으로 저장…", "Saved Layouts…": "저장된 배치…",
       // Tools menu
@@ -621,6 +653,10 @@ const SHARED = {
       // View menu / dock
       "Maps Panel": "Pannello mappe", "Tiles Panel": "Pannello tile", "Focus Map": "Focus sulla mappa",
       "Console Panel": "Pannello console",
+      // Advanced Map Editor (Phase 8)
+      "Advanced": "Avanzato", "Advanced Map Editor": "Editor mappe avanzato",
+      "Map Tree": "Albero delle mappe", "Layers": "Livelli", "Events": "Eventi", "Collision": "Collisione",
+      "New Folder…": "Nuova cartella…", "Rename…": "Rinomina…", "Folder name": "Nome della cartella",
       "Focus Next Panel": "Focus sul pannello successivo", "Reset Panel Layout": "Ripristina disposizione pannelli",
       "Save Layout As…": "Salva disposizione come…", "Saved Layouts…": "Disposizioni salvate…",
       // Tools menu
@@ -692,6 +728,10 @@ const SHARED = {
       // View menu / dock
       "Maps Panel": "Панель карт", "Tiles Panel": "Панель тайлов", "Focus Map": "Фокус на карту",
       "Console Panel": "Панель консоли",
+      // Advanced Map Editor (Phase 8)
+      "Advanced": "Расширенный", "Advanced Map Editor": "Расширенный редактор карт",
+      "Map Tree": "Дерево карт", "Layers": "Слои", "Events": "События", "Collision": "Коллизия",
+      "New Folder…": "Новая папка…", "Rename…": "Переименовать…", "Folder name": "Имя папки",
       "Focus Next Panel": "Фокус на следующую панель", "Reset Panel Layout": "Сбросить расположение панелей",
       "Save Layout As…": "Сохранить расположение как…", "Saved Layouts…": "Сохранённые расположения…",
       // Tools menu

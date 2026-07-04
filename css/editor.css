@@ -974,3 +974,41 @@ a.console-link:hover { text-decoration: underline; color: var(--text-bright); }
 .console-input { flex: 1; background: transparent; border: none; outline: none; box-shadow: none;
   color: var(--text-bright); font: inherit; padding: 2px 0; }
 .console-busy .console-prompt { opacity: 0.5; }
+
+/* ---------- Advanced Map Editor panel (Phase 8 Stage A) ---------- */
+.adv-root { display: flex; height: 100%; min-height: 0; background: var(--bg-deep); }
+.adv-rail { flex: 0 0 220px; display: flex; flex-direction: column; min-height: 0;
+  border-right: 1px solid var(--line-2); background: var(--panel); }
+.adv-section-head { display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 8px 4px; color: var(--text-mid); font-size: var(--fs-small); font-weight: 600;
+  border-bottom: 1px solid var(--line-2); user-select: none; }
+.adv-mini-btn { padding: 0 7px; font-size: var(--fs-small); line-height: 20px; }
+.adv-tree { flex: 1 1 45%; overflow-y: auto; min-height: 60px; padding: 3px 0; }
+.adv-tree-row { display: flex; align-items: center; gap: 4px; padding: 2px 6px;
+  cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: var(--fs-small); color: var(--text); }
+.adv-tree-row:hover { background: var(--hover-2); }
+.adv-tree-map.sel { background: var(--accent); color: #fff; }
+.adv-tree-folder { color: var(--text-mid); }
+.adv-tree-folder .adv-folder-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.adv-caret { width: 12px; flex: 0 0 auto; text-align: center; color: var(--text-dim); }
+.adv-folder-del { visibility: hidden; padding: 0 5px; font-size: var(--fs-tiny); }
+.adv-tree-folder:hover .adv-folder-del { visibility: visible; }
+.adv-drop { outline: 1px dashed var(--gold-edge); outline-offset: -1px; }
+.adv-layers { flex: 1 1 55%; overflow-y: auto; min-height: 60px; padding: 3px 0;
+  border-top: 1px solid var(--line-2); }
+.adv-layer-row { display: flex; align-items: center; gap: 6px; padding: 3px 8px;
+  font-size: var(--fs-small); color: var(--text); white-space: nowrap; }
+.adv-layer-row:hover { background: var(--hover-2); }
+.adv-layer-eye { width: 16px; flex: 0 0 auto; text-align: center; color: var(--text-dim); }
+.adv-layer-name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.adv-layer-hidden .adv-layer-name { color: var(--text-dim); }
+.adv-layer-pseudo { color: var(--text-dim); font-style: italic; }
+.adv-layer-badge { flex: 0 0 auto; padding: 0 5px; border: 1px solid var(--line-3);
+  border-radius: 4px; color: var(--text-dim); font-size: var(--fs-tiny); }
+.adv-center { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.adv-toolstrip { display: flex; align-items: center; gap: 6px; padding: 4px 8px;
+  border-bottom: 1px solid var(--line-2); background: var(--bar-2); }
+.adv-zoom-label { min-width: 38px; text-align: center; color: var(--text-mid); font-size: var(--fs-small); }
+.adv-canvas-wrap { flex: 1; overflow: auto; min-height: 0; background: #101018; }
+.adv-canvas { display: block; image-rendering: pixelated; }

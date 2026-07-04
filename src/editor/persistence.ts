@@ -29,6 +29,7 @@ import { modal } from "./modals";
 import { flashStatus } from "./map-editor/status";
 import { viewportDirty } from "./map-editor/hd-viewport";
 import { worldDirty } from "./map-editor/world-view";
+import { advDirty } from "./advanced/adv-panel";
 import { noteEdit } from "./edit-scope";
 
 // The editor's project store over localStorage. The migrator runs the project
@@ -45,6 +46,7 @@ const projectRepo = new BrowserProjectRepository(
     saveTimer = setTimeout(saveNow, 700);
     viewportDirty(); // keep the live HD-2D viewport in sync with edits
     worldDirty();    // and the World View map-connection graph
+    advDirty();      // and the Advanced Map Editor (Phase 8)
     noteEdit();      // unified undo: extend an active scoped-edit window (Stage F)
   }
   export function saveNow() {

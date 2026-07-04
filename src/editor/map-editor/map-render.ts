@@ -1,8 +1,10 @@
 /* RPGAtlas — src/editor/map-editor/map-render.ts
    Map canvas rendering, palette rendering, overlays, normRect.
-   Verbatim move from the editor monolith (Phase 1 Stage C, Package 1):
-   logic unchanged, closure vars routed through editor-state.ts; calls into
-   not-yet-extracted sections go through editorHooks.
+   Verbatim move from the editor monolith (Phase 1 Stage C, Package 1);
+   Phase 8 Stage A split the body into renderMapView(g, map, view) — the
+   shared render core both the classic Map panel and the Advanced Map Editor
+   drive — with renderMap() left as the thin wrapper binding the shared
+   editor state S. Behavior-frozen: same draw calls in the same order.
    Copyright (C) 2026 RPGAtlas contributors - GPL-3.0-or-later (see LICENSE). */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -11,14 +13,42 @@ import { drawLayerCell } from "../../shared/autotile-draw";
 import { isAutotileId } from "../../shared/autotile-registry";
 
   // ============================ map rendering ============================
-  function layerAlpha(li: any) {
-    if (S.mode !== "map") return li === 3 ? 0.8 : 1;
-    if (S.layer === "auto") return li === 3 ? 0.85 : 1;
-    const a = LAYER_ORDER.indexOf(S.layer);
+  /** Everything renderMapView reads besides the map itself: the classic
+   *  editor binds these to S (viewFromS); the Advanced panel binds its own
+   *  advState. Fields mirror the S fields the monolith body read. */
+  export interface MapView {
+    zoom: number;
+    mode: string;              // map | event | pass | start | height | region
+    layer: string;             // auto | ground | decor | decor2 | over
+    tool: string;
+    selection: any;            // {x1,y1,x2,y2} | null
+    hoverCell: any;
+    hoverQuad: number;
+    rectStart: any;
+    painting: boolean;
+    pasteMode: null | "tiles" | "event";
+    clipTiles: any;
+    selectedEvent: any;
+    /** start-marker source (S.proj.system in the classic editor). */
+    system: { startMapId: number; startX: number; startY: number };
+  }
+  function viewFromS(): MapView {
+    return {
+      zoom: S.zoom, mode: S.mode, layer: S.layer, tool: S.tool,
+      selection: S.selection, hoverCell: S.hoverCell, hoverQuad: S.hoverQuad,
+      rectStart: S.rectStart, painting: S.painting, pasteMode: S.pasteMode,
+      clipTiles: S.clipTiles, selectedEvent: S.selectedEvent,
+      system: S.proj.system,
+    };
+  }
+  function layerAlpha(v: MapView, li: any) {
+    if (v.mode !== "map") return li === 3 ? 0.8 : 1;
+    if (v.layer === "auto") return li === 3 ? 0.85 : 1;
+    const a = LAYER_ORDER.indexOf(v.layer);
     return li > a ? 0.45 : 1;
   }
-  export function effectivePass(x: any, y: any) {
-    const m = curMap(), i = y * m.width + x;
+  function effectivePassOn(m: any, x: any, y: any) {
+    const i = y * m.width + x;
     const ov = m.passOv[i];
     if (ov === 1) return true;
     if (ov === 2) return false;
@@ -28,6 +58,9 @@ import { isAutotileId } from "../../shared/autotile-registry";
     }
     const t = m.layers.ground[i];
     return t && Assets.tiles[t] ? Assets.tiles[t].pass : false;
+  }
+  export function effectivePass(x: any, y: any) {
+    return effectivePassOn(curMap(), x, y);
   }
   function drawShadows(g: any, m: any) {
     const H = TILE / 2;
@@ -43,8 +76,8 @@ import { isAutotileId } from "../../shared/autotile-registry";
       }
     }
   }
-  function drawPassOverlay(g: any, m: any) {
-    g.lineWidth = 3.5 / Math.max(S.zoom, 0.4);
+  function drawPassOverlay(g: any, m: any, v: MapView) {
+    g.lineWidth = 3.5 / Math.max(v.zoom, 0.4);
     for (let y = 0; y < m.height; y++) {
       for (let x = 0; x < m.width; x++) {
         const ov = m.passOv[y * m.width + x];
@@ -62,7 +95,7 @@ import { isAutotileId } from "../../shared/autotile-registry";
           g.moveTo(cx + r, cy + r * 0.5); g.lineTo(cx + r * 0.55, cy + r * 0.15);
           g.moveTo(cx + r, cy + r * 0.5); g.lineTo(cx + r * 1.35, cy + r * 0.1);
           g.stroke();
-        } else if (effectivePass(x, y)) {
+        } else if (effectivePassOn(m, x, y)) {
           g.strokeStyle = ov ? "#ffd86a" : "rgba(140,235,160,0.9)";
           g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke();
         } else {
@@ -108,20 +141,20 @@ import { isAutotileId } from "../../shared/autotile-registry";
       }
     }
   }
-  export function renderMap() {
-    const m = curMap();
+  /** The shared render core (Phase 8 Stage A): draw `m` onto `g`'s canvas
+   *  under view-state `v`. The canvas is resized to fit the map at v.zoom. */
+  export function renderMapView(g: any, m: any, v: MapView) {
     if (!m) return;
-    S.mapCanvas.width = Math.max(1, Math.round(m.width * TILE * S.zoom));
-    S.mapCanvas.height = Math.max(1, Math.round(m.height * TILE * S.zoom));
-    const g = S.mapCtx;
-    g.setTransform(S.zoom, 0, 0, S.zoom, 0, 0);
-    g.imageSmoothingEnabled = S.zoom >= 1;
+    g.canvas.width = Math.max(1, Math.round(m.width * TILE * v.zoom));
+    g.canvas.height = Math.max(1, Math.round(m.height * TILE * v.zoom));
+    g.setTransform(v.zoom, 0, 0, v.zoom, 0, 0);
+    g.imageSmoothingEnabled = v.zoom >= 1;
     g.fillStyle = "#15151d";
     g.fillRect(0, 0, m.width * TILE, m.height * TILE);
     // tile layers (layers above the active one are dimmed while drawing)
     for (let li = 0; li < LAYER_ORDER.length; li++) {
       const arr = m.layers[LAYER_ORDER[li]];
-      g.globalAlpha = layerAlpha(li);
+      g.globalAlpha = layerAlpha(v, li);
       for (let y = 0; y < m.height; y++) {
         for (let x = 0; x < m.width; x++) {
           drawLayerCell(g, arr, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
@@ -135,27 +168,27 @@ import { isAutotileId } from "../../shared/autotile-registry";
     g.globalAlpha = 1;
     // grid
     g.strokeStyle = "rgba(255,255,255,0.09)";
-    g.lineWidth = 1 / S.zoom;
+    g.lineWidth = 1 / v.zoom;
     g.beginPath();
     for (let x = 0; x <= m.width; x++) { g.moveTo(x * TILE, 0); g.lineTo(x * TILE, m.height * TILE); }
     for (let y = 0; y <= m.height; y++) { g.moveTo(0, y * TILE); g.lineTo(m.width * TILE, y * TILE); }
     g.stroke();
-    if (S.mode === "pass") drawPassOverlay(g, m);
-    if (S.mode === "height") drawHeightOverlay(g, m);
-    if (S.mode === "region") drawRegionOverlay(g, m);
+    if (v.mode === "pass") drawPassOverlay(g, m, v);
+    if (v.mode === "height") drawHeightOverlay(g, m);
+    if (v.mode === "region") drawRegionOverlay(g, m);
     // Event pins stay visible while painting so placed events do not appear to
     // vanish when leaving Event mode. Passability/Height keep their overlays clean.
-    if (S.mode !== "pass" && S.mode !== "height" && S.mode !== "region") {
-      const interactiveEvents = S.mode === "event" || S.mode === "start";
+    if (v.mode !== "pass" && v.mode !== "height" && v.mode !== "region") {
+      const interactiveEvents = v.mode === "event" || v.mode === "start";
       for (const ev of m.events) {
         g.fillStyle = interactiveEvents
-          ? (ev === S.selectedEvent ? "rgba(120,200,255,0.35)" : "rgba(255,255,255,0.14)")
+          ? (ev === v.selectedEvent ? "rgba(120,200,255,0.35)" : "rgba(255,255,255,0.14)")
           : "rgba(120,200,255,0.10)";
         g.fillRect(ev.x * TILE + 2, ev.y * TILE + 2, TILE - 4, TILE - 4);
         g.strokeStyle = interactiveEvents
-          ? (ev === S.selectedEvent ? "#7ac8ff" : "rgba(255,255,255,0.6)")
+          ? (ev === v.selectedEvent ? "#7ac8ff" : "rgba(255,255,255,0.6)")
           : "rgba(122,200,255,0.45)";
-        g.lineWidth = 2 / S.zoom;
+        g.lineWidth = 2 / v.zoom;
         g.strokeRect(ev.x * TILE + 2, ev.y * TILE + 2, TILE - 4, TILE - 4);
         const pg = ev.pages[0];
         if (pg && pg.charset) {
@@ -169,50 +202,50 @@ import { isAutotileId } from "../../shared/autotile-registry";
       }
     }
     // start marker
-    if (S.proj.system.startMapId === m.id) {
+    if (v.system.startMapId === m.id) {
       g.fillStyle = "rgba(110,230,140,0.8)";
-      g.fillRect(S.proj.system.startX * TILE + 8, S.proj.system.startY * TILE + 8, TILE - 16, TILE - 16);
+      g.fillRect(v.system.startX * TILE + 8, v.system.startY * TILE + 8, TILE - 16, TILE - 16);
       g.fillStyle = "#0c2c14";
       g.font = "bold 22px monospace";
       g.textAlign = "center"; g.textBaseline = "middle";
-      g.fillText("S", S.proj.system.startX * TILE + TILE / 2, S.proj.system.startY * TILE + TILE / 2 + 1);
+      g.fillText("S", v.system.startX * TILE + TILE / 2, v.system.startY * TILE + TILE / 2 + 1);
     }
     // selection marquee
-    if (S.mode === "map" && S.selection) {
-      const w = (S.selection.x2 - S.selection.x1 + 1) * TILE, h2 = (S.selection.y2 - S.selection.y1 + 1) * TILE;
+    if (v.mode === "map" && v.selection) {
+      const w = (v.selection.x2 - v.selection.x1 + 1) * TILE, h2 = (v.selection.y2 - v.selection.y1 + 1) * TILE;
       g.fillStyle = "rgba(255,216,106,0.12)";
-      g.fillRect(S.selection.x1 * TILE, S.selection.y1 * TILE, w, h2);
-      g.strokeStyle = "#ffd86a"; g.lineWidth = 2 / S.zoom;
+      g.fillRect(v.selection.x1 * TILE, v.selection.y1 * TILE, w, h2);
+      g.strokeStyle = "#ffd86a"; g.lineWidth = 2 / v.zoom;
       g.setLineDash([10, 6]);
-      g.strokeRect(S.selection.x1 * TILE, S.selection.y1 * TILE, w, h2);
+      g.strokeRect(v.selection.x1 * TILE, v.selection.y1 * TILE, w, h2);
       g.setLineDash([]);
     }
     // paste preview
-    if (S.pasteMode === "tiles" && S.clipTiles && S.hoverCell && S.mode === "map") {
+    if (v.pasteMode === "tiles" && v.clipTiles && v.hoverCell && v.mode === "map") {
       g.globalAlpha = 0.6;
-      for (let dy = 0; dy < S.clipTiles.h; dy++) {
-        for (let dx = 0; dx < S.clipTiles.w; dx++) {
+      for (let dy = 0; dy < v.clipTiles.h; dy++) {
+        for (let dx = 0; dx < v.clipTiles.w; dx++) {
           for (const ln of LAYER_ORDER) {
-            drawLayerCell(g, S.clipTiles.layers[ln], S.clipTiles.w, S.clipTiles.h, dx, dy,
-              (S.hoverCell.x + dx) * TILE, (S.hoverCell.y + dy) * TILE, TILE, Assets.drawTile);
+            drawLayerCell(g, v.clipTiles.layers[ln], v.clipTiles.w, v.clipTiles.h, dx, dy,
+              (v.hoverCell.x + dx) * TILE, (v.hoverCell.y + dy) * TILE, TILE, Assets.drawTile);
           }
         }
       }
       g.globalAlpha = 1;
-      g.strokeStyle = "#ffd86a"; g.lineWidth = 2 / S.zoom;
-      g.strokeRect(S.hoverCell.x * TILE, S.hoverCell.y * TILE, S.clipTiles.w * TILE, S.clipTiles.h * TILE);
+      g.strokeStyle = "#ffd86a"; g.lineWidth = 2 / v.zoom;
+      g.strokeRect(v.hoverCell.x * TILE, v.hoverCell.y * TILE, v.clipTiles.w * TILE, v.clipTiles.h * TILE);
     }
-    if (S.pasteMode === "event" && S.hoverCell && S.mode === "event") {
-      g.strokeStyle = "#ffd86a"; g.lineWidth = 2 / S.zoom;
-      g.strokeRect(S.hoverCell.x * TILE + 2, S.hoverCell.y * TILE + 2, TILE - 4, TILE - 4);
+    if (v.pasteMode === "event" && v.hoverCell && v.mode === "event") {
+      g.strokeStyle = "#ffd86a"; g.lineWidth = 2 / v.zoom;
+      g.strokeRect(v.hoverCell.x * TILE + 2, v.hoverCell.y * TILE + 2, TILE - 4, TILE - 4);
     }
     // hover / drag previews
-    if (S.hoverCell && !S.pasteMode) {
-      if ((S.tool === "rect" || S.tool === "circle") && S.rectStart && S.painting && (S.mode === "map" || S.mode === "height")) {
-        const r2 = normRect(S.rectStart, S.hoverCell);
+    if (v.hoverCell && !v.pasteMode) {
+      if ((v.tool === "rect" || v.tool === "circle") && v.rectStart && v.painting && (v.mode === "map" || v.mode === "height")) {
+        const r2 = normRect(v.rectStart, v.hoverCell);
         g.strokeStyle = "#ffd86a";
-        g.lineWidth = 2 / S.zoom;
-        if (S.tool === "rect") {
+        g.lineWidth = 2 / v.zoom;
+        if (v.tool === "rect") {
           g.strokeRect(r2.x1 * TILE, r2.y1 * TILE, (r2.x2 - r2.x1 + 1) * TILE, (r2.y2 - r2.y1 + 1) * TILE);
         } else {
           g.beginPath();
@@ -220,20 +253,25 @@ import { isAutotileId } from "../../shared/autotile-registry";
             (r2.x2 - r2.x1 + 1) / 2 * TILE, (r2.y2 - r2.y1 + 1) / 2 * TILE, 0, 0, 7);
           g.stroke();
         }
-      } else if (S.tool === "shadow" && S.mode === "map" && S.hoverQuad) {
+      } else if (v.tool === "shadow" && v.mode === "map" && v.hoverQuad) {
         const H = TILE / 2;
-        const qx = (S.hoverQuad === 2 || S.hoverQuad === 8) ? 1 : 0;
-        const qy = S.hoverQuad >= 4 ? 1 : 0;
+        const qx = (v.hoverQuad === 2 || v.hoverQuad === 8) ? 1 : 0;
+        const qy = v.hoverQuad >= 4 ? 1 : 0;
         g.fillStyle = "rgba(255,216,106,0.35)";
-        g.fillRect(S.hoverCell.x * TILE + qx * H, S.hoverCell.y * TILE + qy * H, H, H);
-        g.strokeStyle = "#ffffff"; g.lineWidth = 2 / S.zoom;
-        g.strokeRect(S.hoverCell.x * TILE + 1, S.hoverCell.y * TILE + 1, TILE - 2, TILE - 2);
+        g.fillRect(v.hoverCell.x * TILE + qx * H, v.hoverCell.y * TILE + qy * H, H, H);
+        g.strokeStyle = "#ffffff"; g.lineWidth = 2 / v.zoom;
+        g.strokeRect(v.hoverCell.x * TILE + 1, v.hoverCell.y * TILE + 1, TILE - 2, TILE - 2);
       } else {
         g.strokeStyle = "#ffffff";
-        g.lineWidth = 2 / S.zoom;
-        g.strokeRect(S.hoverCell.x * TILE + 1, S.hoverCell.y * TILE + 1, TILE - 2, TILE - 2);
+        g.lineWidth = 2 / v.zoom;
+        g.strokeRect(v.hoverCell.x * TILE + 1, v.hoverCell.y * TILE + 1, TILE - 2, TILE - 2);
       }
     }
+  }
+  export function renderMap() {
+    const m = curMap();
+    if (!m) return;
+    renderMapView(S.mapCtx, m, viewFromS());
   }
 
   // ============================ palette ============================

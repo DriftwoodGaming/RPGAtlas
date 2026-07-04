@@ -15,6 +15,7 @@ import { flashStatus } from "../map-editor/status";
 import { mountViewport, VIEWPORT_PANEL } from "../map-editor/hd-viewport";
 import { mountWorldView, WORLD_PANEL } from "../map-editor/world-view";
 import { mountConsole, CONSOLE_PANEL } from "../console/console-panel";
+import { mountAdvanced, ADV_PANEL } from "../advanced/adv-panel";
 import {
   registerDockPanel, initDock, setDockChangeHook,
   focusPanel, togglePanel, isPanelVisible, focusNextPanel,
@@ -33,6 +34,9 @@ export function initDockWorkspace() {
   // The Console (post-1.0) — first tab of the map region, lazy-mounted; the
   // power-user command line over the same operations the menus drive.
   registerDockPanel({ id: CONSOLE_PANEL, title: "Console", mount: mountConsole, closable: true });
+  // The Advanced Map Editor (Phase 8) — Tiled-class mapping over the same
+  // document as the Map panel; lazy-mounted like HD-2D/World/Console.
+  registerDockPanel({ id: ADV_PANEL, title: "Advanced", mount: mountAdvanced, closable: true });
 
   // Keep menu check-marks live after a panel is toggled/closed by drag.
   setDockChangeHook(refreshToolbar);
@@ -51,6 +55,11 @@ export function initDockWorkspace() {
   registerCommand("panel-console", {
     label: "Console Panel", tip: "Show or hide the Console — type commands to inspect, build, and playtest",
     active: () => isPanelVisible(CONSOLE_PANEL), run: () => togglePanel(CONSOLE_PANEL),
+  });
+  registerCommand("panel-advanced", {
+    label: "Advanced Map Editor", key: "F4",
+    tip: "Show or hide the Advanced Map Editor — generalized layers, terrain, zones, and automapping over this same map",
+    active: () => isPanelVisible(ADV_PANEL), run: () => togglePanel(ADV_PANEL),
   });
   registerCommand("focus-next-panel", {
     label: "Focus Next Panel", key: "F6", tip: "Move keyboard focus to the next panel", run: focusNextPanel,

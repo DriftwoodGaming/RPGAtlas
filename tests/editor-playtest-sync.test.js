@@ -19,15 +19,17 @@ assert.match(
   "Playtest command opens the cache-busted browser URL",
 );
 
+// Phase 8 Stage A: the render body moved into renderMapView(g, map, v), so
+// the mode reads are v.mode (the classic editor binds v to S via viewFromS).
 assert.match(
   mapRenderSource,
-  /if \(S\.mode !== "pass" && S\.mode !== "height" && S\.mode !== "region"\) \{/,
+  /if \(v\.mode !== "pass" && v\.mode !== "height" && v\.mode !== "region"\) \{/,
   "editor draws event pins outside the overlay paint modes (pass/height/region)",
 );
 
 assert.match(
   mapRenderSource,
-  /const interactiveEvents = S\.mode === "event" \|\| S\.mode === "start";/,
+  /const interactiveEvents = v\.mode === "event" \|\| v\.mode === "start";/,
   "event editing states still get the stronger interactive marker treatment",
 );
 

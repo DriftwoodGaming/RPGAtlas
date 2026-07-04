@@ -72,6 +72,7 @@ const EDITOR_KEYS: KeyBinding[] = [
   { codes: ["F1"], preventDefault: true, run: () => runAct("db") },
   { codes: ["F2"], preventDefault: true, run: () => runAct("hdpreview") },
   { codes: ["F3"], preventDefault: true, run: () => runAct("worldview") },
+  { codes: ["F4"], preventDefault: true, run: () => runAct("panel-advanced") },
   { codes: ["F5"], preventDefault: true, run: () => runAct("play") },
   { codes: ["F6"], preventDefault: true, run: () => runAct("focus-next-panel") },
   // Height mode consumes ALL digits for the painted elevation (0–9). Must stay above the layer gate.

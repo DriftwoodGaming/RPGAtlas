@@ -4,6 +4,19 @@
 
 export const PATCH_NOTES = [
   {
+    date: "July 4, 2026",
+    title: "Advanced Map Editor — first look",
+    summary:
+      "A new Advanced tab opens next to the Map view (View menu or F4). It shows the same map as the regular editor — nothing moves or changes — with a map tree you can organize into folders, a layer list, and its own zoom. This is the foundation for terrain brushes, zones, stamps, and auto-mapping coming in the next updates.",
+    items: [
+      "View ▸ Advanced Map Editor (or press F4) opens the new tab beside Map.",
+      "Map Tree: press ＋ to make folders, then drag maps onto a folder to file them. Double-click a folder to rename it.",
+      "Folders only organize the tree — your maps and games are untouched.",
+      "The Layers panel lists this map's layers top to bottom, with Events and Collision rows on top.",
+      "Everything you paint in the regular editor shows up here instantly, and clicking a map here switches the regular editor too.",
+    ],
+  },
+  {
     date: "July 3, 2026",
     title: "Map Properties gets tabs",
     summary:

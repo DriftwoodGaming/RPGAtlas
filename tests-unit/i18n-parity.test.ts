@@ -29,6 +29,9 @@ const CURATED_KEYS = [
   "Interface Language", "Language", "UI Font Size",
   "Choose the language used by the editor. Project content is not translated.",
   "Apply", "Close", "Cancel", "Confirm", "OK", "Save", "Delete",
+  // Advanced Map Editor chrome (Phase 8 Stage A, src/editor/advanced/adv-panel.ts)
+  "Map Tree", "Layers", "Events", "Collision",
+  "New Folder…", "Rename…", "Folder name",
 ];
 
 /** Command labels that are dynamic composites or deliberately English-only

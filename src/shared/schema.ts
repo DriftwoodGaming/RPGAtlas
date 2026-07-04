@@ -67,6 +67,9 @@ export interface ProjectMeta {
   formatVersion?: number;
 }
 
+/** Tiled-style user properties (Phase 8). Type is carried by the JS value. */
+export type TypedProps = Record<string, string | number | boolean>;
+
 /** A named type-list entry with a stable string key (elements, skillTypes). */
 export interface KeyedType {
   key: string;
@@ -821,6 +824,101 @@ export interface MapLayers {
   over: number[];
 }
 
+// ---- Advanced Map Editor (Phase 8): generalized layers ----
+// When map.layersAdv is present it defines the full ordered layer stack
+// (bottom → top) for both editors and the renderer composite. Core entries
+// REFERENCE the four role arrays in map.layers (which remain the tile storage
+// — every existing paint/clipboard/autotile path keeps writing them); "tile"
+// entries carry their own data. Absent ⇒ classic stack, byte-identical
+// rendering.
+
+export interface AdvLayerBase {
+  /** unique within the map. */
+  id: number;
+  name: string;
+  /** default true. */
+  visible?: boolean;
+  /** editor-only: blocks edits, not rendering. */
+  locked?: boolean;
+  /** 0..1, default 1. */
+  opacity?: number;
+  /** default "normal". */
+  blend?: "normal" | "add" | "multiply" | "screen";
+  /** CSS color multiplied over the layer (editor+2D first). */
+  tint?: string;
+  props?: TypedProps;
+}
+export type AdvLayer =
+  | (AdvLayerBase & { type: "core"; role: "ground" | "decor" | "decor2" | "over" })
+  | (AdvLayerBase & {
+      type: "tile";
+      /** width*height tile ids. */
+      data: number[];
+      /** engine composite buffer; default "below". */
+      slot?: "below" | "above";
+    })
+  | (AdvLayerBase & { type: "group"; children: AdvLayer[] });
+
+// ---- Advanced Map Editor (Phase 8): objects & gameplay zones ----
+
+export type ZoneShape =
+  | { type: "rect"; x: number; y: number; w: number; h: number } // tile units
+  | { type: "ellipse"; cx: number; cy: number; rx: number; ry: number }
+  | { type: "poly"; pts: { x: number; y: number }[] }
+  | { type: "point"; x: number; y: number };
+
+export interface MapZone {
+  id: number;
+  name?: string;
+  kind:
+    | "encounter"
+    | "transfer"
+    | "sound"
+    | "weather"
+    | "spawn"
+    | "collision"
+    | "nav"
+    | "custom";
+  shape: ZoneShape;
+  /** free-form; the whole payload for "custom". */
+  props?: TypedProps;
+  // per-kind payloads (only the matching one is read):
+  encounter?: { troops: number[]; rate: number; regionFilter?: number[] };
+  transfer?: { mapId: number; x: number; y: number; dir?: Dir };
+  sound?: { key: string; vol?: number; falloff?: "none" | "linear" };
+  weather?: { kind: string; power: number };
+}
+
+// ---- Advanced Map Editor (Phase 8): visual automapping (editor-only) ----
+
+export type RulePredicate =
+  | { kind: "terrainIs"; terrain: number } // autotile group / tile id, ground
+  | {
+      kind: "tileIs";
+      layerId: number | "core:ground" | "core:decor" | "core:decor2" | "core:over";
+      tile: number;
+    }
+  | { kind: "near"; terrain: number; radius: number }
+  | { kind: "notNear"; terrain: number; radius: number }
+  | { kind: "regionIs"; region: number }
+  | { kind: "passable"; value: boolean };
+export type RuleAction =
+  | { kind: "placeTile"; layerId: number | string; tile: number; probability?: number }
+  | { kind: "placeStamp"; stampId: number; probability?: number }
+  | { kind: "setRegion"; region: number };
+
+export interface AutomapRule {
+  id: number;
+  name?: string;
+  /** default true. */
+  enabled?: boolean;
+  /** ANDed. */
+  if: RulePredicate[];
+  then: RuleAction[];
+  /** deterministic preview/apply. */
+  seed?: number;
+}
+
 export interface MapEncounters {
   troops: number[];
   rate: number;
@@ -915,6 +1013,37 @@ export interface GameMap {
   /** Pinned bird's-eye position in the World View, in grid cells (Phase 3
    *  Stage E). Editor-only; absent ⇒ the view auto-lays the node out. */
   worldPos?: { x: number; y: number };
+  /** Generalized layer stack (Phase 8). Absent ⇒ the classic four-array
+   *  stack, byte-identical rendering. See AdvLayer. */
+  layersAdv?: AdvLayer[];
+  /** Objects & gameplay zones (Phase 8). Absent ⇒ zero runtime change. */
+  zones?: MapZone[];
+  /** Visual automap rules (Phase 8). Editor-only: evaluated on Preview/Apply
+   *  in the Advanced editor; the engine never reads them. */
+  automapRules?: AutomapRule[];
+  /** Map-tree folder this map sits in (Phase 8). Editor-only; absent = root. */
+  folderId?: number;
+}
+
+/** A map-tree folder (Phase 8, proj.mapFolders). Purely organizational —
+ *  the flat `maps` array and every byId lookup are untouched. */
+export interface MapFolder {
+  id: number;
+  name: string;
+  parentId?: number | null;
+}
+
+/** A persisted clipboard entry (Phase 8, proj.stamps): captured from a
+ *  selection, placed through the existing paste path. */
+export interface Stamp {
+  id: number;
+  name: string;
+  w: number;
+  h: number;
+  /** same shape as the tile clipboard: per-core-role tile arrays (+ shadows). */
+  layers: Partial<Record<"ground" | "decor" | "decor2" | "over", number[]>>;
+  shadows?: number[];
+  tags?: string[];
 }
 
 // ============================================================================
@@ -949,6 +1078,20 @@ export interface Autotile {
   terrain?: boolean;
   /** passable by default. Default true (terrain floors are walkable). */
   pass?: boolean;
+  // ---- Phase 8 (Terrain & Autotile Studio) — all absent = today's A2 47-blob ----
+  /** Sheet arrangement / resolver kind. Absent = "blob47" (A2). */
+  kind?: "blob47" | "edge16" | "corner16" | "a1" | "a3" | "a4";
+  /** Weighted visual variations (alternate sheets). */
+  variants?: { sheet: string; weight: number }[];
+  /** Pattern completion: derive missing shapes by transforming authored ones. */
+  allowFlipH?: boolean;
+  allowFlipV?: boolean;
+  allowRot?: boolean;
+  /** Prefer authored tiles over derived transforms. */
+  preferOriginal?: boolean;
+  /** A1-style animation frame strips. */
+  anim?: { frames: number; fps: number };
+  props?: TypedProps;
 }
 
 /** A project plugin entry (Database ▸ Plugins). Built-ins carry engine
@@ -1020,6 +1163,10 @@ export interface Project {
   tilesets: Tileset[];
   /** 47-blob autotile groups (Phase 3 Stage D). Optional; absent = none. */
   autotiles?: Autotile[];
+  /** Persisted tile stamps (Phase 8). Optional; absent = none. */
+  stamps?: Stamp[];
+  /** Map-tree folders (Phase 8). Editor-only; absent = flat tree. */
+  mapFolders?: MapFolder[];
   assets: ProjectAssets;
   /** Battle animations (Phase 5). Always present after the v2 migration. */
   animations: BattleAnimation[];
