@@ -1021,6 +1021,91 @@ Stage F traps / decisions:
   compares go through `tileId()` (Stage E audit posture), and `placeStamp`
   preserves the stamp's flag bits verbatim.
 
+### Stage G — Polish, docs & integration (landed 2026-07-04, Fable)
+
+Closes the phase. Shipped:
+
+- **Sample-project repair (unplanned, load-bearing).** Commit `3fc10b9`
+  ("Replace RPGAtlas-Desktop.exe binary") had accidentally committed a live
+  editor session over `Atlas_Quest.json`: Driftwood Shore deleted (ten
+  sample-library maps baked in over it), the start position moved into Murky
+  Swamp with every HD-2D flag on, heights painted over the FROZEN Meridian
+  Village, the cave's shore passage and the Cottage's HD dressing lost, quests
+  mutated. Restored maps 1–4 + quests + start (1 @ 12,12) from `ed67128`,
+  kept that commit's intentional work (doubled DB 8/24/8/8/8, new system
+  fields). **This single repair revived the entire golden wall**: the
+  "9 pre-existing GPU-drift failures" narrative was false — all renderer
+  goldens, the classic2d golden, and the showcase spec pass on this machine
+  once the project matches what the baselines were recorded against. The
+  clean baseline is now **0 expected failures**.
+- **De-flaked the goldens**: random-walk NPCs roll unseeded `Math.random()`
+  when their step timer expires — the one nondeterminism the frozen clock
+  does not freeze. Meridian's villagers could roll a facing change inside the
+  boot window (~25%/roll), silently flaking every screenshot comparison and
+  failing Stage B's boot-vs-boot parity fixtures outright. `pinMovers` in
+  `renderer-golden.spec.mjs` pins `moveType:"random"` pages to `"fixed"` in
+  every fixture boot (baselines show exactly the authored state).
+- **Showcase**: `scripts/build-atlas-quest-advanced.mjs` (deterministic,
+  idempotent, LF like the repaired file — the HD script's CRLF convention was
+  stale and is updated) adds map 5 **"Meridian Village — Advanced"**: frozen
+  map 1's layout + a layersAdv stack (4 cores + an "Atmosphere" group holding
+  an add-blend Lantern Glow and a tinted above-slot Evening Haze), one zone
+  of every kind across all four shapes, two seeded automap rules (reeds ring
+  the pond / wildflowers along the path), a Showcase Sign, and a "Rock
+  cluster" stamp in `proj.stamps`. Terrain Studio terrains are the one
+  feature not shipped in it (they need sheet assets; the sample project is
+  100% procedural) — the Sign and wiki point there instead. Guarded by
+  `tests-unit/atlas-quest-advanced.test.ts` (validates the shipped JSON
+  through repairLayersAdv/layerView/zonesAtTile/evaluateAutomap) and a new
+  Phase 8 section in `showcase.spec.mjs` (loads map 5 through the engine,
+  asserts the stack + `atlas.zonesAt`).
+- **Perf gate**: `tests-e2e/adv-perf.spec.mjs` — 64×64, 8-layer stack, 50
+  zones of every kind; loads via the composite branch and measures frame time
+  while the player walks (the zone hot path). Capture: load 511 ms, 16.67
+  ms/frame = locked 60 fps under SwiftShader. Budgets: 8 s load / 100 ms
+  frame (`RPGATLAS_PERF_BUDGET_MS` override).
+- **Completeness**: new top-level **Advanced** menu (panel, Studio, automap
+  ×3, flip/rotate ×3, stamps ×2 — "Advanced" was already in all ten locale
+  dicts, zero new i18n keys); Keyboard Shortcuts dialog gained an Advanced
+  section (F4, X/Y/R + focus note).
+- **Docs**: new `wiki/Advanced-Map-Editor.md`; sections/links added to
+  `Maps-and-Tiles.md`, `The-Editor-Interface.md` (panel section, menu row, F4
+  + X/Y/R shortcuts), `Home.md`, `_Sidebar.md`; `atlas.zonesAt` documented in
+  `Plugin-and-Script-API.md` (a Stage D doc gap); docs-site rebuilt (19
+  pages).
+- **Patch notes** "Advanced Map Editor — polish, docs & a showcase village";
+  `?v=39 → 40` (help.ts + shims.d.ts). No CSS changes (`editor.css` stays 58).
+
+Stage G traps / decisions:
+- **Never "expect 9 golden reds" again.** That memory was cargo-culted from a
+  corrupted fixture; after the repair the clean baseline is **zero** expected
+  e2e failures on this machine. Any red is a real regression.
+- **Two distinct determinism traps for pixel-comparing specs.** (1) Random
+  movers roll unseeded `Math.random()` — compose `pinMovers` (exported from
+  `fixtures/atlas-quest.mjs`) into every fixture boot that screenshots.
+  (2) Comparing frames across *different virtual times* additionally needs
+  `stripStartEvents` (terrain-anim) because animated charsets (Save Crystal)
+  legitimately change with the clock. Both specs only ever passed before
+  because the corrupted start map had no events. A seedable engine RNG was
+  proposed as the durable fix (filed as a follow-up task chip).
+- The `/code-review` (high; 8 finder angles) caught a dead assertion in the
+  new unit test (`e.kind` vs `AutomapEdit.type`, which also masked that core
+  writes carry `role`, not `layerId`) — fixed; perf helpers single-sourced in
+  `fixtures/perf.mjs` (renderer-perf / load-perf / adv-perf).
+- The desktop EXE replaced in 3fc10b9 likely embeds the corrupted sample
+  project — repackage (scripts/package-exe.mjs) when convenient; not done in
+  Stage G to keep binaries out of the phase diff.
+- The dock e2e (`editor.spec.mjs` "floats a panel") hardcoded a menubar drop
+  coordinate that the new Advanced menu moved "View" underneath — the dropped
+  float covered the menu and the reset step timed out ~50% of runs. The drop
+  point is now computed past the last menu label, safe under future menubar
+  growth.
+
+Gate: tsc + eslint clean; `node --test` 16/16; vitest **443** (438 + 5 showcase
+guard). Playwright **59/59 green** — including every renderer golden, the
+classic2d golden, and both showcase specs; first fully-green e2e wall since
+before 3fc10b9. Tagged `phase-8`.
+
 ## Open items to confirm before Stage A starts
 
 1. **Blend modes in HD-2D:** classic 2D gets full blend support via canvas

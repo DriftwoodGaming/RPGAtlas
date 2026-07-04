@@ -5,6 +5,20 @@
 export const PATCH_NOTES = [
   {
     date: "July 4, 2026",
+    title: "Advanced Map Editor — polish, docs & a showcase village",
+    summary:
+      "The Advanced Map Editor is finished! A new Advanced menu on the menu bar gathers everything in one place, the sample game ships a showcase map built with the new tools, and the wiki has a full guide. The bundled sample game also got a repair: a recent update accidentally overwrote it — your adventure starts in Meridian Village again, and Driftwood Shore is back on the map.",
+    items: [
+      "New Advanced menu: the panel (F4), Terrain & Autotile Studio, Automap rules with Preview/Apply, brush flip/rotate, and stamps — every advanced action is now one click away (they're all in the command palette too).",
+      "New sample map “Meridian Village — Advanced”: the familiar village rebuilt with extra layers (a lantern glow and an evening haze), one gameplay zone of every kind, two ready-to-run Automap rules, and a reusable stamp — open it and press F4 to explore.",
+      "The Keyboard Shortcuts dialog now lists the Advanced editor's keys.",
+      "New wiki guide: Advanced Map Editor — layers, terrain brushes, stamps, zones, and Automap rules, all in one page; the Plugin & Script API page now documents atlas.zonesAt(x, y).",
+      "Sample game restored: start position back in Meridian Village, Driftwood Shore and the cave's shore passage back, the Cottage's cozy HD-2D interior back.",
+      "Big maps stay fast: a new automated benchmark keeps a 64×64 map with 8 layers and 50 zones at a locked 60 fps.",
+    ],
+  },
+  {
+    date: "July 4, 2026",
     title: "Advanced Map Editor — automap rules",
     summary:
       "The Advanced tab gets a bottom Automap drawer: write simple IF/THEN rules that reshape your map with one click, no scripting. Say “IF this tile is grass AND it's next to water, THEN scatter reeds 35% of the time” and the editor fills in the detail for you. Press Preview to see exactly what will change (highlighted right on the map), then Apply — and it all undoes in a single step. Rules are an editor tool only; they're saved with the map but never run in the finished game, so exports are byte-for-byte the same.",

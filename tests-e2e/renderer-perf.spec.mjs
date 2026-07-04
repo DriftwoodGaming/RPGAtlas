@@ -21,6 +21,7 @@
 
 import { test, expect } from "@playwright/test";
 import { gotoWithAtlasQuest } from "./fixtures/atlas-quest.mjs";
+import { measureFrames } from "./fixtures/perf.mjs";
 
 const BUDGET_MS = Number(process.env.RPGATLAS_PERF_BUDGET_MS) || 300;
 const WARMUP_FRAMES = 30;
@@ -56,24 +57,7 @@ test.describe("renderer performance budget", () => {
     await page.getByText("New Game", { exact: true }).click();
     await expect(page.locator(".titlewin")).toHaveCount(0, { timeout: 15_000 });
 
-    const avgMs = await page.evaluate(
-      ({ warmup, frames }) =>
-        new Promise((resolve) => {
-          let n = 0;
-          let start = 0;
-          function tick(now) {
-            n++;
-            if (n === warmup) start = now;
-            if (n === warmup + frames) {
-              resolve((now - start) / frames);
-              return;
-            }
-            requestAnimationFrame(tick);
-          }
-          requestAnimationFrame(tick);
-        }),
-      { warmup: WARMUP_FRAMES, frames: MEASURE_FRAMES },
-    );
+    const avgMs = await measureFrames(page, { warmup: WARMUP_FRAMES, frames: MEASURE_FRAMES });
 
     console.log(
       `[perf] all-features 1080p: ${avgMs.toFixed(2)} ms/frame avg over ${MEASURE_FRAMES} frames (budget ${BUDGET_MS} ms, SwiftShader)`,

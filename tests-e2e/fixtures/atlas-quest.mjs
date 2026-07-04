@@ -21,6 +21,23 @@ export function atlasQuestJson() {
   return cached;
 }
 
+/** The one nondeterminism a frozen Playwright clock does NOT freeze:
+ * random-walk NPCs (moveType "random") roll unseeded Math.random() when their
+ * step timer expires — harmless in play, fatal to any spec that compares
+ * pixels across boots or against a committed baseline. Meridian Village's
+ * villagers can roll a facing change inside a fixture's boot window (~25% per
+ * roll). Specs that compare frames compose this into their transformProject
+ * so every mover stays at its authored spot and direction — exactly the state
+ * the committed baselines show. */
+export function pinMovers(project) {
+  for (const m of project.maps) {
+    for (const e of m.events || []) {
+      for (const p of e.pages || []) if (p.moveType === "random") p.moveType = "fixed";
+    }
+  }
+  return project;
+}
+
 /**
  * Seeds localStorage with the Atlas Quest sample project, then navigates to
  * `path`. Must set localStorage before any app script runs, so we navigate

@@ -8,6 +8,7 @@
 
 **Building your world**
 - [Maps & Tiles](Maps-and-Tiles)
+- [Advanced Map Editor](Advanced-Map-Editor)
 - [Events](Events)
 - [The Database](The-Database)
 - [Battles & States](Battles-and-States)

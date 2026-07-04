@@ -24,19 +24,11 @@
 
 import { test, expect } from "@playwright/test";
 import { gotoWithAtlasQuest } from "./fixtures/atlas-quest.mjs";
+import { makeRand, measureFrames } from "./fixtures/perf.mjs";
 
 const EDITOR_BOOT_BUDGET_MS = Number(process.env.RPGATLAS_EDITOR_BOOT_BUDGET_MS) || 15_000;
 const PLAYER_BOOT_BUDGET_MS = Number(process.env.RPGATLAS_PLAYER_BOOT_BUDGET_MS) || 15_000;
 const STRESS_BUDGET_MS = Number(process.env.RPGATLAS_STRESS_BUDGET_MS) || 500;
-
-/** Deterministic LCG so the stress map is identical every run. */
-function makeRand(seed) {
-  let s = seed;
-  return () => {
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
-    return s / 0x7fffffff;
-  };
-}
 
 /** Blow the start map up to 160x160 with ~200 events and 16 lights, every
  *  HD-2D feature enabled — the roadmap's "big-map stress map". Events clone
@@ -125,24 +117,7 @@ test.describe("big-map stress", () => {
     await gotoWithAtlasQuest(page, "/play.html?hd2d=1", { transformProject: stressify });
     await newGame(page);
 
-    const avgMs = await page.evaluate(
-      ({ warmup, frames }) =>
-        new Promise((resolve) => {
-          let n = 0;
-          let start = 0;
-          function tick(now) {
-            n++;
-            if (n === warmup) start = now;
-            if (n === warmup + frames) {
-              resolve((now - start) / frames);
-              return;
-            }
-            requestAnimationFrame(tick);
-          }
-          requestAnimationFrame(tick);
-        }),
-      { warmup: 20, frames: 60 },
-    );
+    const avgMs = await measureFrames(page, { warmup: 20, frames: 60 });
     console.log(`[perf] stress map: ${avgMs.toFixed(2)} ms/frame avg (budget ${STRESS_BUDGET_MS} ms, SwiftShader)`);
     expect(avgMs).toBeLessThan(STRESS_BUDGET_MS);
 

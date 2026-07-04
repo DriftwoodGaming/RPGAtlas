@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Advanced Map Editor — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a class="active" href="Advanced-Map-Editor.html">Advanced Map Editor</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="the-advanced-map-editor">The Advanced Map Editor</h1>
+<p>Press <strong><code>F4</code></strong> (or open the <strong>Advanced</strong> menu) to dock the <strong>Advanced Map Editor</strong> — a power-mapping panel that works on the <em>same map</em> as the classic Map panel. Everything here is optional: a map you never touch with these tools is saved byte-for-byte exactly as before, and the classic editor keeps working on any map, advanced or not. Undo (<code>Ctrl+Z</code>) spans both editors — paint in one, undo in the other.</p>
+<p>Want a guided tour? The sample project ships a showcase map, <strong>Meridian Village — Advanced</strong>, with a full layer stack, one zone of every kind, and two ready-to-run Automap rules.</p>
+<hr>
+<h2 id="layers-without-limits">Layers without limits</h2>
+<p>The classic editor gives every map four fixed layers. The Advanced panel's <strong>Layers list</strong> turns that into a full stack:</p>
+<ul><li><strong>Add tile layers</strong> — as many as you like, above or below the four core layers (which are always there and always store what the classic editor paints).</li><li><strong>Group layers</strong> and fold whole groups in and out. Groups can nest.</li><li>Per layer: <strong>visibility</strong>, <strong>lock</strong> (blocks edits, not rendering), <strong>opacity</strong>, a <strong>blend mode</strong> (normal / add / multiply / screen), a <strong>tint</strong> color, and a <strong>slot</strong> — <em>below</em> renders under the player, <em>above</em> renders overhead.</li><li><strong>Drag to reorder</strong>; double-click to rename.</li></ul>
+<p>Blend and opacity are baked into the map's render buffers, so the HD-2D viewport and exported games show exactly what the editor shows. The first time you add a layer, the map quietly upgrades to the generalized stack; until then nothing about it changes on disk.</p>
+<h2 id="painting-flipping-rotating">Painting, flipping, rotating</h2>
+<p>Painting works like the classic editor (pen / erase / fill / rectangle, same tile selection and brush size), applied to whichever layer is active in the list. Three keys transform the brush while the Advanced panel is focused:</p>
+<table><thead><tr><th>Key</th><th>Action</th></tr></thead><tbody><tr><td><code>X</code></td><td>Flip the brush left ↔ right</td></tr><tr><td><code>Y</code></td><td>Flip the brush top ↕ bottom</td></tr><tr><td><code>R</code></td><td>Rotate the brush 90° clockwise</td></tr></tbody></table>
+<p>A little indicator by the zoom shows the current transform. Flipped and rotated tiles render correctly in the editor, in playtests, and in exported games — and terrain brushes keep resolving their own shape (transforms apply to ordinary tiles).</p>
+<h2 id="the-searchable-tile-palette">The searchable tile palette</h2>
+<p>The panel's right rail has its own <strong>Tiles</strong> tab with a search box and category chips (Terrain, Water, Floor, Walls, Nature, Objects) so you can find a tile without scrolling a whole sheet.</p>
+<h2 id="stamps">Stamps</h2>
+<p>Select an area in the Map view, then <strong>Advanced ▸ Save Selection as Stamp…</strong> to keep it as a reusable <strong>stamp</strong>. Stamps live with the project (the sample project ships a "Rock cluster" one):</p>
+<ul><li>Click <strong>📌</strong> on a stamp to arm it, then click the map to place it — placement is one undo step.</li><li>Toggle <strong>🎲 random scatter</strong> to sprinkle the stamp across your brush area with an adjustable chance per spot — great for foliage, rubble, and clutter.</li></ul>
+<h2 id="terrain-autotile-studio">Terrain & Autotile Studio</h2>
+<p><strong>Advanced ▸ Terrain & Autotile Studio…</strong> turns any imported tile sheet into a <em>smart terrain brush</em> that picks its own edges, corners, and inside pieces as you paint. Five steps — <strong>Source, Layout, Terrain Types, Rules, Preview</strong> — with auto-detection of common sheet arrangements (A2 terrain, animated A1 water, fences, walls, roofs):</p>
+<ul><li><strong>Animate</strong> a terrain (frames + speed) and water or lava flows in the editor, the HD-2D viewport, and playtests alike.</li><li><strong>Weighted variations</strong> let each cell pick randomly from alternate sheets, so big fields stop tiling obviously.</li><li><strong>Pattern completion</strong> fills in shapes you didn't draw by mirroring/rotating the ones you did.</li></ul>
+<p>The Studio needs an image sheet to work from — see <a href="The-Asset-Browser.html">The Asset Browser</a> for importing one. (The built-in procedural tiles don't use sheets, which is why the sample project's showcase map points you here instead of shipping a terrain.)</p>
+<h2 id="objects-gameplay-zones">Objects & gameplay zones</h2>
+<p>Switch the panel's mode rail to <strong>Objects</strong> to draw <em>zones</em> — shapes with gameplay meaning — straight onto the map. Pick a kind, then draw a <strong>Rectangle</strong>, <strong>Ellipse</strong>, <strong>Polygon</strong> (double-click to finish), or <strong>Point</strong>; the Select tool drags corner handles to reshape. Each kind has its own little inspector:</p>
+<table><thead><tr><th>Zone kind</th><th>While the player is inside…</th></tr></thead><tbody><tr><td><strong>Encounter</strong></td><td>Replaces the map's random-battle pool (with a one-click <strong>Test Encounter in This Area</strong>)</td></tr><tr><td><strong>Transfer</strong></td><td>Warps the player somewhere else on entry</td></tr><tr><td><strong>Sound</strong></td><td>Loops an ambience layer, with optional distance falloff</td></tr><tr><td><strong>Weather</strong></td><td>Applies weather, restoring the map's own on exit</td></tr><tr><td><strong>Collision</strong></td><td>Makes the covered tiles solid</td></tr><tr><td><strong>Nav</strong></td><td>Makes the covered tiles walkable (stepping stones over water!)</td></tr><tr><td><strong>Spawn</strong></td><td>A marker for plugins that spawn things</td></tr><tr><td><strong>Custom</strong></td><td>Nothing by itself — read it from plugins or Script via <code>atlas.zonesAt(x, y)</code></td></tr></tbody></table>
+<p>Collision and nav are baked in when the map loads, so movement stays fast no matter how many zones you draw. A map with no zones plays exactly as before.</p>
+<h2 id="automap-rules">Automap rules</h2>
+<p>The <strong>Automap drawer</strong> (bottom of the panel, or <strong>Advanced ▸ Automap Rules…</strong>) writes map detail for you from plain <strong>IF / AND / THEN</strong> rules — no scripting:</p>
+<blockquote><p><strong>IF</strong> this tile is grass <strong>AND</strong> it's near water <strong>THEN</strong> place reeds, 35% of the time.</p></blockquote>
+<ul><li>Conditions: <em>terrain is</em>, <em>tile is</em>, <em>near</em>, <em>not near</em>, <em>region is</em>, <em>passable</em> — all ANDed.</li><li>Actions: <em>place a tile</em>, <em>place a stamp</em>, <em>set a region</em>, each with an optional probability.</li><li><strong>Preview</strong> paints the pending changes as an overlay (green tiles, magenta regions) right on the map; <strong>Apply</strong> commits them as <strong>one undo step</strong>. Preview and Apply always produce the identical result — each rule carries a random seed, and the <strong>🎲</strong> button re-rolls it when you want a different scatter.</li><li>Rules are saved with the map but are an <strong>editor tool only</strong>: they never run in the finished game, and exports are byte-for-byte unchanged.</li></ul>
+<h2 id="for-plugin-authors">For plugin authors</h2>
+<ul><li><code>atlas.zonesAt(x, y)</code> (and the Script command's <code>game.zonesAt</code>) returns the zones covering a tile, in author draw order — custom zones make it a general-purpose "regions with data" system.</li><li>The generalized layer stack lives on the map as <code>layersAdv</code>; zones as <code>zones</code>; rules as <code>automapRules</code>; stamps on the project as <code>stamps</code>. All optional — see <a href="Plugin-and-Script-API.html">Plugin & Script API</a>.</li></ul>
+<hr>
+<p><em>Next: put the polish on with <a href="Maps-and-Tiles.html#hd-2d-heights">HD-2D heights</a> or wire up <a href="Events.html">Events</a>.</em></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

@@ -53,6 +53,7 @@ pre-rebrand plugins. The Script event command receives `atlas` and `game` as glo
 | `atlas.registerCommand(type, fn)` | Adds a new event command; `fn(cmd, interp)` may be `async` — the event waits for it. Registered commands are also usable from Atlas Graph pages (as command-list nodes) and are error-isolated per call. |
 | `atlas.setTransition({ out, in })` | Replaces the map-transfer fade; each is `async () => {}` |
 | `atlas.startBattle(troopId, canEscape)` | Starts a battle → `Promise<"win" \| "lose" \| "escape">` |
+| `atlas.zonesAt(x, y)` | The current map's [gameplay zones](Advanced-Map-Editor#objects--gameplay-zones) covering a tile, in author draw order — **custom** zones carry whatever `props` you gave them, making this a "regions with data" system. Also on the Script API as `game.zonesAt(x, y)`. |
 
 ---
 

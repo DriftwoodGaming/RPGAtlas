@@ -47,6 +47,17 @@ function a2SheetDataUrl(fill) {
 const startMap = (project) =>
   project.maps.find((m) => m.id === project.system.startMapId) || project.maps[0];
 
+/** These fixtures prove "frame changed ⇔ the TERRAIN frame changed", comparing
+ * whole screenshots across different virtual times — so the start map must
+ * carry no actors at all: NPC sprites animate off the same clock (the Save
+ * Crystal sparkles, movers roll unseeded RNG) and would flip pixels for
+ * reasons that have nothing to do with terrain. The original fixtures were
+ * only sound because the then-start-map happened to have zero events. */
+const stripStartEvents = (project) => {
+  startMap(project).events = [];
+  return project;
+};
+
 /** Paint a terrain group over the start map's ground layer and register it. */
 function paintTerrain(project, group) {
   project.autotiles = project.autotiles || [];
@@ -71,7 +82,9 @@ const withStaticTerrain = (project) => paintTerrain(project, {
 
 async function bootTo(page, hdParam, transform, extraMs = 0) {
   await gotoWithAtlasQuest(page, `/play.html?hd2d=${hdParam}`, {
-    installClock: true, transformProject: transform,
+    installClock: true,
+    transformProject: (project) =>
+      stripStartEvents(transform ? (transform(project) ?? project) : project),
   });
   await expect(page.getByText("New Game", { exact: true })).toBeVisible({ timeout: 15_000 });
   await page.clock.runFor(50);

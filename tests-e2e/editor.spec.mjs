@@ -179,12 +179,18 @@ test.describe("dockable workspace", () => {
 
     // Drag the Tiles tab up into the menubar strip (no drop region there) to
     // detach it into a floating window; the palette content travels with it.
+    // The drop point is computed PAST the last menu label — a hardcoded x once
+    // sat on empty strip, but the menubar grows (Phase 8 added an Advanced
+    // menu) and a float dropped onto a label covers that menu, breaking the
+    // View-menu interaction below.
+    const lastMenu = await page.locator("#menus .menu-label").last().boundingBox();
+    const dropX = lastMenu.x + lastMenu.width + 60;
     const tilesTab = page.locator(".dock-tab", { hasText: "Tiles" }).first();
     const box = await tilesTab.boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
     await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, { steps: 4 });
-    await page.mouse.move(430, 6, { steps: 8 });
+    await page.mouse.move(dropX, 6, { steps: 8 });
     await page.mouse.up();
     await expect(page.locator(".dock-float")).toHaveCount(1);
     await expect(page.locator(".dock-float #palette")).toBeVisible();

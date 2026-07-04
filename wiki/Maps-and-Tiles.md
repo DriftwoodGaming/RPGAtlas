@@ -36,6 +36,13 @@ terrain goes to Ground, decorations go above. For most maps you never need to le
 Switch to an explicit layer (`1`–`4`) only when you want precise control, especially for the
 **Overhead** layer.
 
+### Need more than four?
+
+Press **`F4`** for the [Advanced Map Editor](Advanced-Map-Editor): unlimited extra layers with
+groups, opacity, blend modes and tints — plus smart terrain brushes, reusable stamps, gameplay
+zones you draw as shapes, and Automap rules that detail the map for you. It works on the same map
+as the classic editor, and maps that never use it are saved exactly as before.
+
 ---
 
 ## Passability — where the player can walk

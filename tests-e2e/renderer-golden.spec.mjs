@@ -29,7 +29,7 @@
    GPL-3.0-or-later. */
 
 import { test, expect } from "@playwright/test";
-import { gotoWithAtlasQuest } from "./fixtures/atlas-quest.mjs";
+import { gotoWithAtlasQuest, pinMovers } from "./fixtures/atlas-quest.mjs";
 
 const SCREEN_SIZE = { width: 816, height: 624 }; // matches Atlas_Quest system.screenWidth/Height
 
@@ -42,7 +42,10 @@ test.use({ viewport: SCREEN_SIZE });
 async function bootToStableMap(page, hdParam, transformProject) {
   await gotoWithAtlasQuest(page, `/play.html?hd2d=${hdParam}`, {
     installClock: true,
-    transformProject,
+    // Every fixture boot pins random movers (see fixtures/atlas-quest.mjs) —
+    // these specs compare pixels across boots and against committed baselines.
+    transformProject: (project) =>
+      pinMovers(transformProject ? (transformProject(project) ?? project) : project),
   });
   await expect(page.getByText("New Game", { exact: true })).toBeVisible({ timeout: 15_000 });
   // A couple of virtual frames for the title backdrop to finish its own setup.

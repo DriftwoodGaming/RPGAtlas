@@ -53,6 +53,15 @@ the picture always matches the game.
 - **Re-link connections** — **drag** the small **↻** handle on an arrow onto another map to retarget every
   Transfer command behind that link at once. Arrows to a deleted map are flagged as broken.
 
+---
+
+## The Advanced Map Editor
+
+Press **`F4`** (or **Advanced ▸ Advanced Map Editor**) to dock the power-mapping panel: unlimited
+layers with groups/opacity/blend, smart terrain brushes, reusable stamps, gameplay zones, and
+IF/THEN **Automap rules** — all on the same map the classic panels edit, sharing one undo history.
+It has [a whole page of its own](Advanced-Map-Editor).
+
 ## The menu bar
 
 | Menu | What lives there |
@@ -62,6 +71,7 @@ the picture always matches the game.
 | **Mode** | Switch between **Map**, **Event**, **Passability**, and **Height** modes |
 | **Draw** | Choose a drawing tool (Pen, Eraser, Rectangle, Circle, Fill, Shadow Pen) |
 | **Layer** | Choose which layer you're painting (Auto, Ground, Decor, Decor 2, Overhead) |
+| **Advanced** | The [Advanced Map Editor](Advanced-Map-Editor): panel, Terrain Studio, Automap rules, brush flip/rotate, stamps |
 | **Scale** | Zoom level for the canvas |
 | **Tools** | The big managers: Database, Plugin Manager, Audio Manager, Event Searcher, Resource Manager, Character Generator — plus the **Command Palette** |
 | **Game** | Set Start Position, Playtest, and game-wide settings |
@@ -130,6 +140,8 @@ control over what stacks on what, or to use the Overhead layer for things the pl
 | `F1` | Open the **Database** |
 | `F2` | Show the live **HD-2D Viewport** panel |
 | `F3` | Show the **World View** map-connection graph |
+| `F4` | Show the **[Advanced Map Editor](Advanced-Map-Editor)** panel |
+| `X` `Y` `R` | Flip/rotate the brush (while the Advanced panel is focused) |
 | `F5` | **Playtest** (save and run the game) |
 | `F6` | Focus the next workspace panel |
 | `Ctrl+P` | **Command Palette** — type a few letters of any editor command and press Enter to run it |

@@ -217,6 +217,7 @@ const MENUS = [
   { label: "Mode", items: ["mode-map", "mode-event", "mode-pass", "mode-height", "mode-region", "-", "mode-start"] },
   { label: "Draw", items: ["tool-pen", "tool-erase", "tool-rect", "tool-circle", "tool-fill", "tool-shadow"] },
   { label: "Layer", items: ["layer-auto", "layer-ground", "layer-decor", "layer-decor2", "layer-over"] },
+  { label: "Advanced", items: ["panel-advanced", "terrain-studio", "-", "adv-automap", "adv-automap-preview", "adv-automap-apply", "-", "adv-flip-h", "adv-flip-v", "adv-rotate", "-", "adv-capture-stamp", "adv-stamp-random"] },
   { label: "Scale", items: ["zoomin", "zoomout", "zoom1", "zoomfit"] },
   { label: "View", items: ["panel-maps", "panel-tiles", "panel-map", "panel-advanced", "panel-console", "hdpreview", "worldview", "-", "focus-next-panel", "-", "dock-reset", "dock-save", "dock-load"] },
   { label: "Tools", items: ["db", "plugins", "audio", "search", "resources", "assetbrowser", "chargen", "-", "autotile-import", "-", "cmdpal"] },

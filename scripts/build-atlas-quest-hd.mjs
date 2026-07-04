@@ -182,8 +182,8 @@ function eventPage(overrides) {
   else project.maps.push(shore);
 }
 
-// The committed file uses CRLF and no trailing newline; matching it keeps the
-// diff to exactly the showcase changes (verified: an untouched project
-// round-trips byte-identically through this serializer).
-writeFileSync(file, JSON.stringify(project, null, 1).replace(/\n/g, "\r\n"));
+// The committed file uses LF, indent 1, and no trailing newline (the editor's
+// own save format since the post-1.0 round-trip); matching it keeps the diff
+// to exactly the showcase changes.
+writeFileSync(file, JSON.stringify(project, null, 1));
 console.log("[atlas-quest-hd] wrote " + file + " (" + project.maps.length + " maps)");
