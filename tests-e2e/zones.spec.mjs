@@ -24,8 +24,10 @@ test.describe("Advanced editor — gameplay zones", () => {
     const advCanvas = page.locator("canvas.adv-canvas");
     await expect(advCanvas).toBeVisible();
 
-    // Switch the right rail to Objects.
-    await page.locator('.adv-rail-tab[data-rail="objects"]').click();
+    // Switch the left/mode rail to Objects. (Integration rename: the mode tabs
+    // use .adv-mode-tab so they don't cascade-clash with the right rail's
+    // .adv-rail-tab tiles/stamps tabs from Stage E.)
+    await page.locator('.adv-mode-tab[data-rail="objects"]').click();
     await expect(page.locator(".adv-objects")).toBeVisible();
 
     // Encounter is the default active kind; select the Polygon zone tool.
@@ -47,17 +49,19 @@ test.describe("Advanced editor — gameplay zones", () => {
     // The zone list now shows an Encounter zone, and the inspector is present.
     await expect(page.locator(".adv-zone-row").first()).toBeVisible();
 
-    // Round-trip: read the persisted project (same JSON as a saved file) and
-    // assert exactly one polygon encounter zone landed on some map.
-    const found = await page.evaluate(() => {
-      const proj = JSON.parse(localStorage.getItem("rpgatlas_project"));
+    // Round-trip: the edit autosaves (debounced ~1s), so poll the persisted
+    // project — the same JSON a saved file carries — until the zone lands.
+    const found = await page.waitForFunction(() => {
+      const raw = localStorage.getItem("rpgatlas_project");
+      if (!raw) return null;
+      const proj = JSON.parse(raw);
       for (const m of proj.maps) {
         if (!Array.isArray(m.zones)) continue;
         const z = m.zones.find((z) => z.kind === "encounter" && z.shape && z.shape.type === "poly");
         if (z) return { mapId: m.id, pts: z.shape.pts.length, hasEnc: !!z.encounter };
       }
       return null;
-    });
+    }).then((h) => h.jsonValue());
     expect(found, "a polygon encounter zone should be persisted").not.toBeNull();
     expect(found.pts).toBeGreaterThanOrEqual(3);
     expect(found.hasEnc).toBe(true);

@@ -976,7 +976,10 @@ a.console-link:hover { text-decoration: underline; color: var(--text-bright); }
 .console-busy .console-prompt { opacity: 0.5; }
 
 /* ---------- Advanced Map Editor panel (Phase 8 Stage A) ---------- */
-.adv-root { display: flex; height: 100%; min-height: 0; background: var(--bg-deep); }
+/* Row layout (left rail | canvas | right rail). Must override .dock-panel-content's
+   flex-direction: column, or the three sections stack and the right rail overlaps
+   the canvas (latent since the panel gained a right rail). */
+.adv-root { display: flex; flex-direction: row; height: 100%; min-height: 0; background: var(--bg-deep); }
 .adv-rail { flex: 0 0 220px; display: flex; flex-direction: column; min-height: 0;
   border-right: 1px solid var(--line-2); background: var(--panel); }
 .adv-section-head { display: flex; align-items: center; justify-content: space-between;

@@ -909,6 +909,36 @@ Stage D traps / decisions:
 - Continuous sliders (sound volume, weather power) mutate + `touch()` live and
   push one undo on `change` (release), same posture as Stage B's opacity slider.
 
+### Integration — C/D/E merge (2026-07-04, integrator)
+
+C, D and E built in parallel worktrees off Stage B (`a73fc3b`) and merged in the
+order C → E → D. All three passed their own gate in isolation; the fast gate on
+the merged tree is green (tsc, eslint, `node --test` 16/16, vitest **423**), and
+the Playwright suite shows **no new failures** — the 9 reds are the pre-existing
+GPU-drift renderer goldens + showcase spec identical to a clean Stage-B run.
+
+Conflict-resolution decisions worth recording:
+
+- **Tab-class collision (E ↔ D):** both the right rail (E: Tiles/Stamps) and the
+  new left/mode rail (D: Layers/Objects) used `.adv-rail-tab(s)`. Kept E's
+  `.adv-rail-tab` for the right rail and **renamed D's mode tabs to
+  `.adv-mode-tab(s)`** (button class + CSS + the `zones.spec` selector) so the two
+  tab strips don't cascade-clash.
+- **Latent panel-layout bug fixed:** `.adv-root` never set `flex-direction`, so
+  `.dock-panel-content`'s `column` won and the three rails stacked (the right rail
+  overlapped the canvas — benign until the panel had a third section). Added
+  `.adv-root { flex-direction: row }`; the panel is now the intended
+  rail | canvas | rail row.
+- **`drawLayerCell` seam (C ↔ E):** composed cleanly — E's raw→{id,flags} decode
+  at the top, C's per-kind `resolveAutotileCell(…, frame)` for the autotile
+  branch, E's plain-tile affine branch below. `neighborMask`/`autotileCanvas`
+  dropped from the seam (subsumed by the registry resolver).
+- **`zones.spec` round-trip** now polls the autosaved project (autosave is
+  debounced ~1s) instead of reading `localStorage` immediately.
+- Shared-chrome reconciled: `editor.css?v=57`, `patch-notes.js?v=38` (one entry
+  per stage), `i18n.js` locale blocks + `CURATED_KEYS` unioned with the duplicate
+  `Name`/`Terrain`/`Objects` keys de-duped so `no-dupe-keys` stays green.
+
 ## Open items to confirm before Stage A starts
 
 1. **Blend modes in HD-2D:** classic 2D gets full blend support via canvas
