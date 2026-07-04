@@ -8,6 +8,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Sfx } from "../shared/deps.js";
+import { mulberry32 } from "../shared/rng.js";
 
 export function el(tag: string, cls?: string, html?: any): HTMLElement {
   const e = document.createElement(tag);
@@ -21,8 +22,46 @@ export function sleep(ms: number): Promise<void> {
 export function clamp(v: number, a: number, b: number): number {
   return v < a ? a : v > b ? b : v;
 }
+// ------------------------- gameplay random source ---------------------------
+// Every gameplay roll (rnd/rndf below) draws from this module-level source:
+// NPC random walks, encounter timing, battle variance/crits/escape/AI picks.
+// Unseeded (the default players get) it IS Math.random — behavior identical to
+// before this seam existed. Seeded, it becomes a mulberry32 stream
+// (src/shared/rng.ts), so a run's rolls are a pure function of seed + tick
+// count: pixel-comparing e2e specs seed it pre-boot (?rngseed= query param or
+// window.RPGATLAS_RNG_SEED from a Playwright init script) instead of pinning
+// movers, and a playtest bug can be re-rolled exactly via window.AtlasRng.
+let random: () => number = Math.random;
+
+/** Swap the gameplay random source: a number seeds a deterministic mulberry32
+ *  stream; null/undefined restores unseeded Math.random. */
+export function seedRnd(seed: number | null | undefined): void {
+  random = seed == null ? Math.random : mulberry32(seed >>> 0);
+}
+
+// Pre-boot seeding + the runtime hook. Module scope on purpose: this module is
+// imported before boot.ts runs, so the very first roll already comes from the
+// seeded stream. The guards keep the module loadable outside a real page —
+// vitest (no window) and the node vm sandboxes in tests/ (a bare stub window
+// with no location/URLSearchParams).
+if (typeof window !== "undefined") {
+  const hook = (window as any).RPGATLAS_RNG_SEED;
+  const q =
+    typeof URLSearchParams === "function" && typeof location !== "undefined"
+      ? new URLSearchParams(location.search).get("rngseed")
+      : null;
+  if (hook != null) seedRnd(Number(hook));
+  else if (q != null && q !== "") seedRnd(Number(q));
+  (window as any).AtlasRng = { seed: seedRnd, unseed: () => seedRnd(null) };
+}
+
 export function rnd(n: number): number {
-  return Math.floor(Math.random() * n);
+  return Math.floor(random() * n);
+}
+/** Uniform float in [0,1) from the same (seedable) stream as rnd() — the
+ *  drop-in for gameplay code that used to call Math.random() directly. */
+export function rndf(): number {
+  return random();
 }
 export function compareVariable(a: any, b: any, cmp: any): boolean {
   switch (cmp) {

@@ -21,14 +21,17 @@ export function atlasQuestJson() {
   return cached;
 }
 
-/** The one nondeterminism a frozen Playwright clock does NOT freeze:
- * random-walk NPCs (moveType "random") roll unseeded Math.random() when their
- * step timer expires — harmless in play, fatal to any spec that compares
- * pixels across boots or against a committed baseline. Meridian Village's
- * villagers can roll a facing change inside a fixture's boot window (~25% per
- * roll). Specs that compare frames compose this into their transformProject
- * so every mover stays at its authored spot and direction — exactly the state
- * the committed baselines show. */
+/** Freeze random-walk NPCs (moveType "random" → "fixed") at their authored
+ * spot and facing. Still required by specs that assert byte-EXACT pixel
+ * equality across two boots: even with the RNG seeded (rngSeed below), the
+ * capture can land ±1 game tick between boots — loop.ts re-arms rAF only
+ * after its async render() resolves, so tick alignment inside a
+ * clock.runFor() window is real-time dependent — and a WALKING mover differs
+ * by a few pixels between adjacent ticks. Everything else in the frame is a
+ * function of virtual TIME (identical at capture), so pinning the movers is
+ * exactly what restores byte equality. Committed-baseline goldens should NOT
+ * pin: they compare within maxDiffPixelRatio tolerance, which absorbs the
+ * tick jitter, and seeded walking movers keep the mover render path covered. */
 export function pinMovers(project) {
   for (const m of project.maps) {
     for (const e of m.events || []) {
@@ -48,11 +51,23 @@ export function pinMovers(project) {
  * in between the seed and the real navigation, so it is in place before
  * js/engine.js boot() ever calls requestAnimationFrame(loop) — needed for
  * deterministic golden-image captures (see tests-e2e/renderer-golden.spec.mjs).
+ *
+ * `rngSeed` closes the one nondeterminism the fake clock does NOT freeze:
+ * gameplay rolls (random-walk NPCs, encounter timing, battle rolls) come from
+ * the engine's seedable random source (src/engine/util.ts). Passing a seed
+ * sets window.RPGATLAS_RNG_SEED via an init script BEFORE any engine module
+ * runs, so under the frozen clock every boot performs the identical roll
+ * sequence — movers walk the exact same path every run. That keeps committed
+ * screenshot baselines reproducible (within tolerance — see the pinMovers
+ * note on capture-tick jitter) with movers actually moving, where the old
+ * pin-everything approach removed the mover render path from coverage.
+ * Players are unaffected: without a seed the engine stays on plain
+ * Math.random().
  */
 export async function gotoWithAtlasQuest(
   page,
   path,
-  { installClock = false, transformProject = null } = {},
+  { installClock = false, transformProject = null, rngSeed = null } = {},
 ) {
   // `transformProject` mutates (or replaces) the parsed project before seeding
   // — used by the renderer goldens to switch on per-map HD-2D settings the
@@ -71,6 +86,13 @@ export async function gotoWithAtlasQuest(
     // Fixed epoch start so any incidental Date.now()/timestamp text in the
     // UI (e.g. save-slot listings) is also reproducible across runs.
     await page.clock.install({ time: new Date("2024-01-01T00:00:00Z") });
+  }
+  if (rngSeed != null) {
+    // Init scripts run before any page module, so src/engine/util.ts sees the
+    // hook at import time and the very first roll is already seeded.
+    await page.addInitScript((seed) => {
+      window.RPGATLAS_RNG_SEED = seed;
+    }, rngSeed);
   }
   await page.goto(path);
 }

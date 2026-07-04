@@ -19,6 +19,11 @@
      (light flicker, camera shake, walk-cycle frame, water waves, weather
      particles) derives from the engine's tick counter (globalT), so freezing
      the clock freezes the whole scene.
+   - Gameplay rolls (random-walk NPCs — the one thing the fake clock alone
+     does not freeze) are seeded via the fixture's rngSeed option, so movers
+     walk the identical path every boot on every machine (mulberry32, see
+     src/engine/util.ts). Earlier revisions pinned movers in place instead,
+     which excluded the mover render path from these goldens.
    - Chromium is launched with software-rendering flags (SwiftShader/ANGLE —
      see playwright.config.mjs) so the WebGL2 HD-2D path rasterizes the same
      way regardless of the host GPU.
@@ -35,6 +40,11 @@ const SCREEN_SIZE = { width: 816, height: 624 }; // matches Atlas_Quest system.s
 
 test.use({ viewport: SCREEN_SIZE });
 
+// Any fixed value works; what matters is that every boot in this file uses the
+// SAME seed, so Meridian Village's random-walk NPCs retrace the identical
+// steps in every capture — and in the committed baselines.
+const RNG_SEED = 0x5eed;
+
 /** Boots play.html with the clock frozen, starts a new game, and advances
  * the virtual clock through the title/map fade transitions plus a fixed
  * number of extra ticks so any looping animation (idle/walk frames, light
@@ -42,10 +52,12 @@ test.use({ viewport: SCREEN_SIZE });
 async function bootToStableMap(page, hdParam, transformProject) {
   await gotoWithAtlasQuest(page, `/play.html?hd2d=${hdParam}`, {
     installClock: true,
-    // Every fixture boot pins random movers (see fixtures/atlas-quest.mjs) —
-    // these specs compare pixels across boots and against committed baselines.
-    transformProject: (project) =>
-      pinMovers(transformProject ? (transformProject(project) ?? project) : project),
+    // Seeded gameplay RNG (see fixtures/atlas-quest.mjs): these specs compare
+    // pixels across boots and against committed baselines, and the seed makes
+    // the random-walk movers deterministic INSTEAD of freezing them — the
+    // goldens exercise the live mover render path.
+    rngSeed: RNG_SEED,
+    transformProject,
   });
   await expect(page.getByText("New Game", { exact: true })).toBeVisible({ timeout: 15_000 });
   // A couple of virtual frames for the title backdrop to finish its own setup.
@@ -231,9 +243,15 @@ test.describe("generalized layers (map.layersAdv)", () => {
     return project;
   };
 
-  /** Boot to a stable frame and return the #stage screenshot buffer. */
+  /** Boot to a stable frame and return the #stage screenshot buffer. These
+   * tests assert byte-EXACT equality between boots, which the seeded RNG
+   * alone cannot give while movers walk (capture-tick jitter — see the
+   * pinMovers doc in fixtures/atlas-quest.mjs), so movers stay pinned here.
+   * That costs nothing: this describe guards LAYER COMPOSITING; the walking-
+   * mover render path is covered by the committed goldens above. */
   async function frame(page, hd, transform) {
-    await bootToStableMap(page, hd, transform);
+    await bootToStableMap(page, hd, (project) =>
+      pinMovers(transform ? (transform(project) ?? project) : project));
     return page.locator("#stage").screenshot();
   }
   /** Count RGBA byte differences between two PNG buffers, decoded in-page. */

@@ -11,7 +11,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, RA } from "../../shared/deps.js";
-import { clamp, rnd, sleep, sysSe } from "../util.js";
+import { clamp, rnd, rndf, sleep, sysSe } from "../util.js";
 import { findPath } from "../../shared/pathfind.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G } from "../state/game-state.js";
@@ -333,7 +333,7 @@ function onPlayerStep(): void {
   if (enc && enc.rate > 0 && enc.troops.length && !ctx.blockingRun && G.vehicle !== "airship") {
     G.encSteps++;
     const forced = consumeForcedEncounter();
-    if (forced || G.encSteps >= enc.rate * (0.7 + Math.random() * 0.6)) {
+    if (forced || G.encSteps >= enc.rate * (0.7 + rndf() * 0.6)) {
       G.encSteps = 0;
       let pool = enc.troops;
       // night pool first, then a region pool overrides (more specific wins)

@@ -50,8 +50,11 @@ const startMap = (project) =>
 /** These fixtures prove "frame changed ⇔ the TERRAIN frame changed", comparing
  * whole screenshots across different virtual times — so the start map must
  * carry no actors at all: NPC sprites animate off the same clock (the Save
- * Crystal sparkles, movers roll unseeded RNG) and would flip pixels for
- * reasons that have nothing to do with terrain. The original fixtures were
+ * Crystal sparkles, movers step and idle-cycle) and would flip pixels for
+ * reasons that have nothing to do with terrain. Seeding the gameplay RNG
+ * (fixture rngSeed option) wouldn't help here — it makes movers reproducible
+ * ACROSS runs, but these specs compare different TIMES within a run, where
+ * even a deterministic mover changes pixels. The original fixtures were
  * only sound because the then-start-map happened to have zero events. */
 const stripStartEvents = (project) => {
   startMap(project).events = [];

@@ -13,7 +13,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, Music, RA, Sfx } from "../../shared/deps.js";
-import { el, esc, sleep, clamp, rnd, sysSe, sysBgm } from "../util.js";
+import { el, esc, sleep, clamp, rnd, rndf, sysSe, sysBgm } from "../util.js";
 import { showList } from "../ui-stack.js";
 import { ctx, fns } from "../state/engine-context.js";
 import {
@@ -237,7 +237,7 @@ export const Battle: any = {
     const livingE = () => enemies.filter((e: any) => e.alive);
     const livingP = () => G.party.filter((a: any) => a.hp > 0);
     function variance(v: any) {
-      return Math.max(1, Math.floor(v * (0.85 + Math.random() * 0.3)));
+      return Math.max(1, Math.floor(v * (0.85 + rndf() * 0.3)));
     }
 
     async function pickTarget() {
@@ -343,11 +343,11 @@ export const Battle: any = {
         turn: turnNumber,
         hpPct: (en.hp / Math.max(1, en.d.stats.mhp)) * 100,
         states: statesOf(en).map((st: any) => Number(st.id) || 0),
-        rng: Math.random,
+        rng: rndf,
       });
       const acts = valid.length ? valid : [{ skillId: 0, weight: 1 }];
       const total = acts.reduce((s: any, a2: any) => s + (a2.weight || 1), 0);
-      let roll = Math.random() * total;
+      let roll = rndf() * total;
       let chosen = acts[0];
       for (const a2 of acts) {
         roll -= a2.weight || 1;
@@ -774,7 +774,7 @@ export const Battle: any = {
             }
             const pool = livingP();
             if (!pool.length) return;
-            const t = pool[weightedTargetIndex(pool, Math.random())];
+            const t = pool[weightedTargetIndex(pool, rndf())];
             const enemyAnim = c.skill ? animById(c.skill.animationId) : null;
             enemyStep(en);
             let dmg;
@@ -903,8 +903,8 @@ export const Battle: any = {
         ...enemies.map((en: any) => ({ enemy: en, agi: () => en.d.stats.agi })),
       ];
       for (const b of battlers) {
-        b.gauge = Math.random() * ATB_FULL * 0.35;
-        b.counter = Math.round(ctbCost(b.agi()) * (0.5 + Math.random() * 0.5));
+        b.gauge = rndf() * ATB_FULL * 0.35;
+        b.counter = Math.round(ctbCost(b.agi()) * (0.5 + rndf() * 0.5));
       }
       const aliveB2 = (b: any) => (b.enemy ? b.enemy.alive : b.actor.hp > 0);
       let acts = 0;
@@ -961,7 +961,7 @@ export const Battle: any = {
                 livingE().reduce((s: any, x: any) => s + x.d.stats.agi, 0) /
                 livingE().length;
               const chance = clamp(0.55 + (pa - ea) * 0.03, 0.2, 0.95);
-              if (Math.random() < chance) {
+              if (rndf() < chance) {
                 sysSe("escape");
                 await say("Got away safely!", 800);
                 return "escape";
@@ -1016,7 +1016,7 @@ export const Battle: any = {
               livingE().reduce((s: any, x: any) => s + x.d.stats.agi, 0) /
               livingE().length;
             const chance = clamp(0.55 + (pa - ea) * 0.03, 0.2, 0.95);
-            if (Math.random() < chance) {
+            if (rndf() < chance) {
               sysSe("escape");
               await say("Got away safely!", 800);
               result = "escape";
@@ -1039,8 +1039,8 @@ export const Battle: any = {
           const ax = x.actor ? param(x.actor, "agi") : x.enemy.d.stats.agi;
           const ay = y.actor ? param(y.actor, "agi") : y.enemy.d.stats.agi;
           return (
-            ay * (0.8 + Math.random() * 0.4) -
-            ax * (0.8 + Math.random() * 0.4)
+            ay * (0.8 + rndf() * 0.4) -
+            ax * (0.8 + rndf() * 0.4)
           );
         });
 
