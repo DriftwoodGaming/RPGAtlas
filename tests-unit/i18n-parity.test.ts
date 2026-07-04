@@ -37,6 +37,18 @@ const CURATED_KEYS = [
   "Delete Layer", "Layer name", "Group", "Toggle Visibility", "Toggle Lock",
   "Opacity", "Blend", "Tint", "Clear Tint", "Draw slot",
   "Below characters", "Above (overhead)",
+  // Terrain & Autotile Studio chrome (Phase 8 Stage C, terrain-studio.ts).
+  // Help/body text falls back to English by design; these are the labels,
+  // headings, step names, buttons and kind names the wizard exposes as chrome.
+  "Terrain", "Terrain & Autotile Studio…", "Open the Terrain & Autotile Studio",
+  "Studio: Source", "Studio: Layout", "Studio: Terrain Types", "Studio: Rules", "Studio: Preview",
+  "Source sheet", "Layout", "Rules", "Preview", "Arrangement", "Name",
+  "Choose Image…", "Quick A2 Import…", "Add Variation…",
+  "Save Draft", "Create Terrain Brush", "Back", "Next", "Use this", "Auto-detected",
+  "Animation", "Animate this terrain", "Frames", "FPS", "Variations", "Weight",
+  "Pattern completion",
+  "Terrain (A2 · 47-blob)", "Edge / Fence (16)", "Corner (16)",
+  "Animated (A1)", "Building (A3)", "Wall (A4)",
 ];
 
 /** Command labels that are dynamic composites or deliberately English-only

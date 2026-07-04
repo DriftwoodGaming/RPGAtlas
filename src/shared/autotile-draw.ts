@@ -10,8 +10,7 @@
    neighbours in the SAME layer array and blits the assembled 48x48 canvas.
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
 
-import { neighborMask } from "./autotile";
-import { isAutotileId, autotileCanvas } from "./autotile-registry";
+import { isAutotileId, resolveAutotileCell } from "./autotile-registry";
 
 type DrawTile = (g: CanvasRenderingContext2D, id: number, dx: number, dy: number) => void;
 
@@ -32,17 +31,20 @@ export function sameLayer(
 /**
  * Draw one cell of a layer at (dx, dy). `arr` is the layer's flat id array;
  * `drawTile` is the caller's normal tile blitter (Assets.drawTile) used for
- * every non-autotile id.
+ * every non-autotile id. `frame` (Phase 8 Stage C) selects the animation frame
+ * for animated terrains — 0 (the default all classic callers pass) is the
+ * unanimated, byte-identical case. The per-kind shape/variant/frame resolve
+ * lives in the registry (resolveAutotileCell); this stays the single decode seam.
  */
 export function drawLayerCell(
   g: CanvasRenderingContext2D,
   arr: number[], w: number, h: number, x: number, y: number,
-  dx: number, dy: number, TILE: number, drawTile: DrawTile,
+  dx: number, dy: number, TILE: number, drawTile: DrawTile, frame = 0,
 ): void {
   const id = arr[y * w + x];
   if (!id) return;
   if (isAutotileId(id)) {
-    const c = autotileCanvas(id, neighborMask(sameLayer(arr, w, h, x, y, id)), TILE);
+    const c = resolveAutotileCell(id, sameLayer(arr, w, h, x, y, id), TILE, frame, x, y);
     if (c) g.drawImage(c, dx, dy);
     // else: source not decoded yet — skip; a later render pass draws it.
   } else {

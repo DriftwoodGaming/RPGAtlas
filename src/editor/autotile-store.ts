@@ -13,6 +13,7 @@ import {
   registerAutotile, unregisterAutotile, autotileCanvas, tileIdOf,
 } from "../shared/autotile-registry";
 import { syncAutotileRegistry } from "../shared/autotile-load";
+import type { TerrainKind } from "../shared/terrain-kinds";
 import { TILE } from "./editor-state";
 
 // Re-exported so editor modules have a single autotile entry point.
@@ -87,6 +88,54 @@ export function deleteAutotile(proj: Project, id: number): void {
   const list = ensureAutotiles(proj);
   const i = list.findIndex((a) => a.id === id);
   if (i >= 0) { list.splice(i, 1); unregisterAutotile(tileIdOf(id)); }
+}
+
+/** The config the Terrain & Autotile Studio hands over on "Create Terrain
+ *  Brush". Everything but `sheet`/`name` maps 1:1 onto the Phase 8 Autotile
+ *  fields; absent fields fall back to a classic A2 blob47 group. */
+export interface TerrainGroupConfig {
+  name: string;
+  sheet: string;                         // primary source data URL
+  kind?: TerrainKind;
+  terrain?: boolean;
+  pass?: boolean;
+  variants?: { sheet: string; weight: number }[];
+  allowFlipH?: boolean; allowFlipV?: boolean; allowRot?: boolean;
+  preferOriginal?: boolean;
+  anim?: { frames: number; fps: number };
+}
+
+/**
+ * Create one autotile group from a Studio config, append it to proj.autotiles,
+ * decode its sheet(s) into the runtime registry, and resolve with the new group.
+ * This is the Studio's "full path"; importAutotileSheet remains the quick path.
+ */
+export function createTerrainGroup(proj: Project, cfg: TerrainGroupConfig): Promise<Autotile> {
+  return new Promise((resolve) => {
+    const list = ensureAutotiles(proj);
+    const id = nextId(list);
+    const g: Autotile = {
+      id,
+      name: cfg.name || `Terrain ${id}`,
+      sheet: cfg.sheet,
+      terrain: cfg.terrain !== false,
+      pass: cfg.pass !== false,
+    };
+    if (cfg.kind && cfg.kind !== "blob47") g.kind = cfg.kind;
+    if (cfg.variants && cfg.variants.length) g.variants = cfg.variants;
+    if (cfg.allowFlipH) g.allowFlipH = true;
+    if (cfg.allowFlipV) g.allowFlipV = true;
+    if (cfg.allowRot) g.allowRot = true;
+    if (cfg.preferOriginal) g.preferOriginal = true;
+    if (cfg.anim && cfg.anim.frames > 1) g.anim = { frames: cfg.anim.frames, fps: cfg.anim.fps };
+    list.push(g);
+    // Re-sync the whole registry so the new group (and its variant sheets)
+    // decode with full metadata; resolves once every image is ready.
+    syncAutotileRegistry(proj, () => resolve(g));
+    // Safety valve: resolve anyway if a sheet never decodes (a second Promise
+    // resolve is a no-op) so the wizard never hangs on a bad image.
+    setTimeout(() => resolve(g), 4000);
+  });
 }
 
 /** A palette swatch: the fully-connected interior (mask 255) shape, which reads

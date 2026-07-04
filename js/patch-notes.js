@@ -5,6 +5,20 @@
 export const PATCH_NOTES = [
   {
     date: "July 4, 2026",
+    title: "Terrain & Autotile Studio",
+    summary:
+      "Turn any tile sheet into a smart terrain brush with a five-step wizard (open it from the Advanced tab or the command palette). Pick your sheet, let the Studio guess how it's laid out, name the terrain, and paint — the tiles automatically pick the right edge, corner, and inside pieces for you. Water and lava can animate, and you can add extra sheets so the ground looks less repetitive. Old projects that don't use it are saved exactly as before.",
+    items: [
+      "Five steps — Source, Layout, Terrain Types, Rules, Preview — with a live preview that paints exactly like the real map.",
+      "Auto-detection guesses the arrangement (A2 terrain, A1 animated, fences, corners, walls, roofs) from the sheet's size; change it any time.",
+      "Animate a terrain by setting frames + speed — water and lava now flow in the editor, the HD-2D viewport, and play-testing.",
+      "Add weighted variations: drop in alternate sheets and each cell randomly picks one, so large fields of grass stop tiling obviously.",
+      "Pattern-completion flags fill in shapes you didn't draw by mirroring or rotating the ones you did.",
+      "Save Draft keeps your work-in-progress; the classic one-click A2 import is still there as the Quick path.",
+    ],
+  },
+  {
+    date: "July 4, 2026",
     title: "Advanced Map Editor — paintable layers",
     summary:
       "The Advanced tab's layer list is now fully editable. Add your own tile layers on top of the classic four, paint straight onto whichever layer is selected, and give each one an opacity, a blend mode (add / multiply / screen), or a colour tint. Everything you build shows up identically in the regular editor, in play-testing, and in exported games — and a map you never touch here is saved exactly as before.",

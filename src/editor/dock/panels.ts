@@ -16,6 +16,7 @@ import { mountViewport, VIEWPORT_PANEL } from "../map-editor/hd-viewport";
 import { mountWorldView, WORLD_PANEL } from "../map-editor/world-view";
 import { mountConsole, CONSOLE_PANEL } from "../console/console-panel";
 import { mountAdvanced, ADV_PANEL } from "../advanced/adv-panel";
+import { openTerrainStudio } from "../advanced/terrain-studio";
 import {
   registerDockPanel, initDock, setDockChangeHook,
   focusPanel, togglePanel, isPanelVisible, focusNextPanel,
@@ -60,6 +61,11 @@ export function initDockWorkspace() {
     label: "Advanced Map Editor", key: "F4",
     tip: "Show or hide the Advanced Map Editor — generalized layers, terrain, zones, and automapping over this same map",
     active: () => isPanelVisible(ADV_PANEL), run: () => togglePanel(ADV_PANEL),
+  });
+  registerCommand("terrain-studio", {
+    label: "Terrain & Autotile Studio…",
+    tip: "Turn a sheet into a terrain brush — pick the arrangement, animate water, add variations, preview live",
+    run: () => openTerrainStudio(),
   });
   registerCommand("focus-next-panel", {
     label: "Focus Next Panel", key: "F6", tip: "Move keyboard focus to the next panel", run: focusNextPanel,

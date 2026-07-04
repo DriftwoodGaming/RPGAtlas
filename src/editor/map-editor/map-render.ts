@@ -10,7 +10,8 @@
 
 import { Assets, TILE, LAYER_ORDER, editorState as S, curMap } from "../editor-state";
 import { drawLayerCell } from "../../shared/autotile-draw";
-import { isAutotileId } from "../../shared/autotile-registry";
+import { isAutotileId, anyAutotileAnimated } from "../../shared/autotile-registry";
+import { frameAt } from "../../shared/autotile-anim";
 import { layerView, shadowIndex, entryArray, BLEND_COMPOSITE } from "../../shared/layer-view";
 import { drawEntryTiles } from "../../shared/layer-composite";
 
@@ -36,6 +37,10 @@ import { drawEntryTiles } from "../../shared/layer-composite";
     /** Advanced editor: id of the layer being edited (dims layers above it).
      *  Absent in the classic editor, which dims by the `layer` role instead. */
     activeLayerId?: number;
+    /** Animated-terrain frame (Phase 8 Stage C). Absent/0 ⇒ the unanimated,
+     *  byte-identical draw; the anim loop advances it when a map has animated
+     *  terrain painted on it. */
+    frame?: number;
   }
   function viewFromS(): MapView {
     return {
@@ -43,7 +48,7 @@ import { drawEntryTiles } from "../../shared/layer-composite";
       selection: S.selection, hoverCell: S.hoverCell, hoverQuad: S.hoverQuad,
       rectStart: S.rectStart, painting: S.painting, pasteMode: S.pasteMode,
       clipTiles: S.clipTiles, selectedEvent: S.selectedEvent,
-      system: S.proj.system,
+      system: S.proj.system, frame: mapAnimFrame(),
     };
   }
   function layerAlpha(v: MapView, li: any) {
@@ -79,7 +84,7 @@ import { drawEntryTiles } from "../../shared/layer-composite";
       }
       g.globalAlpha = alpha;
       g.globalCompositeOperation = BLEND_COMPOSITE[e.blend];
-      drawEntryTiles(g, arr, m, Assets.drawTile, TILE, e.tint);
+      drawEntryTiles(g, arr, m, Assets.drawTile, TILE, e.tint, v.frame || 0);
       g.globalAlpha = 1;
       g.globalCompositeOperation = "source-over";
     }
@@ -199,7 +204,7 @@ import { drawEntryTiles } from "../../shared/layer-composite";
         g.globalAlpha = layerAlpha(v, li);
         for (let y = 0; y < m.height; y++) {
           for (let x = 0; x < m.width; x++) {
-            drawLayerCell(g, arr, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
+            drawLayerCell(g, arr, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile, v.frame || 0);
           }
         }
         if (li === 2) { // shadows sit under the overhead layer, as in-game
@@ -210,6 +215,7 @@ import { drawEntryTiles } from "../../shared/layer-composite";
     } else {
       drawAdvLayers(g, m, v);
     }
+    scheduleAnimTick();
     g.globalAlpha = 1;
     g.globalCompositeOperation = "source-over";
     // grid
@@ -318,6 +324,35 @@ import { drawEntryTiles } from "../../shared/layer-composite";
     const m = curMap();
     if (!m) return;
     renderMapView(S.mapCtx, m, viewFromS());
+  }
+
+  // ---- animated terrain loop (Phase 8 Stage C) ----
+  // The 2D editor renders on demand, so animated water needs its own gentle
+  // clock: whenever a render draws a map AND any registered terrain animates, a
+  // single rAF loop re-renders the map (and any hooked advanced canvas) as the
+  // 4fps preview frame advances. No animated group ⇒ the loop never starts, so
+  // classic maps do zero extra work and no golden is affected.
+  const ADV_ANIM_HOOKS: Array<() => void> = [];
+  export function registerAnimRedraw(fn: () => void) { ADV_ANIM_HOOKS.push(fn); }
+  export function mapAnimFrame(): number {
+    return anyAutotileAnimated() ? frameAt(performance.now(), 4, 60) : 0;
+  }
+  let animRaf = 0;
+  let animLastFrame = -1;
+  function scheduleAnimTick() {
+    if (animRaf || !anyAutotileAnimated()) return;
+    const spin = () => {
+      if (!anyAutotileAnimated()) { animRaf = 0; return; }
+      const f = frameAt(performance.now(), 4, 60);
+      if (f !== animLastFrame) {
+        animLastFrame = f;
+        const m = curMap();
+        if (m && S.mapCtx) renderMapView(S.mapCtx, m, viewFromS());
+        for (const hook of ADV_ANIM_HOOKS) hook();
+      }
+      animRaf = requestAnimationFrame(spin);
+    };
+    animRaf = requestAnimationFrame(spin);
   }
 
   // ============================ palette ============================

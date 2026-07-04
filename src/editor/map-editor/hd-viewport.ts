@@ -28,6 +28,8 @@
 import { Assets, TILE, curMap } from "../editor-state";
 import { drawLayerCell } from "../../shared/autotile-draw";
 import { composeAdvBuffers } from "../../shared/layer-composite";
+import { anyAutotileAnimated } from "../../shared/autotile-registry";
+import { frameAt } from "../../shared/autotile-anim";
 import { Renderer as GLRender } from "../../renderer/index.js";
 import { h } from "../dom";
 import { effectivePass } from "./map-render";
@@ -52,6 +54,7 @@ let raf = 0;
 let dirty = true;
 let builtMapId = 0;
 let lastBuild = 0;
+let lastAnimFrame = 0; // terrain-anim frame the buffers were last built at
 let tick = 0; // preview animation clock (water waves etc.)
 let kick: any = null; // one-shot re-render covering rAF pauses in hidden panels
 
@@ -84,7 +87,7 @@ function hdParseLight(name: any) { // mirrors the engine's light-event conventio
   }
   return light;
 }
-function buildBuffers(m: any) { // same composition as the engine's prerenderMap
+function buildBuffers(m: any, frame = 0) { // same composition as the engine's prerenderMap
   const lower = document.createElement("canvas");
   lower.width = m.width * TILE; lower.height = m.height * TILE;
   const upper = document.createElement("canvas");
@@ -94,14 +97,14 @@ function buildBuffers(m: any) { // same composition as the engine's prerenderMap
   if (!m.layersAdv) {
     for (let y = 0; y < m.height; y++) {
       for (let x = 0; x < m.width; x++) {
-        drawLayerCell(lg, m.layers.ground, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
-        drawLayerCell(lg, m.layers.decor, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
-        drawLayerCell(lg, m.layers.decor2, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
-        drawLayerCell(ug, m.layers.over, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile);
+        drawLayerCell(lg, m.layers.ground, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile, frame);
+        drawLayerCell(lg, m.layers.decor, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile, frame);
+        drawLayerCell(lg, m.layers.decor2, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile, frame);
+        drawLayerCell(ug, m.layers.over, m.width, m.height, x, y, x * TILE, y * TILE, TILE, Assets.drawTile, frame);
       }
     }
   } else {
-    composeAdvBuffers(lg, ug, m, Assets.drawTile, TILE);
+    composeAdvBuffers(lg, ug, m, Assets.drawTile, TILE, frame);
   }
   if (m.shadows) {
     const H = TILE / 2;
@@ -144,10 +147,17 @@ function renderOnce() {
   if (m.id !== camMapId) recenterCamera(m); // fresh map → recenter + seed tilt
 
   const now = performance.now();
-  if ((dirty || builtMapId !== m.id) && now - lastBuild > 300) {
-    const b = buildBuffers(m);
+  // Animated terrain (Phase 8 Stage C): rebuild the buffers when the shared
+  // preview frame (a nominal 4fps clock) advances, so water animates in the
+  // live HD viewport. No animated group ⇒ animFrame stays 0 and never forces
+  // a rebuild — classic behaviour untouched.
+  const animOn = anyAutotileAnimated();
+  const curFrame = animOn ? frameAt(now, 4, 60) : 0;
+  const animAdvanced = animOn && curFrame !== lastAnimFrame;
+  if ((dirty || builtMapId !== m.id || animAdvanced) && now - lastBuild > 200) {
+    const b = buildBuffers(m, curFrame);
     GLRender.setMap(b.lower, b.upper, m);
-    builtMapId = m.id; dirty = false; lastBuild = now;
+    builtMapId = m.id; dirty = false; lastBuild = now; lastAnimFrame = curFrame;
   }
 
   const camXc = Math.max(-w, Math.min(camX, m.width * TILE));

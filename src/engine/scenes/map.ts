@@ -48,6 +48,7 @@ import {
   startJump,
   updateJumpMotion,
   ledgeAt,
+  tickMapAnim,
 } from "./map-runtime.js";
 
 let frameWaiters: any[] = [];
@@ -153,6 +154,11 @@ function activePlayerControl(): boolean {
 
 export function update(): void {
   ctx.globalT++;
+  // Animated terrain (Phase 8 Stage C) flows even while a menu/message is up, so
+  // it ticks before the scene early-returns. Driven by the engine tick counter
+  // (deterministic under the golden clock). No-op unless the map has animated
+  // terrain painted on it.
+  if (ctx.scene === "map") tickMapAnim(ctx.globalT);
   if (ctx.shakeTimer > 0) ctx.shakeTimer--;
   if (ctx.flashTimer > 0) ctx.flashTimer--;
   const waiters = frameWaiters;

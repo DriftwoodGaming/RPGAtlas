@@ -1,7 +1,7 @@
 # Phase 8 Spec — Advanced Map Editor (Tiled-class mapping)
 
-**Status:** IN PROGRESS — Stages A & B landed 2026-07-04. Stage log accumulates
-below, phase-3-spec style, as stages land. Next: C/D/E (parallel worktrees).
+**Status:** IN PROGRESS — Stages A, B & C landed 2026-07-04. Stage log accumulates
+below, phase-3-spec style, as stages land. Next: D/E (parallel worktrees), then F/G.
 **Authored:** 2026-07-04 by Claude Fable 5 (grand designer / orchestrator)
 **Branch (when work starts):** `phase-8-advanced-map` (off `main`)
 **Sources:** Codex feasibility discussion (2026-07-03, recovered from
@@ -567,6 +567,114 @@ Stage B traps / decisions:
   (blend, tint, slot, visibility, lock) and structural ops all push one undo entry.
 - Dynamic `import()` in the preview returns a **fresh** module instance (proj null)
   — verify live editor state through the DOM + `localStorage`, not module imports.
+
+### Stage C — Terrain & Autotile Studio (landed 2026-07-04, Opus)
+
+Registry generalization + animated terrain across all three surfaces + the
+five-step Studio wizard. Additive throughout; a project with no `kind`/`anim`/
+`variants` renders byte-identically (the sample maps have no autotile groups at
+all, so the classic path is untouched; the pure Canvas2D "defaults-only stack ==
+classic" e2e still passes 0-diff).
+
+Shipped:
+
+- **Pure per-kind resolvers** (`src/shared/terrain-kinds.ts`, 24 unit tests):
+  `resolveTile(kind, same, frame)` maps a neighbourhood to a source rect (+ optional
+  corner minitiles). `blob47`/`a1`/`a4` route through the existing corner rule
+  (`a1` offsets the block right by `frame`); `edge16`/`corner16`/`a3` are whole-tile
+  wang layouts via `edgeMask`/`cornerMask`. Plus `pickVariant` (deterministic
+  cumulative-weight pick), `cellHash` (stable per-cell salt), `detectKind` (Layout
+  auto-detection from sheet dimensions), `requiredTileCount`/`frameTileGrid`
+  (completeness metadata). Every kind is proven in-bounds over all 256 masks.
+- **Generalized registry** (`autotile-registry.ts`): `registerAutotile(id, block,
+  meta?)` now carries `kind`/`anim`/weighted-`variants`; `resolveAutotileCell(id,
+  same, TILE, frame, x, y)` is the new generalized draw seam (per-kind resolve +
+  variant pick + frame). A group registered with no meta reproduces the Phase 3
+  blob47 output bit-for-bit (the blob path keys its cache on the raw 8-neighbour
+  mask, so no fold-collision can serve a wrong shape). `autotileAnim`/
+  `anyAutotileAnimated`/`autotileKind` expose metadata; the legacy `autotileCanvas`
+  (swatch/preview path) is kept, mask-keyed.
+- **Central decode seam** (`autotile-draw.ts`): `drawLayerCell` gained a trailing
+  optional `frame = 0` and now routes through `resolveAutotileCell`. Kept tightly
+  scoped — one new default param, no signature reshuffle — so Stage E's flip/rotate
+  flags drop into the same function without conflict.
+- **Animated-terrain runtime** (`src/shared/autotile-anim.ts`, 10 unit tests):
+  `scanAnimatedCells` records only the cells whose group animates (empty ⇒ the
+  surfaces never enter the loop); `redrawAnimatedCells(cells, frameFn, prev,
+  recompose)` re-composites just the cells whose frame changed, via a caller
+  `recompose(x,y,frame)` that redraws the whole below-stack column for that cell
+  (`recomposeLowerCell` in `layer-composite.ts`) so a bridge over animated water is
+  preserved; the engine also re-lays the cell's shadow quads. Frame derives from
+  `frameAtTick(globalT, fps, frames, 60)` in the engine (deterministic under the
+  golden frozen clock) and wall-clock `frameAt` in the editor previews.
+  - **Engine** (`map-runtime.ts`): records animated cells at prerender (capped at
+    2048 to bound worst-case redraw), `tickMapAnim(ctx.globalT)` called each map
+    update (before the menu early-return, so water flows under menus); re-textures
+    the HD lower buffer only when a frame changed.
+  - **Editor 2D** (`map-render.ts`): a self-starting rAF loop re-renders the map
+    (and any registered advanced canvas) at 4fps while any group animates; `MapView`
+    gained an optional `frame` threaded into every `drawLayerCell`/`drawEntryTiles`.
+  - **HD-2D viewport** (`hd-viewport.ts`): rebuilds its buffers when the shared
+    preview frame advances; `buildBuffers(m, frame)`.
+- **Terrain & Autotile Studio** (`src/editor/advanced/terrain-studio.ts` + CSS):
+  fullscreen modal, five-step rail (Source / Layout / Terrain Types / Rules /
+  Preview). Source: drop/pick a sheet, or the classic A2 importer as the "Quick
+  path". Layout: `detectKind` pre-selects the arrangement with a grid overlay; all
+  six kinds selectable. Terrain Types: name + terrain/pass + transform-completion
+  flags. Rules: animation (frames/fps) + weighted variant sheets. Preview: an 8×8
+  scratch field painted through the SAME `resolveAutotileCell` the engine uses
+  (animates live if `anim` is on) + completeness check-marks. **Save Draft**
+  (localStorage) and **Create Terrain Brush** (`createTerrainGroup` in
+  `autotile-store.ts`, which writes `proj.autotiles` + re-syncs the registry).
+  Launched from a rail button in the Advanced panel and the `terrain-studio`
+  command (palette-reachable).
+- **i18n**: 37 Studio chrome keys across all 10 locales + the parity gate's curated
+  list (help/body text falls back to English by design, per the Phase 7 scope rule).
+  **CSS**: `.studio-*` + `.adv-studio-btn` block; `?v=56 → 57`. Patch-notes "Terrain
+  & Autotile Studio"; `?v=37 → 38` (help.ts + shims.d.ts).
+
+Gate: tsc + eslint clean; `node --test` 16/16; vitest **358** (+34: terrain-kinds
+24, autotile-anim 10). Playwright (authored, not part of the parallel-worktree
+run): the two classic-2D Stage-C e2e specs pass live against the built bundle —
+`terrain-anim.spec.mjs` "animated water changes frame over time, deterministically"
+and "preset terrain paints and differs from ground"; the editor `Terrain & Autotile
+Studio` spec opens the wizard from the palette, renders all 5 steps + 6 kinds, and
+closes with zero page errors. The Stage-B pure-Canvas2D byte-identity spec ("2D:
+defaults-only core stack == classic") still passes **0-diff**, proving the new
+`drawLayerCell`/composite path leaves the classic render untouched. WebGL goldens +
+the animated-water/preset HD-2D specs were left for the integrator's single e2e run
+(three parallel worktrees must not thrash the GPU); the known pre-existing 8 golden
+failures are unchanged by this stage (classic path byte-identical).
+
+Stage C traps / decisions:
+- **Determinism trap (important):** the engine anim clock MUST derive from
+  `ctx.globalT` (the tick counter every other renderer animation keys off), NOT
+  `performance.now()`. An early `performance.now()` version failed the animated-water
+  e2e with a full-field diff at the *same* virtual time — Playwright's frozen clock
+  advances ticks deterministically but the wall-clock read raced. `frameAtTick` fixed
+  it; the editor previews (not under the frozen clock) keep the wall-clock `frameAt`.
+- **Cache-key trap:** the blob-family cache MUST key on the raw 8-neighbour mask
+  (0..255, unique per shape), not a folded corner-set hash — an early fold into 10
+  bits risked serving a wrong-but-cached shape, which would break goldens. Wang kinds
+  key on their whole-tile index.
+- **Recompose, don't blit:** an animated cell can sit under decor/a bridge, so the
+  redraw clears+re-composites the entire below-stack column for that one cell (clipped
+  to the cell rect) and re-lays its shadow — a naive single-tile blit would erase the
+  overlay. Only the lower buffer animates (terrains are ground-family); the overhead
+  buffer is never touched.
+- **Shared-file collisions (for the integrator):** Stage C touched `autotile-draw.ts`
+  (added a trailing `frame = 0` param to `drawLayerCell`) and `layer-composite.ts`
+  (threaded `frame` through `drawEntryTiles`/`composeAdvBuffers`, added
+  `recomposeLowerCell`). Stage E is separately adding flip/rotate bit-flags to
+  `drawLayerCell` — the change here is purely additive (one optional trailing param,
+  no reshuffle) to minimise the merge conflict; the flag decode still slots into the
+  same `isAutotileId`/`drawTile` fork.
+- **Preview registry id:** the Studio previews under a transient reserved id
+  (`AUTOTILE_BASE + 900_000`) so it never collides with real groups; it is
+  unregistered on modal close (`onClose`).
+- Vite dev/preview served stale `?v=55/56` from a concurrent chat's dev server
+  sharing this worktree's `.vite` cache — a live-preview artifact, not a code issue;
+  the built bundle + the fresh-build e2e are the ground truth (both correct).
 
 ## Open items to confirm before Stage A starts
 

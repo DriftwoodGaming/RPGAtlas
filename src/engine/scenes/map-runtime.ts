@@ -16,8 +16,10 @@
 import { Assets, Music, RA } from "../../shared/deps.js";
 import { Renderer } from "../../renderer/index.js";
 import { drawLayerCell } from "../../shared/autotile-draw.js";
-import { composeAdvBuffers } from "../../shared/layer-composite.js";
+import { composeAdvBuffers, recomposeLowerCell } from "../../shared/layer-composite.js";
 import { syncAutotileRegistry } from "../../shared/autotile-load.js";
+import { scanAnimatedCells, redrawAnimatedCells, frameAtTick } from "../../shared/autotile-anim.js";
+import { anyAutotileAnimated } from "../../shared/autotile-registry.js";
 import { clamp, rnd, compareVariable, sysSe } from "../util.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G, Quests, objectiveDone, onEnemyKilled, param } from "../state/game-state.js";
@@ -194,6 +196,73 @@ async function prerenderMap(): Promise<void> {
     typeof Renderer !== "undefined" &&
     (await Renderer.available());
   if (ctx.hdActive) await Renderer.setMap(ctx.lowerBuf, ctx.upperBuf, ctx.map);
+  recordAnimatedCells();
+}
+
+// ---- animated terrain (Phase 8 Stage C) ----
+// Cells painted with an animated terrain group are recorded once at prerender;
+// a per-tick pass re-composites only those cells onto the lower buffer (and
+// re-textures HD) when their frame advances. Absent any animated group the list
+// is empty and tickMapAnim early-returns — zero cost for classic maps.
+const ANIM_FRAME_STATE = new Map<number, number>();
+function recordAnimatedCells(): void {
+  ANIM_FRAME_STATE.clear();
+  ctx.animCells = null;
+  if (!anyAutotileAnimated()) return;
+  const m = ctx.map;
+  const layers: number[][] = m.layersAdv
+    ? m.layersAdv.flatMap((L: any) =>
+      L.type === "tile" ? [L.data] : L.type === "group" ? [] : [])
+      .concat([m.layers.ground, m.layers.decor, m.layers.decor2, m.layers.over])
+    : [m.layers.ground, m.layers.decor, m.layers.decor2, m.layers.over];
+  const cells = scanAnimatedCells(layers, m.width, m.height);
+  // Perf cap: an absurd number of animated cells (a whole 64x64 map of water)
+  // would recompose ~4k cells/frame; keep it bounded so the loop can never
+  // dominate a frame. Beyond the cap, only the first N animate (rare edge case).
+  const ANIM_CELL_CAP = 2048;
+  ctx.animCells = cells.length > ANIM_CELL_CAP ? cells.slice(0, ANIM_CELL_CAP) : cells;
+}
+
+/** Advance animated terrain onto the lower buffer for the current frame; called
+ *  once per engine tick from the map update with the engine tick counter
+ *  (ctx.globalT). Frames derive from that tick via frameAtTick, so terrain
+ *  animation is perfectly deterministic under the golden-image frozen clock.
+ *  Returns true when the buffer changed (so HD re-textures); no-op when nothing
+ *  animates. */
+export function tickMapAnim(tick: number): boolean {
+  const cells = ctx.animCells;
+  if (!cells || !cells.length || !ctx.lowerBuf) return false;
+  const lg = ctx.lowerBuf.getContext("2d");
+  const frameFn = (fps: number, frames: number) => frameAtTick(tick, fps, frames, 60);
+  const changed = redrawAnimatedCells(cells, frameFn, ANIM_FRAME_STATE, (x, y, frame) => {
+    recomposeLowerCell(lg, ctx.map, x, y, frame, Assets.drawTile, TILE, "#101018");
+    redrawCellShadow(lg, x, y);
+  });
+  if (changed && ctx.hdActive && typeof Renderer !== "undefined") {
+    // Re-upload the lower texture only (upper is untouched by terrain anim).
+    Renderer.setMap(ctx.lowerBuf, ctx.upperBuf, ctx.map);
+  }
+  return changed;
+}
+
+// Redraw the quadrant shadow for one cell after its tiles were recomposed
+// (mirrors the shadow pass in prerenderMap, so a shadow over animated water is
+// not lost). No-op when the map has no shadows or none on this cell.
+function redrawCellShadow(lg: any, x: number, y: number): void {
+  const sh = ctx.map.shadows;
+  if (!sh) return;
+  const mask = sh[y * ctx.map.width + x];
+  if (!mask) return;
+  const H = TILE / 2;
+  lg.save();
+  lg.globalCompositeOperation = "source-over";
+  lg.globalAlpha = 1;
+  lg.fillStyle = "rgba(10,10,26,0.35)";
+  if (mask & 1) lg.fillRect(x * TILE, y * TILE, H, H);
+  if (mask & 2) lg.fillRect(x * TILE + H, y * TILE, H, H);
+  if (mask & 4) lg.fillRect(x * TILE, y * TILE + H, H, H);
+  if (mask & 8) lg.fillRect(x * TILE + H, y * TILE + H, H, H);
+  lg.restore();
 }
 
 export async function loadMap(mapId: any): Promise<void> {

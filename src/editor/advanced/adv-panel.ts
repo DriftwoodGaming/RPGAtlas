@@ -20,13 +20,14 @@ import { editorState as S, curMap, t } from "../editor-state";
 import { h } from "../dom";
 import { modal } from "../modals";
 import { touch } from "../persistence";
-import { renderMap, renderMapView, type MapView } from "../map-editor/map-render";
+import { renderMap, renderMapView, mapAnimFrame, registerAnimRedraw, type MapView } from "../map-editor/map-render";
 import { rebuildMapList } from "../map-editor/map-list";
 import { setStatus } from "../map-editor/status";
 import type { MapFolder } from "../../shared/schema";
 import { advState, advHooks, type AdvTool } from "./adv-state";
 import { attachAdvPainting } from "./adv-paint";
 import { buildLayersToolbar, renderLayersList, renderLayerProps } from "./adv-layers";
+import { openTerrainStudio } from "./terrain-studio";
 
 export const ADV_PANEL = "adv";
 
@@ -212,6 +213,7 @@ function advView(): MapView {
     pasteMode: null, clipTiles: null, selectedEvent: null,
     system: S.proj.system,
     activeLayerId: advState.activeLayerId ?? undefined,
+    frame: mapAnimFrame(),
   };
 }
 function renderAdvCanvas() {
@@ -285,6 +287,14 @@ export function mountAdvanced(): HTMLElement {
       buildLayersToolbar(),
       layersEl,
       propsEl,
+      h("div", { class: "adv-section-head" },
+        h("span", null, t("Terrain")),
+      ),
+      h("button", {
+        class: "adv-studio-btn",
+        title: t("Open the Terrain & Autotile Studio"),
+        onclick: () => openTerrainStudio(),
+      }, "🎨 " + t("Terrain & Autotile Studio…")),
     ),
     h("div", { class: "adv-center" },
       toolStrip,
@@ -297,6 +307,9 @@ export function mountAdvanced(): HTMLElement {
   advHooks.render = renderAdvCanvas;
   advHooks.rebuildLayers = rebuildLayers;
   advHooks.rebuild = rebuild;
+  // Animated terrain: the shared 2D anim loop re-renders this canvas too when
+  // the panel is showing (no-op while hidden or when nothing animates).
+  registerAnimRedraw(() => { if (isShowing()) renderAdvCanvas(); });
 
   // Catch "shown while dirty" (the dock displays the tab after edits landed
   // while it was hidden) — same job worldDirty's debounce does when visible.
