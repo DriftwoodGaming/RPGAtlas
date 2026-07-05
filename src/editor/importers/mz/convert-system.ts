@@ -71,6 +71,9 @@ export function convertSystem(sys: RmSystem, report: ImportReport): SystemConver
     followers: !!sys.optFollowers,
     battleView: sys.optSideView ? "side" : "front",
     battleSystem: sys.battleSystem ? "atb" : "turn",
+    // M3·C: imported games keep RPG Maker's battle pacing — preemptive/
+    // surprise rolls on random encounters and the MZ escape ratio.
+    mzBattleFlow: true,
     // M3·B: the TP gauge flag (and one of the TP-mechanics activators).
     ...(sys.optDisplayTp ? { displayTp: true } : {}),
     types: {

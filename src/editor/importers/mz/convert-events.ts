@@ -55,10 +55,12 @@ function troopSpan(span: number): TroopPage["span"] {
   return span === 2 ? "moment" : span === 1 ? "turn" : "battle";
 }
 
-/** RM's flat page-condition block → Atlas `TroopPageCond` (matrix §2/§8.5). */
+/** RM's flat page-condition block → Atlas `TroopPageCond` (matrix §2/§8.5;
+ *  `turnEnding` joined in M3·C). */
 function troopCond(c: RmTroopPage["conditions"]): TroopPageCond {
   const cond: TroopPageCond = {};
   if (!c) return cond;
+  if (c.turnEnding) cond.turnEnd = true;
   if (c.turnValid) cond.turn = { a: c.turnA || 0, b: c.turnB || 0 };
   if (c.enemyValid) cond.enemyHpBelow = { index: c.enemyIndex || 0, pct: c.enemyHp ?? 100 };
   if (c.actorValid) cond.actorHpBelow = { actorId: c.actorId || 0, pct: c.actorHp ?? 100 };
@@ -92,14 +94,11 @@ export function convertTroops(
         detail: "Atlas arranges enemies in its own formation",
       }));
     }
-    if (members.some((m) => m.hidden)) {
-      report.bump("troop-hidden", () => ({
-        area: "Troops",
-        kind: "todo",
-        what: "enemies that appear mid-battle",
-        detail: "hidden enemies that join partway through arrive in a later update",
-      }));
-    }
+    // M3·C: hidden members → `hiddenSlots` (revealed by Enemy Appear).
+    const hiddenSlots = members
+      .map((m, i) => (m.hidden ? i : -1))
+      .filter((i) => i >= 0);
+    if (hiddenSlots.length) troop.hiddenSlots = hiddenSlots;
     out.push(troop);
   }
   return out;

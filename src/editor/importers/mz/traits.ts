@@ -55,9 +55,16 @@ const SP_PARAM_KEYS = [
   "tpCharge", "physDamage", "magicDamage", "floorDamage", "expRate",
 ];
 
-/** Special-flag (code 62) dataId → Atlas `special` key. autoBattle and
- *  substitute are stored now but only act with the M3·C battle flow. */
+/** Special-flag (code 62) dataId → Atlas `special` key. All four act since
+ *  M3·C (autoBattle/substitute joined guard/preserve-TP). */
 const SPECIAL_FLAG_KEYS = ["autoBattle", "guardFlag", "substitute", "preserveTp"];
+
+/** Party-ability (code 64) dataId → Atlas `special` key (M3·C). Presence-
+ *  checked over the party: encounter rate, first strikes, gold, drops. */
+const PARTY_ABILITY_KEYS = [
+  "encounterHalf", "encounterNone", "cancelSurprise",
+  "raisePreemptive", "goldDouble", "dropDouble",
+];
 
 /** Convert one MZ trait row to an Atlas `Trait`, or null when the row is a
  *  locked skip (luk/collapse/dual-wield), an empty reference, or a code that
@@ -186,18 +193,9 @@ export function convertTrait(t: RmTrait, ctx: TraitConvertCtx): Trait | null {
       // Action Times+ (M3·B) — value% chance of an extra action each round.
       return { type: "special", key: "actionTimes", value: pct(t.value) };
     case 62: {
-      // Special Flag (M3·B). Guard and Preserve-TP act now; auto-battle and
-      // substitute are stored but wait for the M3·C battle flow.
+      // Special Flag (M3·B; autoBattle/substitute act since M3·C).
       const key = SPECIAL_FLAG_KEYS[t.dataId];
       if (!key) return null;
-      if (key === "autoBattle" || key === "substitute") {
-        ctx.report.bump("battle-flow-trait", () => ({
-          area: "Battlers",
-          kind: "todo",
-          what: "auto-battle & cover-ally effects",
-          detail: "fighting automatically and protecting allies turn on in a later update",
-        }));
-      }
       return { type: "special", key, value: 100 };
     }
     case 63:
@@ -209,15 +207,22 @@ export function convertTrait(t: RmTrait, ctx: TraitConvertCtx): Trait | null {
         detail: "Atlas plays its own defeat effect",
       }));
       return null;
+    case 64: {
+      // Party Ability (M3·C): encounter half/none, cancel-surprise,
+      // raise-preemptive, gold double, drop double — all real now.
+      const key = PARTY_ABILITY_KEYS[t.dataId];
+      if (!key) return null;
+      return { type: "special", key, value: 100 };
+    }
     default:
-      // 64 (party abilities) → M3·C; anything unknown keeps the honest line.
+      // Anything unknown keeps the honest aggregated line.
       bumpAdvTrait(ctx.report);
       return null;
   }
 }
 
-/** The aggregated "advanced battler bonuses" line — since M3·B only party
- *  abilities (code 64, an M3·C feature) and unknown codes land here. */
+/** The aggregated "advanced battler bonuses" line — since M3·C only unknown
+ *  trait codes land here (every matrix code converts or is a locked skip). */
 function bumpAdvTrait(report: ImportReport): void {
   report.bump("adv-trait", () => ({
     area: "Battlers",

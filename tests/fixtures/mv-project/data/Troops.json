@@ -68,7 +68,7 @@
       },
       {
         "conditions": {
-          "turnEnding": false,
+          "turnEnding": true,
           "turnValid": false,
           "turnA": 0,
           "turnB": 0,
@@ -86,12 +86,17 @@
           {
             "code": 337,
             "indent": 0,
-            "parameters": [0,0,2]
+            "parameters": [0,2,false]
           },
           {
             "code": 331,
             "indent": 0,
             "parameters": [0,0,0,20]
+          },
+          {
+            "code": 335,
+            "indent": 0,
+            "parameters": [2]
           },
           {
             "code": 0,

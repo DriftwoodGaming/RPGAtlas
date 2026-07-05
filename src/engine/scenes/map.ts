@@ -14,7 +14,8 @@ import { Assets, RA } from "../../shared/deps.js";
 import { clamp, rnd, rndf, sleep, sysSe } from "../util.js";
 import { findPath } from "../../shared/pathfind.js";
 import { ctx, fns } from "../state/engine-context.js";
-import { G } from "../state/game-state.js";
+import { G, actorEffCarrier, param } from "../state/game-state.js";
+import { preemptiveRate, surpriseRate } from "./battle-logic.js";
 import { wantsDash } from "../state/player-options.js";
 import { UIStack } from "../ui-stack.js";
 import { Interp } from "../interpreter/interp.js";
@@ -357,9 +358,16 @@ function onPlayerStep(): void {
   }
   // random encounters (airships fly above them; regions can swap the pool).
   // Change Encounter Access (M2·C) suppresses the roll while disabled.
+  // M3·C party abilities (trait 64): an Encounter-None party never rolls;
+  // Encounter-Half advances the counter at half speed. Presence-gated —
+  // parties without the traits keep the exact classic flow and draws.
+  const partyAbility = (key: string) =>
+    G.party.some(
+      (a: any) => RA.traitsOf(actorEffCarrier(a), "special", key).length > 0,
+    );
   const enc = ctx.map.encounters;
-  if (enc && enc.rate > 0 && enc.troops.length && !ctx.blockingRun && !G.encounterDisabled && G.vehicle !== "airship") {
-    G.encSteps++;
+  if (enc && enc.rate > 0 && enc.troops.length && !ctx.blockingRun && !G.encounterDisabled && G.vehicle !== "airship" && !partyAbility("encounterNone")) {
+    G.encSteps += partyAbility("encounterHalf") ? 0.5 : 1;
     const forced = consumeForcedEncounter();
     if (forced || G.encSteps >= enc.rate * (0.7 + rndf() * 0.6)) {
       G.encSteps = 0;
@@ -376,8 +384,30 @@ function onPlayerStep(): void {
       pool = zoneEncounterPool(ctx.map, p.x, p.y, pool);
       const troopId = pool[rnd(pool.length)];
       sysSe("encounter");
+      // M3·C: first-strike/surprise rolls — mzBattleFlow projects only, and
+      // only for RANDOM encounters (event battles never roll, like MZ). Two
+      // draws, exactly MZ's onEncounter (surprise rolls even after a hit).
+      let opts: any;
+      if (ctx.proj.system.mzBattleFlow) {
+        const troopRec = RA.byId(ctx.proj.troops, troopId);
+        const members = (troopRec ? troopRec.enemies : [])
+          .map((eid: any) => RA.byId(ctx.proj.enemies, eid))
+          .filter(Boolean);
+        const pAgi =
+          G.party.reduce((s: any, a: any) => s + param(a, "agi"), 0) /
+          Math.max(1, G.party.length);
+        const tAgi =
+          members.reduce((s: any, e: any) => s + (Number(e.stats.agi) || 0), 0) /
+          Math.max(1, members.length);
+        const preemptive =
+          rndf() < preemptiveRate(pAgi, tAgi, partyAbility("raisePreemptive"));
+        const surprise =
+          rndf() < surpriseRate(pAgi, tAgi, partyAbility("cancelSurprise")) &&
+          !preemptive;
+        opts = { preemptive, surprise };
+      }
       (async () => {
-        const result = await fns.Battle.run(troopId, true);
+        const result = await fns.Battle.run(troopId, true, opts);
         if (result === "lose") await fns.gameOver();
       })();
     }

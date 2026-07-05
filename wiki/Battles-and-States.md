@@ -183,6 +183,42 @@ Combat depth largely comes from **traits** — and since the trait editor is sha
 Two characters of different classes will *feel* different in battle even with the same gear — and
 enemies with traits (an Ice-weak Slime that sometimes counterattacks) fight back with character.
 
+A few special traits act for the whole team or on their own:
+
+- **Fights automatically** — the hero skips the command menu and attacks on their own.
+- **Covers weak allies** — a bodyguard steps in front of any ally below a quarter health.
+- **Party abilities** (any one hero carries them for everyone): *half* or *no* random battles,
+  *more first strikes*, *never surprised*, *double gold*, and *double item drops*.
+
+---
+
+## Boss fights & battle events
+
+Troops (Database ▸ Troops) are where set-piece fights come together:
+
+- **Hidden members** — check *hidden at start* on a slot and that enemy waits invisibly until a
+  battle event runs **Enemy Appear** (“the boss summons minions!”).
+- **Battle-event pages** run commands mid-fight when their condition holds (a turn count, an
+  enemy's or hero's HP, a switch — or only **at the end of a turn**). Eight battle commands act on
+  the live troop: **Change Enemy HP/MP/State**, **Enemy Recover All**, **Enemy Appear**,
+  **Enemy Transform**, **Force Action**, and **Abort Battle** — plus battle animations aimed at
+  enemy slots.
+- **Start Battle branches** — the event command grows optional **If-Win / If-Escape / If-Lose**
+  bodies, so victory hands out the key and a loss can continue the story (with *Continue on loss*).
+- **Drops** — give an enemy “1 in N” loot rows (Enemies ▸ Stats & rewards) and victory rolls them
+  with a *Found a Potion!* line.
+
+## Escapes, first strikes & surprise rounds
+
+Mark a skill or item **Escapes the battle** and using it lets the party slip away — a smoke bomb.
+An *enemy* using one flees the fight instead (and pays no EXP, gold, or drops).
+
+Turn on **RPG Maker battle pacing** (Database ▸ System) and random encounters can open with a
+**first strike** (your side acts alone on turn 1) or a **surprise round** (the enemies do), with
+escape odds computed from the agility ratio that improve after each failed try — exactly how
+RPG Maker games feel. Imported MV/MZ games switch this on automatically; Atlas-made games keep
+the classic pacing until you check the box.
+
 ---
 
 ## Tips for fun, fair combat

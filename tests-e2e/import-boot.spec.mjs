@@ -59,50 +59,57 @@ test.describe("MZ/MV import boots", () => {
   }
 });
 
-test.describe("imported MZ project — playtest, battle, save/load", () => {
-  test("runs a battle to a result through the shared battle core", async ({ page }) => {
-    test.setTimeout(90_000);
-    const errors = watchErrors(page);
-    await gotoWithImported(page, "/play.html", "mz");
+test.describe("imported projects — playtest, battle, save/load", () => {
+  // M3·C: the FULL battle runs on BOTH fixtures (the phase-exit proof). The
+  // troop now exercises battle parity live: a hidden Crab revealed by an
+  // Enemy Appear page (at a turn-end check), Show Battle Animation + Change
+  // Enemy HP page commands, MZ escape odds, and the Crab's Slip Away escape
+  // effect — the battle must still reach a clean result.
+  for (const [which, label] of [["mz", "MZ"], ["mv", "MV"]]) {
+    test(`${label}: runs a full battle to a result through the shared battle core`, async ({ page }) => {
+      test.setTimeout(120_000);
+      const errors = watchErrors(page);
+      await gotoWithImported(page, "/play.html", which);
 
-    await page.getByText("New Game", { exact: true }).click();
-    await expect(page.locator(".titlewin")).toHaveCount(0);
-    await expect
-      .poll(() => page.evaluate(() => window.Atlas && window.Atlas.atlas.scene), { timeout: 10_000 })
-      .toBe("map");
+      await page.getByText("New Game", { exact: true }).click();
+      await expect(page.locator(".titlewin")).toHaveCount(0);
+      await expect
+        .poll(() => page.evaluate(() => window.Atlas && window.Atlas.atlas.scene), { timeout: 10_000 })
+        .toBe("map");
 
-    // Troop 1 = the imported "Slimes" group. Drive it the same way player.spec does.
-    await page.evaluate(() => {
-      window.__battleResult = null;
-      window.__battleError = null;
-      window.Atlas.atlas
-        .startBattle(1, true)
-        .then((r) => { window.__battleResult = r; })
-        .catch((e) => { window.__battleError = String((e && e.stack) || e); });
+      // Troop 1 = the imported "Slimes" group. Drive it the same way player.spec does.
+      await page.evaluate(() => {
+        window.__battleResult = null;
+        window.__battleError = null;
+        window.Atlas.atlas
+          .startBattle(1, true)
+          .then((r) => { window.__battleResult = r; })
+          .catch((e) => { window.__battleError = String((e && e.stack) || e); });
+      });
+      await expect(page.locator(".battlewin")).toBeVisible();
+
+      await expect
+        .poll(
+          async () => {
+            const done = await page.evaluate(() => window.__battleResult || window.__battleError);
+            if (done) return done;
+            // M3·A: the imported battle plays honestly, so the troop-page
+            // message ("The slimes wobble…") really opens — dismiss it like
+            // a player. The same Enter driver walks the command menus.
+            if (await page.locator(".cmdwin, .targetwin, .msgwin").count()) await page.keyboard.press("Enter");
+            return null;
+          },
+          { timeout: 90_000, intervals: [250] },
+        )
+        .not.toBeNull();
+
+      const outcome = await page.evaluate(() => ({ result: window.__battleResult, error: window.__battleError }));
+      expect(outcome.error).toBeNull();
+      expect(["win", "lose", "escape"]).toContain(outcome.result);
+      await expect(page.locator(".battlewin")).toHaveCount(0);
+      expect(errors, `console/page errors:\n${errors.join("\n")}`).toEqual([]);
     });
-    await expect(page.locator(".battlewin")).toBeVisible();
-
-    await expect
-      .poll(
-        async () => {
-          const done = await page.evaluate(() => window.__battleResult || window.__battleError);
-          if (done) return done;
-          // M3·A: the imported battle now plays honestly (formula damage
-          // instead of the old NaN insta-loss), so the troop-page message
-          // ("The slimes wobble…") really opens — dismiss it like a player.
-          if (await page.locator(".cmdwin, .targetwin, .msgwin").count()) await page.keyboard.press("Enter");
-          return null;
-        },
-        { timeout: 60_000, intervals: [250] },
-      )
-      .not.toBeNull();
-
-    const outcome = await page.evaluate(() => ({ result: window.__battleResult, error: window.__battleError }));
-    expect(outcome.error).toBeNull();
-    expect(["win", "lose", "escape"]).toContain(outcome.result);
-    await expect(page.locator(".battlewin")).toHaveCount(0);
-    expect(errors, `console/page errors:\n${errors.join("\n")}`).toEqual([]);
-  });
+  }
 
   test("round-trips a save through the engine's save-slot UI", async ({ page }) => {
     await gotoWithImported(page, "/play.html", "mz");

@@ -21,7 +21,9 @@ export const itemsTab = () => listFormTab({
   form(e: any, box: any, redrawList: any) {
     box.appendChild(row(field("Name", nameRefresher(e, redrawList)), iconPickerField(e, redrawList), field("Price", nIn(e, "price", 0))));
     box.appendChild(row(field("Restores HP", nIn(e, "hp", 0, 9999)), field("Restores MP", nIn(e, "mp", 0, 9999)),
-      field("Revives fallen ally", chk(e, "revive"))));
+      field("Revives fallen ally", chk(e, "revive")),
+      // M3·C: the MZ escape effect — a Smoke Bomb item.
+      field("Escapes the battle", chk(e, "escapeBattle"))));
     box.appendChild(field("Description", tIn(e, "desc")));
     box.appendChild(h("div", { class: "dim" }, "Revive: this item works only on a fallen (0 HP) ally, bringing them back with the “Restores HP” amount. Non-revive items can't be used on the fallen."));
     // M3·B: state add/cure (the Antidote pattern) + TP + buff/grow/learn extras.
@@ -91,6 +93,14 @@ export const troopsTab = () => listFormTab({
     function buildMembers() {
       const p = h("div");
       const mbox = h("div", { class: "frow" });
+      // M3·C: per-slot "hidden at start" (revealed by the Enemy Appear
+      // command). Stored sparsely — no hidden slots, no field.
+      const hiddenSet = new Set<number>(e.hiddenSlots || []);
+      const syncHidden = () => {
+        const list = [...hiddenSet].filter((i) => i < e.enemies.length).sort();
+        if (list.length) e.hiddenSlots = list;
+        else delete e.hiddenSlots;
+      };
       function redrawM() {
         mbox.innerHTML = "";
         for (let i = 0; i < 4; i++) {
@@ -100,13 +110,25 @@ export const troopsTab = () => listFormTab({
             const slots = mbox.querySelectorAll("select");
             slots.forEach((s2: any) => { const v = Number(s2.value); if (v) arr.push(v); });
             e.enemies = arr;
+            syncHidden();
             touch();
+          })));
+          mbox.appendChild(field("hidden at start", h("input", {
+            type: "checkbox",
+            onchange(ev2: any) {
+              if (ev2.target.checked) hiddenSet.add(i);
+              else hiddenSet.delete(i);
+              syncHidden();
+              touch();
+            },
+            ...(hiddenSet.has(i) ? { checked: "" } : {}),
           })));
         }
       }
       redrawM();
       p.appendChild(h("div", { class: "subhead", style: "margin-top:0" }, "Members (up to 4)"));
       p.appendChild(mbox);
+      p.appendChild(h("div", { class: "dim" }, "A hidden member joins the fight when a battle event runs “Enemy Appear” on its slot."));
       return p;
     }
 
@@ -157,6 +179,9 @@ export const troopsTab = () => listFormTab({
         pageBody.appendChild(row(
           field("Turn a (0 = off)", nIn(c.turn, "a", 0, 999)),
           field("+ every b turns", nIn(c.turn, "b", 0, 999)),
+          // M3·C: the MZ "Turn End" condition — only the between-turns
+          // check can fire the page.
+          field("Only at turn end", chk(c, "turnEnd")),
           field("Span", sel(pg, "span", [
             { v: "battle", l: "Once per battle" },
             { v: "turn", l: "Once per turn" },

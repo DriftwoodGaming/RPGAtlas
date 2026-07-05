@@ -176,5 +176,37 @@
     "requiredWtypeId1": 0,
     "requiredWtypeId2": 0,
     "note": ""
+  },
+  {
+    "id": 6,
+    "name": "Slip Away",
+    "iconIndex": 82,
+    "stypeId": 2,
+    "mpCost": 0,
+    "tpCost": 0,
+    "scope": 11,
+    "occasion": 1,
+    "damage": {
+      "type": 0,
+      "elementId": 0,
+      "formula": "0",
+      "variance": 0,
+      "critical": false
+    },
+    "effects": [
+      {
+        "code": 41,
+        "dataId": 0,
+        "value1": 0,
+        "value2": 0
+      }
+    ],
+    "animationId": 0,
+    "repeats": 1,
+    "message1": " slips away!",
+    "message2": "",
+    "requiredWtypeId1": 0,
+    "requiredWtypeId2": 0,
+    "note": ""
   }
 ]

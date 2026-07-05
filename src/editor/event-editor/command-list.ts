@@ -23,6 +23,9 @@ import { cmdSummary, editCommand, pickCommand } from "./command-defs";
       if (c.t === "if") { walkCommands(c.then, cb); walkCommands(c.else, cb); }
       else if (c.t === "choices") (c.branches || []).forEach((b: any) => walkCommands(b, cb));
       else if (c.t === "loop") walkCommands(c.body, cb);
+      else if (c.t === "battle") { // M3·C battle-result branches
+        walkCommands(c.onWin, cb); walkCommands(c.onEscape, cb); walkCommands(c.onLose, cb);
+      }
     }
   }
 
@@ -48,6 +51,14 @@ import { cmdSummary, editCommand, pickCommand } from "./command-defs";
         out.push({ label: "▸ Repeat", depth: depth });
         buildCmdRows(c.body, depth + 1, out);
         out.push({ arr: c.body, idx: c.body.length, depth: depth + 1, slot: true });
+      } else if (c.t === "battle") {
+        // M3·C: optional result branches (toggled in the Start Battle form).
+        for (const [key, lbl] of [["onWin", "If Win"], ["onEscape", "If Escape"], ["onLose", "If Lose"]] as const) {
+          if (!c[key]) continue;
+          out.push({ label: "▸ " + lbl, depth });
+          buildCmdRows(c[key], depth + 1, out);
+          out.push({ arr: c[key], idx: c[key].length, depth: depth + 1, slot: true });
+        }
       }
     });
   }
@@ -67,7 +78,8 @@ import { cmdSummary, editCommand, pickCommand } from "./command-defs";
       if (!cmd) return false;
       const branches = cmd.t === "if" ? [cmd.then, cmd.else]
         : cmd.t === "choices" ? (cmd.branches || [])
-        : cmd.t === "loop" ? [cmd.body || []] : [];
+        : cmd.t === "loop" ? [cmd.body || []]
+        : cmd.t === "battle" ? [cmd.onWin, cmd.onEscape, cmd.onLose].filter(Boolean) : [];
       for (const b of branches) {
         if (b === arr) return true;
         for (const c of b) if (ownsArray(c, arr)) return true;

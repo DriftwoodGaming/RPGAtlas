@@ -473,6 +473,9 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
   50% { transform: translateX(3px) rotate(.6deg); }
 }
 .enemy-spr.dead { opacity: 0; transform: translateY(20px); }
+/* Project Compass M3·C: hidden troop members (appear mid-battle) & escapees */
+.enemy-spr.hiddenmem { display: none; }
+.enemy-spr.fled { opacity: 0.12; filter: grayscale(1); }
 .enemy-spr.flash canvas { animation: eflash 0.35s; }
 @keyframes eflash {
   0%, 60% { filter: brightness(3) drop-shadow(0 6px 6px rgba(0,0,0,0.5)); }

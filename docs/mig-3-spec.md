@@ -468,4 +468,231 @@ the MV project still activates TP through Guard's `tpCost 25`).
     substitute/autoBattle behaviors, enemy commands 331–340, `fdr` waits for M4·A
     floors.
 
-## M3·C — Troop & enemy battle parity *(not started — spec lands with the step)*
+## M3·C — Troop & enemy battle parity (matrix §2 troops/enemies · §5 code 64 · §6 code 41 · §8.10 301/601–604 · §8.12 codes 331–340)
+
+**Scope (matrix "M3·C — battle parity" bill):** battle branches (601/602/603 bodies),
+enemy commands (331–340), Force Action (339), Abort Battle (340), Enemy Appear/Transform
+(335/336), enemy `dropItems`, troop `hidden` members, action-condition refinements
+(MP / party-level / switch + the troop-page turn-end condition), party abilities
+(trait 64: encounter/preemptive/surprise/gold/drop), escape effect (41) and the MZ
+escape formula. Tag `mig-3` at exit. Everything optional-only (D2, FORMAT_VERSION 2);
+Atlas-native projects keep byte-identical behavior **and RNG streams** — every new roll
+is gated on a trait/field/flag existing, and the MZ battle-pacing behaviors
+(preemptive/surprise rounds, MZ escape odds) sit behind one new **system flag** the
+importer sets (`mzBattleFlow`), so native battles cannot drift by a single draw.
+
+### Schema (all optional — FORMAT_VERSION stays 2, D2)
+
+- **`Enemy.drops?: { kind: "item"|"weapon"|"armor"; id: number; denominator: number }[]`**
+  — MZ dropItems (1-in-N at victory; kind 0 rows are dropped at import).
+- **`Troop.hiddenSlots?: number[]`** — 0-based member slots hidden at battle start
+  (MZ member `hidden`); revealed by Enemy Appear (335) or a transform.
+- **`TroopPageCond.turnEnd?: boolean`** — the MZ "Turn End" page condition; fires only
+  on the end-of-round boundary check.
+- **`EnemyActionCond`** new kinds: `"mpBelow"` (pct — MZ cond 3's upper bound ×100,
+  same simplification as HP), `"partyLevel"` (`a` = level, valid when the highest party
+  level ≥ a), `"switch"` (`switchId` ON).
+- **`Skill.escapeBattle?` / `Item.escapeBattle?: boolean`** — MZ effect 41: a party
+  member's use flees the whole battle (kid-friendly approximation of MZ's per-battler
+  escape — reported); an enemy's use makes THAT enemy flee (no EXP/gold/drops from it).
+- **`SystemData.mzBattleFlow?: boolean`** — "RPG Maker battle pacing": preemptive/
+  surprise rolls on random encounters and the MZ escape ratio. The importer always sets
+  it; the System tab exposes it as a plain-language checkbox for native projects.
+- **Party abilities (trait 64)** → `special` keys `encounterHalf / encounterNone /
+  cancelSurprise / raisePreemptive / goldDouble / dropDouble` (value 100, presence-
+  checked over any party member's effective carrier — MZ semantics, dead members count).
+- **`CmdBattle.onWin?/onEscape?/onLose?: AnyCommand[]`** — the 601/602/603 branch
+  bodies. `onLose` runs only with `lose:true` (RM shows 603 only when Can Lose).
+- **New commands:** `changeEnemyHp {enemyIndex, op, value, allowKo?}`, `changeEnemyMp`,
+  `changeEnemyState {enemyIndex, op, stateId}`, `enemyRecoverAll {enemyIndex}`,
+  `enemyAppear {enemyIndex}`, `enemyTransform {enemyIndex, enemyId}`,
+  `forceAction {side, index, skillId, target}`, `abortBattle` (ends the battle as an
+  escape — MZ `endBattle(1)`). `enemyIndex` −1 = the whole troop, like `changeEnemyTp`.
+  337 rides the existing `playAnim` with a new `target:"enemy"` + `enemyIndex` pair
+  (battle-bridged; a map no-op).
+
+### Engine (native paths byte-identical)
+
+- **Hidden members:** marked AFTER the pinned troop-setup statement
+  (`battle-index.test.js` stays untouched); a hidden enemy renders `display:none`,
+  is excluded from `livingE()` (not targetable, doesn't act, doesn't block victory —
+  MZ `isAppeared`), and joins on reveal with a float + log line.
+- **Battle bridge:** `fns.battleEnemyOps` (registered at battle start, deleted in
+  `finally`, like `battleAddEnemyTp`) exposes hp/mp/state/recoverAll/appear/transform/
+  showAnim/forceAction/abort to the interpreter — troop pages run inside the battle, so
+  the commands act on the live troop; outside battle they no-op. Change-Enemy-HP KOs
+  (when `allowKo`) count as defeats (EXP/quests). Transform swaps the enemy record,
+  clamps vitals, redraws the battler, and keeps states/buffs (MZ).
+- **Force Action:** runs `resolveAction` immediately with the given skill, costs
+  skipped (MZ). An actor-side force with `target ≥ 0` hits that slot; −1/−2 pick the
+  engine's usual target. Enemy-side targeting keeps Atlas's tgr-weighted single pick
+  (documented deviation).
+- **Abort Battle:** a pending flag both loops check at the round boundaries and after
+  each action's troop-page check → result `"escape"` (no escape SE — MZ processAbort).
+- **Preemptive/surprise** (`mzBattleFlow` + random encounters only, exactly MZ's
+  `onEncounter`): rates 5%/3% (party avg AGI ≥ troop avg) ×4 `raisePreemptive`,
+  surprise 3%/5% zeroed by `cancelSurprise`; rolled in the map's encounter path and
+  passed as `Battle.run(id, true, {preemptive, surprise})`. Turn mode: round 1 skips
+  the other side's commands ("You caught them off guard!" / "You were caught off
+  guard!"); ATB/CTB: the same rndf seeding draws, then a deterministic gauge bias.
+  Event battles (301) never roll — MZ parity.
+- **Escape formula** (`mzBattleFlow`): chance = `0.5 × partyAgi/troopAgi` + 0.1 per
+  failed attempt (MZ makeEscapeRatio/onEscapeFailure), still ONE rndf draw per attempt;
+  native projects keep the classic `0.55 + (pa−ea)·0.03` clamp untouched.
+- **Escape effect:** an actor's `escapeBattle` skill/item use ends the battle as
+  `"escape"` after the action resolves; an enemy's flags it `escaped` (fades out,
+  excluded from `livingE()` and from rewards).
+- **autoBattle (62.0):** an actor with the trait skips the command menu and basic-
+  attacks a random living enemy (one gated rnd draw; MZ's damage-evaluation loop is a
+  documented deviation).
+- **substitute (62.2):** when a hit lands on a battler below 25% max HP, a living
+  non-dying same-side battler carrying the trait takes it instead ("S covers T!") —
+  deterministic, no draws, both sides (MZ certain-hit exemption n/a).
+- **Victory:** EXP/gold now sum DEFEATED enemies only (`!alive` — identical totals
+  natively, where a win means everyone died; hidden/escaped stragglers are excluded);
+  gold ×2 with `goldDouble`; **drops** roll per defeated enemy's rows
+  (`rndf()·denominator < 1` ×2 with `dropDouble` — MZ makeDropItems), added to the
+  inventory with "Found a …!" lines. Zero rows ⇒ zero draws.
+- **Encounter abilities** (map step, presence-gated, no rolls): `encounterNone` skips
+  the encounter block; `encounterHalf` advances the step counter by 0.5.
+
+### Importer flips
+
+- `traits.ts` code 64 → the six party-ability keys (the aggregated "advanced battler
+  bonuses" line now covers only unknown codes and disappears from the fixtures).
+- `convert-battlers.ts`: `dropItems` → `drops` (kind 0 rows skipped, todo line gone);
+  action conds 3/5/6 → `mpBelow`/`partyLevel`/`switch` (todo line gone; the HP/MP
+  upper-bound simplification keeps its partial line).
+- `convert-events.ts`: member `hidden` → `hiddenSlots` (todo line gone; the layout
+  partial stays); `turnEnding` → `cond.turnEnd`.
+- `convert-items.ts`: effect 41 → `escapeBattle` on skills AND items (todo line gone).
+- `convert-system.ts`: `mzBattleFlow: true` on every import.
+- `translate-commands.ts`: 331–337/339/340 out of the TODO table → real commands
+  (variable operands keep the mzTodo path like every change-family command); `battle()`
+  consumes trailing 601/602/603 branches into `onWin`/`onEscape`/`onLose` (604
+  structural). TODO table entries 331–340, 601–603 deleted.
+
+### Editor
+
+- Enemies ▸ Stats & rewards: a Drops list ("1 in N chance" rows, item/weapon/armor
+  picker); Actions: the three new condition kinds in the picker.
+- Troops ▸ Members: a "hidden at start" checkbox per slot (appears via the Enemy
+  Appear command); Battle events: an "At turn end" condition toggle.
+- Event editor: forms + labels for the eight new commands (grouped under Battle) and
+  three branch sub-lists on Start Battle; `playAnim` battle target.
+- System ▸ Battle: "RPG Maker battle pacing (first strikes, surprise rounds, RM escape
+  odds)" checkbox next to the TP toggle.
+- `RA.TRAIT_SPECIALS`: the six party-ability labels; autoBattle/substitute lose their
+  "(soon)".
+
+### Fixture amendments (recorded like D10, both MV+MZ)
+
+- Troop page 2 (Slime ≤ 50%) gains `335 [2]` (reveal the hidden Crab — the `hidden:
+  true` member finally acts) and its `337` params fixed to `[0, 2, false]` (animation 2
+  on slot 0 — the old `[0, 0, 2]` predates real support and named no animation).
+- Crab's action conditions become real refinements: `{skillId 1, cond 5 (party level ≥
+  1)}` + `{skillId 2, cond 6 (switch 2 ON)}` (the old `cond 5 param 0.5` was authored
+  as an unreachable todo probe).
+- New skill 6 "Slip Away" (scope 11, effect `[41,0,0,0]`) on the Crab's action list
+  (turn ≥ 4) — the escape effect fires in a real battle.
+- Wanderer class gains trait `64·3` (raisePreemptive); Leather Vest gains `64·4`
+  (goldDouble — merges onto its wearer's class per D6).
+- The cave "Ambush" event's 601/602/603 branches now translate for real (Rusty Key +1
+  on win) — no fixture change, just the flip.
+
+### Tests
+
+- **vitest** `battle-logic.test.ts`: MZ escape ratio + failure escalation; preemptive/
+  surprise rates (incl. ability modifiers); drop rolls (stubbed rndf, dropDouble);
+  the three new action-cond kinds; `turnEnd` page gating (only the boundary check).
+- **vitest** `mz-import-db.test.ts`: Slime `drops` (Potion 1-in-2), troop
+  `hiddenSlots [2]`, Crab's `partyLevel`/`switch` conds, Slip Away `escapeBattle`,
+  party-ability trait keys, `system.mzBattleFlow`, troop-page 331/335/337 commands
+  real; the enemy-drops / troop-hidden / enemy-cond-todo / advanced-battler-bonuses /
+  skill-escape lines asserted GONE.
+- **vitest** `mz-translate-commands.test.ts`: 331–340 translations + 301 branch
+  folding (601/602/603 bodies land on the command, 604 consumed).
+- **node --test**: `battle-index.test.js` pinned statement untouched; interpreter
+  suite registers the new command handlers.
+- **Playwright**: full suite 0 regressions; `import-boot.spec.mjs` gains the **MV**
+  full-battle leg (both fixtures now run a battle to a result) and the MZ battle rides
+  the new troop-page commands live.
+
+### Stage log
+
+- **2026-07-05 — M3·C started (branch `mig-3c`).** Read roadmap M3·C, the matrix
+  "M3·C — battle parity" bill (§2 troops/enemies, §5 code 64, §6 code 41, §8.10,
+  §8.12), `battle.ts`/`battle-logic.ts`/`map.ts`, the importer modules, the troop/
+  enemy editor tabs, and both fixtures. Wrote this spec. Design locked: optional-only
+  schema (drops, hiddenSlots, turnEnd, action-cond kinds, escapeBattle, CmdBattle
+  branches, eight new commands), ONE `mzBattleFlow` system flag gating preemptive/
+  surprise + MZ escape odds (importer sets it; native RNG streams untouched),
+  `fns.battleEnemyOps` battle bridge for 331–340, defeated-only victory sums, drops
+  behind row presence, fixture amendments recorded. Implementation next.
+
+- **2026-07-05 — M3·C complete (branch `mig-3c`, phase-exit tag `mig-3`).** Troop &
+  enemy battle parity shipped exactly per this spec:
+  - **Engine:** hidden members (marked BELOW the `const sideView` end-marker — the
+    `battle-index.test.js` pinned statement is byte-identical), excluded from
+    `livingE()`/schedulers/rewards until Enemy Appear; `fns.battleEnemyOps` bridge
+    (hp with allow-KO clamp / mp / state / recoverAll-revives / appear / transform
+    with in-place battler redraw / showAnim / forceAction with cost-skip `forced`
+    flag / abort); battle branches run through the interpreter's battle handler;
+    escape effects (party flees; enemy `escaped` + faded, pays nothing);
+    preemptive/surprise round-1 skips in turn mode + deterministic gauge bias in
+    ATB/CTB; MZ escape ratio (+0.1/fail; preemptive always escapes, draw-free like
+    MZ's short-circuit) behind `mzBattleFlow`, classic odds byte-identical without
+    it; autoBattle (menu-skip, one gated target draw) + substitute (deterministic
+    <25% cover, both sides); victory sums DEFEATED enemies only (native-identical),
+    gold ×2 / drops rate ×2 via party abilities, `rollDrops` one draw per authored
+    row; map step: encounterNone/-Half presence-gated, preemptive/surprise rolled
+    ONLY on mzBattleFlow random encounters (2 draws, MZ onEncounter order);
+    troop-page `turnEnd` fires only on the between-turns check (the existing call —
+    no new native evaluation points).
+  - **Importer:** trait 64 → six party-ability keys ("advanced battler bonuses" now
+    unknown-codes-only); dropItems → `drops` (kind-0 skipped); action conds 3/5/6 →
+    `mpBelow`/`partyLevel`/`switch` (range upper-bound partial line stays); member
+    `hidden` → `hiddenSlots`; `turnEnding` → `turnEnd`; effect 41 → `escapeBattle`
+    (skills + items); `mzBattleFlow: true` on every import; translate flips 331–337
+    (337 → battle-target `playAnim`, targetAll → −1), 339, 340 + 301 folds trailing
+    601/602/603 into `onWin`/`onEscape`/`onLose` (604 structural); todo-table rows
+    331–340/601–603 deleted.
+  - **Editor:** Enemies gained a Drops list + the three new AI condition kinds;
+    Troops gained per-slot "hidden at start" + an "Only at turn end" page condition;
+    Start Battle grew branch toggles with nested If-Win/If-Escape/If-Lose command
+    lists (command-list walk/rows/ownership all battle-aware); eight new command
+    forms + labels; skills/items gained "Escapes the battle"; System gained the
+    "RPG Maker battle pacing" checkbox; `RA.TRAIT_SPECIALS` gained the six party
+    abilities and autoBattle/substitute lost their "(soon)".
+  - **Fixtures (amended like D10, both MV+MZ — emitted JSON per the M3·A/B
+    convention; generator back-port flagged as a separate task):** troop page 2
+    gained `turnEnding: true` + Enemy Appear `[2]`, its 337 params fixed to
+    `[0,2,false]` (the old `[0,0,2]` predates real support); Crab's conds became
+    real refinements (party level ≥ 1 / switch 2 / turn 4+2x) + new skill 6 "Slip
+    Away" (effect 41) on its action list; Wanderer class gained 64·3
+    (raisePreemptive); the Cap gained 64·4 (goldDouble → merges onto Scout, D6).
+  - **Tests:** vitest 781 (was 762): battle-logic M3·C suites (escape ratio +
+    escalation, preemptive/surprise rates + ability modifiers, drop rolls +
+    draw-conservation, the three cond kinds + absent-field compatibility, turnEnd
+    gating/AND/edge); importer suites assert drops/hiddenSlots/turnEnd/conds/
+    escapeBattle/party-ability keys/mzBattleFlow and the enemy-drops, troop-hidden,
+    advanced-enemy-action, advanced-battler-bonuses deferral lines GONE; translate
+    SPEC rows 331–340 real + 301 branch folding + mzTodo shape re-homed on 202/203.
+    **All green:** typecheck, eslint, 18 node suites (pinned statement untouched),
+    781 vitest, **70/70 Playwright** — the full-battle e2e now runs on BOTH
+    fixtures (M3·A's MZ leg + a new MV leg) with the troop page firing 337/331/335
+    live, and 0 regressions elsewhere.
+  - Patch notes added; `patch-notes.js?v=50→51` (help.ts + shims.d.ts),
+    `play.css?v=24→25` (hiddenmem/fled classes), `data.js?v=28→29` (trait labels);
+    wiki `Battles-and-States.md` gained boss-fight/escape/pacing sections;
+    docs-site regenerated.
+  - Conscious deviations (for the M6·C grade): Force Action ignores RM's target
+    param on the enemy side (Atlas keeps its tgr-weighted pick) and treats −2
+    "last target" as "first living enemy"; autoBattle basic-attacks a random enemy
+    instead of MZ's damage-evaluation loop; substitute ignores MZ's certain-hit
+    exemption (Atlas has no certain hits); an actor's escape effect flees the whole
+    party (Atlas has no per-actor leave-battle); `turnEnd` pages evaluate at the
+    between-turns boundary with the turn counter already advanced; Enemy Recover
+    All revives an event-KO'd enemy (MZ death-state parity) without un-counting
+    the kill for quest tallies. Scope notes: `fdr` floor damage waits for M4·A;
+    variable-troop Battle Processing (301 designation ≠ 0) stays an honest todo.

@@ -30,6 +30,8 @@ import {
   stateTraitRows,
   gainExp,
   invCount,
+  addInv,
+  dbFor,
   onEnemyKilled,
   noteBattleFailure,
 } from "../state/game-state.js";
@@ -59,15 +61,23 @@ import {
   MAX_TP,
   tpDamageCharge,
   extraActionRolls,
+  mzEscapeChance,
+  rollDrops,
 } from "./battle-logic.js";
 
 const TILE = Assets.TILE;
 
 export const Battle: any = {
-  async run(troopId: any, canEscape: any) {
+  async run(troopId: any, canEscape: any, opts?: any) {
     const proj = ctx.proj;
     const troop = RA.byId(proj.troops, troopId);
     if (!troop) return "win";
+    // M3·C: MZ battle pacing. `opts` comes only from the map's random-
+    // encounter path (and only under system.mzBattleFlow) — event battles
+    // never get a first strike, exactly like MZ.
+    const mzFlow = !!proj.system.mzBattleFlow;
+    const preemptive = !!(opts && opts.preemptive);
+    const surprise = !!(opts && opts.surprise) && !preemptive;
     // Battle mode (Phase 5 Stage B): "turn" runs the Phase 1 loop verbatim;
     // "atb"/"ctb" run the timed scheduler over the same resolution core.
     const battleSystem =
@@ -92,6 +102,14 @@ export const Battle: any = {
       .map((en, i) => ((en.i = i), en));
 
     const sideView = proj.system.battleView === "side";
+    // M3·C: hidden members (MZ `hidden`) — marked BELOW the `const sideView`
+    // end-marker so the statement tests/battle-index.test.js extracts stays
+    // byte-identical. A hidden enemy isn't targetable, doesn't act, and
+    // doesn't block victory until an Enemy Appear command reveals it.
+    for (const slot of troop.hiddenSlots || []) {
+      const hid: any = enemies[Number(slot) || 0];
+      if (hid) hid.hidden = true;
+    }
     const win = el("div", "battlewin" + (sideView ? " side" : ""));
     const fxLayer = el("div", "battle-fx");
     const enemyArea = el("div", "battle-enemies");
@@ -115,6 +133,7 @@ export const Battle: any = {
         "-",
       );
       const wrap = el("div", "enemy-spr enemy-" + spriteClass);
+      if (en.hidden) wrap.classList.add("hiddenmem"); // M3·C: revealed later
       const source = Assets.enemyCanvas(
         en.d.sprite,
         en.d.color,
@@ -236,6 +255,10 @@ export const Battle: any = {
     function refreshEnemies() {
       enemies.forEach((en: any, i: any) => {
         sprs[i].classList.toggle("dead", !en.alive);
+        // M3·C: hidden members stay unrendered; escaped ones fade out.
+        // Native enemies never carry either flag — classes stay off.
+        sprs[i].classList.toggle("hiddenmem", !!en.hidden);
+        sprs[i].classList.toggle("fled", !!en.escaped);
       });
     }
     async function say(text: any, ms?: any) {
@@ -247,7 +270,10 @@ export const Battle: any = {
       void sprs[i].offsetWidth;
       sprs[i].classList.add("flash");
     }
-    const livingE = () => enemies.filter((e: any) => e.alive);
+    // Hidden (not yet appeared) and escaped enemies don't count (M3·C) —
+    // native troops never set either flag, so this is the classic filter.
+    const livingE = () =>
+      enemies.filter((e: any) => e.alive && !e.hidden && !e.escaped);
     const livingP = () => G.party.filter((a: any) => a.hp > 0);
     function variance(v: any) {
       return Math.max(1, Math.floor(v * (0.85 + rndf() * 0.3)));
@@ -625,6 +651,10 @@ export const Battle: any = {
         hpPct: (en.hp / Math.max(1, en.d.stats.mhp)) * 100,
         states: statesOf(en).map((st: any) => Number(st.id) || 0),
         rng: rndf,
+        // M3·C condition refinements (MZ types 3/5/6) — computed draw-free.
+        mpPct: (enemyMp(en) / Math.max(1, bStat(en, "mmp"))) * 100,
+        partyLevel: G.party.reduce((m: any, a: any) => Math.max(m, a.level || 1), 1),
+        switches: G.switches,
       });
       const acts = valid.length ? valid : [{ skillId: 0, weight: 1 }];
       const total = acts.reduce((s: any, a2: any) => s + (a2.weight || 1), 0);
@@ -907,9 +937,52 @@ export const Battle: any = {
     // turn comes around (added on act, cleared when they act again).
     let guards: any = new Set();
     let turnNumber = 1;
+    // ---- M3·C battle-flow state ----
+    // escapePending: an escape-effect skill/item resolved (party side);
+    // abortPending: the Abort Battle command fired from a troop page. Both
+    // end the battle as an "escape" at the next loop boundary.
+    let escapePending = false;
+    let abortPending = false;
+    let escapeFails = 0; // MZ onEscapeFailure: +0.1 ratio per failed try
+    /** Any party member carries this party-ability trait (MZ trait 64 —
+     *  dead members count, like Game_Party.partyAbility). */
+    const partyAbility = (key: string) =>
+      G.party.some(
+        (a: any) => RA.traitsOf(actorEffCarrier(a), "special", key).length > 0,
+      );
+    /** MZ substitute (trait 62.2): a healthy same-side battler with the trait
+     *  covers a target below 25% max HP. Deterministic — no draws. */
+    function substituteFor(target: any, pool: any[]): any {
+      const dying = (b: any) => b.hp < bStat(b, "mhp") / 4;
+      if (!aliveB(target) || !dying(target)) return null;
+      for (const s of pool) {
+        if (s === target || !aliveB(s) || dying(s)) continue;
+        if (effHas(s, "special", "substitute")) return s;
+      }
+      return null;
+    }
+    /** One escape attempt (both battle loops). MZ ratio under mzBattleFlow
+     *  (a preemptive battle always escapes — no draw, like MZ's short-
+     *  circuit); the classic Atlas odds otherwise — same single rndf draw. */
+    async function tryEscape(): Promise<boolean> {
+      const lp = livingP(), le = livingE();
+      const pa = lp.reduce((s: any, x: any) => s + bStat(x, "agi"), 0) / Math.max(1, lp.length);
+      const ea = le.reduce((s: any, x: any) => s + bStat(x, "agi"), 0) / Math.max(1, le.length);
+      const chance = mzFlow
+        ? mzEscapeChance(pa, ea, escapeFails)
+        : clamp(0.55 + (pa - ea) * 0.03, 0.2, 0.95);
+      if ((mzFlow && preemptive) || rndf() < chance) {
+        sysSe("escape");
+        await say("Got away safely!", 800);
+        return true;
+      }
+      escapeFails++;
+      await say("Couldn't escape!", 700);
+      return false;
+    }
     // ---- troop battle events ----
     const pageRTs = makeTroopPageRTs(troop.pages || []);
-    function troopPageView(): any {
+    function troopPageView(atTurnEnd?: boolean): any {
       return {
         turn: turnNumber,
         enemies: enemies.map((en: any) => ({
@@ -921,13 +994,16 @@ export const Battle: any = {
           hpPct: (a.hp / Math.max(1, param(a, "mhp"))) * 100,
         })),
         switches: G.switches,
+        // M3·C: only the between-turns boundary check can fire `turnEnd`
+        // pages (native pages never set the condition — unaffected).
+        atTurnEnd: !!atTurnEnd,
       };
     }
-    async function checkTroopPages(): Promise<void> {
+    async function checkTroopPages(atTurnEnd?: boolean): Promise<void> {
       if (!pageRTs.length) return;
       for (const rt of pageRTs) {
         if (!livingE().length || !livingP().length) return;
-        if (troopPageShouldFire(rt, troopPageView())) {
+        if (troopPageShouldFire(rt, troopPageView(atTurnEnd))) {
           await new Interp(null).runList(rt.page.commands || []);
           refreshStates();
           refreshEnemies();
@@ -986,6 +1062,25 @@ export const Battle: any = {
                 await say(c.target.name + " is cured of " + used.stateRemoved + ".", 550);
               if (used.stateAdded)
                 await say(c.target.name + " is afflicted by " + used.stateAdded + "!", 550);
+              // M3·C: an escape item (MZ effect 41) — the party slips away.
+              if (c.item.escapeBattle) escapePending = true;
+              return;
+            }
+            // M3·C: an escape-effect skill (MZ effect 41), any scope — the
+            // party slips away once the action resolves. Costs still apply.
+            if (c.type === "skill" && c.skill && c.skill.escapeBattle) {
+              if (!c.forced) {
+                const cost = skillMpCost(a, c.skill);
+                const tcost = tpActive ? Number(c.skill.tpCost) || 0 : 0;
+                if (a.mp < cost || tpOf(a) < tcost) return;
+                a.mp -= cost;
+                if (tcost) a.tp = tpOf(a) - tcost;
+              }
+              actorStep(a);
+              burst(actorElement(a), "status", { color: "#cfd8e8", count: 14, radius: 40 });
+              refreshParty();
+              await say(a.name + " uses " + c.skill.name + "!", 600);
+              escapePending = true;
               return;
             }
             if (
@@ -995,11 +1090,14 @@ export const Battle: any = {
             ) {
               let skill = c.type === "skill" ? c.skill : null;
               if (skill) {
-                const cost = skillMpCost(a, skill);
-                const tcost = tpActive ? Number(skill.tpCost) || 0 : 0;
-                if (a.mp < cost || tpOf(a) < tcost) return;
-                a.mp -= cost;
-                if (tcost) a.tp = tpOf(a) - tcost;
+                // Forced actions skip their costs (MZ Force Action, M3·C).
+                if (!c.forced) {
+                  const cost = skillMpCost(a, skill);
+                  const tcost = tpActive ? Number(skill.tpCost) || 0 : 0;
+                  if (a.mp < cost || tpOf(a) < tcost) return;
+                  a.mp -= cost;
+                  if (tcost) a.tp = tpOf(a) - tcost;
+                }
               } else {
                 // Attack Skill trait (M3·B, 35): the Attack command casts the
                 // configured skill's damage/effects (never charging costs —
@@ -1030,7 +1128,14 @@ export const Battle: any = {
               // Attack Times+ (M3·B, 34): extra basic-attack strikes.
               if (c.type === "attack")
                 hits += Math.max(0, Math.floor(effSum(a, "special", "attackTimes") / 100));
-              for (const t of targets) {
+              for (let t of targets) {
+                // M3·C substitute: a healthy enemy with the trait shields a
+                // dying one (deterministic; native troops carry no flag).
+                const sub = substituteFor(t, livingE());
+                if (sub) {
+                  await say(sub.d.name + " covers " + t.d.name + "!", 550);
+                  t = sub;
+                }
                 // M3·B: a counterattack (physical) or magic reflection
                 // preempts the whole hit — both rolls gated on the trait.
                 if (!skill || skill.type === "phys") {
@@ -1239,11 +1344,14 @@ export const Battle: any = {
               c.type === "skill" &&
               (c.skill.scope === "ally" || c.skill.scope === "allies")
             ) {
-              const cost = skillMpCost(a, c.skill);
-              const tcost = tpActive ? Number(c.skill.tpCost) || 0 : 0;
-              if (a.mp < cost || tpOf(a) < tcost) return;
-              a.mp -= cost;
-              if (tcost) a.tp = tpOf(a) - tcost;
+              // Forced actions skip their costs (MZ Force Action, M3·C).
+              if (!c.forced) {
+                const cost = skillMpCost(a, c.skill);
+                const tcost = tpActive ? Number(c.skill.tpCost) || 0 : 0;
+                if (a.mp < cost || tpOf(a) < tcost) return;
+                a.mp -= cost;
+                if (tcost) a.tp = tpOf(a) - tcost;
+              }
               // Revive skills reach the fallen: a mass revive raises every
               // downed member; ordinary group heals still touch the living
               // only. Single-target already picked its ally in actorCommand.
@@ -1356,10 +1464,22 @@ export const Battle: any = {
               await say(en.d.name + " can't move!", 500);
               return;
             }
-            // M3·B: TP cost for the enemy's skill (validity checked at pick).
-            if (tpActive && c.skill) {
+            // M3·B: TP cost for the enemy's skill (validity checked at pick;
+            // forced actions skip it — MZ, M3·C).
+            if (tpActive && c.skill && !c.forced) {
               const tc = Number(c.skill.tpCost) || 0;
               if (tc) en.tp = Math.max(0, tpOf(en) - tc);
+            }
+            // M3·C: an enemy escape-effect skill (MZ effect 41) — THAT enemy
+            // flees: no rewards from it, battle continues (or ends as a win
+            // when nobody visible is left, exactly MZ's appeared-members rule).
+            if (c.skill && c.skill.escapeBattle) {
+              enemyStep(en);
+              en.escaped = true;
+              floatText(sprs[en.i], "FLED", "state");
+              refreshEnemies();
+              await say(en.d.name + " uses " + c.skill.name + " and slips away!", 650);
+              return;
             }
             if (c.skill && c.skill.type === "heal") {
               // The Actions editor offers every skill, so heal-type ones must
@@ -1428,11 +1548,18 @@ export const Battle: any = {
             if (!pool.length) return;
             // M3·B: the Target Rate trait (tgr) weighs the pick — same
             // single draw, classic 3:1 row weighting when no one carries it.
-            const t = pool[
+            let t = pool[
               weightedTargetIndex(pool, rndf(), (b: any) =>
                 effRate(b, "special", "targetRate", 1),
               )
             ];
+            // M3·C substitute: a healthy ally with the trait takes the hit
+            // for a dying one (deterministic; native parties never redirect).
+            const tSub = substituteFor(t, pool);
+            if (tSub) {
+              await say(tSub.name + " covers " + t.name + "!", 550);
+              t = tSub;
+            }
             const enemyAnim = c.skill ? animById(c.skill.animationId) : null;
             enemyStep(en);
             // M3·B: an actor's counterattack (physical actions) or magic
@@ -1714,7 +1841,27 @@ export const Battle: any = {
         b.gauge = rndf() * ATB_FULL * 0.35;
         b.counter = Math.round(ctbCost(b.agi()) * (0.5 + rndf() * 0.5));
       }
-      const aliveB2 = (b: any) => (b.enemy ? b.enemy.alive : b.actor.hp > 0);
+      // M3·C: a first strike / surprise in the timed modes is a deterministic
+      // head start applied AFTER the usual seeding draws (same rndf stream):
+      // the favored side opens near-ready, the other side starts cold.
+      if (preemptive || surprise) {
+        for (const b of battlers) {
+          const favored = preemptive ? !b.enemy : !!b.enemy;
+          if (favored) {
+            b.gauge = ATB_FULL * 0.9 + b.gauge * 0.1;
+            b.counter = Math.round(b.counter * 0.25);
+          } else {
+            b.gauge = 0;
+            b.counter += ctbCost(b.agi());
+          }
+        }
+      }
+      // Hidden/escaped enemies sit out of the schedulers too (M3·C — the
+      // flags never exist natively).
+      const aliveB2 = (b: any) =>
+        b.enemy
+          ? b.enemy.alive && !b.enemy.hidden && !b.enemy.escaped
+          : b.actor.hp > 0;
       let acts = 0;
       updateCtbOrder(battlers, aliveB2);
       while (true) {
@@ -1723,6 +1870,13 @@ export const Battle: any = {
         updateGauges(battlers, aliveB2);
         if (!livingP().length) return "lose";
         if (!livingE().length) return "win";
+        // M3·C: escape effects / Abort Battle end the fight here.
+        if (escapePending) {
+          sysSe("escape");
+          await say("The party slips away!", 700);
+          return "escape";
+        }
+        if (abortPending) return "escape";
         // pick the next battler to act
         let next: any = null;
         if (battleSystem === "atb") {
@@ -1758,23 +1912,17 @@ export const Battle: any = {
           updateGauges(battlers, aliveB2); // refreshParty rebuilt the rows
           if (cannotAct(a)) {
             await say(a.name + " can't move!", 500);
+          } else if (effHas(a, "special", "autoBattle")) {
+            // M3·C autoBattle: no menu — attack a random living enemy (one
+            // gated draw for the pick).
+            const pool = livingE();
+            if (pool.length)
+              await resolveAction({ type: "attack", actor: a, target: pool[rnd(pool.length)] });
           } else {
             const c: any = await actorCommand(a);
             c.actor = a;
             if (c.type === "escape") {
-              const pa =
-                livingP().reduce((s: any, x: any) => s + bStat(x, "agi"), 0) /
-                livingP().length;
-              const ea =
-                livingE().reduce((s: any, x: any) => s + bStat(x, "agi"), 0) /
-                livingE().length;
-              const chance = clamp(0.55 + (pa - ea) * 0.03, 0.2, 0.95);
-              if (rndf() < chance) {
-                sysSe("escape");
-                await say("Got away safely!", 800);
-                return "escape";
-              }
-              await say("Couldn't escape!", 700);
+              if (await tryEscape()) return "escape";
             } else {
               if (c.type === "guard") guards.add(a);
               await resolveAction(c);
@@ -1820,7 +1968,7 @@ export const Battle: any = {
           acts = 0;
           turnNumber++;
           if (livingE().length && livingP().length) await tickStates();
-          await checkTroopPages();
+          await checkTroopPages(true); // M3·C: `turnEnd` pages fire here
         }
       }
     }
@@ -1837,17 +1985,161 @@ export const Battle: any = {
       const list = index < 0 ? enemies : [enemies[index]].filter(Boolean);
       for (const en of list) en.tp = clamp(tpOf(en) + delta, 0, MAX_TP);
     };
+    // M3·C: the in-troop commands (RM 331–340) reach the live battle here;
+    // the interpreter no-ops while the bridge is absent (outside battle).
+    // Troop pages run inside the battle loop, so every op lands mid-fight.
+    const opsList = (index: number) =>
+      index < 0
+        ? enemies.filter((e: any) => !e.escaped)
+        : [enemies[index]].filter(Boolean);
+    fns.battleEnemyOps = {
+      async hp(index: number, delta: number, allowKo: boolean) {
+        for (const en of opsList(index)) {
+          if (!en.alive) continue;
+          if (delta < 0) {
+            // Without Allow-Knockout the value stops at 1 HP (RM).
+            let dmg = -delta;
+            if (!allowKo) dmg = Math.min(dmg, Math.max(0, en.hp - 1));
+            if (dmg > 0) await dealToEnemy(en, dmg, en.i);
+          } else if (delta > 0) {
+            en.hp = Math.min(bStat(en, "mhp"), en.hp + delta);
+            floatText(sprs[en.i], "+" + delta, "heal");
+          }
+        }
+        refreshEnemies();
+      },
+      mp(index: number, delta: number) {
+        for (const en of opsList(index)) {
+          if (!en.alive) continue;
+          en.mp = clamp(enemyMp(en) + delta, 0, bStat(en, "mmp"));
+        }
+      },
+      async state(index: number, op: string, stateId: number) {
+        for (const en of opsList(index)) {
+          if (!en.alive) continue;
+          if (op === "remove") await removeStateFrom(en, stateId);
+          else await addStateTo(en, stateId);
+        }
+      },
+      async recoverAll(index: number) {
+        for (const en of opsList(index)) {
+          en.alive = true; // MZ Recover All revives event-KO'd enemies
+          en.hp = bStat(en, "mhp");
+          en.mp = bStat(en, "mmp");
+          en.states = [];
+          delete en.buffs;
+          burst(sprs[en.i], "heal", { count: 12 });
+        }
+        refreshStates();
+        refreshEnemies();
+      },
+      async appear(index: number) {
+        for (const en of opsList(index)) {
+          if (!en.hidden) continue;
+          en.hidden = false;
+          refreshEnemies();
+          burst(sprs[en.i], "status", { color: "#e8d078", count: 14, radius: 40 });
+          await say(en.d.name + " appears!", 650);
+        }
+      },
+      async transform(index: number, enemyId: number) {
+        const d = RA.byId(proj.enemies, Number(enemyId) || 0);
+        if (!d) return;
+        for (const en of opsList(index)) {
+          if (!en.alive) continue;
+          const oldName = en.d.name;
+          en.d = d;
+          en.hp = Math.min(en.hp, bStat(en, "mhp"));
+          if (en.mp != null) en.mp = Math.min(en.mp, bStat(en, "mmp"));
+          // Redraw the battler art + name in place (states/buffs stay — MZ).
+          const wrap = sprs[en.i];
+          const canvas = wrap.querySelector("canvas");
+          if (canvas) {
+            const source = Assets.enemyCanvas(d.sprite, d.color, sideView ? 108 : 132);
+            canvas.width = source.width;
+            canvas.height = source.height;
+            canvas.getContext("2d").drawImage(source, 0, 0);
+          }
+          const nameEl = wrap.querySelector(".enemy-name");
+          if (nameEl) nameEl.textContent = d.name;
+          await say(oldName + " transforms into " + d.name + "!", 700);
+        }
+        refreshEnemies();
+        refreshStates();
+      },
+      async showAnim(index: number, animationId: number) {
+        const anim = animById(animationId);
+        if (!anim) return;
+        const targets = (index < 0 ? livingE() : opsList(index).filter((e: any) => e.alive && !e.hidden))
+          .map((e: any) => sprs[e.i]);
+        if (targets.length) await playBattleAnim(anim, targets[0], targets);
+      },
+      async forceAction(side: string, index: number, skillId: number, target: number) {
+        const skillRec = RA.byId(proj.skills, Number(skillId) || 0);
+        if (side === "enemy") {
+          const en = enemies[index];
+          if (!en || !en.alive || en.hidden || en.escaped) return;
+          await resolveAction({
+            type: skillRec ? "skill" : "attack",
+            skill: skillRec || null,
+            enemy: en,
+            forced: true,
+          });
+        } else {
+          const a =
+            Number(index) === 0
+              ? livingP()[0]
+              : G.party.find((m: any) => m.actorId === Number(index));
+          if (!a || a.hp <= 0) return;
+          const c: any = { actor: a, forced: true };
+          if (skillRec && (skillRec.scope === "ally" || skillRec.scope === "allies")) {
+            c.type = "skill";
+            c.skill = skillRec;
+            c.target = a;
+          } else {
+            const pool = livingE();
+            if (!pool.length) return;
+            c.target =
+              target >= 0
+                ? pool.find((e: any) => e.i === target) || pool[0]
+                : target === -1
+                  ? pool[rnd(pool.length)]
+                  : pool[0];
+            c.type = skillRec ? "skill" : "attack";
+            // A scope-less skill still needs the enemy-target branch to fire.
+            if (skillRec) c.skill = skillRec.scope ? skillRec : { ...skillRec, scope: "enemy" };
+          }
+          await resolveAction(c);
+        }
+        refreshParty();
+        refreshStates();
+        refreshEnemies();
+      },
+      abort() {
+        abortPending = true;
+      },
+    };
     try {
       await say("Enemies appear!", 700);
+      // M3·C: first-strike / surprise announcements (mzBattleFlow only).
+      if (preemptive) await say("You caught them off guard!", 700);
+      else if (surprise) await say("You were caught off guard!", 700);
       await checkTroopPages();
       if (battleSystem !== "turn") {
         result = await runTimedBattle();
       } else battleLoop: while (true) {
         refreshParty();
         refreshEnemies();
+        // M3·C: Abort Battle from the opening troop-page check.
+        if (abortPending) {
+          result = "escape";
+          break;
+        }
         // ---- collect party commands ----
+        // M3·C: a surprise round gives the party no commands on turn 1
+        // (mzBattleFlow random encounters only — never Atlas-native flow).
         const cmds = [];
-        collect: for (const a of livingP()) {
+        collect: for (const a of surprise && turnNumber === 1 ? [] : livingP()) {
           refreshParty();
           if (cannotAct(a)) {
             cmds.push({ type: "stunned", actor: a });
@@ -1861,27 +2153,26 @@ export const Battle: any = {
             (atRows.length
               ? extraActionRolls(atRows.map((r: any) => Number(r.value) || 0), rndf)
               : 0);
+          // M3·C autoBattle (trait 62.0): the actor fights on its own — no
+          // menu; one gated draw per command for the target pick.
+          if (effHas(a, "special", "autoBattle")) {
+            for (let n = 0; n < times; n++) {
+              const pool = livingE();
+              if (!pool.length) break;
+              cmds.push({ type: "attack", actor: a, target: pool[rnd(pool.length)] });
+            }
+            continue;
+          }
           for (let n = 0; n < times; n++) {
             const c: any = await actorCommand(a);
             c.actor = a;
             if (c.type === "escape") {
-              const pa =
-                livingP().reduce((s: any, x: any) => s + bStat(x, "agi"), 0) /
-                livingP().length;
-              const ea =
-                livingE().reduce((s: any, x: any) => s + bStat(x, "agi"), 0) /
-                livingE().length;
-              const chance = clamp(0.55 + (pa - ea) * 0.03, 0.2, 0.95);
-              if (rndf() < chance) {
-                sysSe("escape");
-                await say("Got away safely!", 800);
+              if (await tryEscape()) {
                 result = "escape";
                 break battleLoop;
-              } else {
-                await say("Couldn't escape!", 700);
-                cmds.length = 0;
-                break collect; // enemies still act
               }
+              cmds.length = 0;
+              break collect; // enemies still act
             }
             cmds.push(c);
           }
@@ -1890,7 +2181,9 @@ export const Battle: any = {
           cmds.filter((c: any) => c.type === "guard").map((c: any) => c.actor),
         );
         // ---- enemy commands ----
-        for (const en of livingE()) {
+        // M3·C: a preemptive round — the enemies are caught off guard and
+        // give no commands on turn 1.
+        for (const en of preemptive && turnNumber === 1 ? [] : livingE()) {
           const act = enemyAction(en);
           cmds.push(act);
           // Attack Times+ (34) on a basic attack: extra strikes, pushed as
@@ -1924,11 +2217,28 @@ export const Battle: any = {
         for (const c of cmds) {
           await resolveAction(c);
           await checkTroopPages();
+          // M3·C: an escape effect or Abort Battle ends the fight here.
+          if (escapePending) {
+            sysSe("escape");
+            await say("The party slips away!", 700);
+            result = "escape";
+            break battleLoop;
+          }
+          if (abortPending) {
+            result = "escape"; // MZ endBattle(1) — the If-Escape branch runs
+            break battleLoop;
+          }
           if (!livingE().length || !livingP().length) break;
         }
         if (livingE().length && livingP().length) await tickStates();
         turnNumber++;
-        await checkTroopPages();
+        // The between-turns boundary check — the only spot `turnEnd` troop
+        // pages can fire (M3·C); native pages see the same call as before.
+        await checkTroopPages(true);
+        if (abortPending) {
+          result = "escape";
+          break;
+        }
         if (!livingP().length) {
           result = "lose";
           break;
@@ -1940,8 +2250,15 @@ export const Battle: any = {
       }
 
       if (result === "win") {
-        const exp = enemies.reduce((s: any, e: any) => s + (e.d.exp || 0), 0);
-        const gold = enemies.reduce((s: any, e: any) => s + (e.d.gold || 0), 0);
+        // M3·C: rewards come from DEFEATED enemies only (MZ dead-members
+        // rule) — identical totals natively, where a win means everyone
+        // died; hidden never-appeared and escaped enemies pay nothing.
+        const defeated = enemies.filter((e: any) => !e.alive);
+        const exp = defeated.reduce((s: any, e: any) => s + (e.d.exp || 0), 0);
+        // Gold Double party ability (trait 64, M3·C) — ×1 natively.
+        const gold =
+          defeated.reduce((s: any, e: any) => s + (e.d.gold || 0), 0) *
+          (partyAbility("goldDouble") ? 2 : 1);
         Music.stop();
         sysSe("levelup");
         const lines: any[] = [];
@@ -1957,12 +2274,24 @@ export const Battle: any = {
           );
         refreshParty();
         for (const m of lines) await say(m, 800);
+        // M3·C: victory drops (MZ makeDropItems) — one gated rndf draw per
+        // authored drop row; enemies without rows roll nothing.
+        const dropRate = partyAbility("dropDouble") ? 2 : 1;
+        for (const e of defeated) {
+          for (const loot of rollDrops(e.d.drops, dropRate, rndf)) {
+            const rec = RA.byId(dbFor(loot.kind), loot.id);
+            if (!rec) continue;
+            addInv(loot.kind, loot.id, 1);
+            await say("Found " + rec.name + "!", 700);
+          }
+        }
       } else if (result === "lose") {
         noteBattleFailure(troopId, troop.enemies.map((id: any) => Number(id) || 0));
         await say("The party has fallen...", 1100);
       }
     } finally {
       delete fns.battleAddEnemyTp;
+      delete fns.battleEnemyOps;
       // shed battle-only states (poison etc. configured to clear after battle)
       for (const a of G.party) {
         if (a.states)

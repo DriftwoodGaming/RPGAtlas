@@ -281,10 +281,35 @@ describe("Enemies (§2/§8)", () => {
     expect(slime.traits).toContainEqual({ type: "special", key: "counterAttack", value: 10 });
     expect(mv.report.lines.some((l) => /enemy resistances/i.test(l.what))).toBe(false);
   });
-  it("reports drops and unsupported action conditions", () => {
-    expect(mv.report.lines.some((l) => /item drops/i.test(l.what))).toBe(true);
-    // Crab uses a party-level condition (type 5) → deferred to M3·C.
-    expect(mv.report.lines.some((l) => /advanced enemy action/i.test(l.what))).toBe(true);
+  it("converts drops + the M3·C action-condition refinements", () => {
+    // Slime's dropItems: kind 1 (item) id 1 denominator 2; kind-0 rows drop.
+    const slime = byId(mv.db.enemies, 1);
+    expect(slime.drops).toEqual([{ kind: "item", id: 1, denominator: 2 }]);
+    expect(byId(mv.db.enemies, 2).drops).toBeUndefined(); // all kind-0 rows
+    // Crab: party-level (5), switch (6), and turn conds all convert now.
+    const crab = byId(mv.db.enemies, 2);
+    expect(crab.actions).toEqual([
+      { skillId: 1, weight: 5, cond: { kind: "partyLevel", a: 1 } },
+      { skillId: 2, weight: 4, cond: { kind: "switch", switchId: 2 } },
+      { skillId: 6, weight: 9, cond: { kind: "turn", a: 4, b: 2 } },
+    ]);
+    // The old deferral lines are gone — drops and conditions are real.
+    expect(mv.report.lines.some((l) => /item drops/i.test(l.what))).toBe(false);
+    expect(mv.report.lines.some((l) => /advanced enemy action/i.test(l.what))).toBe(false);
+  });
+  it("converts the escape effect + party abilities (M3·C)", () => {
+    // Slip Away (skill 6): MZ effect 41 → escapeBattle.
+    expect(byId(mv.db.skills, 6).escapeBattle).toBe(true);
+    // Wanderer class trait 64·3 → raisePreemptive; the Cap's 64·4 merges
+    // onto Finn's Scout class (goldDouble) through the equip-trait merge.
+    expect(byId(mv.db.classes, 1).traits).toContainEqual({ type: "special", key: "raisePreemptive", value: 100 });
+    expect(byId(mv.db.classes, 2).traits).toContainEqual({ type: "special", key: "goldDouble", value: 100 });
+    // No trait code lands on the aggregated "advanced" line anymore.
+    expect(mv.report.lines.some((l) => /advanced battler bonuses/i.test(l.what))).toBe(false);
+  });
+  it("imports RPG Maker battle pacing (M3·C — both formats)", () => {
+    expect(mz.db.system.mzBattleFlow).toBe(true);
+    expect(mv.db.system.mzBattleFlow).toBe(true);
   });
 });
 
@@ -320,10 +345,13 @@ describe("Troops + CommonEvents (§2) — record shells + M1·C-translated bodie
     expect(troop.pages![0].span).toBe("turn");
     expect(troop.pages![0].cond).toEqual({ turn: { a: 2, b: 0 } });
     expect(troop.pages![1].span).toBe("battle");
-    expect(troop.pages![1].cond).toEqual({ enemyHpBelow: { index: 0, pct: 50 } });
+    // M3·C: the turn-end condition converts (turnEnding → turnEnd).
+    expect(troop.pages![1].cond).toEqual({ turnEnd: true, enemyHpBelow: { index: 0, pct: 50 } });
     // Command bodies are now filled by the M1·C translator (default seam).
     expect(troop.pages![0].commands.map((x) => x.t)).toEqual(["text"]);
-    expect(mv.report.lines.some((l) => /appear mid-battle/i.test(l.what))).toBe(true);
+    // M3·C: the hidden member converts to hiddenSlots — the todo line is gone.
+    expect(troop.hiddenSlots).toEqual([2]);
+    expect(mv.report.lines.some((l) => /appear mid-battle/i.test(l.what))).toBe(false);
   });
   it("converts common-event triggers + switch + M1·C command bodies", () => {
     const heal = byId(mv.db.commonEvents, 1);

@@ -36,6 +36,12 @@ import { openLocationPicker } from "./location-picker";
   const actorOnlyOpts = () => S.proj.actors.map((a: any) => ({ v: a.id, l: a.name }));
   const actorPartyOpts = () => [{ v: 0, l: "Entire Party" }, ...actorOnlyOpts()];
   const actorLabel = (id: any) => (Number(id) === 0 ? "Entire Party" : (RA.byId(S.proj.actors, id) || { name: "#" + id }).name);
+  // In-battle enemy commands (M3·C): troop slot pickers. `only` drops the
+  // "Entire Troop" entry for commands that need one specific slot.
+  const TROOP_SLOT_OPTS = (only?: boolean) =>
+    (only ? [] : [{ v: -1, l: "Entire Troop" }]).concat(
+      [0, 1, 2, 3].map((i) => ({ v: i, l: "Slot " + (i + 1) })));
+  const troopSlotLabel = (i: any) => (Number(i) < 0 ? "Entire Troop" : "Slot " + ((Number(i) || 0) + 1));
   // Screen/picture colour tone presets ([r,g,b,gray]) offered in the tint forms.
   const TONE_PRESETS: { l: string; tone: [number, number, number, number] }[] = [
     { l: "Normal", tone: [0, 0, 0, 0] },
@@ -145,6 +151,15 @@ import { openLocationPicker } from "./location-picker";
       case "changeState": return (c.op === "remove" ? "Remove" : "Add") + " State: " + actorLabel(c.actorId) + " — " + dbName(S.proj.states, c.stateId);
       case "changeTp": return "Change TP: " + actorLabel(c.actorId) + " " + (c.op === "sub" ? "−" : "+") + (c.value || 0);
       case "changeEnemyTp": return "Change Enemy TP: " + (c.enemyIndex < 0 ? "Entire Troop" : "Enemy #" + ((c.enemyIndex || 0) + 1)) + " " + (c.op === "sub" ? "−" : "+") + (c.value || 0);
+      // --- In-battle enemy commands (M3·C) ---
+      case "changeEnemyHp": return "Change Enemy HP: " + troopSlotLabel(c.enemyIndex) + " " + (c.op === "sub" ? "−" : "+") + (c.value || 0) + (c.allowKo ? " (can KO)" : "");
+      case "changeEnemyMp": return "Change Enemy MP: " + troopSlotLabel(c.enemyIndex) + " " + (c.op === "sub" ? "−" : "+") + (c.value || 0);
+      case "changeEnemyState": return (c.op === "remove" ? "Remove" : "Add") + " Enemy State: " + troopSlotLabel(c.enemyIndex) + " — " + dbName(S.proj.states, c.stateId);
+      case "enemyRecoverAll": return "Enemy Recover All: " + troopSlotLabel(c.enemyIndex);
+      case "enemyAppear": return "Enemy Appear: " + troopSlotLabel(c.enemyIndex);
+      case "enemyTransform": return "Enemy Transform: " + troopSlotLabel(c.enemyIndex) + " → " + dbName(S.proj.enemies, c.enemyId);
+      case "forceAction": return "Force Action: " + (c.side === "actor" ? actorLabel(c.index) : troopSlotLabel(c.index)) + " — " + (c.skillId ? dbName(S.proj.skills, c.skillId) : "Attack");
+      case "abortBattle": return "Abort Battle";
       case "access": {
         const label = c.kind === "save" ? "Save" : c.kind === "encounter" ? "Encounters" : c.kind === "formation" ? "Formation" : "Menu";
         return "Change " + label + " Access: " + (c.enabled === false ? "Disable" : "Enable");
@@ -449,10 +464,93 @@ import { openLocationPicker } from "./location-picker";
       } },
     { t: "battle", label: "Start Battle", make: () => ({ t: "battle", troopId: 1, escape: true, lose: false }),
       form(c: any, box: any) {
-        const w = { troopId: c.troopId, escape: c.escape !== false, lose: !!c.lose };
+        const w = { troopId: c.troopId, escape: c.escape !== false, lose: !!c.lose,
+          bw: !!c.onWin, be: !!c.onEscape, bl: !!c.onLose };
         box.appendChild(row(field("Troop", sel(w, "troopId", dbOpts(S.proj.troops))),
           field("Can escape", chk(w, "escape")), field("Continue on loss", chk(w, "lose"))));
-        return () => { c.troopId = w.troopId; c.escape = w.escape; c.lose = w.lose; };
+        // M3·C: optional result branches (RM If Win / If Escape / If Lose).
+        box.appendChild(row(field("If-Win branch", chk(w, "bw")),
+          field("If-Escape branch", chk(w, "be")), field("If-Lose branch", chk(w, "bl"))));
+        box.appendChild(h("div", { class: "dim" },
+          "Checked branches appear under this command — put what happens after each battle result inside. The If-Lose branch only runs with “Continue on loss” on."));
+        return () => {
+          c.troopId = w.troopId; c.escape = w.escape; c.lose = w.lose;
+          if (w.bw) c.onWin = c.onWin || []; else delete c.onWin;
+          if (w.be) c.onEscape = c.onEscape || []; else delete c.onEscape;
+          if (w.bl) c.onLose = c.onLose || []; else delete c.onLose;
+        };
+      } },
+    // ---- In-battle enemy commands (Project Compass M3·C, RM 331–340).
+    // They act on the running battle's troop (from battle-event pages or a
+    // common event called mid-battle); outside battle they do nothing.
+    { t: "changeEnemyHp", label: "Change Enemy HP (battle)", make: () => ({ t: "changeEnemyHp", enemyIndex: -1, op: "sub", value: 10, allowKo: false }),
+      form(c: any, box: any) {
+        const w = { enemyIndex: c.enemyIndex == null ? -1 : c.enemyIndex, op: c.op || "sub", value: c.value || 0, allowKo: !!c.allowKo };
+        box.appendChild(row(field("Enemy", sel(w, "enemyIndex", TROOP_SLOT_OPTS())),
+          field("Op", sel(w, "op", [{ v: "add", l: "Heal" }, { v: "sub", l: "Damage" }])),
+          field("Amount", nIn(w, "value", 0)), field("Can knock out", chk(w, "allowKo"))));
+        box.appendChild(h("div", { class: "dim" }, "Without “Can knock out”, damage stops at 1 HP."));
+        return () => Object.assign(c, w);
+      } },
+    { t: "changeEnemyMp", label: "Change Enemy MP (battle)", make: () => ({ t: "changeEnemyMp", enemyIndex: -1, op: "sub", value: 10 }),
+      form(c: any, box: any) {
+        const w = { enemyIndex: c.enemyIndex == null ? -1 : c.enemyIndex, op: c.op || "sub", value: c.value || 0 };
+        box.appendChild(row(field("Enemy", sel(w, "enemyIndex", TROOP_SLOT_OPTS())),
+          field("Op", sel(w, "op", [{ v: "add", l: "Restore" }, { v: "sub", l: "Drain" }])),
+          field("Amount", nIn(w, "value", 0))));
+        return () => Object.assign(c, w);
+      } },
+    { t: "changeEnemyState", label: "Change Enemy State (battle)", make: () => ({ t: "changeEnemyState", enemyIndex: -1, op: "add", stateId: 1 }),
+      form(c: any, box: any) {
+        const w = { enemyIndex: c.enemyIndex == null ? -1 : c.enemyIndex, op: c.op || "add", stateId: c.stateId || 1 };
+        box.appendChild(row(field("Enemy", sel(w, "enemyIndex", TROOP_SLOT_OPTS())),
+          field("Op", sel(w, "op", [{ v: "add", l: "Add" }, { v: "remove", l: "Remove" }])),
+          field("State", sel(w, "stateId", dbOpts(S.proj.states)))));
+        return () => Object.assign(c, w);
+      } },
+    { t: "enemyRecoverAll", label: "Enemy Recover All (battle)", make: () => ({ t: "enemyRecoverAll", enemyIndex: -1 }),
+      form(c: any, box: any) {
+        const w = { enemyIndex: c.enemyIndex == null ? -1 : c.enemyIndex };
+        box.appendChild(field("Enemy", sel(w, "enemyIndex", TROOP_SLOT_OPTS())));
+        return () => Object.assign(c, w);
+      } },
+    { t: "enemyAppear", label: "Enemy Appear (battle)", make: () => ({ t: "enemyAppear", enemyIndex: 0 }),
+      form(c: any, box: any) {
+        const w = { enemyIndex: c.enemyIndex || 0 };
+        box.appendChild(field("Enemy slot", sel(w, "enemyIndex", TROOP_SLOT_OPTS(true))));
+        box.appendChild(h("div", { class: "dim" }, "Reveals a troop member marked “hidden at start” on the Troops tab."));
+        return () => Object.assign(c, w);
+      } },
+    { t: "enemyTransform", label: "Enemy Transform (battle)", make: () => ({ t: "enemyTransform", enemyIndex: 0, enemyId: 1 }),
+      form(c: any, box: any) {
+        const w = { enemyIndex: c.enemyIndex || 0, enemyId: c.enemyId || 1 };
+        box.appendChild(row(field("Enemy slot", sel(w, "enemyIndex", TROOP_SLOT_OPTS(true))),
+          field("Becomes", sel(w, "enemyId", dbOpts(S.proj.enemies)))));
+        return () => Object.assign(c, w);
+      } },
+    { t: "forceAction", label: "Force Action (battle)", make: () => ({ t: "forceAction", side: "enemy", index: 0, skillId: 0, target: -1 }),
+      form(c: any, box: any) {
+        const w = { side: c.side || "enemy", index: c.index || 0, skillId: c.skillId || 0, target: c.target == null ? -1 : c.target };
+        const who = h("span");
+        function redrawWho() {
+          who.innerHTML = "";
+          who.appendChild(w.side === "actor"
+            ? sel(w, "index", dbOpts(S.proj.actors))
+            : sel(w, "index", TROOP_SLOT_OPTS(true)));
+        }
+        redrawWho();
+        box.appendChild(row(field("Side", sel(w, "side", [{ v: "enemy", l: "Enemy" }, { v: "actor", l: "Hero" }], redrawWho)),
+          field("Who", who),
+          field("Skill", sel(w, "skillId", [{ v: 0, l: "(basic attack)" }].concat(dbOpts(S.proj.skills)))),
+          field("Target", sel(w, "target", [{ v: -1, l: "Random" }, { v: -2, l: "Engine picks" },
+            { v: 0, l: "Slot 1" }, { v: 1, l: "Slot 2" }, { v: 2, l: "Slot 3" }, { v: 3, l: "Slot 4" }]))));
+        box.appendChild(h("div", { class: "dim" }, "The battler acts immediately, paying no MP/TP cost."));
+        return () => Object.assign(c, w);
+      } },
+    { t: "abortBattle", label: "Abort Battle", make: () => ({ t: "abortBattle" }),
+      form(_c: any, box: any) {
+        box.appendChild(h("div", { class: "dim" }, "Ends the battle right away, as if the party escaped."));
+        return () => {};
       } },
     { t: "shop", label: "Open Shop", make: () => ({ t: "shop", goods: [] }),
       form(c: any, box: any) {

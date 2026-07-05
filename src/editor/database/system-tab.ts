@@ -63,6 +63,9 @@ export function systemTab() {
     // switch the mechanics on even while the gauge stays hidden.
     p.appendChild(row(field("Show TP in battle (battlers build TP from damage and spend it on skills)", chk(s, "displayTp"))));
     p.appendChild(h("div", { class: "dim" }, "TP starts each battle low, charges as a battler takes damage, and pays for skills with a TP cost (set on the Skills tab). Leave this off for classic HP/MP battles."));
+    // M3·C: RPG Maker battle pacing (set automatically on imported games).
+    p.appendChild(row(field("RPG Maker battle pacing (first strikes, surprise rounds, RM escape odds)", chk(s, "mzBattleFlow"))));
+    p.appendChild(h("div", { class: "dim" }, "Random encounters can open with a first strike (your side acts alone on turn 1) or a surprise round (the enemies do), and escaping uses RPG Maker's agility-ratio odds, which improve after each failed try. Imported RPG Maker games turn this on automatically."));
     p.appendChild(h("div", { class: "dim", style: "margin-top:8px" }, "Default key & gamepad bindings have their own “Controls” tab."));
     return p;
   }

@@ -5,6 +5,24 @@
 export const PATCH_NOTES = [
   {
     date: "July 5, 2026",
+    title: "Boss-fight tools: mid-battle commands, loot drops & surprise rounds",
+    summary:
+      "Battles learned their last RPG Maker tricks. Battle events can now heal, poison, reveal, transform, or force-act enemies mid-fight; defeated enemies can drop loot; troops can hide a member until the story says “appear!”; and random encounters can open with a first strike or a surprise round. Win/escape/lose branches on Start Battle run for real, and party abilities like Double Gold work from any hero. Atlas-made games play exactly as before unless you turn these on; imported RPG Maker MV/MZ games get them automatically.",
+    items: [
+      "Eight new battle-event commands: Change Enemy HP/MP/State, Enemy Recover All, Enemy Appear, Enemy Transform, Force Action, and Abort Battle — plus battle animations aimed at enemies.",
+      "Start Battle grew If-Win / If-Escape / If-Lose branches, edited right under the command like a conditional — imported RPG Maker battles bring their branches along.",
+      "Enemies can drop loot: give an enemy “1 in N” drop rows (Enemies ▸ Stats & rewards) and victory rolls them with a “Found a Potion!” line.",
+      "Troop members can start hidden and join mid-battle when a battle event runs Enemy Appear — classic boss-summons-minions staging.",
+      "Party abilities work: Half/No random encounters, More first strikes, Never surprised, Double gold, and Double drops — carried by any hero's class or starting gear.",
+      "New “RPG Maker battle pacing” toggle (System ▸ Battle): random encounters can open with a first strike or surprise round, and escaping uses RPG Maker's agility-ratio odds that improve after each failed try. Imported games turn it on automatically.",
+      "Smoke-bomb escapes: a skill or item marked “Escapes the battle” lets the party slip away — and an enemy with one flees the fight (no rewards from it).",
+      "Auto-battle and Covers-weak-allies traits act now: an auto-battler fights on its own, and a bodyguard steps in front of allies below a quarter of their health.",
+      "Enemy AI conditions grew MP ≤ %, Party level ≥, and Switch ON kinds; battle-event pages can wait for the end of a turn.",
+      "Victory EXP and gold now come from enemies you actually defeated — ones that fled or never appeared pay nothing.",
+    ],
+  },
+  {
+    date: "July 5, 2026",
     title: "Traits everywhere, buffs & debuffs, and the TP gauge",
     summary:
       "The battle system learned the whole RPG Maker trait book. Enemies and states can now carry traits (a Slime weak to Ice, a Silence that seals magic), skills and items can raise or lower stats for a few rounds, grow a stat forever, or teach a skill — and an optional TP gauge charges as heroes take hits and pays for special skills. Atlas-made games play exactly as before unless you turn these on; imported RPG Maker MV/MZ games get them automatically.",

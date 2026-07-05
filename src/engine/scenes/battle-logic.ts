@@ -129,12 +129,16 @@ export function extraActionRolls(values: number[], rng: () => number): number {
 
 // ---- condition-weighted enemy AI ----
 
-/** The state an enemy-action condition can see. */
+/** The state an enemy-action condition can see. The M3·C fields are optional
+ *  so pre-M3·C callers/tests keep working (absent ⇒ those kinds pass). */
 export interface EnemyAiView {
   turn: number;      // current battle turn (1-based)
   hpPct: number;     // this enemy's HP percentage 0..100
   states: number[];  // state ids currently on this enemy
   rng: () => number; // 0..1 (for cond kind "random")
+  mpPct?: number;    // this enemy's MP percentage 0..100 (M3·C)
+  partyLevel?: number; // highest party level (M3·C)
+  switches?: Record<number, boolean> | boolean[]; // game switches (M3·C)
 }
 
 /** Does one action row's condition hold? Absent cond = always (pre-Phase-5
@@ -157,6 +161,13 @@ export function enemyActionValid(action: any, view: EnemyAiView): boolean {
       return view.rng() * 100 < (Number(cond.pct) || 0);
     case "stateSelf":
       return view.states.includes(Number(cond.stateId) || 0);
+    // ---- M3·C refinements (MZ condition types 3/5/6) ----
+    case "mpBelow":
+      return view.mpPct == null || view.mpPct <= (Number(cond.pct) || 0);
+    case "partyLevel":
+      return view.partyLevel == null || view.partyLevel >= (Number(cond.a) || 0);
+    case "switch":
+      return !view.switches || !!(view.switches as any)[Number(cond.switchId) || 0];
     default:
       return true;
   }
@@ -176,6 +187,8 @@ export interface TroopPageView {
   enemies: { hpPct: number; alive: boolean }[];     // troop battle order
   actors: { actorId: number; hpPct: number }[];     // living party
   switches: Record<number, boolean> | boolean[];
+  /** True only on the end-of-round boundary check (M3·C `turnEnd` pages). */
+  atTurnEnd?: boolean;
 }
 
 /** Does a troop page's condition hold right now? An EMPTY cond object never
@@ -183,6 +196,12 @@ export interface TroopPageView {
 export function troopPageCondMet(cond: any, view: TroopPageView): boolean {
   if (!cond) return false;
   let hasAny = false;
+  // MZ "Turn End" (M3·C): the page only fires on the boundary check; other
+  // set blocks must ALSO hold there (RM ANDs its condition boxes).
+  if (cond.turnEnd) {
+    hasAny = true;
+    if (!view.atTurnEnd) return false;
+  }
   if (cond.turn && (Number(cond.turn.a) || Number(cond.turn.b))) {
     hasAny = true;
     const a = Math.max(0, Number(cond.turn.a) || 0);
@@ -238,6 +257,47 @@ export function troopPageShouldFire(rt: TroopPageRT, view: TroopPageView): boole
   }
   rt.wasTrue = met;
   return fire;
+}
+
+// ---- MZ battle pacing (Project Compass M3·C, behind system.mzBattleFlow) ----
+
+/** MZ escape chance (BattleManager.makeEscapeRatio + onEscapeFailure):
+ *  0.5 × party avg AGI / troop avg AGI, +0.1 per failed attempt this battle.
+ *  Uncapped above like MZ (a ratio ≥ 1 always escapes); never negative. */
+export function mzEscapeChance(partyAgi: number, troopAgi: number, fails: number): number {
+  const base = (0.5 * Math.max(0, partyAgi)) / Math.max(1, troopAgi);
+  return Math.max(0, base + 0.1 * Math.max(0, fails));
+}
+
+/** MZ preemptive-strike rate (Game_Party.ratePreemptive): 5% when the party's
+ *  average AGI wins, else 3%; ×4 with the Raise-Preemptive party ability. */
+export function preemptiveRate(partyAgi: number, troopAgi: number, raise: boolean): number {
+  return (partyAgi >= troopAgi ? 0.05 : 0.03) * (raise ? 4 : 1);
+}
+
+/** MZ surprise rate (Game_Party.rateSurprise): 3% when the party's average
+ *  AGI wins, else 5%; zero with the Cancel-Surprise party ability. */
+export function surpriseRate(partyAgi: number, troopAgi: number, cancel: boolean): number {
+  return cancel ? 0 : partyAgi >= troopAgi ? 0.03 : 0.05;
+}
+
+// ---- victory drops (M3·C, MZ Game_Enemy.makeDropItems) ----
+
+/** Roll one defeated enemy's drop rows: each row is kept when
+ *  `rng() × denominator < rate` (rate 1, or 2 with Drop-Item-Double). Exactly
+ *  one rng draw per row — no rows, no draws (native enemies). */
+export function rollDrops(
+  drops: any[] | undefined,
+  rate: number,
+  rng: () => number,
+): { kind: string; id: number }[] {
+  const out: { kind: string; id: number }[] = [];
+  for (const d of drops || []) {
+    if (!d || !d.id) continue;
+    if (rng() * Math.max(1, Number(d.denominator) || 1) < rate)
+      out.push({ kind: String(d.kind || "item"), id: Number(d.id) || 0 });
+  }
+  return out;
 }
 
 // ---- ATB / CTB scheduling ----

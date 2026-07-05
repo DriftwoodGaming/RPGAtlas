@@ -159,6 +159,11 @@ export interface SystemData {
    *  Also one of the two switches that activate the TP mechanics — the other
    *  is any skill carrying tpCost/gainTp. Absent = classic no-TP battles. */
   displayTp?: boolean;
+  /** RPG Maker battle pacing (Project Compass M3·C): preemptive/surprise
+   *  rolls on random encounters and the MZ escape ratio (0.5 × party AGI /
+   *  troop AGI, +0.1 per failed try). The importer always sets it; absent =
+   *  the classic Atlas flow, byte-identical draws. */
+  mzBattleFlow?: boolean;
 }
 
 /** One vehicle's charset + starting placement (Phase 5 Stage C). */
@@ -271,6 +276,10 @@ export interface Skill {
   grow?: GrowEffect[];
   /** Skills the target permanently learns (MZ effect 43). */
   learn?: number[];
+  // ---- Project Compass M3·C ----
+  /** MZ effect 41 (escape): a party member's use flees the whole battle; an
+   *  enemy's use makes that one enemy flee (no rewards from it). */
+  escapeBattle?: boolean;
 }
 
 /** One buff/debuff effect row (MZ effect codes 31–34, M3·B). */
@@ -348,6 +357,8 @@ export interface Item {
   grow?: GrowEffect[];
   /** Skills the target learns (MZ effect 43). */
   learn?: number[];
+  /** MZ effect 41 (escape, M3·C) — using it in battle flees the fight. */
+  escapeBattle?: boolean;
 }
 
 export interface Weapon {
@@ -371,23 +382,37 @@ export interface Armor {
   params?: Params;
 }
 
-/** Condition gating one enemy action row (Phase 5). Absent = always valid —
+/** Condition gating one enemy action row (Phase 5; the M3·C kinds are the MZ
+ *  refinements — MP, party level, switch). Absent = always valid —
  *  pre-Phase-5 action lists pick identically. */
 export interface EnemyActionCond {
-  kind: "always" | "turn" | "hpBelow" | "hpAbove" | "random" | "stateSelf" | string;
-  /** turn: fires on turn a + b·x (b=0: exactly turn a). */
+  kind:
+    | "always" | "turn" | "hpBelow" | "hpAbove" | "random" | "stateSelf"
+    | "mpBelow" | "partyLevel" | "switch" | string;
+  /** turn: fires on turn a + b·x (b=0: exactly turn a).
+   *  partyLevel: valid while the highest party level ≥ a (M3·C). */
   a?: number;
   b?: number;
-  /** hpBelow/hpAbove/random: percentage 0–100. */
+  /** hpBelow/hpAbove/random/mpBelow: percentage 0–100. */
   pct?: number;
   /** stateSelf: the state that must be on this enemy. */
   stateId?: number;
+  /** switch: the game switch that must be ON (M3·C). */
+  switchId?: number;
 }
 
 export interface EnemyAction {
   skillId: number;
   weight: number;
   cond?: EnemyActionCond;
+}
+
+/** One victory-loot row (MZ dropItems, Project Compass M3·C): a 1-in-
+ *  `denominator` chance the defeated enemy leaves this item behind. */
+export interface EnemyDrop {
+  kind: "item" | "weapon" | "armor" | string;
+  id: number;
+  denominator: number;
 }
 
 export interface Enemy {
@@ -403,6 +428,8 @@ export interface Enemy {
    *  battler (D6), so element/state rates and combat specials live here.
    *  Absent = the exact pre-M3·B neutral behavior. */
   traits?: Trait[];
+  /** Victory loot (M3·C). Absent/empty = no drop rolls at all. */
+  drops?: EnemyDrop[];
 }
 
 /** A troop battle-event page condition (Phase 5). An empty cond never fires. */
@@ -414,6 +441,8 @@ export interface TroopPageCond {
   /** Actor `actorId`'s HP fell to `pct`% or below. */
   actorHpBelow?: { actorId: number; pct: number };
   switchId?: number;
+  /** MZ "Turn End" (M3·C): fires only on the end-of-round boundary check. */
+  turnEnd?: boolean;
 }
 
 /** A troop battle-event page (Phase 5): commands run mid-battle through the
@@ -431,6 +460,9 @@ export interface Troop {
   enemies: number[];
   /** Battle-event pages (Phase 5). Backfilled to [] by the v2 migration. */
   pages?: TroopPage[];
+  /** 0-based member slots hidden at battle start (MZ `hidden`, M3·C) —
+   *  revealed by the Enemy Appear command. Absent = everyone starts visible. */
+  hiddenSlots?: number[];
 }
 
 // ============================================================================
@@ -702,6 +734,12 @@ export interface CmdBattle {
   troopId: number;
   escape?: boolean;
   lose?: boolean;
+  /** Battle-result branches (RM 601/602/603, Project Compass M3·C). Absent =
+   *  the classic flow (win continues, loss game-overs unless `lose`).
+   *  `onLose` runs only when `lose` is set, exactly like RM's Can Lose. */
+  onWin?: AnyCommand[];
+  onEscape?: AnyCommand[];
+  onLose?: AnyCommand[];
 }
 export interface ShopGood {
   kind: ItemKind;
@@ -795,12 +833,15 @@ export interface CmdBreakLoop {
 }
 /** Plays a battle animation on the map (Phase 5): over the player, this
  *  event, or the screen center. A no-op outside the map scene or when the
- *  animation id doesn't resolve. */
+ *  animation id doesn't resolve. Target "enemy" (M3·C, RM Show Battle
+ *  Animation 337) plays over troop slot `enemyIndex` (−1 = every living
+ *  enemy) through the battle bridge; a no-op outside battle. */
 export interface CmdPlayAnim {
   t: "playAnim";
   animationId: number;
-  target: "player" | "this" | "screen";
+  target: "player" | "this" | "screen" | "enemy";
   wait?: boolean;
+  enemyIndex?: number;
 }
 /** An RPG Maker MZ/MV command the importer couldn't translate yet (Project
  *  Compass, M1·C). `code`+`params` preserve the raw MZ command verbatim so a
@@ -988,6 +1029,33 @@ export interface CmdChangeTp { t: "changeTp"; actorId: number; op: "add" | "sub"
  *  outside battle (reaches the live battle through the battle bridge). */
 export interface CmdChangeEnemyTp { t: "changeEnemyTp"; enemyIndex: number; op: "add" | "sub"; value: number; }
 
+// --- In-troop battle commands (RM 331–340, Project Compass M3·C) ---
+// All reach the live battle through the battle bridge (like changeEnemyTp)
+// and no-op outside battle. `enemyIndex` −1 = the whole troop.
+
+/** Add/subtract a troop member's HP (RM Change Enemy HP). Without `allowKo`
+ *  the value stops at 1 HP, exactly like RM's Allow Knockout box. */
+export interface CmdChangeEnemyHp { t: "changeEnemyHp"; enemyIndex: number; op: "add" | "sub"; value: number; allowKo?: boolean; }
+/** Add/subtract a troop member's MP (RM Change Enemy MP). */
+export interface CmdChangeEnemyMp { t: "changeEnemyMp"; enemyIndex: number; op: "add" | "sub"; value: number; }
+/** Add or remove a troop member's state (RM Change Enemy State). */
+export interface CmdChangeEnemyState { t: "changeEnemyState"; enemyIndex: number; op: "add" | "remove"; stateId: number; }
+/** Fully heal troop member(s) (RM Enemy Recover All). */
+export interface CmdEnemyRecoverAll { t: "enemyRecoverAll"; enemyIndex: number; }
+/** Reveal a hidden troop member (RM Enemy Appear — pairs with
+ *  `Troop.hiddenSlots`). */
+export interface CmdEnemyAppear { t: "enemyAppear"; enemyIndex: number; }
+/** Transform a troop member into another enemy record (RM Enemy Transform).
+ *  HP/MP carry over (clamped); states and buffs stay. */
+export interface CmdEnemyTransform { t: "enemyTransform"; enemyIndex: number; enemyId: number; }
+/** Make a battler act immediately, costs skipped (RM Force Action). `side`
+ *  "enemy" indexes the troop; "actor" is an actor id. `target` is a troop/
+ *  party slot for actor-side actions (−1/−2 = the engine picks, like RM's
+ *  random/last target). */
+export interface CmdForceAction { t: "forceAction"; side: "enemy" | "actor"; index: number; skillId: number; target: number; }
+/** End the battle immediately as an escape (RM Abort Battle). */
+export interface CmdAbortBattle { t: "abortBattle"; }
+
 /** Toggle a map-system access flag (RM Change Menu/Save/Encounter/Formation
  *  Access). `enabled` false locks the menu, its save/formation entry, or the
  *  random-encounter roll respectively. Round-trips through saves. */
@@ -1070,6 +1138,14 @@ export type AnyCommand =
   | CmdChangeState
   | CmdChangeTp
   | CmdChangeEnemyTp
+  | CmdChangeEnemyHp
+  | CmdChangeEnemyMp
+  | CmdChangeEnemyState
+  | CmdEnemyRecoverAll
+  | CmdEnemyAppear
+  | CmdEnemyTransform
+  | CmdForceAction
+  | CmdAbortBattle
   | CmdAccess
   | CmdFollowers
   | CmdWindowTone

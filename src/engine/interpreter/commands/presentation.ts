@@ -67,7 +67,14 @@ export function registerPresentationCommands(): void {
 
   // Play a battle animation on the map (Phase 5). Target "this" needs an
   // event runtime; common events and "player" both anchor on the player.
+  // Target "enemy" (M3·C, RM Show Battle Animation 337) goes through the
+  // battle bridge onto a live troop slot; outside battle it's a no-op.
   registerCommand("playAnim", async (c: any, { interp, services }: InterpContext) => {
+    if (c.target === "enemy") {
+      const b = services.battleEnemyOps;
+      if (b) await b.showAnim(c.enemyIndex == null ? -1 : Number(c.enemyIndex), c.animationId);
+      return;
+    }
     const entity = c.target === "this" ? interp.evRT : null;
     const done = services.playMapAnimation(c.animationId, entity, c.target === "screen");
     if (c.wait !== false) await done;

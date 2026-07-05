@@ -128,6 +128,8 @@ const EngineServices: any = {
   Battle, Shop,
   // Change Enemy TP bridge (M3·B): live only while a battle runs.
   get battleAddEnemyTp() { return (fns as any).battleAddEnemyTp; },
+  // In-troop enemy commands bridge (M3·C, RM 331–340): same lifetime.
+  get battleEnemyOps() { return (fns as any).battleEnemyOps; },
   // battle animations on the map (Phase 5)
   playMapAnimation,
 };

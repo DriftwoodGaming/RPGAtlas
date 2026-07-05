@@ -249,13 +249,8 @@ function applyEffects(
           detail: "skills that restore MP arrive in a later update",
         }));
         break;
-      case 41: // Special Effect: escape — battle flow, M3·C.
-        report.bump("skill-escape", () => ({
-          area,
-          kind: "todo",
-          what: "escape-from-battle skills",
-          detail: "skills that let you flee the battle arrive in a later update",
-        }));
+      case 41: // Special Effect: escape (M3·C) — flees the battle for real.
+        skill.escapeBattle = true;
         break;
       default:
         report.bump("skill-effect", () => ({
@@ -324,6 +319,9 @@ export function convertItems(list: RmList<RmItem>, report: ImportReport): Item[]
         }
         case 43: // Learn Skill (M3·B).
           if (e.dataId) (item.learn || (item.learn = [])).push(e.dataId);
+          break;
+        case 41: // Special Effect: escape (M3·C) — a Smoke Bomb item works.
+          item.escapeBattle = true;
           break;
         default:
           report.bump("item-effect", () => ({

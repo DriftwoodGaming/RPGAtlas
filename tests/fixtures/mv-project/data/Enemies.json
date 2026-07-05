@@ -84,9 +84,23 @@
       {
         "skillId": 1,
         "conditionType": 5,
-        "conditionParam1": 0.5,
+        "conditionParam1": 1,
         "conditionParam2": 0,
         "rating": 5
+      },
+      {
+        "skillId": 2,
+        "conditionType": 6,
+        "conditionParam1": 2,
+        "conditionParam2": 0,
+        "rating": 4
+      },
+      {
+        "skillId": 6,
+        "conditionType": 1,
+        "conditionParam1": 4,
+        "conditionParam2": 2,
+        "rating": 9
       }
     ],
     "traits": [],

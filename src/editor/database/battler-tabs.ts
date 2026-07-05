@@ -9,7 +9,7 @@
 import { Assets, RA, editorState as S } from "../editor-state";
 import {
   h, nIn, sel, chk, field, row, dbOpts, charsetOpts,
-  elementSelOpts, skillTypeSelOpts,
+  elementSelOpts, skillTypeSelOpts, switchOpts,
 } from "../dom";
 import { touch } from "../persistence";
 import { parseFormula } from "../../shared/formula";
@@ -152,7 +152,9 @@ export const skillsTab = () => listFormTab({
       p.appendChild(row(field("Scope", sel(e, "scope", [
         { v: "enemy", l: "One enemy" }, { v: "enemies", l: "All enemies" },
         { v: "ally", l: "One ally" }, { v: "allies", l: "All allies" }])),
-        field("Revives fallen ally", chk(e, "revive"))));
+        field("Revives fallen ally", chk(e, "revive")),
+        // M3·C: the MZ escape effect — a "Smoke Bomb" style skill.
+        field("Escapes the battle", chk(e, "escapeBattle"))));
       p.appendChild(h("div", { class: "dim" }, "Revive: a heal-type ally/allies skill that targets fallen (0 HP) party members and brings them back to life with its healed amount. Ordinary heals never touch the fallen."));
       // Battle animation + multi-hit + action-sequence hook (Phase 5).
       // Animation "(default FX)" keeps the legacy castFx/travel/burst effects;
@@ -349,6 +351,38 @@ export const enemiesTab = () => listFormTab({
       for (const k of ["mhp", "atk", "def", "mat", "mdf", "agi"]) st.appendChild(field(k.toUpperCase(), nIn(e.stats, k, 0, 99999)));
       p.appendChild(st);
       p.appendChild(row(field("EXP reward", nIn(e, "exp", 0)), field("Gold reward", nIn(e, "gold", 0))));
+      // M3·C: victory drops — each row is one "1 in N" roll on defeat.
+      p.appendChild(h("div", { class: "subhead" }, "Drops"));
+      const dbox = h("div", { class: "minilist" });
+      const dropArr = (kind: any) =>
+        kind === "weapon" ? S.proj.weapons : kind === "armor" ? S.proj.armors : S.proj.items;
+      function redrawD() {
+        dbox.innerHTML = "";
+        (e.drops || []).forEach((d: any, i: any) => {
+          const entry = h("span");
+          entry.appendChild(sel(d, "id", dbOpts(dropArr(d.kind))));
+          dbox.appendChild(h("div", { class: "minirow" },
+            sel(d, "kind", [{ v: "item", l: "Item" }, { v: "weapon", l: "Weapon" }, { v: "armor", l: "Armor" }], () => {
+              const arr = dropArr(d.kind);
+              d.id = arr.length ? arr[0].id : 0;
+              touch(); redrawD();
+            }),
+            entry,
+            h("span", null, "1 in"), nIn(d, "denominator", 1, 1000),
+            h("button", { class: "mini", onclick() {
+              e.drops.splice(i, 1);
+              if (!e.drops.length) delete e.drops;
+              touch(); redrawD();
+            } }, "✕")));
+        });
+        dbox.appendChild(h("button", { class: "mini", onclick() {
+          (e.drops || (e.drops = [])).push({ kind: "item", id: S.proj.items.length ? S.proj.items[0].id : 1, denominator: 2 });
+          touch(); redrawD();
+        } }, "+ add drop"));
+      }
+      redrawD();
+      p.appendChild(dbox);
+      p.appendChild(h("div", { class: "dim" }, "Each drop is rolled when this enemy is defeated — “1 in 2” lands about half the time."));
       return p;
     }
 
@@ -365,6 +399,10 @@ export const enemiesTab = () => listFormTab({
           { v: "hpAbove", l: "HP ≥ %" },
           { v: "random", l: "Chance %" },
           { v: "stateSelf", l: "Has state" },
+          // M3·C refinements (MZ MP / party level / switch conditions).
+          { v: "mpBelow", l: "MP ≤ %" },
+          { v: "partyLevel", l: "Party level ≥" },
+          { v: "switch", l: "Switch ON" },
         ];
         o.stringValues = true;
         return o;
@@ -378,6 +416,10 @@ export const enemiesTab = () => listFormTab({
           wrap.appendChild(h("span", null, "+ b·x")); wrap.appendChild(nIn(cond, "b", 0, 999));
         } else if (cond.kind === "stateSelf") {
           wrap.appendChild(sel(cond, "stateId", dbOpts(S.proj.states)));
+        } else if (cond.kind === "partyLevel") {
+          wrap.appendChild(nIn(cond, "a", 1, 99));
+        } else if (cond.kind === "switch") {
+          wrap.appendChild(sel(cond, "switchId", switchOpts()));
         } else {
           wrap.appendChild(nIn(cond, "pct", 0, 100)); wrap.appendChild(h("span", null, "%"));
         }
@@ -395,6 +437,8 @@ export const enemiesTab = () => listFormTab({
               if (kind === "always") delete a.cond;
               else if (kind === "turn") a.cond = { kind, a: 1, b: 0 };
               else if (kind === "stateSelf") a.cond = { kind, stateId: S.proj.states[0] ? S.proj.states[0].id : 1 };
+              else if (kind === "partyLevel") a.cond = { kind, a: 5 };
+              else if (kind === "switch") a.cond = { kind, switchId: 1 };
               else a.cond = { kind, pct: 50 };
               touch(); redrawA();
             }),

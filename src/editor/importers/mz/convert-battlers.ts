@@ -265,8 +265,16 @@ export function mergeEquipTraits(
 // ---------------------------------------------------------------------------
 
 /** Map an MZ enemy action condition to Atlas's `EnemyActionCond` (matrix §8:
- *  always/turn/hp/state land in M1·A; switch/party-level → M3·C, reported). */
+ *  always/turn/hp/state landed in M1·A; MP/party-level/switch in M3·C). The
+ *  HP/MP range conditions keep only their upper bound — one partial line. */
 function enemyCond(a: RmEnemyAction, report: ImportReport): EnemyActionCond | undefined {
+  const rangeSimplified = () =>
+    report.bump("enemy-cond", () => ({
+      area: "Enemies",
+      kind: "partial",
+      what: "enemy action timing",
+      detail: "some enemy action conditions were simplified",
+    }));
   switch (a.conditionType) {
     case 0:
       return undefined; // Always.
@@ -274,24 +282,22 @@ function enemyCond(a: RmEnemyAction, report: ImportReport): EnemyActionCond | un
       return { kind: "turn", a: a.conditionParam1 || 0, b: a.conditionParam2 || 0 };
     case 2:
       // HP rate between p1..p2 (0..1) → fires while HP ≤ the upper bound.
-      report.bump("enemy-cond", () => ({
-        area: "Enemies",
-        kind: "partial",
-        what: "enemy action timing",
-        detail: "some enemy action conditions were simplified",
-      }));
+      rangeSimplified();
       return { kind: "hpBelow", pct: Math.round((a.conditionParam2 || 1) * 100) };
+    case 3:
+      // MP rate between p1..p2 → the same upper-bound simplification (M3·C).
+      rangeSimplified();
+      return { kind: "mpBelow", pct: Math.round((a.conditionParam2 || 1) * 100) };
     case 4:
       return { kind: "stateSelf", stateId: a.conditionParam1 || 0 };
+    case 5:
+      // Party level ≥ p1 (M3·C).
+      return { kind: "partyLevel", a: a.conditionParam1 || 0 };
+    case 6:
+      // Switch p1 is ON (M3·C).
+      return { kind: "switch", switchId: a.conditionParam1 || 0 };
     default:
-      // 3 MP · 5 party level · 6 switch → M3·C.
-      report.bump("enemy-cond-todo", () => ({
-        area: "Enemies",
-        kind: "todo",
-        what: "advanced enemy action conditions",
-        detail: "MP / party-level / switch conditions turn on in a later update",
-      }));
-      return undefined;
+      return undefined; // unknown condition type — the row always fires
   }
 }
 
@@ -330,14 +336,16 @@ export function convertEnemies(
       });
     if (actions.length) enemy.actions = actions;
 
-    if ((e.dropItems || []).some((d) => d && d.kind && d.dataId)) {
-      report.bump("enemy-drops", () => ({
-        area: "Enemies",
-        kind: "todo",
-        what: "enemy item drops",
-        detail: "loot from defeated enemies arrives in a later update",
+    // M3·C: dropItems → the optional `drops` carrier (kind 0 rows = "none").
+    const DROP_KIND: Record<number, "item" | "weapon" | "armor"> = { 1: "item", 2: "weapon", 3: "armor" };
+    const drops = (e.dropItems || [])
+      .filter((d) => d && DROP_KIND[d.kind] && d.dataId)
+      .map((d) => ({
+        kind: DROP_KIND[d.kind],
+        id: d.dataId,
+        denominator: Math.max(1, Number(d.denominator) || 1),
       }));
-    }
+    if (drops.length) enemy.drops = drops;
     // M3·B: enemies carry their own traits (D6 — the enemy IS its effective
     // battler). Element/state rates, counters, and combat specials all ride.
     if (e.traits && e.traits.length) {

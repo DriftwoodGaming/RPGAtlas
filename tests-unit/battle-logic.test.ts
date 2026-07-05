@@ -254,3 +254,124 @@ describe("target-rate weighting (M3·B, tgr)", () => {
     expect(weightedTargetIndex(pool, 0.9, magnet)).toBe(0);
   });
 });
+
+// ============================================================================
+// Project Compass M3·C — MZ battle pacing, drops, condition refinements,
+// and the turn-end troop-page gate.
+// ============================================================================
+
+import {
+  mzEscapeChance,
+  preemptiveRate,
+  surpriseRate,
+  rollDrops,
+} from "../src/engine/scenes/battle-logic";
+
+describe("MZ escape ratio (M3·C, behind system.mzBattleFlow)", () => {
+  it("matches makeEscapeRatio: 0.5 × partyAgi / troopAgi", () => {
+    expect(mzEscapeChance(30, 30, 0)).toBeCloseTo(0.5);
+    expect(mzEscapeChance(60, 30, 0)).toBeCloseTo(1.0);
+    expect(mzEscapeChance(15, 30, 0)).toBeCloseTo(0.25);
+  });
+  it("adds 0.1 per failed attempt (onEscapeFailure)", () => {
+    expect(mzEscapeChance(30, 30, 1)).toBeCloseTo(0.6);
+    expect(mzEscapeChance(30, 30, 3)).toBeCloseTo(0.8);
+  });
+  it("guards degenerate inputs (0 AGI troop, negative fails)", () => {
+    expect(mzEscapeChance(30, 0, 0)).toBeCloseTo(15); // ÷ max(1, agi)
+    expect(mzEscapeChance(0, 30, -2)).toBe(0);
+  });
+});
+
+describe("preemptive/surprise rates (M3·C, MZ Game_Party)", () => {
+  it("preemptive: 5% when the party's AGI wins, else 3%; ×4 raised", () => {
+    expect(preemptiveRate(30, 20, false)).toBeCloseTo(0.05);
+    expect(preemptiveRate(10, 20, false)).toBeCloseTo(0.03);
+    expect(preemptiveRate(30, 20, true)).toBeCloseTo(0.2);
+    expect(preemptiveRate(10, 20, true)).toBeCloseTo(0.12);
+  });
+  it("surprise: 3% when the party's AGI wins, else 5%; cancel zeroes it", () => {
+    expect(surpriseRate(30, 20, false)).toBeCloseTo(0.03);
+    expect(surpriseRate(10, 20, false)).toBeCloseTo(0.05);
+    expect(surpriseRate(10, 20, true)).toBe(0);
+  });
+});
+
+describe("victory drops (M3·C, MZ makeDropItems)", () => {
+  const drops = [
+    { kind: "item", id: 1, denominator: 2 },
+    { kind: "weapon", id: 3, denominator: 4 },
+  ];
+  it("keeps a row when rng × denominator < rate, one draw per row", () => {
+    let draws = 0;
+    const seq = [0.4, 0.3]; // 0.4×2=0.8 < 1 ✓ · 0.3×4=1.2 ≥ 1 ✗
+    const got = rollDrops(drops, 1, () => seq[draws++]);
+    expect(got).toEqual([{ kind: "item", id: 1 }]);
+    expect(draws).toBe(2);
+  });
+  it("dropDouble (rate 2) widens every window", () => {
+    const got = rollDrops(drops, 2, () => 0.4); // 0.8<2 ✓ · 1.6<2 ✓
+    expect(got).toEqual([{ kind: "item", id: 1 }, { kind: "weapon", id: 3 }]);
+  });
+  it("no rows (native enemies) means zero draws", () => {
+    expect(rollDrops(undefined, 1, () => { throw new Error("no draw allowed"); })).toEqual([]);
+    expect(rollDrops([], 2, () => { throw new Error("no draw allowed"); })).toEqual([]);
+  });
+});
+
+describe("enemy action-condition refinements (M3·C — MZ types 3/5/6)", () => {
+  const view = (over: any = {}) => ({
+    turn: 1, hpPct: 100, states: [], rng: () => 0.5,
+    mpPct: 40, partyLevel: 5, switches: { 2: true }, ...over,
+  });
+  it("mpBelow: valid while MP% ≤ pct", () => {
+    expect(enemyActionValid({ cond: { kind: "mpBelow", pct: 50 } }, view())).toBe(true);
+    expect(enemyActionValid({ cond: { kind: "mpBelow", pct: 30 } }, view())).toBe(false);
+  });
+  it("partyLevel: valid while the highest party level ≥ a", () => {
+    expect(enemyActionValid({ cond: { kind: "partyLevel", a: 5 } }, view())).toBe(true);
+    expect(enemyActionValid({ cond: { kind: "partyLevel", a: 6 } }, view())).toBe(false);
+  });
+  it("switch: valid while the switch is ON", () => {
+    expect(enemyActionValid({ cond: { kind: "switch", switchId: 2 } }, view())).toBe(true);
+    expect(enemyActionValid({ cond: { kind: "switch", switchId: 3 } }, view())).toBe(false);
+  });
+  it("pre-M3·C views (fields absent) keep the new kinds always-valid", () => {
+    const old = { turn: 1, hpPct: 100, states: [], rng: () => 0.5 };
+    expect(enemyActionValid({ cond: { kind: "mpBelow", pct: 0 } }, old as any)).toBe(true);
+    expect(enemyActionValid({ cond: { kind: "partyLevel", a: 99 } }, old as any)).toBe(true);
+    expect(enemyActionValid({ cond: { kind: "switch", switchId: 9 } }, old as any)).toBe(true);
+  });
+});
+
+describe("turn-end troop pages (M3·C, MZ turnEnding)", () => {
+  const view = (atTurnEnd: boolean) => ({
+    turn: 2,
+    enemies: [{ hpPct: 40, alive: true }],
+    actors: [{ actorId: 1, hpPct: 100 }],
+    switches: {},
+    atTurnEnd,
+  });
+  it("a turnEnd-only cond fires only on the boundary check", () => {
+    expect(troopPageCondMet({ turnEnd: true }, view(false))).toBe(false);
+    expect(troopPageCondMet({ turnEnd: true }, view(true))).toBe(true);
+  });
+  it("ANDs with the other blocks like every RM condition box", () => {
+    const cond = { turnEnd: true, enemyHpBelow: { index: 0, pct: 50 } };
+    expect(troopPageCondMet(cond, view(false))).toBe(false); // mid-round: no
+    expect(troopPageCondMet(cond, view(true))).toBe(true);   // boundary + HP ✓
+    const highHp = { ...view(true), enemies: [{ hpPct: 90, alive: true }] };
+    expect(troopPageCondMet(cond, highHp)).toBe(false);
+  });
+  it("native pages (no turnEnd) are untouched by the flag", () => {
+    const cond = { turn: { a: 2, b: 0 } };
+    expect(troopPageCondMet(cond, view(false))).toBe(true);
+    expect(troopPageCondMet(cond, view(true))).toBe(true);
+  });
+  it("span 'battle' still fires once even when gated to boundaries", () => {
+    const [rt] = makeTroopPageRTs([{ cond: { turnEnd: true }, span: "battle", commands: [] }]);
+    expect(troopPageShouldFire(rt, view(false) as any)).toBe(false);
+    expect(troopPageShouldFire(rt, view(true) as any)).toBe(true);
+    expect(troopPageShouldFire(rt, view(true) as any)).toBe(false); // once per battle
+  });
+});

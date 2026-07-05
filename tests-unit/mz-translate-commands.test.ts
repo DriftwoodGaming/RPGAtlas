@@ -151,16 +151,16 @@ const SPEC: Row[] = [
   { code: 324, name: "Change Nickname", list: [c(324, [1, "N"])], expect: { first: "changeNickname" } },
   { code: 325, name: "Change Profile", list: [c(325, [1, "P"])], expect: { first: "changeProfile" } },
   { code: 326, name: "Change TP", list: [c(326, [0, 1, 0, 0, 10])], expect: { first: "changeTp" } },
-  // §8.12 enemy/battle in-troop
-  { code: 331, name: "Change Enemy HP", list: [c(331, [0, 0, 0, 20])], expect: { todo: 331 } },
-  { code: 332, name: "Change Enemy MP", list: [c(332, [0, 0, 0, 20])], expect: { todo: 332 } },
-  { code: 333, name: "Change Enemy State", list: [c(333, [0, 0, 1])], expect: { todo: 333 } },
-  { code: 334, name: "Enemy Recover All", list: [c(334, [0])], expect: { todo: 334 } },
-  { code: 335, name: "Enemy Appear", list: [c(335, [0])], expect: { todo: 335 } },
-  { code: 336, name: "Enemy Transform", list: [c(336, [0, 2])], expect: { todo: 336 } },
-  { code: 337, name: "Show Battle Animation", list: [c(337, [0, 0, 2])], expect: { todo: 337 } },
-  { code: 339, name: "Force Action", list: [c(339, [0, 0, 1, 0])], expect: { todo: 339 } },
-  { code: 340, name: "Abort Battle", list: [c(340)], expect: { todo: 340 } },
+  // §8.12 enemy/battle in-troop — all real since M3·C
+  { code: 331, name: "Change Enemy HP", list: [c(331, [0, 0, 0, 20])], expect: { first: "changeEnemyHp" } },
+  { code: 332, name: "Change Enemy MP", list: [c(332, [0, 0, 0, 20])], expect: { first: "changeEnemyMp" } },
+  { code: 333, name: "Change Enemy State", list: [c(333, [0, 0, 1])], expect: { first: "changeEnemyState" } },
+  { code: 334, name: "Enemy Recover All", list: [c(334, [0])], expect: { first: "enemyRecoverAll" } },
+  { code: 335, name: "Enemy Appear", list: [c(335, [0])], expect: { first: "enemyAppear" } },
+  { code: 336, name: "Enemy Transform", list: [c(336, [0, 2])], expect: { first: "enemyTransform" } },
+  { code: 337, name: "Show Battle Animation", list: [c(337, [0, 2, false])], expect: { first: "playAnim" } },
+  { code: 339, name: "Force Action", list: [c(339, [0, 0, 1, 0])], expect: { first: "forceAction" } },
+  { code: 340, name: "Abort Battle", list: [c(340)], expect: { first: "abortBattle" } },
   { code: 342, name: "Change Enemy TP", list: [c(342, [0, 0, 0, 10])], expect: { first: "changeEnemyTp" } },
   // §8.13 script / plugin
   { code: 355, name: "Script", list: [c(355, ["$gameSwitches.value(1)"])], expect: { todo: 355 } },
@@ -276,7 +276,7 @@ describe("real translations carry their fields (matrix §8)", () => {
   it("301 Battle Processing carries troop + escape/lose", () => {
     expect(t0([c(301, [0, 4, false, true])])).toEqual({ t: "battle", troopId: 4, escape: false, lose: true });
   });
-  it("301 + 601/602/603 battle-result branches → battle then mzTodo markers", () => {
+  it("301 + 601/602/603 battle-result branches fold onto the command (M3·C)", () => {
     const { cmds } = tr([
       c(301, [0, 1, true, true]),
       c(601), c(101, ["", 0, 0, 2, ""], 1), c(401, ["win"], 1), c(0, [], 1),
@@ -284,9 +284,27 @@ describe("real translations carry their fields (matrix §8)", () => {
       c(603), c(353, [], 1), c(0, [], 1),
       c(604),
     ]);
-    expect((cmds[0] as any).t).toBe("battle");
-    expect(cmds.slice(1).map((x: any) => x.t)).toEqual(["mzTodo", "mzTodo", "mzTodo"]);
-    expect(cmds.slice(1).map((x: any) => x.code)).toEqual([601, 602, 603]);
+    expect(cmds).toHaveLength(1);
+    const b = cmds[0] as any;
+    expect(b.t).toBe("battle");
+    expect(b.onWin.map((x: any) => x.t)).toEqual(["text"]);
+    expect(b.onEscape).toEqual([]);
+    expect(b.onLose.map((x: any) => x.t)).toEqual(["gameover"]);
+  });
+  it("331–340 in-troop enemy commands carry their fields (M3·C)", () => {
+    expect(t0([c(331, [0, 1, 0, 20, true])])).toEqual({ t: "changeEnemyHp", enemyIndex: 0, op: "sub", value: 20, allowKo: true });
+    expect(t0([c(331, [-1, 0, 0, 20])])).toMatchObject({ enemyIndex: -1, op: "add", allowKo: false });
+    expect((t0([c(331, [0, 0, 1, 5])]) as any).t).toBe("mzTodo"); // variable operand
+    expect(t0([c(332, [1, 0, 0, 15])])).toEqual({ t: "changeEnemyMp", enemyIndex: 1, op: "add", value: 15 });
+    expect(t0([c(333, [0, 1, 2])])).toEqual({ t: "changeEnemyState", enemyIndex: 0, op: "remove", stateId: 2 });
+    expect(t0([c(334, [-1])])).toEqual({ t: "enemyRecoverAll", enemyIndex: -1 });
+    expect(t0([c(335, [2])])).toEqual({ t: "enemyAppear", enemyIndex: 2 });
+    expect(t0([c(336, [0, 2])])).toEqual({ t: "enemyTransform", enemyIndex: 0, enemyId: 2 });
+    expect(t0([c(337, [0, 2, false])])).toEqual({ t: "playAnim", animationId: 2, target: "enemy", enemyIndex: 0, wait: true });
+    expect(t0([c(337, [0, 2, true])])).toMatchObject({ enemyIndex: -1 }); // MZ targetAll
+    expect(t0([c(339, [1, 2, 3, -1])])).toEqual({ t: "forceAction", side: "actor", index: 2, skillId: 3, target: -1 });
+    expect(t0([c(339, [0, 1, 0, 0])])).toMatchObject({ side: "enemy", index: 1, skillId: 0 });
+    expect(t0([c(340)])).toEqual({ t: "abortBattle" });
   });
   it("302 Shop gathers 302 + 605 goods", () => {
     const cmd = t0([c(302, [0, 1, 0, 0]), c(605, [1, 2, 0, 0]), c(605, [2, 3, 0, 0])]) as any;
@@ -466,21 +484,21 @@ describe("message escape codes pass through verbatim (matrix §13)", () => {
 // mzTodo shape (decision D3).
 // ============================================================================
 describe("mzTodo placeholder shape (D3)", () => {
-  // Codes 331 (Change Enemy HP) / 332 (Change Enemy MP) stay mzTodo until M3·C,
-  // so they still exercise the shape (313/315–325 flipped to real commands in
-  // M2·C alongside 103/104/303 from M2·B).
+  // Codes 202 (Set Vehicle Location) / 203 (Set Event Location) stay mzTodo
+  // until M4·A, so they still exercise the shape (331–340 flipped to real
+  // commands in M3·C, like 313/315–325 did in M2·C).
   it("preserves the raw code + params and carries a friendly label", () => {
-    const cmd = t0([c(331, [0, 0, 0, 20])]) as any;
-    expect(cmd).toMatchObject({ t: "mzTodo", code: 331 });
-    expect(cmd.params).toEqual([0, 0, 0, 20]);
+    const cmd = t0([c(203, [1, 0, 2, 2])]) as any;
+    expect(cmd).toMatchObject({ t: "mzTodo", code: 203 });
+    expect(cmd.params).toEqual([1, 0, 2, 2]);
     expect(typeof cmd.label).toBe("string");
     expect(cmd.label.length).toBeGreaterThan(0);
   });
   it("aggregates repeats into one report line (D11) with the raw code", () => {
-    const { report } = tr([c(331, []), c(331, []), c(332, [])]);
-    const state = report.lines.find((l) => l.code === 331);
+    const { report } = tr([c(203, []), c(203, []), c(202, [])]);
+    const state = report.lines.find((l) => l.code === 203);
     expect(state?.count).toBe(2);
-    expect(report.lines.find((l) => l.code === 332)?.count).toBe(1);
+    expect(report.lines.find((l) => l.code === 202)?.count).toBe(1);
   });
 });
 
@@ -561,11 +579,15 @@ describe("fixture round-trip: MZ 'Cove Test' events (matrix §2/§8)", () => {
     expect((rain.commands[1] as any).code).toBe(355);
   });
 
-  it("troop battle-event pages translate (text now; 337/331 → mzTodo M3·C)", () => {
+  it("troop battle-event pages translate for real (M3·C: 337/331/335 + turnEnd + hidden)", () => {
     const troop = byId(mz.db.troops, 1);
     expect(troop.pages[0].commands[0]).toMatchObject({ t: "text" });
-    expect(troop.pages[1].commands.map((x: any) => x.t)).toEqual(["mzTodo", "mzTodo"]);
-    expect(troop.pages[1].commands.map((x: any) => x.code)).toEqual([337, 331]);
+    expect(troop.pages[1].commands.map((x: any) => x.t)).toEqual(["playAnim", "changeEnemyHp", "enemyAppear"]);
+    expect(troop.pages[1].commands[0]).toMatchObject({ target: "enemy", enemyIndex: 0, animationId: 2 });
+    expect(troop.pages[1].commands[1]).toMatchObject({ enemyIndex: 0, op: "add", value: 20 });
+    expect(troop.pages[1].commands[2]).toMatchObject({ enemyIndex: 2 });
+    expect(troop.pages[1].cond.turnEnd).toBe(true);
+    expect(troop.hiddenSlots).toEqual([2]); // the Crab joins mid-battle
   });
 
   it("Harbor map events convert (Finn dialog, Chest, ToCave transfer)", () => {
@@ -595,12 +617,17 @@ describe("fixture round-trip: MZ 'Cove Test' events (matrix §2/§8)", () => {
     expect((sign.pages[0].commands[0] as any).name).toMatch(/^asset:pictures\//);
   });
 
-  it("Cave Ambush event: battle + result-branch placeholders + script", () => {
+  it("Cave Ambush event: battle with real result branches + script (M3·C)", () => {
     const cave = byId(mz.maps, 2);
     const ambush = byId(cave.events, 2);
-    const ts = ambush.pages[0].commands.map((x: any) => x.t);
-    expect(ts[0]).toBe("battle");
-    expect(ts.filter((x: string) => x === "mzTodo").length).toBe(4); // 601,602,603 + script 355
+    const cmds = ambush.pages[0].commands as any[];
+    expect(cmds.map((x) => x.t)).toEqual(["battle", "mzTodo"]); // the script stays M5·B
+    const b = cmds[0];
+    expect(b).toMatchObject({ troopId: 1, escape: true, lose: true });
+    expect(b.onWin.map((x: any) => x.t)).toEqual(["text", "item"]);
+    expect(b.onWin[1]).toMatchObject({ kind: "item", id: 3, op: "add", val: 1 });
+    expect(b.onEscape).toEqual([]);
+    expect(b.onLose.map((x: any) => x.t)).toEqual(["gameover"]);
   });
 
   it("MV plugin command 356 and MZ 357 both become mzTodo", () => {

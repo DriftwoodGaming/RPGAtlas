@@ -50,10 +50,18 @@ const RA = {
     { v: "attackTimes", l: "Extra attack hits % (100 = +1)" },
     { v: "attackSkill", l: "Attack uses a skill" },
     { v: "actionTimes", l: "Extra action chance %" },
-    { v: "autoBattle", l: "Fights automatically (soon)" },
+    { v: "autoBattle", l: "Fights automatically" },
     { v: "guardFlag", l: "Always guarding" },
-    { v: "substitute", l: "Covers weak allies (soon)" },
+    { v: "substitute", l: "Covers weak allies" },
     { v: "preserveTp", l: "Keeps TP between battles" },
+    // Project Compass M3·C — party abilities (any party member carrying one
+    // grants it to the whole party, like RPG Maker's trait 64).
+    { v: "encounterHalf", l: "Party: half as many random battles" },
+    { v: "encounterNone", l: "Party: no random battles" },
+    { v: "cancelSurprise", l: "Party: never surprised" },
+    { v: "raisePreemptive", l: "Party: more first strikes" },
+    { v: "goldDouble", l: "Party: double gold from battles" },
+    { v: "dropDouble", l: "Party: double item drops" },
   ],
   // Default category names seeded into proj.system.types (the Database ▸ Types tab).
   WEAPON_TYPE_NAMES: ["Dagger", "Sword", "Axe", "Spear", "Bow", "Staff", "Wand", "Claw"],

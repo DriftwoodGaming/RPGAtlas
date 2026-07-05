@@ -53,20 +53,8 @@ const TODO: Record<number, TodoInfo> = {
   283: { what: "changing the battle background", detail: "custom battle backgrounds arrive in a later update (M4·A)" },
   284: { what: "changing the parallax", detail: "scrolling background pictures arrive in a later update (M4·A)" },
   323: { what: "changing a vehicle's picture", detail: "swapping a vehicle's sprite arrives in a later update (M4·A)" },
-  331: { what: "changing an enemy's HP", detail: "in-battle enemy commands arrive in a later update (M3·C)" },
-  332: { what: "changing an enemy's MP", detail: "in-battle enemy commands arrive in a later update (M3·C)" },
-  333: { what: "changing an enemy's status", detail: "in-battle enemy commands arrive in a later update (M3·C)" },
-  334: { what: "fully healing an enemy", detail: "in-battle enemy commands arrive in a later update (M3·C)" },
-  335: { what: "making an enemy appear", detail: "hidden enemies joining mid-battle arrive in a later update (M3·C)" },
-  336: { what: "transforming an enemy", detail: "enemy transformations arrive in a later update (M3·C)" },
-  337: { what: "a battle animation on an enemy", detail: "in-battle animations arrive in a later update (M3·C)" },
-  339: { what: "forcing a battle action", detail: "forced battle actions arrive in a later update (M3·C)" },
-  340: { what: "ending the battle early", detail: "aborting a battle arrives in a later update (M3·C)" },
   356: { what: "a plugin command", detail: "plugin commands are listed in the import report, not run (M5·A)" },
   357: { what: "a plugin command", detail: "plugin commands are listed in the import report, not run (M5·A)" },
-  601: { what: "what happens if you win the battle", detail: "battle win/lose branches arrive in a later update (M3·C)" },
-  602: { what: "what happens if you flee the battle", detail: "battle win/lose branches arrive in a later update (M3·C)" },
-  603: { what: "what happens if you lose the battle", detail: "battle win/lose branches arrive in a later update (M3·C)" },
 };
 
 // Codes that are an intentional skip (`−`, matrix §16): dropped with a friendly
@@ -213,7 +201,7 @@ class Translator {
       case 242: out.push({ t: "music", theme: "none", fadeMs: (num(p[0]) || 0) * 1000 }); return;
       case 250: { const k = audioKey(p[0]); if (k) out.push({ t: "se", name: k }); return; }
       // ---- §8.10 scene control ----
-      case 301: this.battle(c, out); return;
+      case 301: this.battle(c, out, indent); return;
       case 302: out.push(this.shop(c, indent)); return;
       case 303: out.push({ t: "nameInput", actorId: num(p[0]), maxChars: clampN(num(p[1]) || 8, 1, 16) }); return;
       case 352: out.push({ t: "save" }); return;
@@ -239,9 +227,30 @@ class Translator {
         if (num(p[2]) !== 0) { this.changeActorVarValue(c, out); return; }
         out.push({ t: "changeEnemyTp", enemyIndex: num(p[0]), op: num(p[1]) === 1 ? "sub" : "add", value: num(p[3]) });
         return;
-      // ---- §8.10 battle-result branch openers (siblings after 301) ----
-      case 601: case 602: case 603:
-        out.push(this.todoCmd(c)); this.branchThen(indent); return; // consume+discard the branch body (M3·C)
+      // ---- §8.12 in-troop enemy commands (M3·C) ----
+      case 331: // Change Enemy HP: [index, op, operandType, operand, allowKo].
+        if (num(p[2]) !== 0) { this.changeActorVarValue(c, out); return; }
+        out.push({ t: "changeEnemyHp", enemyIndex: num(p[0]), op: num(p[1]) === 1 ? "sub" : "add", value: num(p[3]), allowKo: !!p[4] });
+        return;
+      case 332: // Change Enemy MP: [index, op, operandType, operand].
+        if (num(p[2]) !== 0) { this.changeActorVarValue(c, out); return; }
+        out.push({ t: "changeEnemyMp", enemyIndex: num(p[0]), op: num(p[1]) === 1 ? "sub" : "add", value: num(p[3]) });
+        return;
+      case 333: out.push({ t: "changeEnemyState", enemyIndex: num(p[0]), op: num(p[1]) === 1 ? "remove" : "add", stateId: num(p[2]) }); return;
+      case 334: out.push({ t: "enemyRecoverAll", enemyIndex: num(p[0]) }); return;
+      case 335: out.push({ t: "enemyAppear", enemyIndex: num(p[0]) }); return;
+      case 336: out.push({ t: "enemyTransform", enemyIndex: num(p[0]), enemyId: num(p[1]) }); return;
+      case 337: // MZ's targetAll flag (p[2]) folds into index −1 (whole troop).
+        out.push({ t: "playAnim", animationId: num(p[1]), target: "enemy", enemyIndex: p[2] === true ? -1 : num(p[0]), wait: true });
+        return;
+      case 339: // Force Action: [desig 0 enemy/1 actor, index-or-actorId, skillId, target].
+        out.push({ t: "forceAction", side: num(p[0]) === 1 ? "actor" : "enemy", index: num(p[1]), skillId: num(p[2]), target: num(p[3]) });
+        return;
+      case 340: out.push({ t: "abortBattle" }); return;
+      // ---- §8.10 battle-result branch openers ----
+      // 601/602/603 are consumed by battle() right after a 301; ones that
+      // appear orphaned (hand-broken lists) skip their body structurally.
+      case 601: case 602: case 603: this.branchThen(indent); return;
       case 604: return; // structural: end battle branches
       // ---- §8.13 script ----
       case 355: this.script(c, out); return;
@@ -408,10 +417,22 @@ class Translator {
   }
 
   // -- §8.10 scene control -------------------------------------------------
-  private battle(c: RmCommand, out: AnyCommand[]): void {
+  /** 301 Battle Processing. Trailing 601/602/603 siblings (M3·C) fold their
+   *  bodies into the command's onWin/onEscape/onLose; 604 closes the set. A
+   *  variable-chosen troop still mzTodos — its branch bodies are consumed by
+   *  the 601–603 dispatch fallback (structurally skipped, reported once). */
+  private battle(c: RmCommand, out: AnyCommand[], indent: number): void {
     const p = (c.parameters as any[]) || [];
     if (num(p[0]) !== 0) { this.bump("cmd-battle-var", "todo", "a battle chosen by a variable", "battles whose troop is chosen at random or by a variable arrive in a later update", 301); out.push({ t: "mzTodo", code: 301, params: p, label: "Battle chosen by a variable — coming in a later update" }); return; }
-    out.push({ t: "battle", troopId: num(p[1]), escape: !!p[2], lose: !!p[3] });
+    const cmd: AnyCommand = { t: "battle", troopId: num(p[1]), escape: !!p[2], lose: !!p[3] };
+    for (;;) {
+      if (this.at(601, indent)) { this.i++; (cmd as any).onWin = this.branchThen(indent); }
+      else if (this.at(602, indent)) { this.i++; (cmd as any).onEscape = this.branchThen(indent); }
+      else if (this.at(603, indent)) { this.i++; (cmd as any).onLose = this.branchThen(indent); }
+      else if (this.at(604, indent)) { this.i++; break; }
+      else break;
+    }
+    out.push(cmd);
   }
   private shop(c: RmCommand, indent: number): AnyCommand {
     const goods: { kind: "item" | "weapon" | "armor"; id: number }[] = [];
