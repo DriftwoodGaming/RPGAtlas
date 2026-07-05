@@ -1,0 +1,63 @@
+[
+  null,
+  {
+    "id": 1,
+    "name": "Leather Vest",
+    "iconIndex": 128,
+    "description": "",
+    "atypeId": 1,
+    "etypeId": 4,
+    "price": 200,
+    "params": [0,0,0,8,0,2,0,0],
+    "traits": [
+      {
+        "code": 21,
+        "dataId": 3,
+        "value": 1.05
+      }
+    ],
+    "note": ""
+  },
+  {
+    "id": 2,
+    "name": "Wooden Shield",
+    "iconIndex": 129,
+    "description": "",
+    "atypeId": 1,
+    "etypeId": 2,
+    "price": 90,
+    "params": [0,0,0,5,0,0,0,0],
+    "traits": [],
+    "note": ""
+  },
+  {
+    "id": 3,
+    "name": "Sailor's Charm",
+    "iconIndex": 162,
+    "description": "",
+    "atypeId": 2,
+    "etypeId": 5,
+    "price": 150,
+    "params": [30,10,0,0,2,2,0,0],
+    "traits": [
+      {
+        "code": 22,
+        "dataId": 2,
+        "value": 0.05
+      }
+    ],
+    "note": ""
+  },
+  {
+    "id": 4,
+    "name": "Cap",
+    "iconIndex": 135,
+    "description": "",
+    "atypeId": 1,
+    "etypeId": 3,
+    "price": 60,
+    "params": [0,0,0,3,0,1,0,0],
+    "traits": [],
+    "note": ""
+  }
+]

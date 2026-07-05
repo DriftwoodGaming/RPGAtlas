@@ -1,0 +1,638 @@
+{
+  "autoplayBgm": true,
+  "autoplayBgs": false,
+  "battleback1Name": "",
+  "battleback2Name": "",
+  "bgm": {
+    "name": "Harbor",
+    "pan": 0,
+    "pitch": 100,
+    "volume": 90
+  },
+  "bgs": {
+    "name": "",
+    "pan": 0,
+    "pitch": 100,
+    "volume": 90
+  },
+  "disableDashing": false,
+  "displayName": "Harbor Town",
+  "encounterList": [
+    {
+      "troopId": 1,
+      "weight": 10,
+      "regionSet": [1,5]
+    }
+  ],
+  "encounterStep": 30,
+  "height": 10,
+  "note": "<Region1: safe zone>",
+  "parallaxLoopX": false,
+  "parallaxLoopY": false,
+  "parallaxName": "Sea",
+  "parallaxShow": true,
+  "parallaxSx": 0,
+  "parallaxSy": 0,
+  "scrollType": 0,
+  "specifyBattleback": false,
+  "tilesetId": 1,
+  "width": 12,
+  "data": [2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,1536,1536,1540,1536,1536,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2816,2048,2048,2048,2048,2048,2048,2816,2816,2816,2816,2816,2816,2048,2048,2048,2048,2048,2048,2816,2816,2816,2816,2816,2816,2816,2048,2048,2816,2048,2048,2816,2816,2816,2816,2816,2816,2816,2048,2048,2048,2048,2048,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,32,0,0,0,0,0,16,0,0,0,0,0,0,0,0,0,0,0,0,0,16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,5,64,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  "events": [
+    null,
+    {
+      "id": 1,
+      "name": "Finn",
+      "x": 5,
+      "y": 4,
+      "pages": [
+        {
+          "conditions": {
+            "actorId": 1,
+            "actorValid": false,
+            "itemId": 1,
+            "itemValid": false,
+            "selfSwitchCh": "A",
+            "selfSwitchValid": false,
+            "switch1Id": 1,
+            "switch1Valid": false,
+            "switch2Id": 1,
+            "switch2Valid": false,
+            "variableId": 1,
+            "variableValid": false,
+            "variableValue": 0
+          },
+          "image": {
+            "tileId": 0,
+            "characterName": "People",
+            "characterIndex": 1,
+            "direction": 2,
+            "pattern": 1
+          },
+          "moveType": 1,
+          "moveSpeed": 3,
+          "moveFrequency": 3,
+          "moveRoute": {
+            "list": [
+              {
+                "code": 0,
+                "parameters": []
+              }
+            ],
+            "repeat": true,
+            "skippable": false,
+            "wait": false
+          },
+          "walkAnime": true,
+          "stepAnime": false,
+          "directionFix": false,
+          "through": false,
+          "priorityType": 1,
+          "trigger": 0,
+          "list": [
+            {
+              "code": 101,
+              "indent": 0,
+              "parameters": [
+                "People",
+                1,
+                0,
+                2
+              ]
+            },
+            {
+              "code": 401,
+              "indent": 0,
+              "parameters": [
+                "\\N[1]: Ahoy, \\N[2]! The \\C[2]fire\\C[0] gem \\I[64]"
+              ]
+            },
+            {
+              "code": 401,
+              "indent": 0,
+              "parameters": [
+                "is worth \\V[1] \\G."
+              ]
+            },
+            {
+              "code": 102,
+              "indent": 0,
+              "parameters": [
+                [
+                  "Help out",
+                  "Not now"
+                ],
+                1
+              ]
+            },
+            {
+              "code": 402,
+              "indent": 0,
+              "parameters": [
+                0,
+                "Help out"
+              ]
+            },
+            {
+              "code": 121,
+              "indent": 1,
+              "parameters": [3,3,0]
+            },
+            {
+              "code": 0,
+              "indent": 1,
+              "parameters": []
+            },
+            {
+              "code": 402,
+              "indent": 0,
+              "parameters": [
+                1,
+                "Not now"
+              ]
+            },
+            {
+              "code": 0,
+              "indent": 1,
+              "parameters": []
+            },
+            {
+              "code": 404,
+              "indent": 0,
+              "parameters": []
+            },
+            {
+              "code": 117,
+              "indent": 0,
+              "parameters": [1]
+            },
+            {
+              "code": 0,
+              "indent": 0,
+              "parameters": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Chest",
+      "x": 8,
+      "y": 2,
+      "pages": [
+        {
+          "conditions": {
+            "actorId": 1,
+            "actorValid": false,
+            "itemId": 1,
+            "itemValid": false,
+            "selfSwitchCh": "A",
+            "selfSwitchValid": false,
+            "switch1Id": 1,
+            "switch1Valid": false,
+            "switch2Id": 1,
+            "switch2Valid": false,
+            "variableId": 1,
+            "variableValid": false,
+            "variableValue": 0
+          },
+          "image": {
+            "tileId": 0,
+            "characterName": "!Chest",
+            "characterIndex": 0,
+            "direction": 2,
+            "pattern": 1
+          },
+          "moveType": 0,
+          "moveSpeed": 3,
+          "moveFrequency": 3,
+          "moveRoute": {
+            "list": [
+              {
+                "code": 0,
+                "parameters": []
+              }
+            ],
+            "repeat": true,
+            "skippable": false,
+            "wait": false
+          },
+          "walkAnime": true,
+          "stepAnime": false,
+          "directionFix": false,
+          "through": false,
+          "priorityType": 0,
+          "trigger": 0,
+          "list": [
+            {
+              "code": 125,
+              "indent": 0,
+              "parameters": [0,0,0,100]
+            },
+            {
+              "code": 250,
+              "indent": 0,
+              "parameters": [
+                {
+                  "name": "Chest",
+                  "volume": 90,
+                  "pitch": 100,
+                  "pan": 0
+                }
+              ]
+            },
+            {
+              "code": 123,
+              "indent": 0,
+              "parameters": [
+                "A",
+                0
+              ]
+            },
+            {
+              "code": 0,
+              "indent": 0,
+              "parameters": []
+            }
+          ]
+        },
+        {
+          "conditions": {
+            "actorId": 1,
+            "actorValid": false,
+            "itemId": 1,
+            "itemValid": false,
+            "selfSwitchCh": "A",
+            "selfSwitchValid": true,
+            "switch1Id": 1,
+            "switch1Valid": false,
+            "switch2Id": 1,
+            "switch2Valid": false,
+            "variableId": 1,
+            "variableValid": false,
+            "variableValue": 0
+          },
+          "image": {
+            "tileId": 0,
+            "characterName": "!Chest",
+            "characterIndex": 0,
+            "direction": 2,
+            "pattern": 0
+          },
+          "moveType": 0,
+          "moveSpeed": 3,
+          "moveFrequency": 3,
+          "moveRoute": {
+            "list": [
+              {
+                "code": 0,
+                "parameters": []
+              }
+            ],
+            "repeat": true,
+            "skippable": false,
+            "wait": false
+          },
+          "walkAnime": true,
+          "stepAnime": false,
+          "directionFix": false,
+          "through": false,
+          "priorityType": 0,
+          "trigger": 0,
+          "list": [
+            {
+              "code": 101,
+              "indent": 0,
+              "parameters": [
+                "",
+                0,
+                0,
+                2
+              ]
+            },
+            {
+              "code": 401,
+              "indent": 0,
+              "parameters": [
+                "It's empty now."
+              ]
+            },
+            {
+              "code": 0,
+              "indent": 0,
+              "parameters": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Sign",
+      "x": 3,
+      "y": 6,
+      "pages": [
+        {
+          "conditions": {
+            "actorId": 1,
+            "actorValid": false,
+            "itemId": 1,
+            "itemValid": false,
+            "selfSwitchCh": "A",
+            "selfSwitchValid": false,
+            "switch1Id": 1,
+            "switch1Valid": false,
+            "switch2Id": 1,
+            "switch2Valid": false,
+            "variableId": 1,
+            "variableValid": false,
+            "variableValue": 0
+          },
+          "image": {
+            "tileId": 0,
+            "characterName": "",
+            "characterIndex": 0,
+            "direction": 2,
+            "pattern": 1
+          },
+          "moveType": 0,
+          "moveSpeed": 3,
+          "moveFrequency": 3,
+          "moveRoute": {
+            "list": [
+              {
+                "code": 0,
+                "parameters": []
+              }
+            ],
+            "repeat": true,
+            "skippable": false,
+            "wait": false
+          },
+          "walkAnime": true,
+          "stepAnime": false,
+          "directionFix": false,
+          "through": false,
+          "priorityType": 1,
+          "trigger": 0,
+          "list": [
+            {
+              "code": 231,
+              "indent": 0,
+              "parameters": [
+                1,
+                "Sign",
+                0,
+                0,
+                240,
+                180,
+                100,
+                100,
+                255,
+                0
+              ]
+            },
+            {
+              "code": 230,
+              "indent": 0,
+              "parameters": [60]
+            },
+            {
+              "code": 235,
+              "indent": 0,
+              "parameters": [1]
+            },
+            {
+              "code": 0,
+              "indent": 0,
+              "parameters": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "ToCave",
+      "x": 6,
+      "y": 0,
+      "pages": [
+        {
+          "conditions": {
+            "actorId": 1,
+            "actorValid": false,
+            "itemId": 1,
+            "itemValid": false,
+            "selfSwitchCh": "A",
+            "selfSwitchValid": false,
+            "switch1Id": 1,
+            "switch1Valid": false,
+            "switch2Id": 1,
+            "switch2Valid": false,
+            "variableId": 1,
+            "variableValid": false,
+            "variableValue": 0
+          },
+          "image": {
+            "tileId": 0,
+            "characterName": "",
+            "characterIndex": 0,
+            "direction": 2,
+            "pattern": 1
+          },
+          "moveType": 0,
+          "moveSpeed": 3,
+          "moveFrequency": 3,
+          "moveRoute": {
+            "list": [
+              {
+                "code": 0,
+                "parameters": []
+              }
+            ],
+            "repeat": true,
+            "skippable": false,
+            "wait": false
+          },
+          "walkAnime": true,
+          "stepAnime": false,
+          "directionFix": false,
+          "through": false,
+          "priorityType": 1,
+          "trigger": 1,
+          "list": [
+            {
+              "code": 201,
+              "indent": 0,
+              "parameters": [0,2,4,4,2,0]
+            },
+            {
+              "code": 0,
+              "indent": 0,
+              "parameters": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Mover",
+      "x": 10,
+      "y": 8,
+      "pages": [
+        {
+          "conditions": {
+            "actorId": 1,
+            "actorValid": false,
+            "itemId": 1,
+            "itemValid": false,
+            "selfSwitchCh": "A",
+            "selfSwitchValid": false,
+            "switch1Id": 1,
+            "switch1Valid": false,
+            "switch2Id": 1,
+            "switch2Valid": false,
+            "variableId": 1,
+            "variableValid": false,
+            "variableValue": 0
+          },
+          "image": {
+            "tileId": 0,
+            "characterName": "People",
+            "characterIndex": 2,
+            "direction": 2,
+            "pattern": 1
+          },
+          "moveType": 3,
+          "moveSpeed": 3,
+          "moveFrequency": 3,
+          "moveRoute": {
+            "repeat": true,
+            "skippable": true,
+            "wait": false,
+            "list": [
+              {
+                "code": 1,
+                "parameters": []
+              },
+              {
+                "code": 14,
+                "parameters": []
+              },
+              {
+                "code": 5,
+                "parameters": []
+              },
+              {
+                "code": 29,
+                "parameters": [3]
+              },
+              {
+                "code": 44,
+                "parameters": [
+                  {
+                    "name": "Step",
+                    "volume": 90,
+                    "pitch": 100,
+                    "pan": 0
+                  }
+                ]
+              },
+              {
+                "code": 45,
+                "parameters": [
+                  "this.setThrough(true);"
+                ]
+              },
+              {
+                "code": 0,
+                "parameters": []
+              }
+            ]
+          },
+          "walkAnime": true,
+          "stepAnime": false,
+          "directionFix": false,
+          "through": false,
+          "priorityType": 1,
+          "trigger": 4,
+          "list": [
+            {
+              "code": 0,
+              "indent": 0,
+              "parameters": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Banner",
+      "x": 0,
+      "y": 9,
+      "pages": [
+        {
+          "conditions": {
+            "actorId": 1,
+            "actorValid": false,
+            "itemId": 1,
+            "itemValid": false,
+            "selfSwitchCh": "A",
+            "selfSwitchValid": false,
+            "switch1Id": 1,
+            "switch1Valid": false,
+            "switch2Id": 1,
+            "switch2Valid": false,
+            "variableId": 1,
+            "variableValid": false,
+            "variableValue": 0
+          },
+          "image": {
+            "tileId": 0,
+            "characterName": "",
+            "characterIndex": 0,
+            "direction": 2,
+            "pattern": 1
+          },
+          "moveType": 0,
+          "moveSpeed": 3,
+          "moveFrequency": 3,
+          "moveRoute": {
+            "list": [
+              {
+                "code": 0,
+                "parameters": []
+              }
+            ],
+            "repeat": true,
+            "skippable": false,
+            "wait": false
+          },
+          "walkAnime": true,
+          "stepAnime": false,
+          "directionFix": false,
+          "through": false,
+          "priorityType": 0,
+          "trigger": 4,
+          "list": [
+            {
+              "code": 356,
+              "indent": 0,
+              "parameters": [
+                "CoveText showBanner Hello from MV"
+              ]
+            },
+            {
+              "code": 0,
+              "indent": 0,
+              "parameters": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

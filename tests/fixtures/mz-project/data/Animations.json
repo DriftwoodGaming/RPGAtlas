@@ -1,0 +1,67 @@
+[
+  null,
+  {
+    "id": 1,
+    "name": "Heal",
+    "displayType": 0,
+    "effectName": "Heal",
+    "flashTimings": [
+      {
+        "frame": 0,
+        "duration": 5,
+        "color": [255,255,255,170]
+      }
+    ],
+    "soundTimings": [
+      {
+        "frame": 0,
+        "se": {
+          "name": "Heal",
+          "volume": 90,
+          "pitch": 100,
+          "pan": 0
+        }
+      }
+    ],
+    "offsetX": 0,
+    "offsetY": 0,
+    "rotation": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "scale": 100,
+    "speed": 100,
+    "alignBottom": false,
+    "quakePower": 0
+  },
+  {
+    "id": 2,
+    "name": "Fire",
+    "displayType": 0,
+    "effectName": "Fire",
+    "flashTimings": [],
+    "soundTimings": [
+      {
+        "frame": 2,
+        "se": {
+          "name": "Fire",
+          "volume": 90,
+          "pitch": 100,
+          "pan": 0
+        }
+      }
+    ],
+    "offsetX": 0,
+    "offsetY": 0,
+    "rotation": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "scale": 100,
+    "speed": 100,
+    "alignBottom": false,
+    "quakePower": 3
+  }
+]

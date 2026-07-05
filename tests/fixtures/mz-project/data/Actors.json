@@ -1,0 +1,43 @@
+[
+  null,
+  {
+    "id": 1,
+    "name": "Mara",
+    "nickname": "the Wanderer",
+    "classId": 1,
+    "initialLevel": 3,
+    "maxLevel": 99,
+    "characterName": "People",
+    "characterIndex": 0,
+    "faceName": "People",
+    "faceIndex": 0,
+    "battlerName": "Mara_SV",
+    "equips": [1,1,0,2,3],
+    "traits": [
+      {
+        "code": 11,
+        "dataId": 2,
+        "value": 0.5
+      }
+    ],
+    "profile": "A sailor a long way from home.",
+    "note": ""
+  },
+  {
+    "id": 2,
+    "name": "Finn",
+    "nickname": "",
+    "classId": 2,
+    "initialLevel": 2,
+    "maxLevel": 50,
+    "characterName": "People",
+    "characterIndex": 1,
+    "faceName": "People",
+    "faceIndex": 1,
+    "battlerName": "Finn_SV",
+    "equips": [2,4,0,0,0],
+    "traits": [],
+    "profile": "",
+    "note": ""
+  }
+]

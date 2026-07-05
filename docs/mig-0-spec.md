@@ -1,8 +1,9 @@
 # Phase M0 Spec — Parity audit & conversion contract ("Project Compass")
 
-**Status:** IN PROGRESS — Step A (parity matrix) landed 2026-07-04. Stage log accumulates
-below (phase-N-spec style) as steps land. Next: M0·B (fixtures + decision log), then M0·C
-(Fable contract gate, tags `mig-0`).
+**Status:** IN PROGRESS — Steps A (parity matrix) + B (fixtures + decision log) landed
+2026-07-04. Stage log accumulates below (phase-N-spec style) as steps land. Next: M0·C
+(Fable contract gate — signs the decision log, applies matrix amendments incl. the §11 bit
+correction D10, tags `mig-0`).
 **Authored:** 2026-07-04 by Claude Opus 4.8 (High), from the M0 section of
 `docs/MZ_MV_MIGRATION_ROADMAP.md`.
 **Branch (per step):** `mig-0a`, `mig-0b`, `mig-0c` — each merges to `main` (locked
@@ -51,34 +52,126 @@ one assertion per MZ code.
 
 ## Decision log
 
-*(Populated in M0·B; signed by Fable in M0·C. Placeholders below record the questions M0·B
-must answer and the matrix's provisional expectations so M1+ isn't blocked.)*
+*Finalized in M0·B (2026-07-04). Each entry is a call M1+ builds against; the **M0·C Fable
+gate signs (or amends) this list**. "Signed:" lines are filled at the gate. Decisions are
+grounded against `main` @ `b30d5bc` and the fixtures in `tests/fixtures/{mv,mz}-project/`.*
 
-- **Formula-evaluator sandbox** (M3·A) — *TBD in M0·B.* Provisional: a restricted expression
-  evaluator over `a`/`b`/`v[n]`/`Math`, **no `Function`/`eval` on arbitrary strings**,
-  consistent with the existing `script` command's sandbox policy (`src/engine/script-api.ts`).
-  Formula strings stored verbatim in a new optional `Skill.formula` field at import.
-- **FORMAT_VERSION stance** — remains **2**. All migration features are additive optional
-  fields (`Skill.formula`, `Enemy.drops[]`, `mzTodo` command, TP fields, tile-behavior flags,
-  etc.). No breaking need identified in M0·A → no FORMAT_VERSION 3 proposed. *Confirm at gate.*
-- **`mzTodo` command shape** — provisional `{ t: "mzTodo", code: number, params: any[],
-  label: string }`; additive to `AnyCommand`, friendly yellow-note render in the event editor,
-  engine no-op, one report line. *Finalize in M0·B.*
-- **Effekseer stance** (M4·B) — skip the `.efkefc` particle file (`−`), auto-fallback to the
-  nearest Atlas `BattleAnimation` by name/element heuristic, emit a report line. *Confirm.*
-- **Script-command adapter scope** (M5·B) — minimal **read-only** shim:
-  `$gameSwitches.value(n)`, `$gameVariables.value(n)`, `$gameParty` basics; everything beyond
-  → `mzTodo` + report. Sandbox rules identical to the Atlas `script` command. *Final call at
-  gate.*
-- **Actor/weapon/armor/enemy/state traits → Atlas** — Atlas carries `Trait[]` on `ClassDef`
-  only. M0·A provisionally **merges** non-class traits onto the effective battler at import
-  with a report line; M0·B decides whether to (a) merge onto the actor's class, (b) synthesize
-  a per-actor hidden class, or (c) report-only for actor-level traits. *Decide in M0·B.*
-- **`luk` param** — **locked skip** (`−`). No Atlas home; dropped from class curves, equip
-  params, enemy stats, and param traits with one aggregated report line.
-- **MapInfos nesting → Atlas folders** — MZ maps nest under parent *maps*; Atlas nests maps
-  under `MapFolder`s. Importer synthesizes a folder per parent map (or maps parent→`folderId`).
-  *Finalize the exact scheme in M1·B; recorded here for the gate.*
+### D1 — Formula-evaluator sandbox (M3·A)
+**Decision:** a **purpose-built restricted-AST evaluator**, *not* `new Function`/`eval`. A tiny
+recursive-descent parser accepts only: numeric/parenthesized expressions; `+ - * / %`, unary
+minus, comparison + ternary operators; a **whitelisted** `Math.{min,max,floor,ceil,round,abs,
+pow,sqrt,randomInt}`; and the identifiers `a`, `b`, `v` bound to **read-only facades**
+(`a`/`b` → battler stat getters `atk/def/mat/mdf/agi/mhp/mmp/hp/mp/level`; `v[n]` → game
+variables). No assignment, no statements, no member access outside the facade whitelist, no
+function definitions. Unknown identifier/property → **reject at import, keep as `mzTodo` +
+report** (never silently zero).
+**Why stricter than the `script` command:** `src/engine/script-api.ts` hands plugins/`script`
+a curated `game` surface via `new Function(...)`, trusting *project-author* code. Damage
+formulas are bulk data lifted from a **foreign** project — executing them as code is a
+different trust boundary, so formulas get parsed, never executed. This is consistent with the
+`script`-command *policy* (curated read-only surface, no ambient globals) while being tighter
+on the mechanism.
+**Storage:** formula string stored **verbatim** at import in a new optional `formula?: string`
+on the damage-bearing DB records (`Skill`, `Item`). Structured `power`/`hp`/`mp` stay as the
+fallback for simple cases; `formula` wins when present (M3·A). Fixtures: `Skills[1/2/3].damage.
+formula`, `Items[1/2].damage.formula`.
+**Signed:** ______ (Fable, M0·C)
+
+### D2 — FORMAT_VERSION stance
+**Decision:** stays **2**. Verified `RA.FORMAT_VERSION = 2` (`js/data.js:390`). Every migration
+addition is an **optional** field on an existing type (`Skill.formula`/`Item.formula`,
+`Enemy.drops[]`, TP fields, tile-behavior flags, the `mzTodo` command). Old projects load
+unchanged (the migration guard only stamps, never rewrites). **No FORMAT_VERSION 3 proposed.**
+**Signed:** ______ (Fable, M0·C)
+
+### D3 — `mzTodo` command shape
+**Decision (final):** `{ t: "mzTodo", code: number, params: unknown[], label: string }`
+— additive to `AnyCommand` (confirmed discriminant is `t`, `schema.ts:496`). `code`+`params`
+preserve the **raw MZ command** so re-import after a phase ships upgrades it in place; `label`
+is the kid-friendly summary the editor shows ("📌 Show Picture — coming in an update"). Renders
+as a yellow note node in the event editor, **no-ops in the engine**, emits **one** report line.
+Nested openers that become `mzTodo` keep their child list translated where possible (the
+placeholder wraps only the unmappable command, not the branch body).
+**Signed:** ______ (Fable, M0·C)
+
+### D4 — Effekseer stance (M4·B)
+**Decision:** the `.efkefc` particle file is a locked skip (`−`, proprietary binary). MZ
+animations **auto-fallback** to the nearest Atlas `BattleAnimation` by a name/element heuristic
+and emit a report line ("Fire → used Atlas's Flame animation"); `animationId` refs stay intact
+so they resolve to the fallback. MV **sheet** animations convert for real in M4·B. Fixtures
+encode both: MZ `Animations.json` = `effectName` (Effekseer), MV = `frames[][]` + `timings`.
+**Signed:** ______ (Fable, M0·C)
+
+### D5 — Script-command adapter scope (M5·B)
+**Decision:** a minimal **read-only** shim exposing exactly `$gameSwitches.value(n)`,
+`$gameVariables.value(n)`, and `$gameParty` basics (`size()`, `gold()`, `members()` ids,
+`hasItem(item)`). It runs under the **same sandbox as the Atlas `script` command** (curated
+surface, no ambient globals). Anything referencing other globals, assignment to game state via
+script, or `$game*` beyond the shim → `mzTodo` + report. Conditional-Branch "Script" conditions
+use the same evaluator. Fixtures: `CommonEvents[2]` (`$gameVariables.setValue` — a **write**,
+so it lands as `mzTodo` + report), `Map002` `Ambush` 355/655 (read of `$gameSwitches` +
+write), move-route step 45 (script).
+**Note:** the shim is **read-only by design** — the fixtures deliberately include *writes*
+(`setValue`) to prove the "beyond scope → mzTodo + report" path, not to imply writes convert.
+**Signed:** ______ (Fable, M0·C)
+
+### D6 — Non-class trait merge strategy
+**Decision:** **(a) merge onto the actor's effective `ClassDef` at import**, with a report
+line per merged source. Atlas carries `Trait[]` on `ClassDef` only; actor/weapon/armor/enemy/
+state traits are folded onto the battler's effective class (weapon/armor traits are applied
+while equipped in MZ, but since Atlas has no per-equip trait carrier yet, M1 merges the
+directly-representable codes — 11/13/21/43/51/52 — onto the class and `mzTodo`-notes the rest
+for M3·B). Rejected (b) per-actor synthetic hidden class (schema churn, confuses the DB editor)
+and (c) report-only (loses gameplay-affecting element/state rates the engine already supports).
+Enemies keep their own effective-battler merge (enemies have no class). Fixtures: `Actors[1]`
+carries an actor-level Element Rate; `Weapons[1]`/`Armors[1]`/`States[1]`/`Enemies[1]` carry
+trait codes across the `=`/`+` split.
+**Signed:** ______ (Fable, M0·C)
+
+### D7 — `luk` param — locked skip
+**Decision:** unchanged locked skip (`−`). MZ has 8 params `[mhp,mmp,atk,def,mat,mdf,agi,luk]`;
+Atlas has 7 (no `luk`). Dropped from class curves, equip params, enemy stats, and param traits
+(code 21 dataId 7) with **one aggregated** report line ("Luck isn't a stat in Atlas — N places
+used it"). Fixtures seed `luk` in all four places.
+**Signed:** ______ (Fable, M0·C)
+
+### D8 — MapInfos nesting → Atlas folders
+**Decision:** MZ maps nest under parent **maps**; Atlas nests maps under `MapFolder`s. The
+importer synthesizes **one `MapFolder` per parent map that has children**, named after the
+parent, and sets each child's `folderId` to it; the parent map itself stays a map (placed at
+the folder's top). Root maps (`parentId 0`) go to the map-list root. Exact folder-id scheme
+finalized in M1·B; recorded here for the gate. Fixture: Cave `parentId = 1` (Harbor).
+**Signed:** ______ (Fable, M0·C)
+
+### D9 — Encryption detection by extension (M1·A) *(new, from fixture authoring)*
+**Decision:** the importer decides a file is encrypted by **extension** (`.rpgmvp`/`.rpgmvo`/
+`.png_`/`.ogg_`), not by the `System.hasEncryptedImages/Audio` flags. Real projects can carry
+mixed plain+encrypted assets, and the flags describe editor state, not per-file truth. The
+flags + `encryptionKey` are still read (key is required to decrypt; a missing key on an
+encrypted file → plain-language report). Symmetric scheme: skip the 16-byte fake header, XOR
+the next 16 bytes with the 16-byte key. Fixtures ship plain assets + one encrypted `Sign`
+picture to prove both paths.
+**Signed:** ______ (Fable, M0·C)
+
+### D10 — Tileset flag **bit values** correction *(new, for the gate to apply to the matrix)*
+**Finding from fixture authoring:** matrix §11 lists the tile-behavior bits one position low.
+The **real** RPG Maker (rmmv/rmmz `Game_Map`) values, which the fixtures use, are:
+
+| Behavior | Matrix §11 (as written) | **Real RM value (fixture uses this)** |
+|---|---|---|
+| Star / above-player | `0x1000` | **`0x10`** |
+| Ladder | `0x10` | **`0x20`** |
+| Bush | `0x20` | **`0x40`** |
+| Counter | `0x40` | **`0x80`** |
+| Damage floor | `0x80` | **`0x100`** |
+| Terrain tag | `0x0F00` (bits 8–11) | **`flag >> 12`** (bits 12–14, 0–7) |
+| Passage (4-dir) | bits 0–3 | bits 0–3 ✓ (unchanged) |
+
+**Recommendation:** amend matrix §11's bit column to the real values at the gate (M4·A reads
+these). No scope change — the *behaviors* and their phase assignments are unaffected; only the
+bit constants were off. `scripts/build-migration-fixtures.mjs → Tilesets()` documents the real
+values inline.
+**Signed:** ______ (Fable, M0·C)
 
 ---
 
@@ -132,3 +225,46 @@ those are the M4·A gaps), `autotile-registry.ts` (`kind` blob47/edge16/corner16
 working agreement. vitest/Playwright untouched; typecheck n/a (no source edits).
 
 **Next:** M0·B — hand-authored MV + MZ fixture projects + the decision log.
+
+### M0·B — Fixture projects + decision log — ✅ 2026-07-04 (branch `mig-0b`)
+
+**Delivered:**
+1. **`scripts/build-migration-fixtures.mjs`** — deterministic, idempotent generator (rerun ⇒
+   byte-identical) that emits both fixture trees + placeholder/encrypted assets. It is the
+   readable source of truth for the fixtures; the emitted files are committed so tests/CI never
+   run it. Everything self-made (locked decision 5): no RTP, no DLC, no RM-exported data.
+2. **`tests/fixtures/mv-project/`** (RPG Maker **MV** 1.6.x) and **`tests/fixtures/mz-project/`**
+   (RPG Maker **MZ** 1.x) — the same micro-game "Cove Test" in both formats, so the importer's
+   MV-vs-MZ delta handling is tested against a controlled diff. Each: `Game.{rpgproject,
+   rmmzproject}` marker, full `data/*.json` (System, Actors, Classes, Skills, Items, Weapons,
+   Armors, Enemies, Troops, States, Animations, Tilesets, CommonEvents, MapInfos, Map001,
+   Map002), plain placeholder assets, **one encrypted `Sign` picture** (+ key in System.json),
+   and `js/plugins.js`.
+3. **`tests/fixtures/README.md`** — requirement→element map + the MV/MZ delta table + the list
+   of deliberately-hard cases seeded for later phases.
+4. **Decision log** (above) — D1–D10 finalized; D9 (encryption-by-extension) and D10 (tileset
+   flag **bit-value** correction to the real RM constants) are new findings surfaced by
+   authoring the fixtures, flagged for the gate.
+
+**Every M0·B-required exercise present** (verified by a parse/shape check — all JSON valid,
+map `data` length = `w·h·6`, tileset `flags` length 8192 with real behavior bits, class params
+8×100, encrypted sample round-trips to a valid PNG magic): 2 maps + transfer · A1–A5 autotiles
+with island/peninsula/edge ugly cases · Actors/Classes/Enemies/States as trait-carrying battler
+kinds · a troop with turn + enemy-HP page conditions and a hidden member · common events ·
+damage formulas · Show Picture (→ the encrypted asset) · a plugin entry + plugin command
+(356 MV / 357 MZ) · the MV sheet-vs-MZ-Effekseer `Animations.json` quirk · encrypted-asset
+sample with its key.
+
+**MV vs MZ deltas encoded (§0):** marker file · Animations model · plugin command code ·
+encryption extension · MZ-only System fields (`locale`/`tileSize`/`advanced`/`optAutosave`/
+`optKeyItemsNumber`/`itemCategories`/`menuCommands`) · Show Text param count.
+
+**No engine/user-visible change** (fixtures + docs + a build script only; nothing under `src/`
+or `js/`). Not collected by any runner: `node --test` globs `tests/*.test.js`, vitest globs
+`src/**` + `tests-unit/**`, Playwright `tests-e2e/**` — none match `tests/fixtures/**`, so the
+443/59 baselines are untouched. No patch-notes / version bump per the working agreement.
+
+**For the gate (M0·C):** sign D1–D10; apply the §11 bit-value amendment (D10) directly in
+`docs/mz-mv-parity-matrix.md`; confirm formula-sandbox strictness (D1) and report tone.
+
+**Next:** M0·C — Fable contract gate (tags `mig-0`).

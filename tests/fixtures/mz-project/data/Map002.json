@@ -1,0 +1,261 @@
+{
+  "autoplayBgm": true,
+  "autoplayBgs": false,
+  "battleback1Name": "Cave",
+  "battleback2Name": "",
+  "bgm": {
+    "name": "Cave",
+    "pan": 0,
+    "pitch": 100,
+    "volume": 90
+  },
+  "bgs": {
+    "name": "",
+    "pan": 0,
+    "pitch": 100,
+    "volume": 90
+  },
+  "disableDashing": false,
+  "displayName": "Sea Cave",
+  "encounterList": [
+    {
+      "troopId": 1,
+      "weight": 10,
+      "regionSet": []
+    }
+  ],
+  "encounterStep": 30,
+  "height": 8,
+  "note": "",
+  "parallaxLoopX": false,
+  "parallaxLoopY": false,
+  "parallaxName": "",
+  "parallaxShow": true,
+  "parallaxSx": 0,
+  "parallaxSy": 0,
+  "scrollType": 2,
+  "specifyBattleback": true,
+  "tilesetId": 1,
+  "width": 8,
+  "data": [5888,5888,5888,5888,5888,5888,5888,5888,5888,2816,2816,2816,2816,2816,2816,5888,5888,2816,2816,2816,2816,2816,2816,5888,5888,2816,2816,2816,2816,2816,2816,5888,5888,2816,2816,1540,2816,2816,2816,5888,5888,2816,2816,2816,2816,2816,2816,5888,5888,2816,2816,2816,2816,2816,2816,5888,5888,5888,5888,5888,5888,5888,5888,5888,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+  "events": [
+    null,
+    {
+      "id": 1,
+      "name": "Return",
+      "x": 4,
+      "y": 4,
+      "pages": [
+        {
+          "conditions": {
+            "actorId": 1,
+            "actorValid": false,
+            "itemId": 1,
+            "itemValid": false,
+            "selfSwitchCh": "A",
+            "selfSwitchValid": false,
+            "switch1Id": 1,
+            "switch1Valid": false,
+            "switch2Id": 1,
+            "switch2Valid": false,
+            "variableId": 1,
+            "variableValid": false,
+            "variableValue": 0
+          },
+          "image": {
+            "tileId": 0,
+            "characterName": "",
+            "characterIndex": 0,
+            "direction": 2,
+            "pattern": 1
+          },
+          "moveType": 0,
+          "moveSpeed": 3,
+          "moveFrequency": 3,
+          "moveRoute": {
+            "list": [
+              {
+                "code": 0,
+                "parameters": []
+              }
+            ],
+            "repeat": true,
+            "skippable": false,
+            "wait": false
+          },
+          "walkAnime": true,
+          "stepAnime": false,
+          "directionFix": false,
+          "through": false,
+          "priorityType": 1,
+          "trigger": 1,
+          "list": [
+            {
+              "code": 201,
+              "indent": 0,
+              "parameters": [0,1,6,1,2,0]
+            },
+            {
+              "code": 0,
+              "indent": 0,
+              "parameters": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Ambush",
+      "x": 2,
+      "y": 2,
+      "pages": [
+        {
+          "conditions": {
+            "actorId": 1,
+            "actorValid": false,
+            "itemId": 1,
+            "itemValid": false,
+            "selfSwitchCh": "A",
+            "selfSwitchValid": false,
+            "switch1Id": 1,
+            "switch1Valid": false,
+            "switch2Id": 1,
+            "switch2Valid": false,
+            "variableId": 1,
+            "variableValid": false,
+            "variableValue": 0
+          },
+          "image": {
+            "tileId": 0,
+            "characterName": "!Flame",
+            "characterIndex": 0,
+            "direction": 2,
+            "pattern": 1
+          },
+          "moveType": 0,
+          "moveSpeed": 3,
+          "moveFrequency": 3,
+          "moveRoute": {
+            "list": [
+              {
+                "code": 0,
+                "parameters": []
+              }
+            ],
+            "repeat": true,
+            "skippable": false,
+            "wait": false
+          },
+          "walkAnime": true,
+          "stepAnime": false,
+          "directionFix": false,
+          "through": false,
+          "priorityType": 1,
+          "trigger": 0,
+          "list": [
+            {
+              "code": 301,
+              "indent": 0,
+              "parameters": [
+                0,
+                1,
+                true,
+                true
+              ]
+            },
+            {
+              "code": 601,
+              "indent": 0,
+              "parameters": []
+            },
+            {
+              "code": 101,
+              "indent": 1,
+              "parameters": [
+                "",
+                0,
+                0,
+                2,
+                ""
+              ]
+            },
+            {
+              "code": 401,
+              "indent": 1,
+              "parameters": [
+                "Victory! You found the Rusty Key."
+              ]
+            },
+            {
+              "code": 126,
+              "indent": 1,
+              "parameters": [3,0,0,1]
+            },
+            {
+              "code": 0,
+              "indent": 1,
+              "parameters": []
+            },
+            {
+              "code": 602,
+              "indent": 0,
+              "parameters": []
+            },
+            {
+              "code": 0,
+              "indent": 1,
+              "parameters": []
+            },
+            {
+              "code": 603,
+              "indent": 0,
+              "parameters": []
+            },
+            {
+              "code": 353,
+              "indent": 1,
+              "parameters": []
+            },
+            {
+              "code": 0,
+              "indent": 1,
+              "parameters": []
+            },
+            {
+              "code": 604,
+              "indent": 0,
+              "parameters": []
+            },
+            {
+              "code": 355,
+              "indent": 0,
+              "parameters": [
+                "if ($gameSwitches.value(2)) {"
+              ]
+            },
+            {
+              "code": 655,
+              "indent": 0,
+              "parameters": [
+                "  $gameVariables.setValue(1, 999);"
+              ]
+            },
+            {
+              "code": 655,
+              "indent": 0,
+              "parameters": [
+                "}"
+              ]
+            },
+            {
+              "code": 0,
+              "indent": 0,
+              "parameters": []
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

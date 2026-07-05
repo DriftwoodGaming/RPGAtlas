@@ -1,0 +1,123 @@
+[
+  null,
+  {
+    "id": 1,
+    "name": "Attack",
+    "iconIndex": 76,
+    "stypeId": 0,
+    "mpCost": 0,
+    "tpCost": 0,
+    "scope": 1,
+    "occasion": 1,
+    "damage": {
+      "type": 1,
+      "elementId": -1,
+      "formula": "a.atk * 4 - b.def * 2",
+      "variance": 20,
+      "critical": true
+    },
+    "effects": [],
+    "animationId": -1,
+    "repeats": 1,
+    "message1": "",
+    "message2": "",
+    "requiredWtypeId1": 0,
+    "requiredWtypeId2": 0,
+    "note": ""
+  },
+  {
+    "id": 2,
+    "name": "Firebolt",
+    "iconIndex": 64,
+    "stypeId": 1,
+    "mpCost": 8,
+    "tpCost": 0,
+    "scope": 1,
+    "occasion": 1,
+    "damage": {
+      "type": 1,
+      "elementId": 2,
+      "formula": "a.mat * 2 - b.mdf + v[3]",
+      "variance": 20,
+      "critical": true
+    },
+    "effects": [
+      {
+        "code": 21,
+        "dataId": 1,
+        "value1": 0.5,
+        "value2": 0
+      }
+    ],
+    "animationId": 2,
+    "repeats": 1,
+    "message1": "casts %1!",
+    "message2": "",
+    "requiredWtypeId1": 0,
+    "requiredWtypeId2": 0,
+    "note": "<Cooldown: 3>"
+  },
+  {
+    "id": 3,
+    "name": "Heal",
+    "iconIndex": 72,
+    "stypeId": 1,
+    "mpCost": 5,
+    "tpCost": 0,
+    "scope": 7,
+    "occasion": 0,
+    "damage": {
+      "type": 3,
+      "elementId": 0,
+      "formula": "(a.mat * 2) + 50",
+      "variance": 0,
+      "critical": false
+    },
+    "effects": [
+      {
+        "code": 11,
+        "dataId": 0,
+        "value1": 0,
+        "value2": 100
+      },
+      {
+        "code": 44,
+        "dataId": 1,
+        "value1": 0,
+        "value2": 0
+      }
+    ],
+    "animationId": 1,
+    "repeats": 1,
+    "message1": "",
+    "message2": "",
+    "requiredWtypeId1": 0,
+    "requiredWtypeId2": 0,
+    "note": ""
+  },
+  {
+    "id": 4,
+    "name": "Guard",
+    "iconIndex": 81,
+    "stypeId": 2,
+    "mpCost": 0,
+    "tpCost": 25,
+    "scope": 11,
+    "occasion": 1,
+    "damage": {
+      "type": 0,
+      "elementId": 0,
+      "formula": "0",
+      "variance": 0,
+      "critical": false
+    },
+    "effects": [],
+    "animationId": 0,
+    "repeats": 1,
+    "message1": "",
+    "message2": "",
+    "requiredWtypeId1": 0,
+    "requiredWtypeId2": 0,
+    "note": ""
+  }
+]

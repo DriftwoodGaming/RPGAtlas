@@ -1,0 +1,380 @@
+{
+  "gameTitle": "Cove Test",
+  "versionId": 20260704,
+  "currencyUnit": "G",
+  "elements": [
+    "",
+    "Physical",
+    "Fire",
+    "Ice",
+    "Thunder",
+    "Water",
+    "Earth"
+  ],
+  "skillTypes": [
+    "",
+    "Magic",
+    "Special"
+  ],
+  "weaponTypes": [
+    "",
+    "Dagger",
+    "Sword"
+  ],
+  "armorTypes": [
+    "",
+    "General Armor",
+    "Magic Armor"
+  ],
+  "equipTypes": [
+    "",
+    "Weapon",
+    "Shield",
+    "Head",
+    "Body",
+    "Accessory"
+  ],
+  "switches": [
+    "",
+    "Door Unlocked",
+    "Boss Defeated",
+    "Met Finn"
+  ],
+  "variables": [
+    "",
+    "Gold Found",
+    "Steps Taken",
+    "Puzzle State"
+  ],
+  "partyMembers": [1,2],
+  "boat": {
+    "characterName": "Vehicle",
+    "characterIndex": 0,
+    "bgm": {
+      "name": "Ship",
+      "pan": 0,
+      "pitch": 100,
+      "volume": 90
+    },
+    "startMapId": 1,
+    "startX": 4,
+    "startY": 9
+  },
+  "ship": {
+    "characterName": "Vehicle",
+    "characterIndex": 0,
+    "bgm": {
+      "name": "Ship",
+      "pan": 0,
+      "pitch": 100,
+      "volume": 90
+    },
+    "startMapId": 1,
+    "startX": 5,
+    "startY": 9
+  },
+  "airship": {
+    "characterName": "Vehicle",
+    "characterIndex": 0,
+    "bgm": {
+      "name": "Airship",
+      "pan": 0,
+      "pitch": 100,
+      "volume": 90
+    },
+    "startMapId": 1,
+    "startX": 6,
+    "startY": 9
+  },
+  "titleBgm": {
+    "name": "Theme",
+    "pan": 0,
+    "pitch": 100,
+    "volume": 90
+  },
+  "battleBgm": {
+    "name": "Battle",
+    "pan": 0,
+    "pitch": 100,
+    "volume": 90
+  },
+  "victoryMe": {
+    "name": "Victory",
+    "pan": 0,
+    "pitch": 100,
+    "volume": 90
+  },
+  "defeatMe": {
+    "name": "Defeat",
+    "pan": 0,
+    "pitch": 100,
+    "volume": 90
+  },
+  "gameoverMe": {
+    "name": "Gameover",
+    "pan": 0,
+    "pitch": 100,
+    "volume": 90
+  },
+  "sounds": [
+    {
+      "name": "Cursor",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "Decision",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "Cancel",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "Buzzer",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    },
+    {
+      "name": "",
+      "volume": 90,
+      "pitch": 100,
+      "pan": 0
+    }
+  ],
+  "title1Name": "Sea",
+  "title2Name": "",
+  "terms": {
+    "basic": [
+      "Level",
+      "Lv",
+      "HP",
+      "HP",
+      "MP",
+      "MP",
+      "TP",
+      "TP"
+    ],
+    "params": [
+      "Max HP",
+      "Max MP",
+      "Attack",
+      "Defense",
+      "M.Attack",
+      "M.Defense",
+      "Agility",
+      "Luck"
+    ],
+    "commands": [
+      "Fight",
+      "Escape",
+      "Attack",
+      "Guard",
+      "Item",
+      "Skill",
+      "Equip",
+      "Status",
+      "Formation",
+      "Save",
+      "Game End",
+      "Options",
+      "Weapon",
+      "Armor",
+      "Key Item",
+      "Equip",
+      "Optimize",
+      "Clear",
+      "New Game",
+      "Continue",
+      null,
+      "To Title",
+      "Cancel",
+      null,
+      "Buy",
+      "Sell"
+    ],
+    "messages": {
+      "possession": "Possession",
+      "levelUp": "%1 is now %2 %3!",
+      "obtainSkill": "%1 learned!",
+      "actorDamage": "%1 took %2 damage!"
+    }
+  },
+  "startMapId": 1,
+  "startX": 6,
+  "startY": 1,
+  "optTransparent": false,
+  "optFollowers": true,
+  "optSideView": true,
+  "optDisplayTp": false,
+  "optDrawTitle": true,
+  "optExtraExp": false,
+  "optFloorDeath": false,
+  "optSlipDeath": false,
+  "battleback1Name": "",
+  "battleback2Name": "",
+  "windowTone": [16,-16,48,0],
+  "battleSystem": 0,
+  "hasEncryptedImages": true,
+  "hasEncryptedAudio": false,
+  "encryptionKey": "a1b2c3d4e5f6a7b8c9d0e1f203142536",
+  "testBattlers": [
+    {
+      "actorId": 1,
+      "level": 3,
+      "equips": [1,1,0,2,3]
+    }
+  ],
+  "testTroopId": 1,
+  "editMapId": 1,
+  "locale": "en_US",
+  "tileSize": 48,
+  "optAutosave": false,
+  "optKeyItemsNumber": true,
+  "itemCategories": [
+    true,
+    true,
+    true,
+    true
+  ],
+  "menuCommands": [
+    true,
+    true,
+    true,
+    true,
+    true,
+    true
+  ],
+  "advanced": {
+    "gameId": 424242,
+    "screenWidth": 816,
+    "screenHeight": 624,
+    "uiAreaWidth": 816,
+    "uiAreaHeight": 624,
+    "numberFontFilename": "",
+    "fallbackFonts": "",
+    "fontSize": 26,
+    "mainFontFilename": "mplus-1m-regular.woff",
+    "windowOpacity": 192
+  }
+}

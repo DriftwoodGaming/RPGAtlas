@@ -1,0 +1,10 @@
+# Fixture binaries must be stored byte-exact — the encrypted samples
+# (.rpgmvp/.png_/.rpgmvo/.ogg_) round-trip through XOR decryption and any
+# CRLF normalization would corrupt them. Mark all fixture asset types binary.
+*.png   binary
+*.ogg   binary
+*.m4a   binary
+*.rpgmvp binary
+*.rpgmvo binary
+*.png_  binary
+*.ogg_  binary

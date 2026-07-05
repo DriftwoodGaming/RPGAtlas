@@ -1,0 +1,95 @@
+[
+  null,
+  {
+    "id": 1,
+    "name": "Slime",
+    "battlerName": "Slime",
+    "battlerHue": 120,
+    "params": [120,0,14,8,4,6,10,5],
+    "exp": 15,
+    "gold": 10,
+    "dropItems": [
+      {
+        "kind": 1,
+        "dataId": 1,
+        "denominator": 2
+      },
+      {
+        "kind": 0,
+        "dataId": 0,
+        "denominator": 1
+      },
+      {
+        "kind": 0,
+        "dataId": 0,
+        "denominator": 1
+      }
+    ],
+    "actions": [
+      {
+        "skillId": 1,
+        "conditionType": 0,
+        "conditionParam1": 0,
+        "conditionParam2": 0,
+        "rating": 5
+      },
+      {
+        "skillId": 2,
+        "conditionType": 1,
+        "conditionParam1": 2,
+        "conditionParam2": 3,
+        "rating": 4
+      }
+    ],
+    "traits": [
+      {
+        "code": 11,
+        "dataId": 3,
+        "value": 2
+      },
+      {
+        "code": 22,
+        "dataId": 6,
+        "value": 0.1
+      }
+    ],
+    "note": "<Boss>"
+  },
+  {
+    "id": 2,
+    "name": "Crab",
+    "battlerName": "Crab",
+    "battlerHue": 0,
+    "params": [180,0,18,16,2,4,6,4],
+    "exp": 22,
+    "gold": 18,
+    "dropItems": [
+      {
+        "kind": 0,
+        "dataId": 0,
+        "denominator": 1
+      },
+      {
+        "kind": 0,
+        "dataId": 0,
+        "denominator": 1
+      },
+      {
+        "kind": 0,
+        "dataId": 0,
+        "denominator": 1
+      }
+    ],
+    "actions": [
+      {
+        "skillId": 1,
+        "conditionType": 5,
+        "conditionParam1": 0.5,
+        "conditionParam2": 0,
+        "rating": 5
+      }
+    ],
+    "traits": [],
+    "note": ""
+  }
+]

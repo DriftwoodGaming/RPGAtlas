@@ -1,0 +1,95 @@
+[
+  null,
+  {
+    "id": 1,
+    "name": "Potion",
+    "iconIndex": 176,
+    "description": "Restores 200 HP.",
+    "itypeId": 1,
+    "price": 50,
+    "consumable": true,
+    "scope": 7,
+    "occasion": 0,
+    "speed": 0,
+    "successRate": 100,
+    "repeats": 1,
+    "tpGain": 0,
+    "hitType": 0,
+    "animationId": 0,
+    "damage": {
+      "type": 3,
+      "elementId": 0,
+      "formula": "0",
+      "variance": 0,
+      "critical": false
+    },
+    "effects": [
+      {
+        "code": 11,
+        "dataId": 0,
+        "value1": 0,
+        "value2": 200
+      }
+    ],
+    "note": ""
+  },
+  {
+    "id": 2,
+    "name": "Antidote",
+    "iconIndex": 176,
+    "description": "Cures Poison.",
+    "itypeId": 1,
+    "price": 30,
+    "consumable": true,
+    "scope": 7,
+    "occasion": 0,
+    "speed": 0,
+    "successRate": 100,
+    "repeats": 1,
+    "tpGain": 0,
+    "hitType": 0,
+    "animationId": 0,
+    "damage": {
+      "type": 0,
+      "elementId": 0,
+      "formula": "0",
+      "variance": 0,
+      "critical": false
+    },
+    "effects": [
+      {
+        "code": 22,
+        "dataId": 1,
+        "value1": 1,
+        "value2": 0
+      }
+    ],
+    "note": ""
+  },
+  {
+    "id": 3,
+    "name": "Rusty Key",
+    "iconIndex": 195,
+    "description": "Opens something in the cave.",
+    "itypeId": 2,
+    "price": 0,
+    "consumable": false,
+    "scope": 0,
+    "occasion": 3,
+    "speed": 0,
+    "successRate": 100,
+    "repeats": 1,
+    "tpGain": 0,
+    "hitType": 0,
+    "animationId": 0,
+    "damage": {
+      "type": 0,
+      "elementId": 0,
+      "formula": "0",
+      "variance": 0,
+      "critical": false
+    },
+    "effects": [],
+    "note": ""
+  }
+]

@@ -1,0 +1,68 @@
+[
+  null,
+  {
+    "id": 1,
+    "name": "Heal",
+    "animation1Name": "Heal",
+    "animation1Hue": 0,
+    "animation2Name": "",
+    "animation2Hue": 0,
+    "position": 1,
+    "frames": [
+      [
+        [0,0,0,100,0,0,255,0]
+      ],
+      [
+        [1,0,0,100,0,0,255,0]
+      ],
+      [
+        [2,0,0,100,0,0,255,0]
+      ]
+    ],
+    "timings": [
+      {
+        "frame": 0,
+        "se": {
+          "name": "Heal",
+          "volume": 90,
+          "pitch": 100,
+          "pan": 0
+        },
+        "flashScope": 1,
+        "flashColor": [255,255,255,170],
+        "flashDuration": 5
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Fire",
+    "animation1Name": "Fire",
+    "animation1Hue": 0,
+    "animation2Name": "",
+    "animation2Hue": 0,
+    "position": 1,
+    "frames": [
+      [
+        [0,0,0,100,0,0,255,0]
+      ],
+      [
+        [1,0,0,100,0,0,255,0]
+      ]
+    ],
+    "timings": [
+      {
+        "frame": 1,
+        "se": {
+          "name": "Fire",
+          "volume": 90,
+          "pitch": 100,
+          "pan": 0
+        },
+        "flashScope": 0,
+        "flashColor": [0,0,0,0],
+        "flashDuration": 0
+      }
+    ]
+  }
+]

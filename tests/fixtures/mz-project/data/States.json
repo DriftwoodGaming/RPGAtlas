@@ -1,0 +1,57 @@
+[
+  null,
+  {
+    "id": 1,
+    "name": "Poison",
+    "iconIndex": 4,
+    "restriction": 0,
+    "priority": 50,
+    "motion": 0,
+    "overlay": 0,
+    "removeAtBattleEnd": false,
+    "removeByRestriction": false,
+    "autoRemovalTiming": 1,
+    "minTurns": 3,
+    "maxTurns": 5,
+    "removeByDamage": true,
+    "chanceByDamage": 100,
+    "removeByWalking": true,
+    "stepsToRemove": 100,
+    "traits": [
+      {
+        "code": 22,
+        "dataId": 7,
+        "value": -0.1
+      }
+    ],
+    "message1": " is poisoned!",
+    "message2": "",
+    "message3": "",
+    "message4": " is no longer poisoned.",
+    "note": ""
+  },
+  {
+    "id": 2,
+    "name": "Sleep",
+    "iconIndex": 5,
+    "restriction": 4,
+    "priority": 60,
+    "motion": 3,
+    "overlay": 1,
+    "removeAtBattleEnd": true,
+    "removeByRestriction": false,
+    "autoRemovalTiming": 1,
+    "minTurns": 2,
+    "maxTurns": 4,
+    "removeByDamage": true,
+    "chanceByDamage": 100,
+    "removeByWalking": false,
+    "stepsToRemove": 0,
+    "traits": [],
+    "message1": " falls asleep!",
+    "message2": "",
+    "message3": "",
+    "message4": " wakes up.",
+    "note": ""
+  }
+]

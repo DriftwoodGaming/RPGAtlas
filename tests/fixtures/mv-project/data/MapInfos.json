@@ -1,0 +1,21 @@
+[
+  null,
+  {
+    "id": 1,
+    "name": "Harbor",
+    "order": 1,
+    "parentId": 0,
+    "expanded": true,
+    "scrollX": 0,
+    "scrollY": 0
+  },
+  {
+    "id": 2,
+    "name": "Cave",
+    "order": 2,
+    "parentId": 1,
+    "expanded": true,
+    "scrollX": 0,
+    "scrollY": 0
+  }
+]

@@ -1,0 +1,60 @@
+[
+  null,
+  {
+    "id": 1,
+    "name": "Heal Flash",
+    "trigger": 0,
+    "switchId": 1,
+    "list": [
+      {
+        "code": 224,
+        "indent": 0,
+        "parameters": [
+          [255,255,255,170],
+          15,
+          false
+        ]
+      },
+      {
+        "code": 230,
+        "indent": 0,
+        "parameters": [15]
+      },
+      {
+        "code": 0,
+        "indent": 0,
+        "parameters": []
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "name": "Rain Ambience",
+    "trigger": 2,
+    "switchId": 1,
+    "list": [
+      {
+        "code": 236,
+        "indent": 0,
+        "parameters": [
+          "rain",
+          5,
+          60,
+          false
+        ]
+      },
+      {
+        "code": 355,
+        "indent": 0,
+        "parameters": [
+          "$gameVariables.setValue(3, 1);"
+        ]
+      },
+      {
+        "code": 0,
+        "indent": 0,
+        "parameters": []
+      }
+    ]
+  }
+]
