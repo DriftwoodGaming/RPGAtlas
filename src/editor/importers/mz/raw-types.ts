@@ -314,6 +314,63 @@ export interface RmPlugin {
   parameters?: Record<string, string>;
 }
 
+/** `data/Tilesets.json` entry (matrix §11). `flags[tileId]` packs per-tile
+ *  passage/★/ladder/bush/counter/damage/terrain-tag; `tilesetNames` are the
+ *  A1–A5 + B–E source-image names the M1·D wizard slices. */
+export interface RmTileset {
+  id: number;
+  name: string;
+  mode?: number;
+  note?: string;
+  tilesetNames?: string[];
+  flags?: number[];
+}
+
+/** `data/MapInfos.json` entry — the map tree (matrix §MapInfos / decision D8). */
+export interface RmMapInfo {
+  id: number;
+  name: string;
+  order?: number;
+  parentId?: number;
+  expanded?: boolean;
+  scrollX?: number;
+  scrollY?: number;
+}
+
+/** One `encounterList[]` entry on a map. */
+export interface RmEncounter {
+  troopId: number;
+  weight?: number;
+  regionSet?: number[];
+}
+
+/** `data/Map###.json` (the fields the map converter reads; events are M1·C).
+ *  `id` is injected from the filename (`Map001` → 1) at intake — RM's map files
+ *  don't carry their own id. `data` is the flat `w·h·6` plane array. */
+export interface RmMap {
+  id?: number;
+  width: number;
+  height: number;
+  tilesetId?: number;
+  data?: number[];
+  note?: string;
+  displayName?: string;
+  autoplayBgm?: boolean;
+  bgm?: RmAudio;
+  autoplayBgs?: boolean;
+  bgs?: RmAudio;
+  encounterList?: RmEncounter[];
+  encounterStep?: number;
+  parallaxName?: string;
+  scrollType?: number;
+  specifyBattleback?: boolean;
+  battleback1Name?: string;
+  battleback2Name?: string;
+  disableDashing?: boolean;
+  events?: unknown[];
+  [k: string]: unknown;
+}
+
 /** RM data arrays are 1-based with a leading `null` at index 0. */
 export type RmList<T> = (T | null)[];
 
@@ -332,6 +389,12 @@ export interface MzRawData {
   troops: RmList<RmTroop>;
   states: RmList<RmState>;
   commonEvents: RmList<RmCommonEvent>;
+  /** Tilesets + map tree + per-id map data (M1·B). Absent when the reader ran
+   *  M1·A-only; the database converters never touch these. */
+  tilesets?: RmList<RmTileset>;
+  mapInfos?: RmList<RmMapInfo>;
+  /** Loaded `Map###.json` bodies, each with its filename-derived `id`. */
+  maps?: RmMap[];
   /** Present for reporting/plugins in later steps; unused by M1·A conversion. */
   plugins?: RmPlugin[];
   /** Relative asset paths discovered under img/ + audio/ (for M1·B/M4·B). */

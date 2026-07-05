@@ -558,7 +558,7 @@ function MapInfos() {
   ];
 }
 
-function mapFile(kind, events, mz) {
+function mapFile(kind, events) {
   const geo = kind === "harbor" ? buildHarbor() : buildCave();
   const base = {
     autoplayBgm: true, autoplayBgs: false, battleback1Name: kind === "cave" ? "Cave" : "", battleback2Name: "",
@@ -669,8 +669,8 @@ function build(target) {
   writeJson("data/Tilesets.json", Tilesets());
   writeJson("data/CommonEvents.json", CommonEvents());
   writeJson("data/MapInfos.json", MapInfos());
-  writeJson("data/Map001.json", mapFile("harbor", harborEvents(mz), mz));
-  writeJson("data/Map002.json", mapFile("cave", caveEvents(mz), mz));
+  writeJson("data/Map001.json", mapFile("harbor", harborEvents(mz)));
+  writeJson("data/Map002.json", mapFile("cave", caveEvents(mz)));
 
   // Plain placeholder assets (self-made swatches / stubs).
   for (const p of ["img/characters/People.png", "img/faces/People.png", "img/tilesets/World_A1.png",
