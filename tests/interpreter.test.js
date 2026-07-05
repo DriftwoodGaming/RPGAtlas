@@ -44,7 +44,10 @@ async function loadRegistry() {
     exports: module.exports,
     require,
     console,
-    window: {},
+    // The presentation commands (M2·A) pull src/shared/deps.js into the bundle,
+    // which reads window.RPGAtlasDeps.Assets at eval — stub the classic-script
+    // globals so the bundle evaluates outside a browser.
+    window: { RPGAtlasDeps: { Assets: { TILE: 48 } } },
   });
   return module.exports;
 }
@@ -53,14 +56,38 @@ async function loadRegistry() {
   const { getCommand, registerBuiltinCommands } = await loadRegistry();
   registerBuiltinCommands();
 
-  // The commands the old grep test pinned are registered handlers now.
+  // The commands the old grep test pinned are registered handlers now — plus
+  // the M2·A presentation family (pictures, tint, timer, scroll, balloons,
+  // scrolling text).
   for (const type of ["shake", "weather", "flash", "text", "choices", "if",
-    "switch", "var", "battle", "shop", "transfer", "commonEvent"]) {
+    "switch", "var", "battle", "shop", "transfer", "commonEvent",
+    "showPic", "movePic", "rotatePic", "tintPic", "erasePic", "tint",
+    "timer", "scrollMap", "balloon", "scrollText"]) {
     assert.equal(
       typeof getCommand(type),
       "function",
       "interpreter registers a handler for the '" + type + "' command",
     );
+  }
+
+  // Behavior: the presentation handlers run without a DOM (map scene state is
+  // set in presentation-runtime; drawing/loading are guarded for Node). These
+  // must not throw when invoked with the same context shape the engine passes.
+  {
+    const pctx = { SCREEN_W: 816, SCREEN_H: 624, globalT: 0, evRTs: [] };
+    const psvc = { ctx: pctx, frameWait: async () => {}, waitFrames: async () => {} };
+    const pstate = { player: { rx: 1, ry: 1 } };
+    for (const cmd of [
+      { t: "showPic", id: 1, name: "", origin: 0, x: 10, y: 10, scaleX: 100, scaleY: 100, opacity: 255, blend: 0 },
+      { t: "rotatePic", id: 1, speed: 5 },
+      { t: "erasePic", id: 1 },
+      { t: "tint", tone: [-68, -68, -68, 0], frames: 0 },
+      { t: "timer", op: "start", seconds: 5 },
+      { t: "timer", op: "stop" },
+    ]) {
+      await getCommand(cmd.t)(cmd, { interp: { evRT: null }, state: pstate, services: psvc });
+    }
+    assert.ok(true, "presentation handlers run without throwing outside a browser");
   }
   // Unknown command types resolve to undefined — the interpreter's silent-skip
   // (the old switch `default` when no plugin handler existed).

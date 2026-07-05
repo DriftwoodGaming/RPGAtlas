@@ -16,6 +16,43 @@ import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 import { openLocationPicker } from "./location-picker";
 
+  // Speech-balloon glyph names (Project Compass M2·A), RM balloon ids 1–15;
+  // 11–15 are custom slots in RM, kept as generic "Balloon N".
+  const BALLOON_NAMES: Record<number, string> = {
+    1: "Exclamation", 2: "Question", 3: "Music Note", 4: "Heart", 5: "Anger",
+    6: "Sweat", 7: "Frustration", 8: "Silence", 9: "Light Bulb", 10: "Zzz",
+  };
+  const BALLOON_OPTS = Array.from({ length: 15 }, (_, i) => ({ v: i + 1, l: (i + 1) + ": " + (BALLOON_NAMES[i + 1] || "Balloon " + (i + 1)) }));
+  const BLEND_OPTS = [{ v: 0, l: "Normal" }, { v: 1, l: "Add" }, { v: 2, l: "Multiply" }, { v: 3, l: "Screen" }];
+  const ORIGIN_OPTS = [{ v: 0, l: "Upper-left" }, { v: 1, l: "Center" }];
+  // Screen/picture colour tone presets ([r,g,b,gray]) offered in the tint forms.
+  const TONE_PRESETS: { l: string; tone: [number, number, number, number] }[] = [
+    { l: "Normal", tone: [0, 0, 0, 0] },
+    { l: "Dark", tone: [-68, -68, -68, 0] },
+    { l: "Night", tone: [-68, -68, 0, 68] },
+    { l: "Sepia", tone: [34, -34, -68, 170] },
+    { l: "Sunset", tone: [68, -34, -34, 0] },
+  ];
+  /** A [r,g,b,gray] tone editor: four numeric fields + a preset dropdown. */
+  function toneEditor(w: any, key: string) {
+    if (!Array.isArray(w[key])) w[key] = [0, 0, 0, 0];
+    const t = w[key];
+    const model = { r: t[0], g: t[1], b: t[2], gray: t[3], preset: "" };
+    const sync = () => { w[key] = [Number(model.r) || 0, Number(model.g) || 0, Number(model.b) || 0, Number(model.gray) || 0]; };
+    const rIn = nIn(model, "r", -255, 255); const gIn = nIn(model, "g", -255, 255);
+    const bIn = nIn(model, "b", -255, 255); const grIn = nIn(model, "gray", 0, 255);
+    [rIn, gIn, bIn, grIn].forEach((i: any) => i.addEventListener("input", sync));
+    const presetSel = sel(model, "preset", [{ v: "", l: "Preset…" }, ...TONE_PRESETS.map((p, i) => ({ v: String(i), l: p.l }))], () => {
+      if (model.preset === "") return;
+      const p = TONE_PRESETS[Number(model.preset)];
+      model.r = p.tone[0]; model.g = p.tone[1]; model.b = p.tone[2]; model.gray = p.tone[3];
+      rIn.value = String(model.r); gIn.value = String(model.g); bIn.value = String(model.b); grIn.value = String(model.gray);
+      sync();
+    });
+    sync();
+    return row(field("Red (−255…255)", rIn), field("Green", gIn), field("Blue", bIn), field("Gray (0…255)", grIn), field("", presetSel));
+  }
+
   // ============================ command definitions ============================
   export function cmdSummary(c: any) {
     const swName = (id: any) => id + (S.proj.system.switches[id - 1] ? " (" + S.proj.system.switches[id - 1] + ")" : "");
@@ -68,6 +105,16 @@ import { openLocationPicker } from "./location-picker";
       case "cameraZoom": return "Camera Zoom: " + Math.round((c.zoom || 1) * 100) + "% over " + (c.frames || 0) + " frames";
       case "transparency": return "Player Transparency: " + (c.val ? "hidden" : "visible");
       case "playAnim": return "Play Animation: " + dbName(S.proj.animations || [], c.animationId) + (c.target === "this" ? " (this event)" : c.target === "screen" ? " (screen)" : " (player)");
+      case "showPic": return "Show Picture #" + c.id + (c.name ? ": " + String(c.name).replace(/^asset:[^/]*\//, "") : "");
+      case "movePic": return "Move Picture #" + c.id + " over " + (c.frames || 0) + " frames";
+      case "rotatePic": return "Rotate Picture #" + c.id + " (speed " + (c.speed || 0) + ")";
+      case "tintPic": return "Tint Picture #" + c.id + " [" + (c.tone || []).join(", ") + "]";
+      case "erasePic": return "Erase Picture #" + c.id;
+      case "tint": return "Tint Screen [" + (c.tone || []).join(", ") + "] over " + (c.frames || 0) + "f";
+      case "timer": return c.op === "stop" ? "Stop Timer" : "Start Timer: " + (c.seconds || 0) + "s" + (c.common ? " → " + commonEventName(c.common) : "");
+      case "scrollMap": return "Scroll Map " + (c.dir || "?") + " " + (c.distance || 0) + " tiles (speed " + (c.speed || 0) + ")";
+      case "balloon": return "Balloon " + (BALLOON_NAMES[c.balloonId] || c.balloonId) + " over " + (c.target === "player" ? "Player" : c.target === "this" ? "This Event" : "Event #" + c.target);
+      case "scrollText": return "Scrolling Text: " + String(c.text || "").split("\n")[0].slice(0, 40);
       case "erase": return "Erase This Event";
       case "save": return "Open Save Screen";
       case "gameover": return "Game Over";
@@ -511,6 +558,100 @@ import { openLocationPicker } from "./location-picker";
           c.target = w.target;
           c.wait = w.wait;
         };
+      } },
+    // --- Presentation family (Project Compass M2·A) ---
+    { t: "showPic", label: "Show Picture", make: () => ({ t: "showPic", id: 1, name: "", origin: 0, x: 0, y: 0, scaleX: 100, scaleY: 100, opacity: 255, blend: 0 }),
+      form(c: any, box: any) {
+        const w = { id: c.id || 1, name: c.name || "", origin: c.origin || 0, x: c.x || 0, y: c.y || 0, scaleX: c.scaleX == null ? 100 : c.scaleX, scaleY: c.scaleY == null ? 100 : c.scaleY, opacity: c.opacity == null ? 255 : c.opacity, blend: c.blend || 0 };
+        box.appendChild(row(field("Picture # (1–100)", nIn(w, "id", 1, 100)), field("Origin", sel(w, "origin", ORIGIN_OPTS))));
+        box.appendChild(field("Image (asset key or image URL)", tIn(w, "name")));
+        box.appendChild(h("div", { class: "dim" }, "Point this at an image in your Assets library (asset:… key) or a direct image URL. Pictures imported from RPG Maker keep their name; add the matching art to your library and it appears."));
+        box.appendChild(row(field("X (px)", nIn(w, "x")), field("Y (px)", nIn(w, "y"))));
+        box.appendChild(row(field("Scale X %", nIn(w, "scaleX", 0, 2000)), field("Scale Y %", nIn(w, "scaleY", 0, 2000)),
+          field("Opacity (0–255)", nIn(w, "opacity", 0, 255)), field("Blend", sel(w, "blend", BLEND_OPTS))));
+        return () => Object.assign(c, w);
+      } },
+    { t: "movePic", label: "Move Picture", make: () => ({ t: "movePic", id: 1, origin: 0, x: 0, y: 0, scaleX: 100, scaleY: 100, opacity: 255, blend: 0, frames: 60, wait: true }),
+      form(c: any, box: any) {
+        const w = { id: c.id || 1, origin: c.origin || 0, x: c.x || 0, y: c.y || 0, scaleX: c.scaleX == null ? 100 : c.scaleX, scaleY: c.scaleY == null ? 100 : c.scaleY, opacity: c.opacity == null ? 255 : c.opacity, blend: c.blend || 0, frames: c.frames == null ? 60 : c.frames, wait: c.wait !== false };
+        box.appendChild(row(field("Picture #", nIn(w, "id", 1, 100)), field("Origin", sel(w, "origin", ORIGIN_OPTS)), field("Blend", sel(w, "blend", BLEND_OPTS))));
+        box.appendChild(row(field("X (px)", nIn(w, "x")), field("Y (px)", nIn(w, "y"))));
+        box.appendChild(row(field("Scale X %", nIn(w, "scaleX", 0, 2000)), field("Scale Y %", nIn(w, "scaleY", 0, 2000)), field("Opacity", nIn(w, "opacity", 0, 255))));
+        box.appendChild(row(field("Duration (frames)", nIn(w, "frames", 0, 6000)), field("Wait for completion", chk(w, "wait"))));
+        return () => Object.assign(c, w);
+      } },
+    { t: "rotatePic", label: "Rotate Picture", make: () => ({ t: "rotatePic", id: 1, speed: 5 }),
+      form(c: any, box: any) {
+        const w = { id: c.id || 1, speed: c.speed == null ? 5 : c.speed };
+        box.appendChild(row(field("Picture #", nIn(w, "id", 1, 100)), field("Speed (° per frame; 0 stops)", nIn(w, "speed", -90, 90))));
+        return () => Object.assign(c, w);
+      } },
+    { t: "tintPic", label: "Tint Picture", make: () => ({ t: "tintPic", id: 1, tone: [0, 0, 0, 0], frames: 60, wait: true }),
+      form(c: any, box: any) {
+        const w: any = { id: c.id || 1, tone: Array.isArray(c.tone) ? c.tone.slice() : [0, 0, 0, 0], frames: c.frames == null ? 60 : c.frames, wait: c.wait !== false };
+        box.appendChild(row(field("Picture #", nIn(w, "id", 1, 100)), field("Duration (frames)", nIn(w, "frames", 0, 6000)), field("Wait", chk(w, "wait"))));
+        box.appendChild(toneEditor(w, "tone"));
+        return () => { c.id = w.id; c.tone = w.tone; c.frames = w.frames; c.wait = w.wait; };
+      } },
+    { t: "erasePic", label: "Erase Picture", make: () => ({ t: "erasePic", id: 1 }),
+      form(c: any, box: any) {
+        const w = { id: c.id || 1 };
+        box.appendChild(field("Picture #", nIn(w, "id", 1, 100)));
+        return () => Object.assign(c, w);
+      } },
+    { t: "tint", label: "Tint Screen", make: () => ({ t: "tint", tone: [0, 0, 0, 0], frames: 60, wait: false }),
+      form(c: any, box: any) {
+        const w: any = { tone: Array.isArray(c.tone) ? c.tone.slice() : [0, 0, 0, 0], frames: c.frames == null ? 60 : c.frames, wait: !!c.wait };
+        box.appendChild(toneEditor(w, "tone"));
+        box.appendChild(row(field("Duration (frames)", nIn(w, "frames", 0, 6000)), field("Wait for completion", chk(w, "wait"))));
+        box.appendChild(h("div", { class: "dim" }, "Colour-tints the whole screen. Use “Dark” for a fade to dusk, or drag all channels to −255 for a fade to black. Set “Normal” to clear it."));
+        return () => { c.tone = w.tone; c.frames = w.frames; c.wait = w.wait; };
+      } },
+    { t: "timer", label: "Control Timer", make: () => ({ t: "timer", op: "start", seconds: 60, common: 0 }),
+      form(c: any, box: any) {
+        const w = { op: c.op || "start", seconds: c.seconds == null ? 60 : c.seconds, common: c.common || 0 };
+        box.appendChild(field("Operation", sel(w, "op", [{ v: "start", l: "Start" }, { v: "stop", l: "Stop" }])));
+        box.appendChild(row(field("Seconds", nIn(w, "seconds", 0, 5999)),
+          field("On expire, call Common Event (optional)", sel(w, "common", dbOpts(S.proj.commonEvents, "(none)")))));
+        box.appendChild(h("div", { class: "dim" }, "A count-down clock shows at the top of the screen. When it reaches 0 it stops; optionally it can fire a common event (a nice touch for time-limit puzzles)."));
+        return () => { c.op = w.op; c.seconds = Number(w.seconds); c.common = Number(w.common) || 0; };
+      } },
+    { t: "scrollMap", label: "Scroll Map", make: () => ({ t: "scrollMap", dir: "right", distance: 4, speed: 4, wait: true }),
+      form(c: any, box: any) {
+        const w = { dir: c.dir || "right", distance: c.distance == null ? 4 : c.distance, speed: c.speed || 4, wait: c.wait !== false };
+        box.appendChild(row(
+          field("Direction", sel(w, "dir", [{ v: "up", l: "Up" }, { v: "down", l: "Down" }, { v: "left", l: "Left" }, { v: "right", l: "Right" }])),
+          field("Distance (tiles)", nIn(w, "distance", 0, 200)),
+          field("Speed (1–6)", nIn(w, "speed", 1, 6)),
+          field("Wait for completion", chk(w, "wait"))));
+        box.appendChild(h("div", { class: "dim" }, "Pans the camera away from the player. The view returns to the player when they move. Can't scroll past the edge of the map."));
+        return () => Object.assign(c, w);
+      } },
+    { t: "balloon", label: "Show Balloon Icon", make: () => ({ t: "balloon", target: "this", balloonId: 1, wait: false }),
+      form(c: any, box: any) {
+        const w = { target: typeof c.target === "number" ? "event" : (c.target || "this"), eventId: typeof c.target === "number" ? c.target : 1, balloonId: c.balloonId || 1, wait: !!c.wait };
+        const evWrap = h("span");
+        function redraw() {
+          evWrap.innerHTML = "";
+          if (w.target === "event") evWrap.appendChild(nIn(w, "eventId", 1, 999));
+          else evWrap.appendChild(h("span", { class: "dim" }, "—"));
+        }
+        box.appendChild(row(
+          field("Over", sel(w, "target", [{ v: "player", l: "Player" }, { v: "this", l: "This Event" }, { v: "event", l: "Event # …" }], redraw)),
+          field("Event #", evWrap),
+          field("Balloon", sel(w, "balloonId", BALLOON_OPTS)),
+          field("Wait", chk(w, "wait"))));
+        redraw();
+        return () => { c.target = w.target === "event" ? Number(w.eventId) : w.target; c.balloonId = Number(w.balloonId); c.wait = w.wait; };
+      } },
+    { t: "scrollText", label: "Show Scrolling Text", make: () => ({ t: "scrollText", text: "", speed: 2, noFast: false }),
+      form(c: any, box: any) {
+        const w = { speed: c.speed == null ? 2 : c.speed, noFast: !!c.noFast };
+        const ta = h("textarea", { rows: 5 }, c.text || "");
+        box.appendChild(field("Text (one line per line)", ta));
+        box.appendChild(row(field("Speed (1 slow – 8 fast)", nIn(w, "speed", 1, 8)), field("Can't speed up (hold OK)", chk(w, "noFast"))));
+        box.appendChild(h("div", { class: "dim" }, "Full-screen credits-style crawl. Players can hold OK to speed it up (unless disabled) or press Cancel to skip."));
+        return () => { c.text = ta.value; c.speed = Number(w.speed); c.noFast = w.noFast; };
       } },
     { t: "erase", label: "Erase This Event", make: () => ({ t: "erase" }), form: () => () => {} },
     { t: "save", label: "Open Save Screen", make: () => ({ t: "save" }), form: () => () => {} },

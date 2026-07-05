@@ -12,9 +12,11 @@
      typed as present-or-optional to match reality, never widened to `any`
      unless the underlying data genuinely has no fixed shape (tileProps maps,
      free-form asset blobs, plugin params).
-   - The AnyCommand union enumerates every event command: the 33 CMD_DEFS in
-     src/editor/event-editor/command-defs.ts, which are exactly the 33 types
-     registered in src/engine/interpreter/commands/*.ts — plus `mzTodo`, the
+   - The AnyCommand union enumerates every event command: the CMD_DEFS in
+     src/editor/event-editor/command-defs.ts, which are exactly the types
+     registered in src/engine/interpreter/commands/*.ts (43 as of Project
+     Compass M2·A, which added the presentation family: pictures, tint, timer,
+     scroll, balloons, scrolling text) — plus `mzTodo`, the
      MZ/MV-importer placeholder (Project Compass M1·C): editor-rendered,
      preserved for re-import, and deliberately WITHOUT an interpreter handler
      so the engine silently skips it.
@@ -474,7 +476,7 @@ export interface Quest {
 }
 
 // ============================================================================
-// Event commands — the AnyCommand discriminated union (33 types)
+// Event commands — the AnyCommand discriminated union (43 types + mzTodo)
 // ============================================================================
 
 /** Conditional-branch condition (the `if` command / quest requirements). */
@@ -714,6 +716,105 @@ export interface CmdMzTodo {
   label: string;
 }
 
+// --- Presentation commands (Project Compass, M2·A) ---------------------------
+// The on-screen presentation family: pictures, screen tint, timer, map scroll,
+// balloon icons, scrolling text. All additive/optional — old projects never see
+// them. A screen colour tone is [red, green, blue, gray]: r/g/b in -255..255,
+// gray 0..255 (RM's Tone). Picture `name` is an "asset:*" key OR a direct image
+// URL/data-URL (see presentation-runtime.resolvePictureSrc). `blend` maps to a
+// canvas composite: 0 normal, 1 add, 2 multiply, 3 screen.
+
+/** Show a picture in numbered slot `id` (1–100). `origin` 0 = upper-left,
+ *  1 = centered; `x`/`y` are screen pixels; `scaleX`/`scaleY` are percent
+ *  (100 = 1:1); `opacity` 0–255. */
+export interface CmdShowPic {
+  t: "showPic";
+  id: number;
+  name: string;
+  origin: number;
+  x: number;
+  y: number;
+  scaleX: number;
+  scaleY: number;
+  opacity: number;
+  blend: number;
+}
+/** Tween a shown picture's position/scale/opacity/blend/origin over `frames`. */
+export interface CmdMovePic {
+  t: "movePic";
+  id: number;
+  origin: number;
+  x: number;
+  y: number;
+  scaleX: number;
+  scaleY: number;
+  opacity: number;
+  blend: number;
+  frames: number;
+  wait?: boolean;
+}
+/** Spin a shown picture at `speed` degrees per tick (RM Rotate Picture). */
+export interface CmdRotatePic {
+  t: "rotatePic";
+  id: number;
+  speed: number;
+}
+/** Tween a shown picture's colour tone over `frames`. */
+export interface CmdTintPic {
+  t: "tintPic";
+  id: number;
+  tone: [number, number, number, number];
+  frames: number;
+  wait?: boolean;
+}
+/** Remove picture slot `id`. */
+export interface CmdErasePic {
+  t: "erasePic";
+  id: number;
+}
+/** Tween the whole-screen colour tone over `frames` (RM Tint / Fadeout /
+ *  Fadein Screen). Fade-out is tone → black, fade-in is tone → normal. */
+export interface CmdTint {
+  t: "tint";
+  tone: [number, number, number, number];
+  frames: number;
+  wait?: boolean;
+}
+/** Start or stop the count-down timer. `seconds` seeds a start; `common` is an
+ *  optional common-event id fired when the timer reaches 0 (Atlas nicety; the
+ *  importer never sets it). */
+export interface CmdTimer {
+  t: "timer";
+  op: "start" | "stop";
+  seconds?: number;
+  common?: number;
+}
+/** Scroll the map camera `distance` tiles in `dir` at `speed` (1–6). Always
+ *  waits for the scroll to finish (RM's scroll wait-mode). */
+export interface CmdScrollMap {
+  t: "scrollMap";
+  dir: "up" | "down" | "left" | "right";
+  distance: number;
+  speed: number;
+  wait?: boolean;
+}
+/** Pop a speech-balloon glyph (`balloonId` 1–15) over a target: "player",
+ *  "this" event, or an event id. */
+export interface CmdBalloon {
+  t: "balloon";
+  target: "player" | "this" | number;
+  balloonId: number;
+  wait?: boolean;
+}
+/** Full-screen scrolling text (credits-style). `speed` 1–8; `noFast` disables
+ *  the hold-to-speed-up. */
+export interface CmdScrollText {
+  t: "scrollText";
+  text: string;
+  speed: number;
+  noFast?: boolean;
+}
+
 /** Every built-in event command, discriminated on `t`. Plugin commands add
  *  further `t` values at runtime via the interpreter registry; those aren't in
  *  this union, so widen with `AnyCommand | { t: string; [k: string]: any }` at
@@ -755,6 +856,16 @@ export type AnyCommand =
   | CmdLoop
   | CmdBreakLoop
   | CmdPlayAnim
+  | CmdShowPic
+  | CmdMovePic
+  | CmdRotatePic
+  | CmdTintPic
+  | CmdErasePic
+  | CmdTint
+  | CmdTimer
+  | CmdScrollMap
+  | CmdBalloon
+  | CmdScrollText
   | CmdMzTodo;
 
 /** The `t` discriminant of any built-in command. */

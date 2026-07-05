@@ -20,6 +20,7 @@ import { UIStack } from "../ui-stack.js";
 import { Interp } from "../interpreter/interp.js";
 import { Plugins } from "../plugin-runtime.js";
 import { updateZonePresence, zoneEncounterPool, mapHasZones } from "./zone-runtime.js";
+import { updatePresentation, tickTimer, resetScroll } from "./presentation-runtime.js";
 import { fadeTo } from "../message.js";
 import { render } from "../render-glue.js";
 import { toggleHud } from "../hud.js";
@@ -138,6 +139,7 @@ export async function transferPlayer(mapId: any, x: any, y: any, dir: any): Prom
   const tr = Plugins.transition;
   if (tr && tr.out) await tr.out();
   else await fadeTo(1, 250);
+  resetScroll(); // a map scroll offset is per-map (Project Compass M2·A)
   await loadMap(mapId);
   const p = G.player;
   p.x = p.tx = x; p.y = p.ty = y; p.rx = x; p.ry = y; p.prx = x; p.pry = y; p.moving = false;
@@ -176,6 +178,14 @@ export function update(): void {
   }
 
   const p = G.player;
+  // Presentation layer (Project Compass M2·A): advance picture/tint/scroll
+  // tweens and the count-down timer. Placed after the menu early-return, so it
+  // ticks during events but pauses while a menu is open (RM timer semantics).
+  updatePresentation();
+  const timerExpiry = tickTimer();
+  if (timerExpiry && !ctx.blockingRun) {
+    new Interp(null).callCommonEvent(timerExpiry); // fire-and-forget, like a parallel
+  }
   // Dash "Toggle" mode: flip the latch on each rising edge of the dash button (tracked every
   // tick so a tap while standing still registers). Hold/Always read live in wantsDash().
   if ((ctx.playerOptions.dashMode || "hold") === "toggle") {

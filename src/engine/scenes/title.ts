@@ -16,6 +16,7 @@ import { ctx, fns } from "../state/engine-context.js";
 import { G, makeActor } from "../state/game-state.js";
 import { slotInfo, saveLoadMenu } from "../state/save.js";
 import { loadMap, initPlayer, syncFollowers } from "./map-runtime.js";
+import { resetPresentation } from "./presentation-runtime.js";
 import { optionsMenu } from "./menus.js";
 import { fadeTo } from "../message.js";
 import { render } from "../render-glue.js";
@@ -41,6 +42,7 @@ export async function newGame(start?: { mapId: number; x: number; y: number }): 
   G.vehicles = {}; // fresh vehicle placements (lazily seeded from System)
   G.vehicle = null;
   ctx.cameraZoom = 1;
+  resetPresentation(); // clear pictures/tint/timer/scroll (Project Compass M2·A)
   initPlayer(
     start ? start.x : ctx.proj.system.startX,
     start ? start.y : ctx.proj.system.startY,

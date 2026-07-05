@@ -9,6 +9,11 @@
 
 import { registerCommand, type InterpContext } from "../registry.js";
 import { panGainForTile } from "../../../shared/audio-math.js";
+import {
+  showPicture, movePicture, rotatePicture, tintPicture, erasePicture, pictureBusy,
+  tintScreen, tintBusy, startTimer, stopTimer, scrollMap, scrollBusy,
+  showBalloon, showScrollText,
+} from "../../scenes/presentation-runtime.js";
 
 export function registerPresentationCommands(): void {
   registerCommand("se", (c: any, { interp, state, services }: InterpContext) => {
@@ -78,4 +83,61 @@ export function registerPresentationCommands(): void {
       while (ctx.flashTimer > 0) await services.frameWait();
     }
   });
+
+  // ---- Presentation family (Project Compass M2·A) ----
+  // Pictures, screen tint, timer, map scroll, balloon icons, scrolling text.
+  // The mutable screen state lives in scenes/presentation-runtime.ts and is
+  // advanced each map tick by updatePresentation(); the `wait` variants poll a
+  // busy() predicate through services.frameWait, exactly like shake/flash above.
+
+  registerCommand("showPic", (c: any) => { showPicture(c); });
+
+  registerCommand("movePic", async (c: any, { services }: InterpContext) => {
+    movePicture(c);
+    if (c.wait) { while (pictureBusy(c.id)) await services.frameWait(); }
+  });
+
+  registerCommand("rotatePic", (c: any) => { rotatePicture(c); });
+
+  registerCommand("tintPic", async (c: any, { services }: InterpContext) => {
+    tintPicture(c);
+    if (c.wait) { while (pictureBusy(c.id)) await services.frameWait(); }
+  });
+
+  registerCommand("erasePic", (c: any) => { erasePicture(c); });
+
+  registerCommand("tint", async (c: any, { services }: InterpContext) => {
+    tintScreen(c);
+    if (c.wait) { while (tintBusy()) await services.frameWait(); }
+  });
+
+  registerCommand("timer", (c: any) => {
+    if (c.op === "stop") stopTimer();
+    else startTimer(Number(c.seconds) || 0, c.common);
+  });
+
+  registerCommand("scrollMap", async (c: any, { services }: InterpContext) => {
+    scrollMap(c);
+    // RM's Scroll Map runs in the interpreter's scroll wait-mode by default.
+    if (c.wait !== false) { while (scrollBusy()) await services.frameWait(); }
+  });
+
+  registerCommand("balloon", async (c: any, { interp, state, services }: InterpContext) => {
+    const target =
+      c.target === "player" ? state.player :
+      c.target === "this" ? interp.evRT :
+      findEventRT(services, c.target);
+    showBalloon(target, c.balloonId);
+    if (c.wait) { await services.waitFrames(64); }
+  });
+
+  registerCommand("scrollText", async (c: any, { services }: InterpContext) => {
+    await showScrollText(String(c.text || ""), Number(c.speed) || 2, !!c.noFast, services.frameWait);
+  });
+}
+
+/** Resolve an event runtime by event id (balloon target > 0). */
+function findEventRT(services: any, eventId: any): any {
+  const list = (services.ctx && services.ctx.evRTs) || [];
+  return list.find((rt: any) => rt && rt.ev && rt.ev.id === Number(eventId)) || null;
 }

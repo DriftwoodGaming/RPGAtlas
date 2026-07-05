@@ -24,6 +24,7 @@ import {
   vehicleDrawables,
 } from "./scenes/map-runtime.js";
 import { updateHud } from "./hud.js";
+import { drawPresentation, scrollOffsetPx } from "./scenes/presentation-runtime.js";
 import { motionReduced } from "./state/player-options.js";
 import { weatherMotionScale } from "../shared/a11y.js";
 // The fixed tick length is owned by the loop (src/engine/loop.ts); render()
@@ -70,8 +71,11 @@ export async function render(): Promise<void> {
   const ip = (pv: any, cv: any) => (pv == null ? cv : pv + (cv - pv) * alpha);
   const pix = ip(p.prx, p.rx), piy = ip(p.pry, p.ry);
   const viewW = ctx.SCREEN_W / ctx.cameraZoom, viewH = ctx.SCREEN_H / ctx.cameraZoom;
-  const camX = clamp(pix * TILE + TILE / 2 - viewW / 2, 0, Math.max(0, ctx.map.width * TILE - viewW));
-  const camY = clamp(piy * TILE + TILE / 2 - viewH / 2, 0, Math.max(0, ctx.map.height * TILE - viewH));
+  // Map-scene camera offset from a Scroll Map command (Project Compass M2·A);
+  // added to the follow-camera before edge-clamping so it can't leave the map.
+  const scr = ctx.scene === "map" ? scrollOffsetPx() : { x: 0, y: 0 };
+  const camX = clamp(pix * TILE + TILE / 2 - viewW / 2 + scr.x, 0, Math.max(0, ctx.map.width * TILE - viewW));
+  const camY = clamp(piy * TILE + TILE / 2 - viewH / 2 + scr.y, 0, Math.max(0, ctx.map.height * TILE - viewH));
   const drawables = [];
   for (const rt of ctx.evRTs) {
     if (rt.erased || !rt.page || rt.charsetIdx < 0) continue;
@@ -161,6 +165,10 @@ export async function render(): Promise<void> {
     ctx.g2d.restore();
   }
   drawMapCombatOverlay(ctx.g2d, camX, camY, shakeX, shakeY, alpha, pix, piy);
+  // Presentation layer (Project Compass M2·A): pictures, screen tint, balloons,
+  // timer HUD — painted onto the 2D canvas over the map (works in HD + 2D),
+  // below the screen flash. Map scene only.
+  if (ctx.scene === "map") drawPresentation(ctx.g2d, camX, camY, TILE);
   if (ctx.flashTimer > 0) {
     const decay = ctx.flashTimer / (ctx.flashDuration || 15);
     ctx.g2d.save();

@@ -76,7 +76,9 @@ assert.match(commandDefsSource, /t: "commonEvent", label: "Call Common Event"/,
     bundle: true, format: "cjs", write: false, platform: "node", logLevel: "silent",
   })).outputFiles[0].text;
   const mod = { exports: {} };
-  vm.runInNewContext(out, { module: mod, exports: mod.exports, require, console, window: {} });
+  // The M2·A presentation commands pull src/shared/deps.js into this bundle
+  // (it reads window.RPGAtlasDeps.Assets at eval) — stub the classic globals.
+  vm.runInNewContext(out, { module: mod, exports: mod.exports, require, console, window: { RPGAtlasDeps: { Assets: { TILE: 48 } } } });
   mod.exports.registerBuiltinCommands();
   const handler = mod.exports.getCommand("commonEvent");
   assert.equal(typeof handler, "function", "the interpreter registers a commonEvent handler");

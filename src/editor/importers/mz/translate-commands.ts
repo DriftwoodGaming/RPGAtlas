@@ -21,6 +21,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { AnyCommand, Condition } from "../../../shared/schema";
+import { assetKeyOf, slugName } from "../../../shared/asset-library";
 import type { CommandTranslator } from "./convert-events";
 import type { ImportReport, ReportKind } from "./report";
 import type { RmCommand, RmMoveRoute } from "./raw-types";
@@ -36,7 +37,6 @@ interface TodoInfo { what: string; detail: string; }
 const TODO: Record<number, TodoInfo> = {
   103: { what: "asking the player for a number", detail: "number-entry prompts arrive in a later update (M2·B)" },
   104: { what: "letting the player pick an item", detail: "item-picker prompts arrive in a later update (M2·B)" },
-  105: { what: "scrolling text", detail: "full-screen scrolling text arrives in a later update (M2·A)" },
   118: { what: "a jump label", detail: "labels and jumps arrive in a later update (M2·C)" },
   119: { what: "jumping to a label", detail: "labels and jumps arrive in a later update (M2·C)" },
   132: { what: "changing the battle music", detail: "swapping the battle music from an event arrives in a later update" },
@@ -50,18 +50,8 @@ const TODO: Record<number, TodoInfo> = {
   140: { what: "changing a vehicle's music", detail: "swapping a vehicle's music arrives in a later update" },
   202: { what: "moving a vehicle", detail: "placing a boat/ship/airship from an event arrives in a later update (M4·A)" },
   203: { what: "moving another event", detail: "teleporting an event to a spot arrives in a later update" },
-  204: { what: "scrolling the map", detail: "camera map-scrolling arrives in a later update (M2·A)" },
   206: { what: "getting on or off a vehicle", detail: "the board/exit-vehicle command arrives in a later update (M4·A)" },
-  213: { what: "a speech balloon", detail: "balloon icons over characters arrive in a later update (M2·A)" },
   216: { what: "showing or hiding followers", detail: "toggling the follower trail arrives in a later update (M2·C)" },
-  221: { what: "fading the screen out", detail: "screen fades arrive in a later update (M2·A)" },
-  222: { what: "fading the screen in", detail: "screen fades arrive in a later update (M2·A)" },
-  223: { what: "tinting the screen", detail: "screen color tints arrive in a later update (M2·A)" },
-  231: { what: "showing a picture", detail: "on-screen pictures arrive in a later update (M2·A)" },
-  232: { what: "moving a picture", detail: "on-screen pictures arrive in a later update (M2·A)" },
-  233: { what: "spinning a picture", detail: "on-screen pictures arrive in a later update (M2·A)" },
-  234: { what: "tinting a picture", detail: "on-screen pictures arrive in a later update (M2·A)" },
-  235: { what: "erasing a picture", detail: "on-screen pictures arrive in a later update (M2·A)" },
   243: { what: "remembering the music", detail: "save/resume-music arrives in a later update (M4·B)" },
   244: { what: "bringing the music back", detail: "save/resume-music arrives in a later update (M4·B)" },
   245: { what: "playing a background sound", detail: "looping background sounds arrive in a later update (M4·B)" },
@@ -126,6 +116,13 @@ const MOVE_DIAG: Record<number, [string, string]> = {
   5: ["down", "left"], 6: ["down", "right"], 7: ["up", "left"], 8: ["up", "right"],
 };
 
+/** RM Scroll Map direction (2 down · 4 left · 6 right · 8 up) → Atlas dir. */
+const SCROLL_DIR: Record<number, "up" | "down" | "left" | "right"> = { 2: "down", 4: "left", 6: "right", 8: "up" };
+/** RM tone array [r,g,b,gray] → Atlas tone tuple (defaults to normal). */
+const toneOf = (t: any): [number, number, number, number] => {
+  const a = Array.isArray(t) ? t : [0, 0, 0, 0];
+  return [num(a[0]), num(a[1]), num(a[2]), num(a[3])];
+};
 const clamp01 = (x: number): number => Math.max(0, Math.min(1, x));
 const hex2 = (n: number): string => ("0" + Math.max(0, Math.min(255, Math.round(n || 0))).toString(16)).slice(-2);
 const rgbHex = (c: any): string => `#${hex2(c?.[0])}${hex2(c?.[1])}${hex2(c?.[2])}`;
@@ -180,7 +177,7 @@ class Translator {
       // ---- §8.1 messages & text ----
       case 101: out.push(this.showText(c, indent)); return;
       case 102: out.push(this.showChoices(c, indent)); return;
-      case 105: this.consumeLines(105, 405, indent); out.push(this.todoCmd(c)); return;
+      case 105: out.push(this.scrollText(c, indent)); return;
       case 108: this.consumeLines(108, 408, indent); return; // comment → dropped (not report-worthy)
       // ---- §8.2 flow control ----
       case 111: this.conditional(c, indent, out); return;
@@ -193,6 +190,7 @@ class Translator {
       case 121: this.controlSwitches(p, out); return;
       case 122: this.controlVariables(c, out); return;
       case 123: out.push({ t: "selfsw", key: String(p[0] ?? "A"), val: p[1] === 0 }); return;
+      case 124: out.push({ t: "timer", op: num(p[0]) === 0 ? "start" : "stop", seconds: num(p[1]) }); return;
       case 125: this.changeGold(c, out); return;
       case 126: this.changeItem(c, "item", out); return;
       case 127: this.changeItem(c, "weapon", out); return;
@@ -200,14 +198,25 @@ class Translator {
       case 129: out.push({ t: "party", op: p[1] === 0 ? "add" : "remove", actorId: num(p[0]) }); return;
       // ---- §8.5 movement & map ----
       case 201: this.transfer(c, out); return;
+      case 204: out.push({ t: "scrollMap", dir: SCROLL_DIR[num(p[0])] || "right", distance: num(p[1]), speed: num(p[2]) || 4, wait: true }); return;
       case 205: this.moveRoute(c, out); return;
       case 211: out.push({ t: "transparency", val: p[0] === 0 }); return;
       case 212: out.push({ t: "playAnim", animationId: num(p[1]), target: p[0] === -1 ? "player" : "this", wait: true }); return;
+      case 213: out.push({ t: "balloon", target: num(p[0]) === -1 ? "player" : num(p[0]) === 0 ? "this" : num(p[0]), balloonId: num(p[1]) || 1, wait: !!p[2] }); return;
       case 214: out.push({ t: "erase" }); return;
       // ---- §8.6 screen effects ----
+      case 221: out.push({ t: "tint", tone: [-255, -255, -255, 0], frames: 24, wait: true }); return; // Fadeout → fade to black
+      case 222: out.push({ t: "tint", tone: [0, 0, 0, 0], frames: 24, wait: true }); return;             // Fadein → back to normal
+      case 223: out.push({ t: "tint", tone: toneOf(p[0]), frames: num(p[1]) || 60, wait: !!p[2] }); return;
       case 224: out.push({ t: "flash", color: rgbHex(p[0]), opacity: clamp01(num((p[0] || [])[3]) / 255) || 0.5, duration: num(p[1]) || 15, wait: !!p[2] }); return;
       case 225: out.push({ t: "shake", power: num(p[0]) || 5, speed: num(p[1]) || 5, duration: num(p[2]) || 30, wait: p[3] !== false }); return;
       case 236: out.push({ t: "weather", kind: weatherKind(p[0]), power: num(p[1]) || 5 }); return;
+      // ---- §8.8 pictures ----
+      case 231: this.showPic(c, out); return;
+      case 232: this.movePic(c, out); return;
+      case 233: out.push({ t: "rotatePic", id: num(p[0]) || 1, speed: num(p[1]) }); return;
+      case 234: out.push({ t: "tintPic", id: num(p[0]) || 1, tone: toneOf(p[1]), frames: num(p[2]) || 60, wait: !!p[3] }); return;
+      case 235: out.push({ t: "erasePic", id: num(p[0]) || 1 }); return;
       // ---- §8.7 timing ----
       case 230: out.push({ t: "wait", frames: num(p[0]) || 1 }); return;
       // ---- §8.9 audio & video ----
@@ -432,6 +441,53 @@ class Translator {
     while (this.at(655, c.indent)) lines.push(String(((this.list[this.i++].parameters as any[]) || [])[0] ?? ""));
     this.bump("cmd-script", "todo", "a script snippet", "small RPG Maker scripts that read game data run in a later update (M5·B); the rest are listed in the import report");
     out.push({ t: "mzTodo", code: 355, params: [lines.join("\n")], label: "A script snippet — coming in a later update" });
+  }
+
+  // -- §8.1 Show Scrolling Text (105 + 405 lines) --------------------------
+  private scrollText(c: RmCommand, indent: number): AnyCommand {
+    const p = (c.parameters as any[]) || [];
+    const lines: string[] = [];
+    while (this.at(405, indent)) lines.push(String(((this.list[this.i++].parameters as any[]) || [])[0] ?? ""));
+    return { t: "scrollText", text: lines.join("\n"), speed: num(p[0]) || 2, noFast: !!p[1] } as AnyCommand;
+  }
+
+  // -- §8.8 Pictures (231 / 232) -------------------------------------------
+  /** RM picture name → an Atlas "asset:pictures/<slug>" key, and one aggregated
+   *  report line: pictures play now, but their art must be re-added (M1's asset
+   *  pipeline doesn't import img/pictures — matrix §16 / mig-2 spec). */
+  private pictureKey(raw: any): string {
+    const name = String(raw || "");
+    if (!name) return "";
+    this.bump("pic-art", "partial", "picture image files",
+      "your pictures now play in Atlas — add their image files to the Assets library and they'll appear (the picture names are kept for you)");
+    return assetKeyOf("pictures", slugName(name));
+  }
+  private picVarPos(): void {
+    this.bump("pic-var-pos", "partial", "a picture placed by a variable",
+      "pictures positioned from a variable use a fixed spot for now (variable positions arrive in a later update, M2·C)");
+  }
+  private showPic(c: RmCommand, out: AnyCommand[]): void {
+    const p = (c.parameters as any[]) || [];
+    const varDesig = num(p[3]) === 1;
+    if (varDesig) this.picVarPos();
+    out.push({
+      t: "showPic", id: num(p[0]) || 1, name: this.pictureKey(p[1]), origin: num(p[2]),
+      x: varDesig ? 0 : num(p[4]), y: varDesig ? 0 : num(p[5]),
+      scaleX: p[6] == null ? 100 : num(p[6]), scaleY: p[7] == null ? 100 : num(p[7]),
+      opacity: p[8] == null ? 255 : num(p[8]), blend: num(p[9]),
+    });
+  }
+  private movePic(c: RmCommand, out: AnyCommand[]): void {
+    const p = (c.parameters as any[]) || [];
+    const varDesig = num(p[2]) === 1;
+    if (varDesig) this.picVarPos();
+    out.push({
+      t: "movePic", id: num(p[0]) || 1, origin: num(p[1]),
+      x: varDesig ? 0 : num(p[3]), y: varDesig ? 0 : num(p[4]),
+      scaleX: p[5] == null ? 100 : num(p[5]), scaleY: p[6] == null ? 100 : num(p[6]),
+      opacity: p[7] == null ? 255 : num(p[7]), blend: num(p[8]),
+      frames: num(p[9]) || 1, wait: !!p[10],
+    });
   }
 
   /** Consume `openerCode`'s following continuation lines (`lineCode`) at `indent`. */

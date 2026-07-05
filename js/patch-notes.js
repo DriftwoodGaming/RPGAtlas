@@ -5,6 +5,22 @@
 export const PATCH_NOTES = [
   {
     date: "July 5, 2026",
+    title: "Pictures, screen tint, a timer & more — new event commands for cutscenes",
+    summary:
+      "Ten new event commands land the classic “presentation” toolkit: show and move pictures on the screen, tint or fade the whole screen, run a count-down timer, scroll the map for a reveal, pop a speech-balloon over a character, and roll full-screen scrolling text. Games imported from RPG Maker MV/MZ that used these now bring them across automatically.",
+    items: [
+      "Pictures: Show Picture, Move Picture, Rotate Picture, Tint Picture, and Erase Picture — place an image (from your Assets library or an image URL) anywhere on screen, then slide, spin, recolour, or fade it. Point it at a slot number 1–100.",
+      "Tint Screen: colour-wash the whole screen — pick a preset (Dark, Night, Sepia, Sunset) or dial in your own red/green/blue/gray. Fade-outs and fade-ins from imported games map to this too.",
+      "Control Timer: a count-down clock shows at the top of the screen; when it hits 0 it can fire a common event — perfect for “escape before time runs out!” puzzles.",
+      "Scroll Map: pan the camera in a direction for a cutscene reveal (it slides back when the player moves).",
+      "Show Balloon Icon: pop a “!”, “?”, heart, music note and more over the player or any event.",
+      "Show Scrolling Text: full-screen credits-style text the player can speed up by holding OK or skip with Cancel.",
+      "Pictures, screen tint, and the timer are remembered in your save file, so a saved game looks exactly as you left it.",
+      "Importing an RPG Maker MV/MZ game now converts all of these — re-import an older import to pick them up. (Picture art needs adding to your Assets library; the import report tells you which.)",
+    ],
+  },
+  {
+    date: "July 5, 2026",
     title: "Import from RPG Maker MZ / MV — bring your own game into RPGAtlas",
     summary:
       "Made a game in RPG Maker MV or MZ? File ▸ Import from RPG Maker… brings it in — maps, database, common events, and event pages all convert, and you get a friendly report of what came along and what didn't. Nothing is ever dropped silently.",

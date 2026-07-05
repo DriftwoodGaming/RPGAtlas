@@ -52,7 +52,7 @@ const SPEC: Row[] = [
   { code: 102, name: "Show Choices", list: [c(102, [["A", "B"], 1]), c(404)], expect: { first: "choices" } },
   { code: 103, name: "Input Number", list: [c(103, [1, 2])], expect: { todo: 103 } },
   { code: 104, name: "Select Item", list: [c(104, [1, 2])], expect: { todo: 104 } },
-  { code: 105, name: "Scrolling Text", list: [c(105, [2, false]), c(405, ["scroll"])], expect: { todo: 105 } },
+  { code: 105, name: "Scrolling Text", list: [c(105, [2, false]), c(405, ["scroll"])], expect: { first: "scrollText" } },
   { code: 108, name: "Comment", list: [c(108, ["note"]), c(408, ["more"])], expect: { drop: true } },
   // §8.2 flow control
   { code: 111, name: "Conditional Branch", list: [c(111, [0, 1, 0])], expect: { first: "if" } },
@@ -66,6 +66,7 @@ const SPEC: Row[] = [
   { code: 121, name: "Control Switches", list: [c(121, [3, 3, 0])], expect: { first: "switch" } },
   { code: 122, name: "Control Variables", list: [c(122, [1, 1, 0, 0, 5])], expect: { first: "var" } },
   { code: 123, name: "Control Self Switch", list: [c(123, ["A", 0])], expect: { first: "selfsw" } },
+  { code: 124, name: "Control Timer", list: [c(124, [0, 30])], expect: { first: "timer" } },
   { code: 125, name: "Change Gold", list: [c(125, [0, 0, 100])], expect: { first: "gold" } },
   { code: 126, name: "Change Items", list: [c(126, [1, 0, 0, 2])], expect: { first: "item" } },
   { code: 127, name: "Change Weapons", list: [c(127, [1, 0, 0, 1])], expect: { first: "item" } },
@@ -85,12 +86,12 @@ const SPEC: Row[] = [
   { code: 201, name: "Transfer Player", list: [c(201, [0, 2, 4, 4, 2, 0])], expect: { first: "transfer" } },
   { code: 202, name: "Set Vehicle Location", list: [c(202, [0, 0, 1, 1])], expect: { todo: 202 } },
   { code: 203, name: "Set Event Location", list: [c(203, [1, 0, 2, 2])], expect: { todo: 203 } },
-  { code: 204, name: "Scroll Map", list: [c(204, [2, 3, 4])], expect: { todo: 204 } },
+  { code: 204, name: "Scroll Map", list: [c(204, [2, 3, 4])], expect: { first: "scrollMap" } },
   { code: 205, name: "Set Movement Route", list: [c(205, [-1, { list: [c(1), c(0)], wait: true }])], expect: { first: "move" } },
   { code: 206, name: "Get on/off Vehicle", list: [c(206)], expect: { todo: 206 } },
   { code: 211, name: "Change Transparency", list: [c(211, [0])], expect: { first: "transparency" } },
   { code: 212, name: "Show Animation", list: [c(212, [-1, 3, true])], expect: { first: "playAnim" } },
-  { code: 213, name: "Show Balloon Icon", list: [c(213, [-1, 1, false])], expect: { todo: 213 } },
+  { code: 213, name: "Show Balloon Icon", list: [c(213, [-1, 1, false])], expect: { first: "balloon" } },
   { code: 214, name: "Erase Event", list: [c(214)], expect: { first: "erase" } },
   { code: 216, name: "Change Followers", list: [c(216, [0])], expect: { todo: 216 } },
   { code: 217, name: "Gather Followers", list: [c(217)], expect: { drop: true } },
@@ -100,20 +101,20 @@ const SPEC: Row[] = [
   { code: 284, name: "Change Parallax", list: [c(284, ["p"])], expect: { todo: 284 } },
   { code: 285, name: "Get Location Info", list: [c(285, [1, 0, 0, 0])], expect: { todo: 285 } },
   // §8.6 screen effects
-  { code: 221, name: "Fadeout Screen", list: [c(221)], expect: { todo: 221 } },
-  { code: 222, name: "Fadein Screen", list: [c(222)], expect: { todo: 222 } },
-  { code: 223, name: "Tint Screen", list: [c(223, [[0, 0, 0, 0], 60, false])], expect: { todo: 223 } },
+  { code: 221, name: "Fadeout Screen", list: [c(221)], expect: { first: "tint" } },
+  { code: 222, name: "Fadein Screen", list: [c(222)], expect: { first: "tint" } },
+  { code: 223, name: "Tint Screen", list: [c(223, [[0, 0, 0, 0], 60, false])], expect: { first: "tint" } },
   { code: 224, name: "Flash Screen", list: [c(224, [[255, 255, 255, 170], 15, false])], expect: { first: "flash" } },
   { code: 225, name: "Shake Screen", list: [c(225, [5, 5, 30, true])], expect: { first: "shake" } },
   { code: 236, name: "Set Weather", list: [c(236, ["rain", 5, 60, false])], expect: { first: "weather" } },
   // §8.7 timing
   { code: 230, name: "Wait", list: [c(230, [60])], expect: { first: "wait" } },
   // §8.8 pictures
-  { code: 231, name: "Show Picture", list: [c(231, [1, "P", 0, 0, 0, 0, 100, 100, 255, 0])], expect: { todo: 231 } },
-  { code: 232, name: "Move Picture", list: [c(232, [1])], expect: { todo: 232 } },
-  { code: 233, name: "Rotate Picture", list: [c(233, [1, 5])], expect: { todo: 233 } },
-  { code: 234, name: "Tint Picture", list: [c(234, [1])], expect: { todo: 234 } },
-  { code: 235, name: "Erase Picture", list: [c(235, [1])], expect: { todo: 235 } },
+  { code: 231, name: "Show Picture", list: [c(231, [1, "P", 0, 0, 0, 0, 100, 100, 255, 0])], expect: { first: "showPic" } },
+  { code: 232, name: "Move Picture", list: [c(232, [1, 0, 0, 0, 0, 100, 100, 255, 0, 30, 0])], expect: { first: "movePic" } },
+  { code: 233, name: "Rotate Picture", list: [c(233, [1, 5])], expect: { first: "rotatePic" } },
+  { code: 234, name: "Tint Picture", list: [c(234, [1, [0, 0, 0, 0], 60, false])], expect: { first: "tintPic" } },
+  { code: 235, name: "Erase Picture", list: [c(235, [1])], expect: { first: "erasePic" } },
   // §8.9 audio & video
   { code: 241, name: "Play BGM", list: [c(241, [{ name: "Town" }])], expect: { first: "music" } },
   { code: 242, name: "Fadeout BGM", list: [c(242, [2])], expect: { first: "music" } },
@@ -303,6 +304,47 @@ describe("real translations carry their fields (matrix §8)", () => {
     expect((cmds[0] as any).code).toBe(355);
     expect((cmds[0] as any).params[0]).toBe("if (a) {\n  b();\n}");
   });
+
+  // ---- M2·A presentation flips (matrix §8.6/§8.8, §16) ----
+  it("124 Control Timer maps start/stop + seconds", () => {
+    expect(t0([c(124, [0, 30])])).toEqual({ t: "timer", op: "start", seconds: 30 });
+    expect(t0([c(124, [1, 0])])).toEqual({ t: "timer", op: "stop", seconds: 0 });
+  });
+  it("204 Scroll Map maps direction/distance/speed", () => {
+    expect(t0([c(204, [8, 5, 3])])).toEqual({ t: "scrollMap", dir: "up", distance: 5, speed: 3, wait: true });
+    expect((t0([c(204, [6, 2, 4])]) as any).dir).toBe("right");
+  });
+  it("213 Show Balloon Icon maps target + balloon id", () => {
+    expect(t0([c(213, [-1, 3, false])])).toEqual({ t: "balloon", target: "player", balloonId: 3, wait: false });
+    expect(t0([c(213, [0, 1, true])])).toMatchObject({ target: "this", wait: true });
+    expect((t0([c(213, [7, 2, false])]) as any).target).toBe(7); // a specific event id
+  });
+  it("221/222/223 all map to a screen tint (fade = tone→black/normal)", () => {
+    expect(t0([c(221)])).toEqual({ t: "tint", tone: [-255, -255, -255, 0], frames: 24, wait: true });
+    expect(t0([c(222)])).toEqual({ t: "tint", tone: [0, 0, 0, 0], frames: 24, wait: true });
+    expect(t0([c(223, [[-68, -68, 0, 68], 90, true])])).toEqual({ t: "tint", tone: [-68, -68, 0, 68], frames: 90, wait: true });
+  });
+  it("231 Show Picture carries slot/position/scale/opacity + an asset key", () => {
+    const cmd = t0([c(231, [2, "Sign", 1, 0, 240, 180, 150, 120, 200, 1])]) as any;
+    expect(cmd).toMatchObject({ t: "showPic", id: 2, origin: 1, x: 240, y: 180, scaleX: 150, scaleY: 120, opacity: 200, blend: 1 });
+    expect(cmd.name).toBe("asset:pictures/sign");
+  });
+  it("231 with a variable-designated position reports + falls back to 0,0", () => {
+    const { cmds, report } = tr([c(231, [1, "P", 0, 1, 3, 4, 100, 100, 255, 0])]);
+    expect(cmds[0]).toMatchObject({ t: "showPic", x: 0, y: 0 });
+    expect(report.lines.some((l) => l.what === "a picture placed by a variable")).toBe(true);
+  });
+  it("232/233/234/235 move/rotate/tint/erase carry their fields", () => {
+    expect(t0([c(232, [1, 0, 0, 100, 50, 80, 80, 128, 2, 45, 1])])).toMatchObject({ t: "movePic", id: 1, x: 100, y: 50, scaleX: 80, opacity: 128, blend: 2, frames: 45, wait: true });
+    expect(t0([c(233, [3, 7])])).toEqual({ t: "rotatePic", id: 3, speed: 7 });
+    expect(t0([c(234, [2, [50, 0, 0, 0], 30, false])])).toEqual({ t: "tintPic", id: 2, tone: [50, 0, 0, 0], frames: 30, wait: false });
+    expect(t0([c(235, [4])])).toEqual({ t: "erasePic", id: 4 });
+  });
+  it("105 Show Scrolling Text folds 405 lines with speed/noFast", () => {
+    const cmd = t0([c(105, [4, true]), c(405, ["Line 1"]), c(405, ["Line 2"])]) as any;
+    expect(cmd).toMatchObject({ t: "scrollText", speed: 4, noFast: true });
+    expect(cmd.text).toBe("Line 1\nLine 2");
+  });
 });
 
 // ============================================================================
@@ -343,18 +385,19 @@ describe("message escape codes pass through verbatim (matrix §13)", () => {
 // mzTodo shape (decision D3).
 // ============================================================================
 describe("mzTodo placeholder shape (D3)", () => {
+  // Codes 103/104 stay mzTodo until M2·B, so they still exercise the shape.
   it("preserves the raw code + params and carries a friendly label", () => {
-    const cmd = t0([c(231, [1, "Sign", 0, 0, 240, 180, 100, 100, 255, 0])]) as any;
-    expect(cmd).toMatchObject({ t: "mzTodo", code: 231 });
-    expect(cmd.params).toEqual([1, "Sign", 0, 0, 240, 180, 100, 100, 255, 0]);
+    const cmd = t0([c(103, [1, 2])]) as any;
+    expect(cmd).toMatchObject({ t: "mzTodo", code: 103 });
+    expect(cmd.params).toEqual([1, 2]);
     expect(typeof cmd.label).toBe("string");
     expect(cmd.label.length).toBeGreaterThan(0);
   });
   it("aggregates repeats into one report line (D11) with the raw code", () => {
-    const { report } = tr([c(231, []), c(231, []), c(232, [])]);
-    const show = report.lines.find((l) => l.code === 231);
+    const { report } = tr([c(103, []), c(103, []), c(104, [])]);
+    const show = report.lines.find((l) => l.code === 103);
     expect(show?.count).toBe(2);
-    expect(report.lines.find((l) => l.code === 232)?.count).toBe(1);
+    expect(report.lines.find((l) => l.code === 104)?.count).toBe(1);
   });
 });
 
@@ -462,8 +505,11 @@ describe("fixture round-trip: MZ 'Cove Test' events (matrix §2/§8)", () => {
     expect(toCave.pages[0].trigger).toBe("touch");
     expect(toCave.pages[0].commands[0]).toMatchObject({ t: "transfer", mapId: 2, x: 4, y: 4 });
 
+    // M2·A flipped pictures: Show Picture / Wait / Erase Picture now translate.
     const sign = byId(harbor.events, 3);
-    expect(sign.pages[0].commands.map((x: any) => x.t)).toEqual(["mzTodo", "wait", "mzTodo"]);
+    expect(sign.pages[0].commands.map((x: any) => x.t)).toEqual(["showPic", "wait", "erasePic"]);
+    expect(sign.pages[0].commands[0]).toMatchObject({ t: "showPic", id: 1 });
+    expect((sign.pages[0].commands[0] as any).name).toMatch(/^asset:pictures\//);
   });
 
   it("Cave Ambush event: battle + result-branch placeholders + script", () => {
@@ -481,9 +527,11 @@ describe("fixture round-trip: MZ 'Cove Test' events (matrix §2/§8)", () => {
     expect(mzBanner).toMatchObject({ t: "mzTodo", code: 357 });
   });
 
-  it("the import report never silently drops (has todo lines for the deferred commands)", () => {
+  it("the import report never silently drops (has todo/partial lines for deferred commands)", () => {
     const whats = mz.report.lines.map((l) => l.what);
-    expect(whats).toContain("showing a picture");
+    // Pictures flipped to real commands in M2·A, but the report is still honest:
+    // the picture ART needs re-adding, so a partial line stands in for it.
+    expect(whats).toContain("picture image files");
     expect(whats).toContain("a script snippet");
     expect(mz.report.countOf("todo")).toBeGreaterThan(0);
   });

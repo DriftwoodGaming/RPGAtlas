@@ -14,6 +14,7 @@ import { showList } from "../ui-stack.js";
 import { ctx } from "./engine-context.js";
 import { G, sanitizeEquipment, param } from "./game-state.js";
 import { loadMap, initPlayer, syncFollowers } from "../scenes/map-runtime.js";
+import { serializePresentation, restorePresentation } from "../scenes/presentation-runtime.js";
 import { browserSaveRepository as saves } from "../../platform/browser/save-repository.js";
 
 export function slotInfo(slot: any): any {
@@ -64,6 +65,8 @@ export async function saveLoadMenu(mode: any): Promise<boolean> {
         timeOfDay: G.timeOfDay,
         vehicles: G.vehicles,
         vehicle: G.vehicle,
+        // Presentation layer (Project Compass M2·A): pictures, screen tint, timer.
+        presentation: serializePresentation(),
         mapId: G.mapId,
         player: {
           x: G.player.x,
@@ -112,6 +115,9 @@ async function applySave(d: any): Promise<void> {
   G.vehicles = d.vehicles || {};
   G.vehicle = d.vehicle || null;
   ctx.cameraZoom = clamp(Number(d.cameraZoom) || 1, 0.25, 4);
+  // Presentation layer (Project Compass M2·A): old saves lack the field →
+  // restorePresentation(undefined) resets to a clean screen.
+  restorePresentation(d.presentation);
   const p = d.player || {};
   initPlayer(p.x || 0, p.y || 0, p.dir);
   G.player.transparent = !!p.transparent;
