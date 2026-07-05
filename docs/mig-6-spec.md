@@ -81,6 +81,92 @@ rebuild, README mention, help.ts refresh, patch notes, version bumps.
 
 ## Stage log
 
+### M6·B — Round-trip QA & scale test — ✅ 2026-07-05 (branch `mig-6b`)
+
+**Objective:** prove the importer at *community scale* (the M0·B fixtures prove
+*coverage*; this proves *volume*): a script-generated project the size a real
+community game reaches — 50+ maps, 500+ events, a full DB — imports clean, inside
+an import-time budget, and survives the full chain the wizard promises. Plus a
+bug bash on messy real-world inputs and a report-copy review against the audience
+rule (D6). **No new conversion behavior** — QA re-runs the M1–M5 pipeline.
+
+**Delivered:**
+1. **`scripts/build-migration-scale-fixture.mjs`** (new) — a deterministic
+   (seeded mulberry32), idempotent generator that synthesizes a "community-scale"
+   RPG Maker project from the same self-made building blocks as the M0·B fixtures
+   (locked decision 5 — no RTP/DLC/exported data). Default **60 maps / 595
+   events / full DB** (12 actors · 8 classes · 40 skills · 30 items · 24 weapons ·
+   24 armors · 30 enemies · 20 troops · 20 states · 24 common events · 12
+   animations · 6 tilesets · 50 switches · 50 variables). Events cycle through six
+   templates built from the exact RM command shapes the M1·C translator already
+   converts (show-text+choices+call, chest self-switch, transfer, ugly move-route,
+   battle-processing with win/escape/lose + script branch, the M4·B audio bill),
+   so volume exercises the whole command set rather than adding a novel path.
+   Exports **`buildScaleProject({format, maps, seed})` → `{ files, stats }`** (the
+   object-map shape `objectSource()` wants) so tests build it in memory; the CLI
+   (`node scripts/build-migration-scale-fixture.mjs [--format mv|mz] [--maps N]
+   [--out DIR]`) writes a tree to disk for manual inspection. Supports both MV
+   (sheet animations) and MZ (Effekseer + `advanced`/`locale`/autosave).
+2. **`tests-unit/mz-scale-import.test.ts`** (new, 14 tests) — the round-trip QA:
+   - **Scale targets** — 60 maps, ≥500 imported events, full DB carried through.
+   - **Bootable-clean** — `isProjectLike` + `validateProject(_, "import")`,
+     format sniffed `mz`, `formatVersion` 2.
+   - **Import-time budget** — the whole 60-map/595-event convert+assemble runs in
+     **~55 ms** (budget 8 s, a generous regression tripwire; the real number is
+     logged). Bug-bash perf probe (not committed) showed sub-linear scaling —
+     **0.28 ms/map at 200 maps / 1989 events** — fixed overhead dominates, no
+     quadratic blow-up.
+   - **Full chain** — map-load invariant (every imported page carries a `cond`
+     object); **save/load** round-trip (serialize → parse → `validateProject(_,
+     "load")` → same shape); **battle-data integrity** (every troop member and
+     enemy action references an in-range enemy/skill id — the "battle" leg,
+     asserted at the data level).
+   - **Report copy at scale (D6)** — no stack-trace / code-noise in any line's
+     `what`/`detail`, the saveable text export is clean, leads with the good news,
+     and never dumps a raw `code NNN`.
+   - **Re-import idempotency** — deterministic generator + deterministic importer
+     ⇒ identical report shape; `reimportDelta` reports `improved:false`,
+     `resolved:0` ("nothing new yet") — the banner never falsely celebrates.
+   - **MV parity at scale** — the MV variant imports to the same map/DB shape.
+   - **Robustness (bug bash)** — messy inputs the M0·B fixtures never contain all
+     degrade to a bootable-clean project (kid-safe, no crash): a **transfer to a
+     non-existent map**, a **circular MapInfos parent** (1↔2), a **self-parenting
+     map**, one **oversized 120×120 world map** (imports in ~33 ms), and an
+     **enemy action citing an out-of-range skill id**.
+3. **`.gitignore`** — `tests/fixtures/scale-project/` (the CLI's disk output —
+   large + regenerable; tests build it in memory, so nothing bloats the repo).
+
+**Bug bash — findings:** **zero functional bugs.** The importer is correct, fast,
+and robust at 60–200 maps and on hand-broken inputs (dangling refs, circular/
+self-parent trees, giant maps, out-of-range ids) — all import to a bootable-clean,
+`validateProject`-passing project. One *test-side* assumption bug was caught and
+fixed during authoring (Atlas `Troop.enemies: number[]`, not RM's `.members`).
+
+**Report-copy review (audience rule, D6):** read the full 60-map text export.
+Every line is honest and kid-safe — good-news summary first, then sectioned
+caveats ("Came in a little differently" / "Saved for a later update" / "Left out
+on purpose"), a dated provenance line, no code noise. High-frequency caveats
+already aggregate by count (event movement paths ×120, script snippets ×124, Luck
+×71, message portraits ×60, enemy tints ×29). **Known limitation (documented, not
+a bug):** some per-record caveats (per-class equip restriction, per-equip "special
+effects moved onto class", per-hero extra-equipment, per-animation Effekseer
+fallback) stay one-line-per-record, so a very large DB yields a long "Came in a
+little differently" section. This is the D6 "nothing dropped silently" contract
+working as designed — per-record specificity (which class each bonus moved onto)
+is valuable at normal scale; collapsing it is deferred as presentation-only polish
+(no converter change), out of M6·B's QA scope.
+
+**Guardrails held:** no new conversion behavior (QA re-runs the M1–M5 pipeline);
+no FORMAT_VERSION bump / no schema change (D4); the generator is self-made
+(decision 5); no giant fixture committed (in-memory + gitignored).
+
+**Gates green:** `tsc --noEmit` clean · vitest **875** (was 861, +14) · node
+`--test tests/` **18** · Playwright **70/70** · eslint clean on all changed files
+(main's 3 pre-existing errors untouched — lint is not a phase gate).
+
+**Next:** M6·C — Fable 5 release gate (parity-matrix audit, release notes, tag
+`mig-6` + version **1.1.0**).
+
 ### M6·A — UX polish + "Coming from RPG Maker" docs — ✅ 2026-07-05 (branch `mig-6a`)
 
 **Delivered:**

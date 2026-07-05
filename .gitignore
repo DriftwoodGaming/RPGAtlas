@@ -10,6 +10,10 @@ src-tauri/game.conf.json
 # Build artifacts
 *.log
 
+# M6·B community-scale QA fixture (scripts/build-migration-scale-fixture.mjs) —
+# large + regenerable; the round-trip tests build it in memory, never from disk.
+tests/fixtures/scale-project/
+
 # Vite / toolchain build output & caches
 dist/
 .vite/
