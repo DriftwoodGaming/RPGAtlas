@@ -1,9 +1,9 @@
 # Phase M0 Spec — Parity audit & conversion contract ("Project Compass")
 
-**Status:** IN PROGRESS — Steps A (parity matrix) + B (fixtures + decision log) landed
-2026-07-04. Stage log accumulates below (phase-N-spec style) as steps land. Next: M0·C
-(Fable contract gate — signs the decision log, applies matrix amendments incl. the §11 bit
-correction D10, tags `mig-0`).
+**Status:** ✅ **COMPLETE — contract SIGNED** at the M0·C Fable gate 2026-07-04 (tag
+`mig-0`). Decision log D1–D11 signed (D1 with two tightening amendments, D11 added at the
+gate); matrix §11 bit correction (D10) applied. Phases M1–M5 build against this contract;
+M6·C grades against it.
 **Authored:** 2026-07-04 by Claude Opus 4.8 (High), from the M0 section of
 `docs/MZ_MV_MIGRATION_ROADMAP.md`.
 **Branch (per step):** `mig-0a`, `mig-0b`, `mig-0c` — each merges to `main` (locked
@@ -75,14 +75,22 @@ on the mechanism.
 on the damage-bearing DB records (`Skill`, `Item`). Structured `power`/`hp`/`mp` stay as the
 fallback for simple cases; `formula` wins when present (M3·A). Fixtures: `Skills[1/2/3].damage.
 formula`, `Items[1/2].damage.formula`.
-**Signed:** ______ (Fable, M0·C)
+**Gate amendments (M0·C):** (a) `Math.randomInt` — and any randomness the evaluator ever
+grows — must route through the engine's seedable RNG (`src/engine/util.ts` `rnd`/`rndf`,
+`window.AtlasRng`), not raw `Math.random`, so imported combat stays reproducible under
+`?rngseed=` and the M3·A reference-vector vitest is deterministic. (b) The parser enforces
+input limits (formula length ≤ 512 chars, nesting depth ≤ 32) — over-limit → the same
+reject path (`mzTodo` + report), so a pathological formula can't hang or blow the stack
+during import.
+**Signed:** ✅ Claude Fable 5, 2026-07-04 (M0·C) — approved with amendments (a)+(b) above.
 
 ### D2 — FORMAT_VERSION stance
 **Decision:** stays **2**. Verified `RA.FORMAT_VERSION = 2` (`js/data.js:390`). Every migration
 addition is an **optional** field on an existing type (`Skill.formula`/`Item.formula`,
 `Enemy.drops[]`, TP fields, tile-behavior flags, the `mzTodo` command). Old projects load
 unchanged (the migration guard only stamps, never rewrites). **No FORMAT_VERSION 3 proposed.**
-**Signed:** ______ (Fable, M0·C)
+**Signed:** ✅ Claude Fable 5, 2026-07-04 (M0·C) — verified `RA.FORMAT_VERSION = 2` at
+`js/data.js:390`; approved as written.
 
 ### D3 — `mzTodo` command shape
 **Decision (final):** `{ t: "mzTodo", code: number, params: unknown[], label: string }`
@@ -92,7 +100,9 @@ is the kid-friendly summary the editor shows ("📌 Show Picture — coming in a
 as a yellow note node in the event editor, **no-ops in the engine**, emits **one** report line.
 Nested openers that become `mzTodo` keep their child list translated where possible (the
 placeholder wraps only the unmappable command, not the branch body).
-**Signed:** ______ (Fable, M0·C)
+**Signed:** ✅ Claude Fable 5, 2026-07-04 (M0·C) — approved; the `label` copy pattern
+("📌 Show Picture — coming in an update") is the D11 house style. Discriminant `t` confirmed
+(`schema.ts:496`).
 
 ### D4 — Effekseer stance (M4·B)
 **Decision:** the `.efkefc` particle file is a locked skip (`−`, proprietary binary). MZ
@@ -100,7 +110,8 @@ animations **auto-fallback** to the nearest Atlas `BattleAnimation` by a name/el
 and emit a report line ("Fire → used Atlas's Flame animation"); `animationId` refs stay intact
 so they resolve to the fallback. MV **sheet** animations convert for real in M4·B. Fixtures
 encode both: MZ `Animations.json` = `effectName` (Effekseer), MV = `frames[][]` + `timings`.
-**Signed:** ______ (Fable, M0·C)
+**Signed:** ✅ Claude Fable 5, 2026-07-04 (M0·C) — approved; honesty-over-magic, and the
+fallback keeps `animationId` refs playable rather than silent.
 
 ### D5 — Script-command adapter scope (M5·B)
 **Decision:** a minimal **read-only** shim exposing exactly `$gameSwitches.value(n)`,
@@ -113,7 +124,8 @@ so it lands as `mzTodo` + report), `Map002` `Ambush` 355/655 (read of `$gameSwit
 write), move-route step 45 (script).
 **Note:** the shim is **read-only by design** — the fixtures deliberately include *writes*
 (`setValue`) to prove the "beyond scope → mzTodo + report" path, not to imply writes convert.
-**Signed:** ______ (Fable, M0·C)
+**Signed:** ✅ Claude Fable 5, 2026-07-04 (M0·C) — approved as the **final** M5·B scope
+(read-only shim confirmed; no write surface will be added without a new gate decision).
 
 ### D6 — Non-class trait merge strategy
 **Decision:** **(a) merge onto the actor's effective `ClassDef` at import**, with a report
@@ -126,14 +138,17 @@ and (c) report-only (loses gameplay-affecting element/state rates the engine alr
 Enemies keep their own effective-battler merge (enemies have no class). Fixtures: `Actors[1]`
 carries an actor-level Element Rate; `Weapons[1]`/`Armors[1]`/`States[1]`/`Enemies[1]` carry
 trait codes across the `=`/`+` split.
-**Signed:** ______ (Fable, M0·C)
+**Signed:** ✅ Claude Fable 5, 2026-07-04 (M0·C) — approved: (a) preserves gameplay the
+engine already supports, avoids schema churn. The per-merged-source report line is required,
+not optional — a kid should be able to see *why* their hero resists fire.
 
 ### D7 — `luk` param — locked skip
 **Decision:** unchanged locked skip (`−`). MZ has 8 params `[mhp,mmp,atk,def,mat,mdf,agi,luk]`;
 Atlas has 7 (no `luk`). Dropped from class curves, equip params, enemy stats, and param traits
 (code 21 dataId 7) with **one aggregated** report line ("Luck isn't a stat in Atlas — N places
 used it"). Fixtures seed `luk` in all four places.
-**Signed:** ______ (Fable, M0·C)
+**Signed:** ✅ Claude Fable 5, 2026-07-04 (M0·C) — approved; the aggregated single report
+line is exactly right for the audience (one clear sentence, not N warnings).
 
 ### D8 — MapInfos nesting → Atlas folders
 **Decision:** MZ maps nest under parent **maps**; Atlas nests maps under `MapFolder`s. The
@@ -141,7 +156,8 @@ importer synthesizes **one `MapFolder` per parent map that has children**, named
 parent, and sets each child's `folderId` to it; the parent map itself stays a map (placed at
 the folder's top). Root maps (`parentId 0`) go to the map-list root. Exact folder-id scheme
 finalized in M1·B; recorded here for the gate. Fixture: Cave `parentId = 1` (Harbor).
-**Signed:** ______ (Fable, M0·C)
+**Signed:** ✅ Claude Fable 5, 2026-07-04 (M0·C) — approved; folder-id scheme delegated to
+M1·B as noted.
 
 ### D9 — Encryption detection by extension (M1·A) *(new, from fixture authoring)*
 **Decision:** the importer decides a file is encrypted by **extension** (`.rpgmvp`/`.rpgmvo`/
@@ -151,7 +167,8 @@ flags + `encryptionKey` are still read (key is required to decrypt; a missing ke
 encrypted file → plain-language report). Symmetric scheme: skip the 16-byte fake header, XOR
 the next 16 bytes with the 16-byte key. Fixtures ship plain assets + one encrypted `Sign`
 picture to prove both paths.
-**Signed:** ______ (Fable, M0·C)
+**Signed:** ✅ Claude Fable 5, 2026-07-04 (M0·C) — approved; extension-based detection is
+the robust call (flags describe editor state, not per-file truth).
 
 ### D10 — Tileset flag **bit values** correction *(new, for the gate to apply to the matrix)*
 **Finding from fixture authoring:** matrix §11 lists the tile-behavior bits one position low.
@@ -171,7 +188,28 @@ The **real** RPG Maker (rmmv/rmmz `Game_Map`) values, which the fixtures use, ar
 these). No scope change — the *behaviors* and their phase assignments are unaffected; only the
 bit constants were off. `scripts/build-migration-fixtures.mjs → Tilesets()` documents the real
 values inline.
-**Signed:** ______ (Fable, M0·C)
+**Signed:** ✅ Claude Fable 5, 2026-07-04 (M0·C) — **verified and applied.** Cross-checked
+against the real rmmv/rmmz `Game_Map` constants (star `0x10`, ladder `0x20`, bush `0x40`,
+counter `0x80`, damage floor `0x100`, terrain tag `flags >> 12`) and against the committed
+fixture `Tilesets.json` bytes. Matrix §11 table + the §16 M4·A roll-up line amended directly.
+
+### D11 — Import-report copy style *(added at the M0·C gate)*
+**Decision:** the parity matrix's quoted report lines are **engineering shorthand**, not
+shippable copy. Every user-facing report line (M1·D builds the report; M6·B reviews the copy)
+follows the locked-decision-6 pattern — **what it was → what happened → what you can do**,
+in plain words a ten-year-old can read:
+- Name the thing by *its* name, not ours: "the Luck stat", "your Fire animation" — never
+  codes, hex, field names, or "§11".
+- One line per thing (aggregate repeats: "Luck appeared in 12 places — Atlas doesn't have a
+  Luck stat, so those numbers were left out").
+- Always end with a next step or a reassurance: "…you can pick a new animation in the
+  Database tab" / "…your game still plays fine without it."
+- Never a stack trace, never a warning tone for expected conversions. The report celebrates
+  what *did* come along first, then lists the leftovers.
+Example — matrix shorthand "region N exceeds Atlas's 63 → clamp + report" ships as:
+"One map spot used region number 64 — Atlas regions go up to 63, so it became region 63.
+You can repaint it in the map editor if that spot needs its own number."
+**Signed:** ✅ Claude Fable 5, 2026-07-04 (M0·C) — authored at the gate.
 
 ---
 
@@ -268,3 +306,40 @@ or `js/`). Not collected by any runner: `node --test` globs `tests/*.test.js`, v
 `docs/mz-mv-parity-matrix.md`; confirm formula-sandbox strictness (D1) and report tone.
 
 **Next:** M0·C — Fable contract gate (tags `mig-0`).
+
+### M0·C — Fable contract gate — ✅ 2026-07-04 (branch `mig-0c`, tag `mig-0`)
+
+**Gate review (Claude Fable 5) — all four checks passed, contract SIGNED:**
+1. **Phase assignments** — sane. §16 roll-up cross-checked against the roadmap's phase
+   intents (Labels/Jump → real support in M2·C, enemy drops → M3·C, tile behaviors → M4·A,
+   the honest `−` skip list). No re-bucketing.
+2. **Additive-only schema** — holds. D2 verified against `js/data.js:390`
+   (`RA.FORMAT_VERSION = 2`); `mzTodo` (D3), `Skill.formula`/`Item.formula`,
+   `Enemy.drops[]` are all optional additions. No FORMAT_VERSION 3.
+3. **Formula-sandbox safety (D1)** — approved **with two amendments**: (a) evaluator
+   randomness routes through the engine's seedable RNG (`src/engine/util.ts` `rnd`/`rndf`,
+   `window.AtlasRng`) for `?rngseed=` reproducibility + deterministic M3·A reference
+   vectors; (b) parser input limits (512-char / depth-32) with over-limit falling into the
+   existing reject path. The parse-never-execute stance is correctly *stricter* than the
+   `script`-command trust boundary (`script-api.ts` `new Function` is for project-author
+   code; imported formulas are foreign bulk data).
+4. **Report tone** — D3's label copy is on-key; the matrix's shorthand report examples are
+   not shippable as-is, so **D11** (new) locks the "what it was → what happened → what you
+   can do" copy pattern for M1·D to build and M6·B to review.
+
+**Verification performed:** all 15 fixture `data/*.json` per project parse; MZ `Map001`
+`data.length = w·h·6`; `Tilesets.flags` length 8192 with the **real** RM behavior bits
+(`0x10` star / `0x20` ladder / `0x40` bush / `0x80` counter / `0x100` damage floor /
+`0x3000` terrain-tag sample) — confirming D10 against the fixtures, then applied to matrix
+§11 + the §16 M4·A line. Encrypted `Sign.{rpgmvp,png_}` present in both trees with
+`encryptionKey` in System.json. Formula strings present in `Skills[1/2/3]`.
+
+**Amendments applied at the gate:** matrix §11 bit table + §16 M4·A roll-up corrected
+(D10); matrix status header → SIGNED; D1 amendments (a)+(b); D11 authored; D1–D11 all
+carry signature lines.
+
+**Docs-only step** (no `src/`/`js/` change) → no patch notes / version bump; test baselines
+untouched (vitest 443, Playwright 59/59).
+
+**Phase M0 is COMPLETE.** Next: M1·A — importer core: project reader + database conversion
+(Opus 4.8, Extra High).

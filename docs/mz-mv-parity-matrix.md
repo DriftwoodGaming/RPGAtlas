@@ -1,6 +1,7 @@
 # RPG Maker MZ/MV → RPGAtlas Parity Matrix
 
-**Status:** DRAFT for the M0·C Fable gate — authored M0·A (2026-07-04, Opus 4.8 High).
+**Status:** **SIGNED** at the M0·C Fable gate (2026-07-04, Claude Fable 5) — authored M0·A
+(Opus 4.8 High); §11 bit values amended per decision log D10.
 **Contract:** this file is the signed scope for Project Compass. Every `+` row below names
 the phase (M2/M3/M4/M5) that ships the feature AND flips the corresponding
 `translate-commands.ts` / DB-converter entry from `mzTodo` to a real translation. Phases
@@ -603,12 +604,16 @@ gaps.
 | MZ flag bits | MZ meaning | Atlas | Disp. | Phase |
 |---|---|---|:--:|---|
 | 0x000F (bits 0–3) | Passage (down/left/right/up quad-dir "4-dir passage") | `passOv` (1 pass / 2 block) + tile-def `pass` | `≈ M1·B` | Atlas passability is **whole-tile**, not 4-directional. All-blocked→`passOv 2`; all-open→pass; **partial (some dirs)** → block + report ("one-way/partial passage simplified"). |
-| 0x0010 (bit 4) | Ladder | — | `+` | **M4·A** — new tile behavior. M1·B report. |
-| 0x0020 (bit 5) | Bush | — | `+` | **M4·A** |
-| 0x0040 (bit 6) | Counter | — | `+` | **M4·A** (talk-over-counter) |
-| 0x0080 (bit 7) | Damage Floor | — | `+` | **M4·A** (+ `optFloorDeath`/`optSlipDeath`, §1) |
-| 0x0F00 (bits 8–11) | Terrain Tag (0–7) | — | `+` | **M4·A** — terrain-tag gameplay hooks. Stored on the tile/region during M1·B for M4·A to consume. |
-| 0x1000+ (bit 12, "★") | Star / above-player priority | `over` layer placement | `≈ M1·B` | ★ tiles route to the `over` role during data-plane rebucket. |
+| 0x0010 (bit 4, "★") | Star / above-player priority | `over` layer placement | `≈ M1·B` | ★ tiles route to the `over` role during data-plane rebucket. |
+| 0x0020 (bit 5) | Ladder | — | `+` | **M4·A** — new tile behavior. M1·B report. |
+| 0x0040 (bit 6) | Bush | — | `+` | **M4·A** |
+| 0x0080 (bit 7) | Counter | — | `+` | **M4·A** (talk-over-counter) |
+| 0x0100 (bit 8) | Damage Floor | — | `+` | **M4·A** (+ `optFloorDeath`/`optSlipDeath`, §1) |
+| `flags >> 12` (bits 12–14) | Terrain Tag (0–7) | — | `+` | **M4·A** — terrain-tag gameplay hooks. Stored on the tile/region during M1·B for M4·A to consume. |
+
+*Bit values corrected at the M0·C gate (decision log D10) to match the real rmmv/rmmz
+`Game_Map` constants — the fixtures already use these. The M0·A draft listed them one
+position low.*
 
 **Region ids (map z-layer 5, 1–255):** MZ regions 1–255 → Atlas `regions[]` (**1–63** —
 Atlas's documented range). Regions 64–255 → clamped/report ("region N exceeds Atlas's 63").
@@ -736,8 +741,8 @@ conditions.
 members, action-condition refinements, party abilities (trait 64: encounter/preemptive/
 surprise), escape effect (41)/escape formula.
 
-**M4·A — map features:** tile flags Ladder/Bush/Counter/Damage-Floor (bits 4–7), Terrain Tag
-(bits 8–11), region-scoped encounters, looping maps (`scrollType`), parallax (284 + map
+**M4·A — map features:** tile flags Ladder/Bush/Counter/Damage-Floor (bits 5–8), Terrain Tag
+(bits 12–14), region-scoped encounters, looping maps (`scrollType`), parallax (284 + map
 parallax), per-map battlebacks (283 + map/System), Change Tileset (282), vehicle commands
 (202/206/323), floor-death opts.
 
