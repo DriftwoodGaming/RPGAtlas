@@ -50,6 +50,7 @@ import {
 } from "./scenes/map.js";
 import { startLoop } from "./loop.js";
 import { initJournalView } from "./scenes/menus.js";
+import { numberInputScene, selectItemScene, nameInputScene } from "./scenes/input-scenes.js";
 import { Shop } from "./scenes/shop.js";
 import { Battle } from "./scenes/battle.js";
 import { toTitle, showTitle, newGame } from "./scenes/title.js";
@@ -89,6 +90,10 @@ const EngineServices: any = {
   get showMessage() { return ctx.showMessage; },
   get richText() { return ctx.richText; },
   showList,
+  // message-system input scenes (M2·B)
+  numberInput: numberInputScene,
+  selectItem: selectItemScene,
+  nameInput: nameInputScene,
   // helpers
   clamp, rnd,
   // deps

@@ -510,6 +510,12 @@ export interface CmdText {
   name?: string;
   face?: string;
   text: string;
+  /** Window backdrop (Project Compass M2·B, RM 101): 0 window (default),
+   *  1 dim, 2 transparent. Omitted = window. Additive/optional. */
+  background?: number;
+  /** Window position (RM 101): 0 top, 1 middle, 2 bottom (default). Omitted
+   *  = bottom. Additive/optional. */
+  position?: number;
 }
 export interface CmdChoices {
   t: "choices";
@@ -815,6 +821,33 @@ export interface CmdScrollText {
   noFast?: boolean;
 }
 
+// --- Message-system input scenes (Project Compass, M2·B) ---------------------
+// The three player-input scenes RM offers alongside Show Text. All additive /
+// optional (FORMAT_VERSION stays 2) — old projects never see them.
+
+/** Ask the player to type a number into variable `varId` (RM Input Number).
+ *  `digits` is the number of digit columns (1–8). */
+export interface CmdInputNumber {
+  t: "inputNumber";
+  varId: number;
+  digits: number;
+}
+/** Let the player pick one of the party's items; its id is stored in variable
+ *  `varId` (0 when cancelled). `itemType` mirrors RM's category param (kept for
+ *  round-trip fidelity; Atlas lists the party's regular items). */
+export interface CmdSelectItem {
+  t: "selectItem";
+  varId: number;
+  itemType?: number;
+}
+/** Open the on-screen keyboard so the player renames party actor `actorId`
+ *  (RM Name Input Processing). `maxChars` caps the length (1–16). */
+export interface CmdNameInput {
+  t: "nameInput";
+  actorId: number;
+  maxChars: number;
+}
+
 /** Every built-in event command, discriminated on `t`. Plugin commands add
  *  further `t` values at runtime via the interpreter registry; those aren't in
  *  this union, so widen with `AnyCommand | { t: string; [k: string]: any }` at
@@ -866,6 +899,9 @@ export type AnyCommand =
   | CmdScrollMap
   | CmdBalloon
   | CmdScrollText
+  | CmdInputNumber
+  | CmdSelectItem
+  | CmdNameInput
   | CmdMzTodo;
 
 /** The `t` discriminant of any built-in command. */

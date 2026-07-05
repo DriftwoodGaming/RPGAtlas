@@ -124,7 +124,9 @@ export interface PluginRuntime {
 /** Message/UI-stack presentation surface (today src/engine/message.ts +
  *  ui-stack.ts): what the interpreter's presentation commands and scenes call. */
 export interface MessageService {
-  showMessage(name: string, text: string, face?: any): Promise<void>;
+  /** `opts` (M2·B): `{ background?: 0|1|2, position?: 0|1|2 }` — RM window
+   *  backdrop (window/dim/transparent) + position (top/middle/bottom). */
+  showMessage(name: string, text: string, face?: any, opts?: any): Promise<void>;
   showList(items: any[], opts?: any): Promise<number>;
   fadeTo(opacity: number, ms: number): Promise<void>;
   richText(text: string): string;

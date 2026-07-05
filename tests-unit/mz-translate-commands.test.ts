@@ -50,8 +50,8 @@ const SPEC: Row[] = [
   // §8.1 messages & text
   { code: 101, name: "Show Text", list: [c(101, ["", 0, 0, 2, "Bo"]), c(401, ["Hi"])], expect: { first: "text" } },
   { code: 102, name: "Show Choices", list: [c(102, [["A", "B"], 1]), c(404)], expect: { first: "choices" } },
-  { code: 103, name: "Input Number", list: [c(103, [1, 2])], expect: { todo: 103 } },
-  { code: 104, name: "Select Item", list: [c(104, [1, 2])], expect: { todo: 104 } },
+  { code: 103, name: "Input Number", list: [c(103, [1, 2])], expect: { first: "inputNumber" } },
+  { code: 104, name: "Select Item", list: [c(104, [1, 2])], expect: { first: "selectItem" } },
   { code: 105, name: "Scrolling Text", list: [c(105, [2, false]), c(405, ["scroll"])], expect: { first: "scrollText" } },
   { code: 108, name: "Comment", list: [c(108, ["note"]), c(408, ["more"])], expect: { drop: true } },
   // §8.2 flow control
@@ -129,7 +129,7 @@ const SPEC: Row[] = [
   // §8.10 scene control
   { code: 301, name: "Battle Processing", list: [c(301, [0, 1, true, true])], expect: { first: "battle" } },
   { code: 302, name: "Shop Processing", list: [c(302, [0, 1, 0, 0])], expect: { first: "shop" } },
-  { code: 303, name: "Name Input", list: [c(303, [1, 8])], expect: { todo: 303 } },
+  { code: 303, name: "Name Input", list: [c(303, [1, 8])], expect: { first: "nameInput" } },
   { code: 351, name: "Open Menu Screen", list: [c(351)], expect: { drop: true } },
   { code: 352, name: "Open Save Screen", list: [c(352)], expect: { first: "save" } },
   { code: 353, name: "Game Over", list: [c(353)], expect: { first: "gameover" } },
@@ -345,6 +345,27 @@ describe("real translations carry their fields (matrix §8)", () => {
     expect(cmd).toMatchObject({ t: "scrollText", speed: 4, noFast: true });
     expect(cmd.text).toBe("Line 1\nLine 2");
   });
+
+  // ---- M2·B message flips (matrix §8.1/§8.10, §13, §16) ----
+  it("103 Input Number → inputNumber with variable + digit count", () => {
+    expect(t0([c(103, [7, 4])])).toEqual({ t: "inputNumber", varId: 7, digits: 4 });
+    expect((t0([c(103, [3, 99])]) as any).digits).toBe(8); // clamped to 8
+    expect((t0([c(103, [3, 0])]) as any).digits).toBe(1);  // clamped to 1
+  });
+  it("104 Select Item → selectItem, preserving the category param", () => {
+    expect(t0([c(104, [8, 2])])).toEqual({ t: "selectItem", varId: 8, itemType: 2 });
+  });
+  it("303 Name Input → nameInput with actor + max length", () => {
+    expect(t0([c(303, [2, 10])])).toEqual({ t: "nameInput", actorId: 2, maxChars: 10 });
+    expect((t0([c(303, [1, 99])]) as any).maxChars).toBe(16); // clamped to 16
+  });
+  it("101 maps window background + position (only the non-defaults)", () => {
+    const dim = t0([c(101, ["", 0, 1, 0, "Bo"]), c(401, ["Hi"])]) as any;
+    expect(dim).toMatchObject({ t: "text", background: 1, position: 0, name: "Bo" });
+    const plain = t0([c(101, ["", 0, 0, 2]), c(401, ["Hi"])]) as any;
+    expect(plain.background).toBeUndefined();
+    expect(plain.position).toBeUndefined();
+  });
 });
 
 // ============================================================================
@@ -385,19 +406,20 @@ describe("message escape codes pass through verbatim (matrix §13)", () => {
 // mzTodo shape (decision D3).
 // ============================================================================
 describe("mzTodo placeholder shape (D3)", () => {
-  // Codes 103/104 stay mzTodo until M2·B, so they still exercise the shape.
+  // Codes 313 (Change State) / 315 (Change EXP) stay mzTodo until M2·C, so they
+  // still exercise the shape (103/104/303 flipped to real commands in M2·B).
   it("preserves the raw code + params and carries a friendly label", () => {
-    const cmd = t0([c(103, [1, 2])]) as any;
-    expect(cmd).toMatchObject({ t: "mzTodo", code: 103 });
-    expect(cmd.params).toEqual([1, 2]);
+    const cmd = t0([c(313, [0, 0, 0, 1])]) as any;
+    expect(cmd).toMatchObject({ t: "mzTodo", code: 313 });
+    expect(cmd.params).toEqual([0, 0, 0, 1]);
     expect(typeof cmd.label).toBe("string");
     expect(cmd.label.length).toBeGreaterThan(0);
   });
   it("aggregates repeats into one report line (D11) with the raw code", () => {
-    const { report } = tr([c(103, []), c(103, []), c(104, [])]);
-    const show = report.lines.find((l) => l.code === 103);
-    expect(show?.count).toBe(2);
-    expect(report.lines.find((l) => l.code === 104)?.count).toBe(1);
+    const { report } = tr([c(313, []), c(313, []), c(315, [])]);
+    const state = report.lines.find((l) => l.code === 313);
+    expect(state?.count).toBe(2);
+    expect(report.lines.find((l) => l.code === 315)?.count).toBe(1);
   });
 });
 

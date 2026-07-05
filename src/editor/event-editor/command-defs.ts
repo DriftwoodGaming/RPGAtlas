@@ -115,6 +115,9 @@ import { openLocationPicker } from "./location-picker";
       case "scrollMap": return "Scroll Map " + (c.dir || "?") + " " + (c.distance || 0) + " tiles (speed " + (c.speed || 0) + ")";
       case "balloon": return "Balloon " + (BALLOON_NAMES[c.balloonId] || c.balloonId) + " over " + (c.target === "player" ? "Player" : c.target === "this" ? "This Event" : "Event #" + c.target);
       case "scrollText": return "Scrolling Text: " + String(c.text || "").split("\n")[0].slice(0, 40);
+      case "inputNumber": return "Input Number → Variable " + varName(c.varId) + " (" + (c.digits || 1) + " digit" + ((c.digits || 1) === 1 ? "" : "s") + ")";
+      case "selectItem": return "Select Item → Variable " + varName(c.varId);
+      case "nameInput": return "Name Input: " + dbName(S.proj.actors, c.actorId) + " (max " + (c.maxChars || 8) + ")";
       case "erase": return "Erase This Event";
       case "save": return "Open Save Screen";
       case "gameover": return "Game Over";
@@ -133,10 +136,17 @@ import { openLocationPicker } from "./location-picker";
     const rows = [
       ["\\v[n]", "variable value"],
       ["\\n[n]", "actor name"],
+      ["\\p[n]", "party member's name (nth in party)"],
       ["\\g", "gold amount"],
+      ["\\$", "show the current gold inline"],
       ["\\input[action]", "button glyph for a control (action: " + acts + ")"],
       ["\\i[n]", "inline icon"],
       ["\\c[n] · \\c[#hex]", "text color"],
+      ["\\{ … \\}", "bigger / smaller text"],
+      ["\\. · \\|", "pause ¼ sec / 1 sec while typing"],
+      ["\\!", "wait for a button press"],
+      ["\\> … \\<", "type the rest instantly / back to normal"],
+      ["\\^", "close without waiting for input"],
       ["[b]…[/b] · [i]…[/i]", "bold / italic"],
       ["[color=#hex]…[/color] · [size=n]…[/size]", "color / size"],
     ];
@@ -153,7 +163,7 @@ import { openLocationPicker } from "./location-picker";
   export const CMD_DEFS: any[] = [
     { t: "text", label: "Show Text", make: () => ({ t: "text", name: "", face: "", text: "" }),
       form(c: any, box: any) {
-        const w = { name: c.name, face: c.face || "", text: c.text };
+        const w = { name: c.name, face: c.face || "", text: c.text, background: c.background || 0, position: c.position == null ? 2 : c.position };
         const preview = h("span", { class: "char-preview" });
         function redrawFace() {
           preview.innerHTML = "";
@@ -164,9 +174,18 @@ import { openLocationPicker } from "./location-picker";
         box.appendChild(row(field("Speaker name (optional)", tIn(w, "name")),
           field("Face (optional)", sel(w, "face", charsetOpts(true), redrawFace)), preview));
         box.appendChild(field("Text", ta));
+        box.appendChild(row(
+          field("Window", sel(w, "background", [{ v: 0, l: "Window" }, { v: 1, l: "Dim" }, { v: 2, l: "Transparent" }])),
+          field("Position", sel(w, "position", [{ v: 0, l: "Top" }, { v: 1, l: "Middle" }, { v: 2, l: "Bottom" }]))));
         box.appendChild(textCodesHelp());
         redrawFace();
-        return () => { c.name = w.name; c.face = w.face; c.text = w.text; };
+        return () => {
+          c.name = w.name; c.face = w.face; c.text = w.text;
+          const bg = Number(w.background) || 0;
+          if (bg) c.background = bg; else delete c.background;
+          const pos = Number(w.position);
+          if (pos !== 2) c.position = pos; else delete c.position;
+        };
       } },
     { t: "choices", label: "Show Choices", make: () => ({ t: "choices", options: ["Yes", "No"], branches: [[], []] }),
       form(c: any, box: any) {
@@ -652,6 +671,28 @@ import { openLocationPicker } from "./location-picker";
         box.appendChild(row(field("Speed (1 slow – 8 fast)", nIn(w, "speed", 1, 8)), field("Can't speed up (hold OK)", chk(w, "noFast"))));
         box.appendChild(h("div", { class: "dim" }, "Full-screen credits-style crawl. Players can hold OK to speed it up (unless disabled) or press Cancel to skip."));
         return () => { c.text = ta.value; c.speed = Number(w.speed); c.noFast = w.noFast; };
+      } },
+    // --- Message-system input scenes (Project Compass M2·B) ---
+    { t: "inputNumber", label: "Input Number", make: () => ({ t: "inputNumber", varId: 1, digits: 2 }),
+      form(c: any, box: any) {
+        const w = { varId: c.varId || 1, digits: c.digits == null ? 2 : c.digits };
+        box.appendChild(row(field("Store in Variable", sel(w, "varId", varOpts())), field("Digits (1–8)", nIn(w, "digits", 1, 8))));
+        box.appendChild(h("div", { class: "dim" }, "The player dials in a number on screen; it's saved to the chosen variable."));
+        return () => { c.varId = Number(w.varId); c.digits = Number(w.digits); };
+      } },
+    { t: "selectItem", label: "Select Item", make: () => ({ t: "selectItem", varId: 1 }),
+      form(c: any, box: any) {
+        const w = { varId: c.varId || 1 };
+        box.appendChild(field("Store chosen item's id in Variable", sel(w, "varId", varOpts())));
+        box.appendChild(h("div", { class: "dim" }, "The player picks one of the items they're carrying; the item's id is saved to the variable (0 if they cancel)."));
+        return () => { c.varId = Number(w.varId); };
+      } },
+    { t: "nameInput", label: "Name Input", make: () => ({ t: "nameInput", actorId: S.proj.actors[0] ? S.proj.actors[0].id : 1, maxChars: 8 }),
+      form(c: any, box: any) {
+        const w = { actorId: c.actorId || (S.proj.actors[0] ? S.proj.actors[0].id : 1), maxChars: c.maxChars || 8 };
+        box.appendChild(row(field("Hero", sel(w, "actorId", dbOpts(S.proj.actors))), field("Max letters (1–16)", nIn(w, "maxChars", 1, 16))));
+        box.appendChild(h("div", { class: "dim" }, "Opens an on-screen keyboard so the player can rename this hero."));
+        return () => { c.actorId = Number(w.actorId); c.maxChars = Number(w.maxChars); };
       } },
     { t: "erase", label: "Erase This Event", make: () => ({ t: "erase" }), form: () => () => {} },
     { t: "save", label: "Open Save Screen", make: () => ({ t: "save" }), form: () => () => {} },

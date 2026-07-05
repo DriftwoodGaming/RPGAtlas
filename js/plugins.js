@@ -29,8 +29,17 @@ const AtlasBuiltins = (() => {
      * Exposes window.Atlas: a plugin registry plus common helpers (colour,
      * easing, tweens, RNG) so other plugins don't each re-implement them. */
     const CONFIG = {
-      // Palette for \c[n] text codes (index 0 = default colour).
-      palette: ["#ffffff", "#7ac8ff", "#ffd86a", "#ff8a8a", "#8fe0a8", "#c8a0ff", "#ff9a4a", "#9a9db4", "#20222e", "#3a5a9a"],
+      // Palette for \c[n] text codes (index 0 = default colour). Indices 0–9 are
+      // Atlas's own colours; 10–31 extend the range so \C[n] codes imported from
+      // RPG Maker MZ/MV (which uses a 32-colour text palette) resolve to a sensible
+      // colour instead of falling back to white (Project Compass M2·B). \c[#hex]
+      // always overrides the palette; out-of-range indices fall back to index 0.
+      palette: [
+        "#ffffff", "#7ac8ff", "#ffd86a", "#ff8a8a", "#8fe0a8", "#c8a0ff", "#ff9a4a", "#9a9db4", "#20222e", "#3a5a9a",
+        "#ffb0a0", "#a0e0a0", "#a0c8ff", "#d8b0ff", "#ffe08a", "#8890a0", "#66d0e0", "#ff9ecb", "#7ad07a", "#c8b0ff",
+        "#ffd0a0", "#b0e8ff", "#ff9a9a", "#9ad8b0", "#ffe0b0", "#b8c0ff", "#ff8ad0", "#8ae0d0", "#ffcf6a", "#6a9ad8",
+        "#d0d4e0", "#5c6070",
+      ],
       defaultTransition: "fade",
     };
 

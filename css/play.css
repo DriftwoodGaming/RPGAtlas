@@ -124,6 +124,45 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
 
 .choicewin { left: auto; right: 16px; top: auto; bottom: 176px; transform: none; min-width: 180px; }
 
+/* ---------- message backdrop + position options (Project Compass M2·B) ---------- */
+.msgwin.msg-top { top: 12px; bottom: auto; }
+.msgwin.msg-mid { top: 50%; bottom: auto; transform: translateY(-50%); }
+.msgwin.msg-dim {
+  background: linear-gradient(180deg, rgba(6,10,20,0.74), rgba(6,10,20,0.34) 72%, rgba(6,10,20,0));
+  border-color: transparent; box-shadow: none;
+}
+.msgwin.msg-transparent { background: none; border-color: transparent; box-shadow: none; }
+.msg-gold { color: #ffd86a; font-weight: 700; }
+/* Zero-width pacing/flow markers (\. \| \! \> \< \^) — read by the typewriter, never shown. */
+.msg-ctl { display: none; }
+
+/* ---------- Input Number scene (M2·B) ---------- */
+.numinputwin { left: 50%; top: 44%; transform: translate(-50%, -50%); min-width: 240px; text-align: center; }
+.numrow { display: flex; gap: 8px; justify-content: center; margin: 12px 0 4px; }
+.numcell {
+  width: 40px; height: 54px; line-height: 54px; font-size: 30px; font-weight: 700;
+  font-variant-numeric: tabular-nums; color: #eaf0ff;
+  background: rgba(10,16,32,0.6); border: 2px solid rgba(170,190,240,0.35); border-radius: 8px;
+}
+.numcell.sel { border-color: #9ab8f0; background: rgba(90,130,220,0.4); box-shadow: 0 0 10px rgba(120,160,240,0.5); }
+
+/* ---------- Name Input scene (M2·B) ---------- */
+.nameinputwin { left: 50%; top: 50%; transform: translate(-50%, -50%); min-width: 360px; text-align: center; }
+.name-field {
+  font-size: 22px; font-weight: 700; letter-spacing: 2px; color: #ffe8a8;
+  min-height: 30px; margin: 6px 0 12px; padding: 6px 10px;
+  background: rgba(10,16,32,0.55); border-radius: 8px;
+}
+.name-grid { display: inline-flex; flex-direction: column; gap: 5px; }
+.name-row { display: flex; gap: 5px; justify-content: center; }
+.name-row.name-ctrl { margin-top: 8px; }
+.name-key {
+  width: 30px; height: 30px; line-height: 30px; border-radius: 6px;
+  color: #dbe4ff; background: rgba(20,28,52,0.55);
+}
+.name-key.wide { width: auto; padding: 0 14px; }
+.name-key.sel { background: rgba(90,130,220,0.55); outline: 1px solid #9ab8f0; color: #fff; }
+
 /* ---------- options / controls (centered, inherits .listwin positioning) ---------- */
 .optionswin { min-width: 320px; }                /* shared layout class — also Controls + pick-an-action */
 .optionswin-wide { min-width: 420px; }           /* Options root only: room for the slider value column */

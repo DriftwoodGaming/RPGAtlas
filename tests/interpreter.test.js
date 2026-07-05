@@ -62,7 +62,8 @@ async function loadRegistry() {
   for (const type of ["shake", "weather", "flash", "text", "choices", "if",
     "switch", "var", "battle", "shop", "transfer", "commonEvent",
     "showPic", "movePic", "rotatePic", "tintPic", "erasePic", "tint",
-    "timer", "scrollMap", "balloon", "scrollText"]) {
+    "timer", "scrollMap", "balloon", "scrollText",
+    "inputNumber", "selectItem", "nameInput"]) {
     assert.equal(
       typeof getCommand(type),
       "function",
@@ -88,6 +89,31 @@ async function loadRegistry() {
       await getCommand(cmd.t)(cmd, { interp: { evRT: null }, state: pstate, services: psvc });
     }
     assert.ok(true, "presentation handlers run without throwing outside a browser");
+  }
+
+  // ---- Message-system input commands (M2·B) drive their scenes + store results ----
+  {
+    let numArgs = null, nameArgs = null, msgOpts = null;
+    const mstate = { vars: {}, party: [{ actorId: 5, name: "Old" }] };
+    const msvc = {
+      numberInput: async (digits, initial) => { numArgs = { digits, initial }; return 123; },
+      selectItem: async () => 9,
+      nameInput: async (cur, max) => { nameArgs = { cur, max }; return "Zed"; },
+      showMessage: async (_n, _t, _f, opts) => { msgOpts = opts; },
+    };
+    await getCommand("inputNumber")({ t: "inputNumber", varId: 2, digits: 3 }, { interp: {}, state: mstate, services: msvc });
+    assert.equal(mstate.vars[2], 123, "inputNumber stores the entered number in its variable");
+    assert.equal(numArgs.digits, 3, "inputNumber passes the digit count to the scene");
+    await getCommand("selectItem")({ t: "selectItem", varId: 4, itemType: 1 }, { interp: {}, state: mstate, services: msvc });
+    assert.equal(mstate.vars[4], 9, "selectItem stores the chosen item id");
+    await getCommand("nameInput")({ t: "nameInput", actorId: 5, maxChars: 6 }, { interp: {}, state: mstate, services: msvc });
+    assert.equal(mstate.party[0].name, "Zed", "nameInput renames the matching party actor");
+    assert.equal(nameArgs.max, 6, "nameInput passes the max length to the scene");
+    await getCommand("text")({ t: "text", text: "hi", background: 1, position: 0 }, { interp: {}, state: mstate, services: msvc });
+    // (assert per-field — the opts object is built inside the vm realm, so a
+    // deep-equal against an outer-realm literal would fail on prototype identity.)
+    assert.equal(msgOpts.background, 1, "text forwards the window background option");
+    assert.equal(msgOpts.position, 0, "text forwards the window position option");
   }
   // Unknown command types resolve to undefined — the interpreter's silent-skip
   // (the old switch `default` when no plugin handler existed).

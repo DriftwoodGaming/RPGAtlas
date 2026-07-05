@@ -147,3 +147,102 @@ save, unlike the transient DOM transfer fader.
   - Scope note: picture *art* import (a dedicated "pictures" asset type) is deliberately
     deferred (out of M2·A's commands/interpreter/render scope) — behaviour converts now, art
     is a documented re-add. Pictures/tint/balloons/timer are map-scene only (not battle).
+
+---
+
+## M2·B — Message system parity
+
+**Scope (matrix §13 + §8.1/§8.10 + §16 "M2·B — messages"):** escape-code parity for the
+full MZ/MV set, message window background/position options, and the three player-input
+scenes — Input Number (103), Select Item (104), Name Input (303). Each new command is
+additive to `AnyCommand`; the escape codes and window options add optional fields only
+(FORMAT_VERSION stays 2). The matching `translate-commands.ts` rows flip from `mzTodo` to
+real translations in the same step.
+
+### Escape-code renderer (js/runtime/messages.js)
+
+The message runtime already handled `\v \n \g` (substitution) with `\i \c` + BBCode coming
+from the Atlas_TextCodes plugin and `\input[..]` from the engine input module. M2·B fills
+in the rest so imported messages render instead of showing raw codes:
+
+- **Substitution:** `\p[n]` (nth party member's name) joins `\v \n \g`. `\\` renders one
+  literal backslash (guarded by a sentinel so no later pass consumes it).
+- **`applyMsgControls`** (a new post-esc, pre-plugin pass in the message closure so it can
+  read live gold): `\{`/`\}` → a running relative-size stack emitted as `[size=n]` tags the
+  bbcode pass renders; `\$` → an inline gold badge with the current amount; `\fs[n]` →
+  `[size=n]`; `\px[n]`/`\py[n]` → stripped (position isn't modeled in Atlas's flow layout);
+  the pacing codes `\. \| \! \> \< \^` → zero-width `.msg-ctl` marker spans carrying their
+  behaviour in `data-*` (esc turns `\>`/`\<` into `\&gt;`/`\&lt;`, matched in that form).
+- **Palette map:** `Atlas_TextCodes` `CONFIG.palette` extended from 10 to 32 entries so
+  MZ-range `\C[n]` codes resolve to a colour instead of falling back to white (indices 0–9
+  keep Atlas's own colours; additive — existing projects' stored plugin code is untouched).
+- **Control-aware typewriter:** `makeTypewriter` records the `.msg-ctl` markers with the
+  reveal-unit index they sit at; `showMessage`'s reveal driver honours them — `\.`/`\|`
+  pause N frames, `\!` waits for a button, `\>`/`\<` toggle instant reveal, `\^` closes
+  without waiting. Messages with no codes reduce to the exact previous behaviour.
+- **Window options:** `showMessage(name, text, face, opts)` gained an `opts` arg
+  (`background` 0 window / 1 dim / 2 transparent, `position` 0 top / 1 middle / 2 bottom),
+  applied as `.msg-dim`/`.msg-transparent`/`.msg-top`/`.msg-mid` classes. The `text`
+  command forwards `c.background`/`c.position`.
+- **Name box:** verified — the importer already lands the MZ speaker name (101 param[4]) on
+  `CmdText.name`, and `showMessage` renders it in `.msg-name`; no change needed.
+
+### Input scenes (src/engine/scenes/input-scenes.ts)
+
+New module, three UI-stack scenes driven entirely through named-action `onKey` (keyboard +
+gamepad), wired into `EngineServices` (`numberInput`/`selectItem`/`nameInput`) and dispatched
+by new `flow.ts` handlers `inputNumber`/`selectItem`/`nameInput`:
+
+- **Input Number** — a fixed-width column of digits; ▲▼ change the selected digit, ◄► move
+  columns, OK confirms; the value is stored in the command's variable.
+- **Select Item** — reuses `showList` over the party's owned regular items (icons + counts);
+  stores the chosen item id (0 on cancel / no items).
+- **Name Input** — an on-screen keyboard (upper/lower/digits/space + Back + OK) that renames
+  the party actor; empty result keeps the current name.
+
+### Flip (translate-commands.ts)
+
+103 → `inputNumber`, 104 → `selectItem` (RM category param preserved), 303 → `nameInput`
+(both digit/char counts clamped). 101 now maps `background`/`positionType` onto the `text`
+command (storing only the non-defaults) instead of emitting an M2·B `todo` report line.
+103/104/303 removed from the `TODO` table.
+
+### Tests
+
+- **node --test** `tests/message-codes.test.js` (new): the escape-code renderer — loads
+  `messages.js` + `plugins.js` in a vm and asserts `richText` expands every code
+  (substitution, gold badge, size stack, pacing markers, `\fs`/`\px`/`\py`, literal `\\`,
+  plugin colour/icon, name-box reuse).
+- **node --test** `interpreter.test.js`: the three new handlers register, drive their scenes
+  (stubbed), and store results; `text` forwards the background/position opts.
+- **vitest** `mz-translate-commands.test.ts`: SPEC rows 103/104/303 flip to real commands;
+  the D3 `mzTodo`-shape tests re-point at codes that stay `mzTodo` (313/315); new
+  field-fidelity block for 103/104/303 + 101 window/position (670 tests).
+- **Playwright** `tests-e2e/message-parity.spec.mjs` (new): a gated parallel common event
+  shows a `\v \$ \{ \} \.` message (asserts the gold badge, size span, and pacing marker
+  render + the substituted value shows), then Input Number stores a keyed-in value a
+  follow-up `\v[2]` message reads back. Map 1 untouched.
+
+### Stage log
+
+- **2026-07-05 — M2·B complete (branch `mig-2b`).** Shipped message-system parity:
+  - Schema: `CmdInputNumber`/`CmdSelectItem`/`CmdNameInput` added to `AnyCommand`; optional
+    `background`/`position` on `CmdText`. FORMAT_VERSION stays 2, no required fields.
+  - Engine: `js/runtime/messages.js` rewritten for full escape-code parity (`\p \$ \{ \} \.
+    \| \! \> \< \^ \px \py \fs \\` + the control-aware typewriter + `opts` window
+    background/position); new `src/engine/scenes/input-scenes.ts` (number / select-item /
+    name-input scenes) wired through `EngineServices` + `flow.ts` handlers; `text` handler
+    forwards the window opts. `Atlas_TextCodes` palette extended to 32 for MZ `\C[n]` range.
+  - Editor: Show Text form gained Window + Position dropdowns; `textCodesHelp` legend lists
+    the new codes; `inputNumber`/`selectItem`/`nameInput` `CMD_DEFS` forms + `cmdSummary`
+    cases. CSS for the two new scenes + message dim/transparent/top/middle + gold badge.
+  - Flip: `translate-commands.ts` 103/104/303 → real commands, 101 → window/position fields;
+    removed from the `TODO` table. Codes 313/315 (M2·C) still exercise the `mzTodo` shape.
+  - Tests: new `tests/message-codes.test.js` + `tests-e2e/message-parity.spec.mjs`;
+    `interpreter.test.js` + `mz-translate-commands.test.ts` extended. **All green:**
+    typecheck, 18 node tests, 670 vitest, 69 Playwright (map 1 untouched, 0 regressions).
+  - Patch notes added; `patch-notes.js?v=46→47` bumped in `help.ts` + `shims.d.ts`. Wiki
+    `Message-Text-Codes.md` documents the new codes, window options, and input commands.
+  - Scope note: `\px`/`\py` in-window pixel positioning is intentionally not modeled (Atlas
+    messages use flow layout) — stripped, not reported, since the text still reads correctly.
+    Input scenes are map-scene UI (transient, not saved), matching RM.

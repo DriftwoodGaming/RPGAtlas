@@ -35,8 +35,6 @@ import type { RmCommand, RmMoveRoute } from "./raw-types";
 // ---------------------------------------------------------------------------
 interface TodoInfo { what: string; detail: string; }
 const TODO: Record<number, TodoInfo> = {
-  103: { what: "asking the player for a number", detail: "number-entry prompts arrive in a later update (M2·B)" },
-  104: { what: "letting the player pick an item", detail: "item-picker prompts arrive in a later update (M2·B)" },
   118: { what: "a jump label", detail: "labels and jumps arrive in a later update (M2·C)" },
   119: { what: "jumping to a label", detail: "labels and jumps arrive in a later update (M2·C)" },
   132: { what: "changing the battle music", detail: "swapping the battle music from an event arrives in a later update" },
@@ -75,6 +73,7 @@ const TODO: Record<number, TodoInfo> = {
   323: { what: "changing a vehicle's picture", detail: "swapping a vehicle's sprite arrives in a later update (M4·A)" },
   324: { what: "changing a nickname", detail: "changing a hero's nickname arrives in a later update (M2·C)" },
   325: { what: "changing a profile", detail: "changing a hero's profile arrives in a later update (M2·C)" },
+  // 303 (Name Input) flips to a real command in M2·B — see dispatch below.
   326: { what: "changing TP", detail: "the TP system arrives in a later update (M3·B)" },
   331: { what: "changing an enemy's HP", detail: "in-battle enemy commands arrive in a later update (M3·C)" },
   332: { what: "changing an enemy's MP", detail: "in-battle enemy commands arrive in a later update (M3·C)" },
@@ -177,6 +176,8 @@ class Translator {
       // ---- §8.1 messages & text ----
       case 101: out.push(this.showText(c, indent)); return;
       case 102: out.push(this.showChoices(c, indent)); return;
+      case 103: out.push({ t: "inputNumber", varId: num(p[0]), digits: clampN(num(p[1]) || 1, 1, 8) }); return;
+      case 104: out.push({ t: "selectItem", varId: num(p[0]), itemType: num(p[1]) }); return;
       case 105: out.push(this.scrollText(c, indent)); return;
       case 108: this.consumeLines(108, 408, indent); return; // comment → dropped (not report-worthy)
       // ---- §8.2 flow control ----
@@ -226,6 +227,7 @@ class Translator {
       // ---- §8.10 scene control ----
       case 301: this.battle(c, out); return;
       case 302: out.push(this.shop(c, indent)); return;
+      case 303: out.push({ t: "nameInput", actorId: num(p[0]), maxChars: clampN(num(p[1]) || 8, 1, 16) }); return;
       case 352: out.push({ t: "save" }); return;
       case 353: out.push({ t: "gameover" }); return;
       case 354: out.push({ t: "totitle" }); return;
@@ -259,7 +261,11 @@ class Translator {
     if (typeof p[4] === "string" && p[4]) (cmd as any).name = p[4];
     // faceName+faceIndex → a portrait; Atlas links faces after the wizard slices art (M1·D).
     if (p[0]) this.bump("text-face", "partial", "message portraits", "message face pictures get linked after the import finishes");
-    if (num(p[2]) !== 0 || num(p[3]) !== 2) this.bump("text-window", "todo", "message window style & position", "custom message backgrounds/positions arrive in a later update (M2·B)");
+    // Window backdrop + position (M2·B): background 0 window / 1 dim / 2 transparent,
+    // positionType 0 top / 1 middle / 2 bottom (default). Store only the non-defaults.
+    const bg = num(p[2]);
+    if (bg) (cmd as any).background = clampN(bg, 0, 2);
+    if (p[3] != null && num(p[3]) !== 2) (cmd as any).position = clampN(num(p[3]), 0, 2);
     return cmd;
   }
 
@@ -497,6 +503,7 @@ class Translator {
 }
 
 const num = (v: any): number => (typeof v === "number" ? v : Number(v) || 0);
+const clampN = (v: number, lo: number, hi: number): number => (v < lo ? lo : v > hi ? hi : v);
 const cap = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 function weatherKind(v: any): string {
   const k = String(v || "none");

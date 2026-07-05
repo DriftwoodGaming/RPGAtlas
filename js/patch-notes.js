@@ -5,6 +5,20 @@
 export const PATCH_NOTES = [
   {
     date: "July 5, 2026",
+    title: "Fancier messages: text codes, number & item prompts, and a name-entry screen",
+    summary:
+      "Show Text learned the classic message tricks, and three new commands let the player type things back. Make text \\{bigger\\} or \\}smaller\\}, pause the typing with \\. and \\|, show the current gold with \\$, and more — plus you can now ask the player for a number, let them pick an item, or let them name a hero. Games imported from RPG Maker MV/MZ bring all of this across.",
+    items: [
+      "New message text codes in Show Text and Show Choices: \\p[n] (a party member's name), \\$ (show the current gold), \\{ … \\} (bigger / smaller text), \\. and \\| (short pauses while typing), \\! (wait for a button), \\> … \\< (type the rest instantly), and \\^ (close without waiting). The little “Text codes” panel under the box lists them all.",
+      "Show Text now has Window (Window / Dim / Transparent) and Position (Top / Middle / Bottom) options, so a message can sit at the top of the screen or fade into a dim backdrop.",
+      "Input Number: pop up a little number pad the player dials in; the number is saved to a variable — great for “enter the code” puzzles.",
+      "Select Item: let the player pick one of the items they're carrying; the item's id is saved to a variable.",
+      "Name Input: open an on-screen keyboard so the player can name a hero (works with keyboard and gamepad).",
+      "Importing an RPG Maker MV/MZ game now converts all of these — re-import an older import to pick them up.",
+    ],
+  },
+  {
+    date: "July 5, 2026",
     title: "Pictures, screen tint, a timer & more — new event commands for cutscenes",
     summary:
       "Ten new event commands land the classic “presentation” toolkit: show and move pictures on the screen, tint or fade the whole screen, run a count-down timer, scroll the map for a reveal, pop a speech-balloon over a character, and roll full-screen scrolling text. Games imported from RPG Maker MV/MZ that used these now bring them across automatically.",

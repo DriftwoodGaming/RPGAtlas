@@ -10,7 +10,7 @@ import { registerCommand, type InterpContext } from "../registry.js";
 
 export function registerFlowCommands(): void {
   registerCommand("text", async (c: any, { services }: InterpContext) => {
-    await services.showMessage(c.name, c.text, c.face);
+    await services.showMessage(c.name, c.text, c.face, { background: c.background, position: c.position });
   });
 
   registerCommand("choices", async (c: any, { interp, services }: InterpContext) => {
@@ -19,6 +19,26 @@ export function registerFlowCommands(): void {
       { className: "choicewin", cancellable: false },
     );
     await interp.runList(c.branches[i] || []);
+  });
+
+  // ---- Message-system input scenes (Project Compass M2·B) ----
+  // Each awaits a UI-stack scene (input-scenes.ts) wired into services, then
+  // stores the result — a variable, or the actor's new name.
+  registerCommand("inputNumber", async (c: any, { state, services }: InterpContext) => {
+    const value = await services.numberInput(Number(c.digits) || 1, 0);
+    if (c.varId != null) state.vars[c.varId] = value;
+  });
+
+  registerCommand("selectItem", async (c: any, { state, services }: InterpContext) => {
+    const id = await services.selectItem(c.itemType);
+    if (c.varId != null) state.vars[c.varId] = id;
+  });
+
+  registerCommand("nameInput", async (c: any, { state, services }: InterpContext) => {
+    const member = (state.party || []).find((a: any) => a.actorId === c.actorId);
+    const current = member ? member.name : "";
+    const name = await services.nameInput(current, Number(c.maxChars) || 8);
+    if (member && name) member.name = name;
   });
 
   registerCommand("if", async (c: any, { interp }: InterpContext) => {
