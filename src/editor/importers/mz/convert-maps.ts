@@ -15,6 +15,7 @@
    Pure — no DOM. Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later. */
 
 import type { GameMap, MapEncounters, MapFolder, MapLayers } from "../../../shared/schema";
+import { assetKeyOf, slugName } from "../../../shared/asset-library";
 import type { ImportReport } from "./report";
 import type { RmList, RmMap, RmMapInfo } from "./raw-types";
 import type { CommandTranslator } from "./convert-events";
@@ -118,28 +119,46 @@ export function convertMapData(m: RmMap, ts: TilesetsConversion, report: ImportR
   return out;
 }
 
-/** encounterList + encounterStep → Atlas `MapEncounters` (matrix §Map###). */
+/** encounterList + encounterStep → Atlas `MapEncounters` (matrix §Map###).
+ *  Region-scoped entries (M4·A) build `byRegion`: MZ treats an encounter as
+ *  valid where its regionSet is empty OR contains the tile's region, so each
+ *  region's pool = the global troops plus its own — and `troops` keeps only
+ *  the globally-valid ones. */
 function convertEncounters(m: RmMap, report: ImportReport): MapEncounters | undefined {
   const list = Array.isArray(m.encounterList) ? m.encounterList : [];
   if (!list.length) return undefined;
   const troops: number[] = [];
-  let regionScoped = false, weighted = false;
+  const regionTroops = new Map<number, number[]>();
+  let weighted = false;
   for (const e of list) {
     if (!e || !e.troopId) continue;
-    if (!troops.includes(e.troopId)) troops.push(e.troopId);
-    if (Array.isArray(e.regionSet) && e.regionSet.length) regionScoped = true;
+    const regions = Array.isArray(e.regionSet) ? e.regionSet.filter((r: any) => r > 0) : [];
+    if (regions.length) {
+      for (const r of regions) {
+        const rr = Math.min(Math.floor(r), MAX_REGION); // Atlas regions clamp at 63
+        const pool = regionTroops.get(rr) || [];
+        if (!pool.includes(e.troopId)) pool.push(e.troopId);
+        regionTroops.set(rr, pool);
+      }
+    } else if (!troops.includes(e.troopId)) {
+      troops.push(e.troopId);
+    }
     if (e.weight && e.weight !== 10) weighted = true; // 10 = RM default weight
   }
-  if (!troops.length) return undefined;
-  if (regionScoped) report.bump("enc-region", () => ({
-    area: "Maps", kind: "todo", what: "encounters tied to map regions",
-    detail: "region-only encounters arrive in a later update; for now they can happen anywhere on the map",
-  }));
+  if (!troops.length && !regionTroops.size) return undefined;
   if (weighted) report.bump("enc-weight", () => ({
     area: "Maps", kind: "partial", what: "how often each battle appears",
     detail: "Atlas gives each listed battle an equal chance",
   }));
-  return { troops, rate: m.encounterStep || 30 };
+  const enc: MapEncounters = { troops, rate: m.encounterStep || 30 };
+  if (regionTroops.size) {
+    enc.byRegion = {};
+    for (const [r, pool] of regionTroops) {
+      // global troops stay valid inside the region (MZ semantics)
+      enc.byRegion[r] = [...troops.filter((t) => !pool.includes(t)), ...pool];
+    }
+  }
+  return enc;
 }
 
 /** Convert one RM map's geometry + metadata into a `GameMap`. Its `name` comes
@@ -175,25 +194,48 @@ export function convertMap(
 
   if (m.note && m.note.trim()) map.notes = m.note;
 
-  // Metadata Atlas can't honor yet → one friendly line each (M4·A / report).
+  // The map-name banner stays a friendly skip (locked decision, matrix §16).
   if (m.displayName && m.displayName.trim() && m.displayName !== name) {
     report.bump("map-namebanner", () => ({
       area: "Maps", kind: "skipped", what: "the map-name popup",
       detail: "Atlas doesn't show a map-name banner; the map still works",
     }));
   }
-  if (m.parallaxName && m.parallaxName.trim()) report.bump("map-parallax", () => ({
-    area: "Maps", kind: "todo", what: "scrolling background pictures",
-    detail: "parallax backgrounds arrive in a later update",
-  }));
-  if (m.scrollType) report.bump("map-loop", () => ({
-    area: "Maps", kind: "todo", what: "looping maps",
-    detail: "maps that wrap around at the edges arrive in a later update",
-  }));
-  if (m.specifyBattleback && (m.battleback1Name || m.battleback2Name)) report.bump("map-battleback", () => ({
-    area: "Maps", kind: "todo", what: "custom battle backgrounds",
-    detail: "per-map battle backgrounds arrive in a later update",
-  }));
+  // M4·A: parallax, looping, and per-map battlebacks are real now. Art files
+  // aren't copied by the importer (same as pictures) — one aggregated line
+  // says "add the art and it appears".
+  if (m.parallaxName && m.parallaxName.trim()) {
+    const px: GameMap["parallax"] = {
+      key: assetKeyOf("pictures", slugName(m.parallaxName)),
+    };
+    if (m.parallaxLoopX) px.loopX = true;
+    if (m.parallaxLoopY) px.loopY = true;
+    if (Number(m.parallaxSx)) px.sx = Number(m.parallaxSx);
+    if (Number(m.parallaxSy)) px.sy = Number(m.parallaxSy);
+    if (m.parallaxName.startsWith("!")) px.lock = true;
+    map.parallax = px;
+    report.bump("parallax-art", () => ({
+      area: "Maps", kind: "partial", what: "background picture files",
+      detail: "your scrolling backgrounds now show in Atlas — add their image files to the Assets library and they'll appear",
+    }));
+  }
+  if (m.scrollType) {
+    // RM scrollType: 1 = vertical loop, 2 = horizontal, 3 = both.
+    map.loop = {
+      ...(m.scrollType === 2 || m.scrollType === 3 ? { h: true } : {}),
+      ...(m.scrollType === 1 || m.scrollType === 3 ? { v: true } : {}),
+    };
+  }
+  if (m.specifyBattleback && (m.battleback1Name || m.battleback2Name)) {
+    map.battleback = {
+      ...(m.battleback1Name ? { back1: assetKeyOf("pictures", slugName(m.battleback1Name)) } : {}),
+      ...(m.battleback2Name ? { back2: assetKeyOf("pictures", slugName(m.battleback2Name)) } : {}),
+    };
+    report.bump("battleback-art", () => ({
+      area: "Maps", kind: "partial", what: "battle background image files",
+      detail: "your battle backgrounds now show in Atlas — add their image files to the Assets library and they'll appear",
+    }));
+  }
 
   return map;
 }

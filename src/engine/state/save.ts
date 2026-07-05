@@ -66,6 +66,8 @@ export async function saveLoadMenu(mode: any): Promise<boolean> {
         timeOfDay: G.timeOfDay,
         vehicles: G.vehicles,
         vehicle: G.vehicle,
+        // Change Vehicle Image overrides (Project Compass M4·A, RM 323).
+        vehicleImages: G.vehicleImages || null,
         // Presentation layer (Project Compass M2·A): pictures, screen tint, timer.
         presentation: serializePresentation(),
         // System toggles (Project Compass M2·C): menu/save/encounter/formation
@@ -125,6 +127,7 @@ async function applySave(d: any): Promise<void> {
   // vehicles (Phase 5): old saves lack the fields — start parked at System
   G.vehicles = d.vehicles || {};
   G.vehicle = d.vehicle || null;
+  G.vehicleImages = d.vehicleImages || null; // M4·A (absent in old saves)
   ctx.cameraZoom = clamp(Number(d.cameraZoom) || 1, 0.25, 4);
   // Presentation layer (Project Compass M2·A): old saves lack the field →
   // restorePresentation(undefined) resets to a clean screen.

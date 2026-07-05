@@ -27,6 +27,8 @@ import { G, Quests, objectiveDone, onEnemyKilled, param } from "../state/game-st
 import { Plugins } from "../plugin-runtime.js";
 import { setAmbience } from "../../shared/audio-deck.js";
 import { resetZoneState, zonePassAt, mapHasZones } from "./zone-runtime.js";
+import { rebuildTileBehaviors, ladderAt, terrainTagAt, wrapX, wrapY } from "./tile-behavior.js";
+import { resolvePictureSrc } from "./presentation-runtime.js";
 
 const TILE = Assets.TILE;
 
@@ -50,6 +52,9 @@ function tileAt(layer: any, x: any, y: any): any {
   return ctx.map.layers[layer][y * ctx.map.width + x];
 }
 export function tilePassable(x: any, y: any): boolean {
+  // Looping maps (M4·A) fold out-of-range coordinates back into the grid;
+  // wrapX/wrapY are identity on bounded maps (byte-identical movement).
+  x = wrapX(x); y = wrapY(y);
   if (x < 0 || y < 0 || x >= ctx.map.width || y >= ctx.map.height) return false;
   // Collision/nav zones (Phase 8) are baked into a passOv-compatible overlay at
   // map load; a non-zero cell is an explicit force-block/force-pass that wins
@@ -177,8 +182,13 @@ async function prerenderMap(): Promise<void> {
   ctx.upperBuf.height = ctx.lowerBuf.height;
   const lg = ctx.lowerBuf.getContext("2d"),
     ug = ctx.upperBuf.getContext("2d");
-  lg.fillStyle = "#101018";
-  lg.fillRect(0, 0, ctx.lowerBuf.width, ctx.lowerBuf.height);
+  // A parallax map (M4·A) keeps the lower buffer transparent where no tile is
+  // painted so the background shows through; classic maps keep the exact
+  // opaque base fill (goldens gate it).
+  if (!ctx.map.parallax) {
+    lg.fillStyle = "#101018";
+    lg.fillRect(0, 0, ctx.lowerBuf.width, ctx.lowerBuf.height);
+  }
   const m = ctx.map;
   // Classic maps (no layersAdv) run the verbatim four-array composite the
   // renderer goldens protect. A generalized stack folds into the same two
@@ -285,6 +295,45 @@ function redrawCellShadow(lg: any, x: number, y: number): void {
   lg.restore();
 }
 
+// ---- parallax background (Project Compass M4·A) ----
+// The map's scrolling under-layer (MZ parallax). Loaded per map load (or by
+// the Change Parallax command); missing art draws nothing, never a crash.
+let parallaxState: { cfg: any; img: any } | null = null;
+export function setMapParallax(cfg: any): void {
+  parallaxState = null;
+  if (!cfg || !cfg.key) return;
+  const src = resolvePictureSrc(cfg.key);
+  if (!src || typeof Image === "undefined") return;
+  const slot = { cfg, img: null as any };
+  const img = new Image();
+  img.onload = () => { if (parallaxState === slot) slot.img = img; };
+  img.onerror = () => { /* missing art → no background, never a crash */ };
+  img.src = src;
+  parallaxState = slot;
+}
+/** Paint the parallax under the map buffers (Canvas-2D path). MZ origin
+ *  semantics: `lock` scrolls 1:1 with the map ("!"-prefixed sources); a loop
+ *  axis scrolls at half camera speed plus an s×/2 px-per-tick drift; a
+ *  non-loop axis is fixed to the screen. Tiled to cover the view. */
+export function drawMapParallax(g: any, camX: any, camY: any, viewW: any, viewH: any, t: any): void {
+  const st = parallaxState;
+  if (!st || !st.img) return;
+  const cfg = st.cfg, img = st.img;
+  const iw = img.width, ih = img.height;
+  if (!iw || !ih) return;
+  const ox = cfg.lock ? camX : cfg.loopX ? camX / 2 + (t * (Number(cfg.sx) || 0)) / 2 : 0;
+  const oy = cfg.lock ? camY : cfg.loopY ? camY / 2 + (t * (Number(cfg.sy) || 0)) / 2 : 0;
+  const x0 = -(((ox % iw) + iw) % iw);
+  const y0 = -(((oy % ih) + ih) % ih);
+  // Screen-space paint: the caller draws the map buffers at -camX/-camY in
+  // this same transform, so the camera contribution lives inside ox/oy.
+  for (let y = y0; y < viewH; y += ih) {
+    for (let x = x0; x < viewW; x += iw) {
+      g.drawImage(img, Math.round(x), Math.round(y));
+    }
+  }
+}
+
 export async function loadMap(mapId: any): Promise<void> {
   ctx.map = RA.byId(ctx.proj.maps, mapId);
   if (!ctx.map) {
@@ -307,6 +356,13 @@ export async function loadMap(mapId: any): Promise<void> {
     G.timeOfDay = clamp(Number(ctx.map.hd2d.timeOfDay) || 0, 0, 24);
   }
   mapFloatTexts.length = 0;
+  // Tile behaviors (M4·A): rebuild the ladder/bush/counter/damage/terrain
+  // cache + presence mask for this map. Zero per-step cost when none painted.
+  rebuildTileBehaviors();
+  // A battle-background override (RM 283) lasts until the next map load, and
+  // the parallax resets to the map's own (RM 284 semantics).
+  G.battlebackOverride = null;
+  setMapParallax(ctx.map.parallax);
   ctx.evRTs = ctx.map.events.map(makeEvRT);
   ctx.parallels.clear();
   await prerenderMap();
@@ -323,6 +379,7 @@ export async function loadMap(mapId: any): Promise<void> {
 }
 
 export function entityAt(x: any, y: any, exclude?: any): any[] {
+  x = wrapX(x); y = wrapY(y); // looping maps: events live at wrapped coords
   return ctx.evRTs.filter(
     (rt: any) =>
       rt !== exclude && !rt.erased && rt.page && rt.x === x && rt.y === y,
@@ -334,6 +391,7 @@ export function blockingEventAt(x: any, y: any): any {
   );
 }
 export function canEntityPass(rt: any, nx: any, ny: any): boolean {
+  nx = wrapX(nx); ny = wrapY(ny); // looping maps: compare wrapped targets
   if (rt.page && rt.page.through) return true;
   if (!tilePassable(nx, ny)) return false;
   if (blockingEventAt(nx, ny)) return false;
@@ -651,10 +709,32 @@ export function updateEntityMotion(ent: any, speed: any): boolean {
     ent.x = ent.tx;
     ent.y = ent.ty;
     ent.moving = false;
+    normalizeLoopArrival(ent);
+    // Ladder tiles (M4·A): landing on one snaps the facing up — the climb
+    // look, MZ-style. ladderAt gates on the map's presence mask.
+    if (ladderAt(ent.x, ent.y)) ent.dir = 3;
     return true; // arrived
   }
   ent.animT++;
   return false;
+}
+/** Fold a just-arrived entity back into the grid on looping maps, shifting its
+ *  render/interp coords by the same whole-map delta so the camera and the
+ *  between-tick interpolation stay continuous. No-op on bounded maps. */
+function normalizeLoopArrival(ent: any): void {
+  const m = ctx.map;
+  if (!m || !m.loop) return;
+  const wx = wrapX(ent.x), wy = wrapY(ent.y);
+  if (wx !== ent.x) {
+    const d = wx - ent.x;
+    ent.x = wx; ent.tx += d; ent.rx += d;
+    if (ent.prx != null) ent.prx += d;
+  }
+  if (wy !== ent.y) {
+    const d = wy - ent.y;
+    ent.y = wy; ent.ty += d; ent.ry += d;
+    if (ent.pry != null) ent.pry += d;
+  }
 }
 export function walkFrame(ent: any): number {
   if (!ent.moving && ent.kind !== "object") return 1;
@@ -719,9 +799,10 @@ export function initPlayer(x: any, y: any, dir?: any): void {
   refreshPlayerCharset();
 }
 export function refreshPlayerCharset(): void {
-  // riding a vehicle swaps the player sprite for the vehicle's (Phase 5)
+  // riding a vehicle swaps the player sprite for the vehicle's (Phase 5;
+  // vehicleDef folds in the M4·A Change Vehicle Image override)
   if (G.vehicle) {
-    const def = (ctx.proj.system.vehicles || {})[G.vehicle];
+    const def = vehicleDef(G.vehicle);
     const ci = def && def.charset ? Assets.charsetIndex(def.charset) : -1;
     if (ci >= 0) {
       G.player.charsetIdx = ci;
@@ -742,13 +823,15 @@ export function refreshPlayerCharset(): void {
 /** The region tag under a tile (0 = none). */
 export function regionAt(x: any, y: any): number {
   const m = ctx.map;
+  x = wrapX(x); y = wrapY(y);
   if (!m || !m.regions || x < 0 || y < 0 || x >= m.width || y >= m.height) return 0;
   return m.regions[y * m.width + x] || 0;
 }
 
 /** Read map info at a tile for the Get Location Info command (Project Compass
- *  M2·C, RM 285). Atlas has no terrain-tag concept, so "terrain" reads 0 (an
- *  honest no-op); region / event id / ground tile id map cleanly. */
+ *  M2·C, RM 285). Terrain tags read real values since M4·A (Database ▸
+ *  Tilesets terrain, topmost painted tag); region / event id / ground tile id
+ *  map cleanly. */
 export function locationInfo(x: any, y: any, infoType: any): number {
   if (infoType === "region") return regionAt(x, y);
   if (infoType === "eventId") {
@@ -756,13 +839,15 @@ export function locationInfo(x: any, y: any, infoType: any): number {
     return rt ? rt.ev.id : 0;
   }
   if (infoType === "tileId") {
+    x = wrapX(x); y = wrapY(y);
     if (!ctx.map || x < 0 || y < 0 || x >= ctx.map.width || y >= ctx.map.height) return 0;
     return tileId(tileAt("ground", x, y)) || 0;
   }
-  return 0; // "terrain" tag — no Atlas equivalent
+  return terrainTagAt(x, y); // "terrain" tag (M4·A)
 }
 
 function groundKeyAt(x: any, y: any): string {
+  x = wrapX(x); y = wrapY(y);
   if (x < 0 || y < 0 || x >= ctx.map.width || y >= ctx.map.height) return "";
   const t = Assets.tiles[tileId(tileAt("ground", x, y))]; // mask Stage-E flags
   return t ? t.key : "";
@@ -773,6 +858,7 @@ function groundKeyAt(x: any, y: any): string {
 // airship = anywhere in bounds. "Bare" = no decor on the cell (bridges and
 // lilies block hulls).
 function vehicleCanPass(type: any, nx: any, ny: any): boolean {
+  nx = wrapX(nx); ny = wrapY(ny);
   if (nx < 0 || ny < 0 || nx >= ctx.map.width || ny >= ctx.map.height) return false;
   if (type === "airship") return true;
   if (tileAt("decor", nx, ny) !== 0 || tileAt("decor2", nx, ny) !== 0) return false;
@@ -787,7 +873,11 @@ export function playerStepPassable(nx: any, ny: any): boolean {
 }
 function vehicleDef(type: any): any {
   const v = (ctx.proj.system.vehicles || {})[type];
-  return v && v.charset ? v : null;
+  if (!v) return null;
+  // Change Vehicle Image (M4·A, RM 323): a save-persisted charset override.
+  const ov = G.vehicleImages && G.vehicleImages[type];
+  const def = ov ? { ...v, charset: ov } : v;
+  return def.charset ? def : null;
 }
 /** Live position record for a configured vehicle (lazily seeded from the
  *  System-tab definition; persisted in saves via G.vehicles). */
@@ -961,6 +1051,8 @@ export function updateJumpMotion(ent: any): boolean {
     ent.rx = j.tx;
     ent.ry = j.ty;
     ent.jumping = null;
+    normalizeLoopArrival(ent);
+    if (ladderAt(ent.x, ent.y)) ent.dir = 3; // M4·A ladder facing
     return true;
   }
   return false;
@@ -968,6 +1060,7 @@ export function updateJumpMotion(ent: any): boolean {
 /** The ledge value under a target tile (passOv 3), bounds-safe. */
 export function ledgeAt(x: any, y: any): boolean {
   const m = ctx.map;
+  x = wrapX(x); y = wrapY(y);
   if (!m || !m.passOv || x < 0 || y < 0 || x >= m.width || y >= m.height) return false;
   return m.passOv[y * m.width + x] === 3;
 }

@@ -24,6 +24,7 @@ import { openLocationPicker } from "./location-picker";
   };
   const BALLOON_OPTS = Array.from({ length: 15 }, (_, i) => ({ v: i + 1, l: (i + 1) + ": " + (BALLOON_NAMES[i + 1] || "Balloon " + (i + 1)) }));
   const BLEND_OPTS = [{ v: 0, l: "Normal" }, { v: 1, l: "Add" }, { v: 2, l: "Multiply" }, { v: 3, l: "Screen" }];
+  const VEHICLE_OPTS = [{ v: "boat", l: "Boat" }, { v: "ship", l: "Ship" }, { v: "airship", l: "Airship" }]; // M4·A
   const ORIGIN_OPTS = [{ v: 0, l: "Upper-left" }, { v: 1, l: "Center" }];
   // Change-actor-data family (Project Compass M2·C): the base parameters Atlas
   // models (RM's `luk` has no Atlas home), and the actor dropdowns. The
@@ -130,6 +131,12 @@ import { openLocationPicker } from "./location-picker";
       case "tint": return "Tint Screen [" + (c.tone || []).join(", ") + "] over " + (c.frames || 0) + "f";
       case "timer": return c.op === "stop" ? "Stop Timer" : "Start Timer: " + (c.seconds || 0) + "s" + (c.common ? " → " + commonEventName(c.common) : "");
       case "scrollMap": return "Scroll Map " + (c.dir || "?") + " " + (c.distance || 0) + " tiles (speed " + (c.speed || 0) + ")";
+      // --- Map features (Project Compass M4·A) ---
+      case "setVehiclePos": return "Set Vehicle Location: " + (c.vehicle || "boat") + (c.byVar ? " (from variables)" : " → map " + (c.mapId || 0) + " @ " + (c.x || 0) + "," + (c.y || 0));
+      case "vehicle": return "Get on/off Vehicle";
+      case "vehicleImage": return "Change Vehicle Image: " + (c.vehicle || "boat") + (c.charset ? " → " + String(c.charset).replace(/^asset:[^/]*\//, "") : "");
+      case "battleback": return (c.back1 || c.back2) ? "Change Battle Back: " + [c.back1, c.back2].filter(Boolean).map((k: any) => String(k).replace(/^asset:[^/]*\//, "")).join(" + ") : "Change Battle Back (clear)";
+      case "parallax": return c.key ? "Change Parallax: " + String(c.key).replace(/^asset:[^/]*\//, "") : "Remove Parallax";
       case "balloon": return "Balloon " + (BALLOON_NAMES[c.balloonId] || c.balloonId) + " over " + (c.target === "player" ? "Player" : c.target === "this" ? "This Event" : "Event #" + c.target);
       case "scrollText": return "Scrolling Text: " + String(c.text || "").split("\n")[0].slice(0, 40);
       case "inputNumber": return "Input Number → Variable " + varName(c.varId) + " (" + (c.digits || 1) + " digit" + ((c.digits || 1) === 1 ? "" : "s") + ")";
@@ -777,6 +784,56 @@ import { openLocationPicker } from "./location-picker";
           field("Wait for completion", chk(w, "wait"))));
         box.appendChild(h("div", { class: "dim" }, "Pans the camera away from the player. The view returns to the player when they move. Can't scroll past the edge of the map."));
         return () => Object.assign(c, w);
+      } },
+    // --- Map features (Project Compass M4·A) ---
+    { t: "setVehiclePos", label: "Set Vehicle Location", make: () => ({ t: "setVehiclePos", vehicle: "boat", mapId: 1, x: 0, y: 0 }),
+      form(c: any, box: any) {
+        const w = { vehicle: c.vehicle || "boat", byVar: !!c.byVar, mapId: c.mapId || 1, x: c.x || 0, y: c.y || 0 };
+        box.appendChild(row(
+          field("Vehicle", sel(w, "vehicle", VEHICLE_OPTS)),
+          field("Read map/x/y from variables", chk(w, "byVar")),
+          field("Map id (or variable)", nIn(w, "mapId", 0, 9999)),
+          field("X (or variable)", nIn(w, "x", 0, 9999)),
+          field("Y (or variable)", nIn(w, "y", 0, 9999))));
+        box.appendChild(h("div", { class: "dim" }, "Parks the vehicle at a spot. With the variables box checked, the three numbers are variable ids read when the event runs."));
+        return () => { c.vehicle = w.vehicle; c.byVar = w.byVar || undefined; c.mapId = Number(w.mapId); c.x = Number(w.x); c.y = Number(w.y); };
+      } },
+    { t: "vehicle", label: "Get on/off Vehicle", make: () => ({ t: "vehicle" }),
+      form(_c: any, box: any) {
+        box.appendChild(h("div", { class: "dim" }, "Boards the vehicle the player faces or stands on — or steps off the one being ridden. Same as pressing the action key next to it."));
+        return () => {};
+      } },
+    { t: "vehicleImage", label: "Change Vehicle Image", make: () => ({ t: "vehicleImage", vehicle: "boat", charset: "" }),
+      form(c: any, box: any) {
+        const w = { vehicle: c.vehicle || "boat", charset: c.charset || "" };
+        box.appendChild(row(
+          field("Vehicle", sel(w, "vehicle", VEHICLE_OPTS)),
+          field("New sprite", sel(w, "charset", charsetOpts()))));
+        box.appendChild(h("div", { class: "dim" }, "Swaps the vehicle's sprite for the rest of the game (saved with your game)."));
+        return () => { c.vehicle = w.vehicle; c.charset = w.charset; };
+      } },
+    { t: "battleback", label: "Change Battle Back", make: () => ({ t: "battleback", back1: "", back2: "" }),
+      form(c: any, box: any) {
+        const w = { back1: c.back1 || "", back2: c.back2 || "" };
+        box.appendChild(row(
+          field("Floor image (asset key or URL)", tIn(w, "back1")),
+          field("Walls image (optional)", tIn(w, "back2"))));
+        box.appendChild(h("div", { class: "dim" }, "Sets the battle background until the player changes maps. Leave both empty to go back to the map's own (or the classic backdrop)."));
+        return () => { c.back1 = w.back1; c.back2 = w.back2; };
+      } },
+    { t: "parallax", label: "Change Parallax", make: () => ({ t: "parallax", key: "" }),
+      form(c: any, box: any) {
+        const w = { key: c.key || "", loopX: !!c.loopX, loopY: !!c.loopY, sx: c.sx || 0, sy: c.sy || 0, lock: !!c.lock };
+        box.appendChild(row(field("Image (asset key or URL)", tIn(w, "key"))));
+        box.appendChild(row(
+          field("Loop ↔", chk(w, "loopX")), field("Loop ↕", chk(w, "loopY")),
+          field("Drift X", nIn(w, "sx", -32, 32)), field("Drift Y", nIn(w, "sy", -32, 32)),
+          field("Locked to map", chk(w, "lock"))));
+        box.appendChild(h("div", { class: "dim" }, "Swaps the map's scrolling background picture until the player changes maps. An empty image removes it."));
+        return () => {
+          c.key = w.key; c.loopX = w.loopX || undefined; c.loopY = w.loopY || undefined;
+          c.sx = Number(w.sx) || undefined; c.sy = Number(w.sy) || undefined; c.lock = w.lock || undefined;
+        };
       } },
     { t: "balloon", label: "Show Balloon Icon", make: () => ({ t: "balloon", target: "this", balloonId: 1, wait: false }),
       form(c: any, box: any) {

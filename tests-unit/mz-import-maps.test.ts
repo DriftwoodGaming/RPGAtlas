@@ -86,6 +86,7 @@ describe("autotile conversion (§12b)", () => {
     expect(grass.props).toEqual({ terrainTag: 3 }); // A2 flag (3 << 12)
     const wall = byId(mz.autotiles, 3);
     expect(wall.kind).toBe("a4");
+    expect(wall.props).toEqual({ flag: 2 }); // A4 ladder bit (M4·A group behaviors)
   });
 
   it("ships a decodable placeholder sheet for M1·D to replace", () => {
@@ -116,10 +117,11 @@ describe("tileset flag bits → tileProps (§11 / decision D10)", () => {
     expect(tp["asset:tilesets/world_b-t24"]).toBeUndefined();
   });
 
-  it("reports every behavior flag once, kid-friendly, no silent drop", () => {
+  it("behaviors are live since M4·A — only partial passage keeps a line", () => {
+    expect(has(mz, "one-way tile passage")).toBe(true);
     for (const w of ["ladder tiles", "bush tiles", "counter tiles", "damage floors",
-      "one-way tile passage", "terrain tags"]) {
-      expect(has(mz, w), w).toBe(true);
+      "terrain tags"]) {
+      expect(has(mz, w), w + " should no longer be reported").toBe(false);
     }
   });
 });
@@ -157,20 +159,31 @@ describe("map layer rebucket (§2 Map###)", () => {
     expect(has(mz, "high region numbers")).toBe(true);
   });
 
-  it("carries encounters, autoplay BGM, and the map note", () => {
+  it("carries encounters (regionSet → byRegion, M4·A), autoplay BGM, the note", () => {
     const harbor = byId(mz.maps, 1);
-    expect(harbor.encounters).toEqual({ troops: [1], rate: 30 });
+    // The fixture's one encounter is region-scoped to [1, 5]: the default list
+    // stays empty and each region's pool carries the troop (MZ validity).
+    expect(harbor.encounters).toEqual({ troops: [], rate: 30, byRegion: { 1: [1], 5: [1] } });
     expect(harbor.music).toBe("asset:audio/Harbor");
     expect(harbor.notes).toBe("<Region1: safe zone>");
     expect(harbor.events.map((e) => e.id)).toEqual([1, 2, 3, 4, 5, 6]); // events fill in M1·C
-    expect(has(mz, "encounters tied to map regions")).toBe(true); // regionSet
+    expect(has(mz, "encounters tied to map regions")).toBe(false); // real since M4·A
   });
 
-  it("reports map features Atlas defers to later phases", () => {
-    for (const w of ["the map-name popup", "scrolling background pictures",
-      "looping maps", "custom battle backgrounds"]) {
-      expect(has(mz, w), w).toBe(true);
-    }
+  it("converts parallax / looping / battlebacks (M4·A) — banner stays a skip", () => {
+    const harbor = byId(mz.maps, 1);
+    const cave = byId(mz.maps, 2);
+    expect(harbor.parallax).toEqual({ key: "asset:pictures/sea" }); // no loop/drift set
+    expect(harbor.loop).toBeUndefined(); // scrollType 0
+    expect(cave.loop).toEqual({ h: true }); // scrollType 2 = horizontal wrap
+    expect(cave.battleback).toEqual({ back1: "asset:pictures/cave" }); // specifyBattleback
+    expect(harbor.battleback).toBeUndefined();
+    expect(has(mz, "the map-name popup")).toBe(true); // locked skip, still honest
+    expect(has(mz, "background picture files")).toBe(true); // "add the art" line
+    expect(has(mz, "battle background image files")).toBe(true);
+    expect(has(mz, "looping maps")).toBe(false); // real now — nothing to report
+    expect(has(mz, "scrolling background pictures")).toBe(false);
+    expect(has(mz, "custom battle backgrounds")).toBe(false);
   });
 });
 

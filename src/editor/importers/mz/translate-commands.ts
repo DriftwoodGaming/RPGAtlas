@@ -40,19 +40,13 @@ const TODO: Record<number, TodoInfo> = {
   133: { what: "changing the victory music", detail: "swapping the victory jingle arrives in a later update (M4·B)" },
   139: { what: "changing the defeat music", detail: "swapping the defeat jingle arrives in a later update (M4·B)" },
   140: { what: "changing a vehicle's music", detail: "swapping a vehicle's music arrives in a later update" },
-  202: { what: "moving a vehicle", detail: "placing a boat/ship/airship from an event arrives in a later update (M4·A)" },
   203: { what: "moving another event", detail: "teleporting an event to a spot arrives in a later update" },
-  206: { what: "getting on or off a vehicle", detail: "the board/exit-vehicle command arrives in a later update (M4·A)" },
   243: { what: "remembering the music", detail: "save/resume-music arrives in a later update (M4·B)" },
   244: { what: "bringing the music back", detail: "save/resume-music arrives in a later update (M4·B)" },
   245: { what: "playing a background sound", detail: "looping background sounds arrive in a later update (M4·B)" },
   246: { what: "fading out a background sound", detail: "looping background sounds arrive in a later update (M4·B)" },
   249: { what: "playing a musical effect", detail: "one-shot musical effects (ME) arrive in a later update (M4·B)" },
   251: { what: "stopping a sound", detail: "stopping a looping sound arrives in a later update (M4·B)" },
-  282: { what: "changing the tileset", detail: "swapping a map's tileset arrives in a later update (M4·A)" },
-  283: { what: "changing the battle background", detail: "custom battle backgrounds arrive in a later update (M4·A)" },
-  284: { what: "changing the parallax", detail: "scrolling background pictures arrive in a later update (M4·A)" },
-  323: { what: "changing a vehicle's picture", detail: "swapping a vehicle's sprite arrives in a later update (M4·A)" },
   356: { what: "a plugin command", detail: "plugin commands are listed in the import report, not run (M5·A)" },
   357: { what: "a plugin command", detail: "plugin commands are listed in the import report, not run (M5·A)" },
 };
@@ -61,6 +55,9 @@ const TODO: Record<number, TodoInfo> = {
 // line, never preserved as a placeholder (they will never "come back").
 const SKIP: Record<number, TodoInfo> = {
   217: { what: "regrouping the followers", detail: "Atlas keeps the follower trail together automatically" },
+  // 282 decided at M4·A: Atlas paints maps with the tiles themselves (art +
+  // ids bake at import), so a whole-tileset swap has nothing honest to swap.
+  282: { what: "changing the tileset", detail: "Atlas maps carry their tiles directly, so a tileset swap isn't needed — edit the map instead" },
   261: { what: "a video", detail: "Atlas doesn't play movies; the game runs fine without it" },
   281: { what: "the map-name popup", detail: "Atlas doesn't show a map-name banner; the map still works" },
   351: { what: "opening the menu", detail: "the player can always open Atlas's own menu" },
@@ -82,6 +79,8 @@ const MOVE_DIAG: Record<number, [string, string]> = {
 
 /** RM Scroll Map direction (2 down · 4 left · 6 right · 8 up) → Atlas dir. */
 const SCROLL_DIR: Record<number, "up" | "down" | "left" | "right"> = { 2: "down", 4: "left", 6: "right", 8: "up" };
+/** RM vehicle index (202/323) → Atlas vehicle type (M4·A). */
+const VEHICLE: Record<number, "boat" | "ship" | "airship"> = { 0: "boat", 1: "ship", 2: "airship" };
 /** RM tone array [r,g,b,gray] → Atlas tone tuple (defaults to normal). */
 const toneOf = (t: any): [number, number, number, number] => {
   const a = Array.isArray(t) ? t : [0, 0, 0, 0];
@@ -173,8 +172,23 @@ class Translator {
       case 138: out.push({ t: "windowTone", tone: [num((p[0] || [])[0]), num((p[0] || [])[1]), num((p[0] || [])[2])] }); return;
       // ---- §8.5 movement & map ----
       case 201: this.transfer(c, out); return;
+      case 202: // Set Vehicle Location (M4·A): [vehicle, designation 0/1, mapId, x, y]
+        out.push({ t: "setVehiclePos", vehicle: VEHICLE[num(p[0])] || "boat", byVar: num(p[1]) === 1, mapId: num(p[2]), x: num(p[3]), y: num(p[4]) });
+        return;
       case 204: out.push({ t: "scrollMap", dir: SCROLL_DIR[num(p[0])] || "right", distance: num(p[1]), speed: num(p[2]) || 4, wait: true }); return;
       case 205: this.moveRoute(c, out); return;
+      case 206: out.push({ t: "vehicle" }); return; // Get on/off Vehicle (M4·A toggle)
+      case 283: // Change Battle Back (M4·A): [back1Name, back2Name]
+        out.push({ t: "battleback", back1: this.battlebackKey(p[0]), back2: this.battlebackKey(p[1]) });
+        return;
+      case 284: this.changeParallax(c, out); return; // Change Parallax (M4·A)
+      case 323: { // Change Vehicle Image (M4·A): [vehicle, imageName, imageIndex]
+        const vname = String(p[1] || "");
+        const charset = vname ? slugKey(vname) + (num(p[2]) ? "-" + num(p[2]) : "") : "";
+        if (charset) this.bump("cmd-vehicle-image", "partial", "a vehicle's picture change", "add the matching sprite art to your Assets library and the new vehicle look appears");
+        out.push({ t: "vehicleImage", vehicle: VEHICLE[num(p[0])] || "boat", charset });
+        return;
+      }
       case 211: out.push({ t: "transparency", val: p[0] === 0 }); return;
       case 212: out.push({ t: "playAnim", animationId: num(p[1]), target: p[0] === -1 ? "player" : "this", wait: true }); return;
       case 213: out.push({ t: "balloon", target: num(p[0]) === -1 ? "player" : num(p[0]) === 0 ? "this" : num(p[0]), balloonId: num(p[1]) || 1, wait: !!p[2] }); return;
@@ -551,10 +565,10 @@ class Translator {
   }
 
   // -- §8.5 Get Location Info (285) ----------------------------------------
-  /** [varId, infoType, designation(0 direct/1 variable), x, y]. Atlas has no
-   *  terrain-tag concept, so infoType 0 reads 0; region / event id / tile id
-   *  map cleanly. A variable-designated tile reports + falls back to the
-   *  direct coordinates. */
+  /** [varId, infoType, designation(0 direct/1 variable), x, y]. Terrain tags,
+   *  region, event id, and tile id all read real values (terrain since M4·A).
+   *  A variable-designated tile reports + falls back to the direct
+   *  coordinates. */
   private getLocationInfo(c: RmCommand, out: AnyCommand[]): void {
     const p = (c.parameters as any[]) || [];
     const INFO: Record<number, "terrain" | "eventId" | "tileId" | "region"> = { 0: "terrain", 1: "eventId", 2: "tileId", 3: "tileId", 4: "tileId", 5: "region" };
@@ -590,6 +604,36 @@ class Translator {
       "your pictures now play in Atlas — add their image files to the Assets library and they'll appear (the picture names are kept for you)");
     return assetKeyOf("pictures", slugName(name));
   }
+  /** RM battleback name → an Atlas "asset:pictures/<slug>" key + one
+   *  aggregated "add the art" line (M4·A — same pattern as pictures). */
+  private battlebackKey(raw: any): string {
+    const name = String(raw || "");
+    if (!name) return "";
+    this.bump("battleback-art", "partial", "battle background image files",
+      "your battle backgrounds now show in Atlas — add their image files to the Assets library and they'll appear");
+    return assetKeyOf("pictures", slugName(name));
+  }
+  /** RM parallax name → asset key (M4·A; `!` prefix = locked to the map). */
+  private parallaxKey(raw: any): string {
+    const name = String(raw || "");
+    if (!name) return "";
+    this.bump("parallax-art", "partial", "background picture files",
+      "your scrolling backgrounds now show in Atlas — add their image files to the Assets library and they'll appear");
+    return assetKeyOf("pictures", slugName(name));
+  }
+  /** 284 Change Parallax (M4·A): [name, loopX, loopY, sx, sy]. */
+  private changeParallax(c: RmCommand, out: AnyCommand[]): void {
+    const p = (c.parameters as any[]) || [];
+    const name = String(p[0] || "");
+    const cmd: any = { t: "parallax", key: name ? this.parallaxKey(name) : "" };
+    if (p[1]) cmd.loopX = true;
+    if (p[2]) cmd.loopY = true;
+    if (num(p[3])) cmd.sx = num(p[3]);
+    if (num(p[4])) cmd.sy = num(p[4]);
+    if (name.startsWith("!")) cmd.lock = true;
+    out.push(cmd);
+  }
+
   private picVarPos(): void {
     this.bump("pic-var-pos", "partial", "a picture placed by a variable",
       "pictures positioned from a variable use a fixed spot for now (variable positions arrive in a later update, M2·C)");

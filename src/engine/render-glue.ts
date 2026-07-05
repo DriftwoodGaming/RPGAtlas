@@ -19,10 +19,12 @@ import { G } from "./state/game-state.js";
 import { Plugins } from "./plugin-runtime.js";
 import {
   drawMapCombatOverlay,
+  drawMapParallax,
   tilePassable,
   walkFrame,
   vehicleDrawables,
 } from "./scenes/map-runtime.js";
+import { bushAt } from "./scenes/tile-behavior.js";
 import { updateHud } from "./hud.js";
 import { drawPresentation, scrollOffsetPx } from "./scenes/presentation-runtime.js";
 import { motionReduced } from "./state/player-options.js";
@@ -74,8 +76,15 @@ export async function render(): Promise<void> {
   // Map-scene camera offset from a Scroll Map command (Project Compass M2·A);
   // added to the follow-camera before edge-clamping so it can't leave the map.
   const scr = ctx.scene === "map" ? scrollOffsetPx() : { x: 0, y: 0 };
-  const camX = clamp(pix * TILE + TILE / 2 - viewW / 2 + scr.x, 0, Math.max(0, ctx.map.width * TILE - viewW));
-  const camY = clamp(piy * TILE + TILE / 2 - viewH / 2 + scr.y, 0, Math.max(0, ctx.map.height * TILE - viewH));
+  // Looping maps (Project Compass M4·A, Canvas-2D path only): the camera stays
+  // centered on the player along a looping axis — the buffers draw wrapped
+  // below. Bounded maps (and the HD path) keep the exact edge clamp.
+  const loopH = !hdLive && !!(ctx.map.loop && ctx.map.loop.h);
+  const loopV = !hdLive && !!(ctx.map.loop && ctx.map.loop.v);
+  const rawCamX = pix * TILE + TILE / 2 - viewW / 2 + scr.x;
+  const rawCamY = piy * TILE + TILE / 2 - viewH / 2 + scr.y;
+  const camX = loopH ? rawCamX : clamp(rawCamX, 0, Math.max(0, ctx.map.width * TILE - viewW));
+  const camY = loopV ? rawCamY : clamp(rawCamY, 0, Math.max(0, ctx.map.height * TILE - viewH));
   const drawables = [];
   for (const rt of ctx.evRTs) {
     if (rt.erased || !rt.page || rt.charsetIdx < 0) continue;
@@ -105,6 +114,9 @@ export async function render(): Promise<void> {
       const idx = d === p ? p.charsetIdx : d.charsetIdx;
       if (idx < 0) continue;
       const pri = d.page ? d.page.priority : "same";
+      const frame = walkFrame(d);
+      // Bush tiles (M4·A): fade the sprite's feet (best-effort in HD).
+      const bushy = !d.jumping && ctx.scene === "map" && bushAt(d.x, d.y);
       sprites.push({
         id:
           d === p
@@ -114,7 +126,9 @@ export async function render(): Promise<void> {
               : d.vehicleId
                 ? "veh_" + d.vehicleId
                 : "ev_" + d.ev.id,
-        canvas: Assets.charFrameCanvas(idx, d.dir, walkFrame(d)),
+        canvas: bushy
+          ? bushFadedFrame(idx, d.dir, frame)
+          : Assets.charFrameCanvas(idx, d.dir, frame),
         rx: ip(d.prx, d.rx), ry: ip(d.pry, d.ry),
         pr: pri === "below" ? 0 : pri === "above" ? 2 : 1,
       });
@@ -153,16 +167,40 @@ export async function render(): Promise<void> {
   }
 
   if (!hdLive) {
-    ctx.g2d.save();
-    ctx.g2d.translate(Math.round(shakeX), Math.round(shakeY));
-    ctx.g2d.scale(ctx.cameraZoom, ctx.cameraZoom);
-    ctx.g2d.drawImage(ctx.lowerBuf, -camX, -camY);
+    const g = ctx.g2d;
+    g.save();
+    g.translate(Math.round(shakeX), Math.round(shakeY));
+    g.scale(ctx.cameraZoom, ctx.cameraZoom);
+    // Parallax background (M4·A): painted under the tile buffers; the buffers
+    // of a parallax map are transparent where no tile is drawn. No-op without.
+    drawMapParallax(g, camX, camY, viewW, viewH, ctx.globalT);
+    // Looping maps draw the buffers wrapped so the seam never shows; bounded
+    // maps take the verbatim single draw (goldens gate it).
+    const mpw = ctx.map.width * TILE, mph = ctx.map.height * TILE;
+    const xs = loopH ? [] : [-camX];
+    if (loopH) for (let x = -(((camX % mpw) + mpw) % mpw); x < viewW; x += mpw) xs.push(x);
+    const ys = loopV ? [] : [-camY];
+    if (loopV) for (let y = -(((camY % mph) + mph) % mph); y < viewH; y += mph) ys.push(y);
+    const drawBuf = (buf: any) => { for (const by of ys) for (const bx of xs) g.drawImage(buf, bx, by); };
+    // A sprite's screen alias nearest the wrapped view (plus the seam twin).
+    const charXs = (sx: number) => (loopH ? [((sx % mpw) + mpw) % mpw, (((sx % mpw) + mpw) % mpw) - mpw] : [sx]);
+    const charYs = (sy: number) => (loopV ? [((sy % mph) + mph) % mph, (((sy % mph) + mph) % mph) - mph] : [sy]);
+    drawBuf(ctx.lowerBuf);
     for (const d of drawables) {
       const idx = d === p ? p.charsetIdx : d.charsetIdx;
-      Assets.drawChar(ctx.g2d, idx, d.dir, walkFrame(d), Math.round(ip(d.prx, d.rx) * TILE - camX), Math.round(ip(d.pry, d.ry) * TILE - 8 - camY));
+      const frame = walkFrame(d);
+      // Bush tiles (M4·A): the character's feet fade to half alpha (MZ bush
+      // depth 12px). bushAt short-circuits on maps without bush tiles.
+      const bushy = !d.jumping && ctx.scene === "map" && bushAt(d.x, d.y);
+      for (const sy of charYs(Math.round(ip(d.pry, d.ry) * TILE - 8 - camY))) {
+        for (const sx of charXs(Math.round(ip(d.prx, d.rx) * TILE - camX))) {
+          if (bushy) drawCharBush(g, idx, d.dir, frame, sx, sy);
+          else Assets.drawChar(g, idx, d.dir, frame, sx, sy);
+        }
+      }
     }
-    ctx.g2d.drawImage(ctx.upperBuf, -camX, -camY);
-    ctx.g2d.restore();
+    drawBuf(ctx.upperBuf);
+    g.restore();
   }
   drawMapCombatOverlay(ctx.g2d, camX, camY, shakeX, shakeY, alpha, pix, piy);
   // Presentation layer (Project Compass M2·A): pictures, screen tint, balloons,
@@ -184,4 +222,41 @@ export async function render(): Promise<void> {
     camX: camX, camY: camY, cameraZoom: ctx.cameraZoom,
     playerX: pix, playerY: piy, alpha: alpha, // interpolated player pos + blend factor
   });
+}
+
+// ---- bush rendering helpers (Project Compass M4·A) ----
+const BUSH_DEPTH = 12; // px of the sprite's feet drawn translucent (MZ value)
+
+/** Canvas-2D path: draw a character with its bottom band at half alpha. The
+ *  frame bottom sits at py + 8 + TILE (drawChar's -8 art offset). */
+function drawCharBush(g: any, idx: any, dir: any, frame: any, px: number, py: number): void {
+  const bandTop = py + 8 + TILE - BUSH_DEPTH;
+  g.save();
+  g.beginPath();
+  g.rect(px - 24, py - 64, TILE + 48, bandTop - (py - 64));
+  g.clip();
+  Assets.drawChar(g, idx, dir, frame, px, py);
+  g.restore();
+  g.save();
+  g.globalAlpha = 0.5;
+  g.beginPath();
+  g.rect(px - 24, bandTop, TILE + 48, BUSH_DEPTH + 24);
+  g.clip();
+  Assets.drawChar(g, idx, dir, frame, px, py);
+  g.restore();
+}
+
+/** HD path: a copy of the cached charset frame with the bottom band faded
+ *  (the cache canvas itself must stay untouched). */
+function bushFadedFrame(idx: any, dir: any, frame: any): any {
+  const src = Assets.charFrameCanvas(idx, dir, frame);
+  const c = document.createElement("canvas");
+  c.width = src.width;
+  c.height = src.height;
+  const g = c.getContext("2d")!;
+  g.drawImage(src, 0, 0);
+  g.globalCompositeOperation = "destination-out";
+  g.fillStyle = "rgba(0,0,0,0.5)";
+  g.fillRect(0, c.height - BUSH_DEPTH, c.width, BUSH_DEPTH);
+  return c;
 }

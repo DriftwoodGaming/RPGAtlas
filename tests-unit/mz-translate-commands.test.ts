@@ -84,11 +84,11 @@ const SPEC: Row[] = [
   { code: 140, name: "Change Vehicle BGM", list: [c(140, [0, { name: "V" }])], expect: { todo: 140 } },
   // §8.5 movement & map
   { code: 201, name: "Transfer Player", list: [c(201, [0, 2, 4, 4, 2, 0])], expect: { first: "transfer" } },
-  { code: 202, name: "Set Vehicle Location", list: [c(202, [0, 0, 1, 1])], expect: { todo: 202 } },
+  { code: 202, name: "Set Vehicle Location", list: [c(202, [0, 0, 1, 1])], expect: { first: "setVehiclePos" } }, // M4·A
   { code: 203, name: "Set Event Location", list: [c(203, [1, 0, 2, 2])], expect: { todo: 203 } },
   { code: 204, name: "Scroll Map", list: [c(204, [2, 3, 4])], expect: { first: "scrollMap" } },
   { code: 205, name: "Set Movement Route", list: [c(205, [-1, { list: [c(1), c(0)], wait: true }])], expect: { first: "move" } },
-  { code: 206, name: "Get on/off Vehicle", list: [c(206)], expect: { todo: 206 } },
+  { code: 206, name: "Get on/off Vehicle", list: [c(206)], expect: { first: "vehicle" } }, // M4·A
   { code: 211, name: "Change Transparency", list: [c(211, [0])], expect: { first: "transparency" } },
   { code: 212, name: "Show Animation", list: [c(212, [-1, 3, true])], expect: { first: "playAnim" } },
   { code: 213, name: "Show Balloon Icon", list: [c(213, [-1, 1, false])], expect: { first: "balloon" } },
@@ -96,9 +96,9 @@ const SPEC: Row[] = [
   { code: 216, name: "Change Followers", list: [c(216, [0])], expect: { first: "followers" } },
   { code: 217, name: "Gather Followers", list: [c(217)], expect: { drop: true } },
   { code: 281, name: "Change Map Name Display", list: [c(281, [0])], expect: { drop: true } },
-  { code: 282, name: "Change Tileset", list: [c(282, [2])], expect: { todo: 282 } },
-  { code: 283, name: "Change Battle Back", list: [c(283, ["b1", "b2"])], expect: { todo: 283 } },
-  { code: 284, name: "Change Parallax", list: [c(284, ["p"])], expect: { todo: 284 } },
+  { code: 282, name: "Change Tileset", list: [c(282, [2])], expect: { drop: true } }, // M4·A locked skip
+  { code: 283, name: "Change Battle Back", list: [c(283, ["b1", "b2"])], expect: { first: "battleback" } }, // M4·A
+  { code: 284, name: "Change Parallax", list: [c(284, ["p"])], expect: { first: "parallax" } }, // M4·A
   { code: 285, name: "Get Location Info", list: [c(285, [1, 5, 0, 0, 0])], expect: { first: "getLocationInfo" } },
   // §8.6 screen effects
   { code: 221, name: "Fadeout Screen", list: [c(221)], expect: { first: "tint" } },
@@ -147,7 +147,7 @@ const SPEC: Row[] = [
   { code: 320, name: "Change Name", list: [c(320, [1, "X"])], expect: { first: "changeName" } },
   { code: 321, name: "Change Class", list: [c(321, [1, 2, false])], expect: { first: "changeClass" } },
   { code: 322, name: "Change Actor Images", list: [c(322, [1, "F", 0, "C", 0])], expect: { first: "changeActorImage" } },
-  { code: 323, name: "Change Vehicle Image", list: [c(323, [0, "V", 0])], expect: { todo: 323 } },
+  { code: 323, name: "Change Vehicle Image", list: [c(323, [0, "V", 0])], expect: { first: "vehicleImage" } }, // M4·A
   { code: 324, name: "Change Nickname", list: [c(324, [1, "N"])], expect: { first: "changeNickname" } },
   { code: 325, name: "Change Profile", list: [c(325, [1, "P"])], expect: { first: "changeProfile" } },
   { code: 326, name: "Change TP", list: [c(326, [0, 1, 0, 0, 10])], expect: { first: "changeTp" } },
@@ -484,9 +484,9 @@ describe("message escape codes pass through verbatim (matrix §13)", () => {
 // mzTodo shape (decision D3).
 // ============================================================================
 describe("mzTodo placeholder shape (D3)", () => {
-  // Codes 202 (Set Vehicle Location) / 203 (Set Event Location) stay mzTodo
-  // until M4·A, so they still exercise the shape (331–340 flipped to real
-  // commands in M3·C, like 313/315–325 did in M2·C).
+  // Code 203 (Set Event Location) stays mzTodo, so it still exercises the
+  // shape (202/206/283/284/323 flipped to real commands in M4·A, 331–340 in
+  // M3·C, 313/315–325 in M2·C).
   it("preserves the raw code + params and carries a friendly label", () => {
     const cmd = t0([c(203, [1, 0, 2, 2])]) as any;
     expect(cmd).toMatchObject({ t: "mzTodo", code: 203 });
@@ -495,10 +495,45 @@ describe("mzTodo placeholder shape (D3)", () => {
     expect(cmd.label.length).toBeGreaterThan(0);
   });
   it("aggregates repeats into one report line (D11) with the raw code", () => {
-    const { report } = tr([c(203, []), c(203, []), c(202, [])]);
+    const { report } = tr([c(203, []), c(203, []), c(243, [])]);
     const state = report.lines.find((l) => l.code === 203);
     expect(state?.count).toBe(2);
-    expect(report.lines.find((l) => l.code === 202)?.count).toBe(1);
+    expect(report.lines.find((l) => l.code === 243)?.count).toBe(1);
+  });
+});
+
+// ============================================================================
+// M4·A map-feature command flips (matrix §8.5/§8.7, 202/206/282/283/284/323).
+// ============================================================================
+describe("M4·A map-feature commands", () => {
+  it("202 converts direct and by-variable designations", () => {
+    expect(t0([c(202, [2, 0, 3, 7, 9])])).toMatchObject(
+      { t: "setVehiclePos", vehicle: "airship", mapId: 3, x: 7, y: 9 });
+    expect(t0([c(202, [1, 1, 11, 12, 13])])).toMatchObject(
+      { t: "setVehiclePos", vehicle: "ship", byVar: true, mapId: 11, x: 12, y: 13 });
+  });
+  it("283 maps battleback names onto asset:pictures keys + one art line", () => {
+    const { cmds, report } = tr([c(283, ["Cave", "CaveWall"]), c(283, ["Cave", ""])]);
+    expect(cmds[0]).toMatchObject({
+      t: "battleback", back1: "asset:pictures/cave", back2: "asset:pictures/cavewall" });
+    expect(cmds[1]).toMatchObject({ t: "battleback", back1: "asset:pictures/cave", back2: "" });
+    expect(report.lines.filter((l) => l.what === "battle background image files").length).toBe(1);
+  });
+  it("284 carries loop/drift and the '!' map-lock prefix", () => {
+    expect(t0([c(284, ["Sea", true, false, 2, 0])])).toMatchObject(
+      { t: "parallax", key: "asset:pictures/sea", loopX: true, sx: 2 });
+    expect(t0([c(284, ["!Fixed", false, false, 0, 0])])).toMatchObject({ t: "parallax", lock: true });
+    expect(t0([c(284, [""])])).toMatchObject({ t: "parallax", key: "" }); // remove
+  });
+  it("323 builds the charset key like Change Actor Images does", () => {
+    expect(t0([c(323, [0, "Vehicle", 2])])).toMatchObject(
+      { t: "vehicleImage", vehicle: "boat", charset: "vehicle-2" });
+  });
+  it("282 is a friendly skip (M4·A locked decision), never a placeholder", () => {
+    const { cmds, report } = tr([c(282, [2])]);
+    expect(cmds.length).toBe(0);
+    const line = report.lines.find((l) => l.code === 282);
+    expect(line?.kind).toBe("skipped");
   });
 });
 

@@ -53,6 +53,7 @@ import {
   ledgeAt,
   tickMapAnim,
 } from "./map-runtime.js";
+import { counterAt, damageFloorAt } from "./tile-behavior.js";
 
 let frameWaiters: any[] = [];
 let lastTimeBand = ""; // day/night page refresh edge (Phase 5)
@@ -332,6 +333,11 @@ function onPlayerStep(): void {
     }
   }
   const p = G.player;
+  // Damage floors + the 20-step map regen tick (Project Compass M4·A). Both
+  // presence-gated: no damage tiles painted ⇒ damageFloorAt exits on the mask;
+  // the regen tick runs only under mzBattleFlow (imported projects). A party
+  // wipe here game-overs and ends the step.
+  if (applyStepTileEffects()) return;
   // touch events on the tile we stepped onto (not from a vehicle's deck)
   if (!ctx.blockingRun && !G.vehicle) {
     const here = entityAt(p.x, p.y).find(
@@ -366,7 +372,12 @@ function onPlayerStep(): void {
       (a: any) => RA.traitsOf(actorEffCarrier(a), "special", key).length > 0,
     );
   const enc = ctx.map.encounters;
-  if (enc && enc.rate > 0 && enc.troops.length && !ctx.blockingRun && !G.encounterDisabled && G.vehicle !== "airship" && !partyAbility("encounterNone")) {
+  // M4·A: a map whose encounters are ALL region-scoped has an empty default
+  // list — byRegion pools alone keep the roll alive (native maps without
+  // byRegion keep the exact classic gate and draw stream).
+  const hasRegionPools = !!(enc && enc.byRegion &&
+    Object.values(enc.byRegion).some((list: any) => Array.isArray(list) && list.length));
+  if (enc && enc.rate > 0 && (enc.troops.length || hasRegionPools) && !ctx.blockingRun && !G.encounterDisabled && G.vehicle !== "airship" && !partyAbility("encounterNone")) {
     G.encSteps += partyAbility("encounterHalf") ? 0.5 : 1;
     const forced = consumeForcedEncounter();
     if (forced || G.encSteps >= enc.rate * (0.7 + rndf() * 0.6)) {
@@ -382,6 +393,9 @@ function onPlayerStep(): void {
       // Encounter zones (Phase 8) are the strongest tier of the byRegion family:
       // standing inside one replaces the pool for the roll. Absent ⇒ unchanged.
       pool = zoneEncounterPool(ctx.map, p.x, p.y, pool);
+      // M4·A: outside every region pool on a byRegion-only map the resolved
+      // pool can be empty — the counter reset, no battle (MZ behaves the same).
+      if (!pool.length) return;
       const troopId = pool[rnd(pool.length)];
       sysSe("encounter");
       // M3·C: first-strike/surprise rolls — mzBattleFlow projects only, and
@@ -412,6 +426,64 @@ function onPlayerStep(): void {
       })();
     }
   }
+}
+
+// ---- step tile effects (Project Compass M4·A) ----
+// Damage floors (MZ: 10 × the actor's floorDamage sp-param per step; HP floors
+// at 1 unless System optFloorDeath) and, under mzBattleFlow only, MZ's
+// turnEndOnMap: every 20 party steps hp/mp regen traits apply on the map (slip
+// damage floors at 1 HP unless optSlipDeath). Returns true when the party
+// wiped (game over started — stop processing the step).
+function applyStepTileEffects(): boolean {
+  const p = G.player;
+  const sys = ctx.proj.system;
+  let hurt = false;
+  if (!G.vehicle && damageFloorAt(p.x, p.y)) {
+    for (const a of G.party) {
+      if (a.hp <= 0) continue;
+      const dmg = Math.floor(10 * RA.traitRate(actorEffCarrier(a), "special", "floorDamage", 1));
+      if (dmg <= 0) continue;
+      // MZ maxFloorDamage: lethal only when optFloorDeath is on.
+      const cap = sys.optFloorDeath ? a.hp : Math.max(a.hp - 1, 0);
+      const taken = Math.min(dmg, cap);
+      if (taken > 0) { a.hp -= taken; hurt = true; }
+    }
+  }
+  if (sys.mzBattleFlow && G.steps % 20 === 0) {
+    for (const a of G.party) {
+      if (a.hp <= 0) continue;
+      const carrier = actorEffCarrier(a);
+      const hr = RA.traitSum(carrier, "special", "hpRegen", 0);
+      if (hr) {
+        const mhp = param(a, "mhp");
+        const amt = Math.max(1, Math.floor((mhp * Math.abs(hr)) / 100));
+        if (hr > 0) {
+          a.hp = Math.min(mhp, a.hp + amt);
+        } else {
+          // MZ maxSlipDamage: lethal only when optSlipDeath is on.
+          const cap = sys.optSlipDeath ? a.hp : Math.max(a.hp - 1, 0);
+          const taken = Math.min(amt, cap);
+          if (taken > 0) { a.hp -= taken; hurt = true; }
+        }
+      }
+      const mr = RA.traitSum(carrier, "special", "mpRegen", 0);
+      if (mr) {
+        const mmp = param(a, "mmp");
+        a.mp = clamp((a.mp || 0) + Math.floor((mmp * mr) / 100), 0, mmp);
+      }
+    }
+  }
+  if (!hurt) return false;
+  // MZ performMapDamage: a short red screen flash.
+  ctx.flashColor = "#ff0000";
+  ctx.flashOpacity = 0.35;
+  ctx.flashTimer = 10;
+  ctx.flashDuration = 10;
+  if (G.party.every((a: any) => a.hp <= 0)) {
+    (async () => { await fns.gameOver(); })();
+    return true;
+  }
+  return false;
 }
 
 // "Test Encounter in This Area" (Phase 8): the editor writes a one-shot flag to
@@ -475,6 +547,10 @@ function checkActionTrigger(): void {
     [p.x + dx, p.y + dy],
     [p.x, p.y],
   ];
+  // Counter tiles (Project Compass M4·A): facing one lets the action key reach
+  // the event one tile beyond it (MZ talk-over-counter). counterAt gates on
+  // the map's presence mask — counter-free maps skip the extra probe.
+  if (counterAt(p.x + dx, p.y + dy)) spots.push([p.x + dx * 2, p.y + dy * 2]);
   for (const [x, y] of spots) {
     const rt = entityAt(x, y).find(
       (r: any) => r.page.trigger === "action" && r.page.commands.length,

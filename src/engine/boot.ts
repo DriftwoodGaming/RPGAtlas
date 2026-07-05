@@ -49,6 +49,9 @@ import {
   refreshPlayerCharset,
   syncFollowers,
   locationInfo,
+  vehicleState,
+  tryVehicleAction,
+  setMapParallax,
 } from "./scenes/map-runtime.js";
 import {
   transferPlayer,
@@ -115,6 +118,8 @@ const EngineServices: any = {
   gainExp, expForLevel, sanitizeEquipment, refreshPlayerCharset, syncFollowers,
   // system commands (M2·C): window recolour + get-location-info
   applyWindowTone, locationInfo,
+  // map-feature commands (M4·A): vehicles + parallax swap
+  vehicleState, tryVehicleAction, setMapParallax,
   getProj: () => ctx.proj,
   // quests
   Quests,
