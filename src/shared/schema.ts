@@ -219,6 +219,11 @@ export interface Skill {
    *  brings them back to life (HP restored by the usual heal formula). Absent
    *  = false — ordinary heals never touch the fallen. */
   revive?: boolean;
+  /** Verbatim RPG Maker MZ/MV damage formula string (Project Compass M1·A,
+   *  decision D1). Stored on import; the sandboxed evaluator that consumes it
+   *  lands in M3·A. Absent on Atlas-native skills — nothing reads this today, so
+   *  it is inert (structured `power` remains the damage source until M3·A). */
+  formula?: string;
 }
 
 export interface StateDef {
@@ -245,6 +250,9 @@ export interface Item {
    *  them back to life with `hp` HP restored. Absent = false — ordinary
    *  restoratives never revive. */
   revive?: boolean;
+  /** Verbatim RPG Maker MZ/MV damage formula string (Project Compass M1·A,
+   *  decision D1) — see `Skill.formula`. Inert until the M3·A evaluator. */
+  formula?: string;
 }
 
 export interface Weapon {
