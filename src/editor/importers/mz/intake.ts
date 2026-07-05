@@ -12,7 +12,7 @@
 
 import type { ImportReport } from "./report";
 import { sniffFormat } from "./sniff";
-import type { MzRawData, RmList, RmPlugin, RmSystem } from "./raw-types";
+import type { MzRawData, RmList, RmMap, RmMapInfo, RmPlugin, RmSystem, RmTileset } from "./raw-types";
 
 /** A read-only view of an intaken project tree, keyed by project-root-relative
  *  POSIX paths ("data/System.json", "img/pictures/Sign.png_"). */
@@ -220,7 +220,36 @@ export async function readRawProject(
     (raw as any)[name] = Array.isArray(arr) ? arr : [];
   }
 
+  // M1·B: tilesets + the map tree + each Map###.json (id from the filename).
+  raw.tilesets =
+    (await readJson<RmList<RmTileset>>(source, findData(paths, "Tilesets"), report, "Tilesets.json")) || [];
+  raw.mapInfos =
+    (await readJson<RmList<RmMapInfo>>(source, findData(paths, "MapInfos"), report, "MapInfos.json")) || [];
+  raw.maps = await readMapFiles(source, paths, report);
+
   raw.plugins = parsePluginsJs(await source.readText("js/plugins.js"));
   raw.assetPaths = paths.filter((p) => /^(img|audio)\//i.test(p));
   return raw;
+}
+
+/** Discover + parse every `data/Map###.json`, injecting the filename id. Padded
+ *  and unpadded names are both accepted; ordering by numeric id keeps intake
+ *  deterministic (MapInfos re-orders for the map list). */
+async function readMapFiles(
+  source: MzFileSource,
+  paths: string[],
+  report: ImportReport,
+): Promise<RmMap[]> {
+  const found: { id: number; path: string }[] = [];
+  for (const p of paths) {
+    const m = /^data\/Map0*([0-9]+)\.json$/i.exec(norm(p));
+    if (m) found.push({ id: Number(m[1]), path: p });
+  }
+  found.sort((a, b) => a.id - b.id);
+  const maps: RmMap[] = [];
+  for (const { id, path } of found) {
+    const body = await readJson<RmMap>(source, path, report, "Map" + String(id).padStart(3, "0") + ".json");
+    if (body && typeof body === "object") maps.push({ ...body, id });
+  }
+  return maps;
 }

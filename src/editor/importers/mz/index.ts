@@ -9,13 +9,17 @@
 import type {
   Actor,
   Armor,
+  Autotile,
   ClassDef,
   CommonEvent,
   Enemy,
+  GameMap,
   Item,
+  MapFolder,
   Skill,
   StateDef,
   SystemData,
+  Tileset,
   Troop,
   Weapon,
 } from "../../../shared/schema";
@@ -25,7 +29,9 @@ import { convertSystem } from "./convert-system";
 import { convertActors, convertClasses, convertEnemies, convertStates } from "./convert-battlers";
 import { convertArmors, convertItems, convertSkills, convertWeapons } from "./convert-items";
 import { convertCommonEvents, convertTroops, type CommandTranslator } from "./convert-events";
-import type { MzFormat, MzRawData } from "./raw-types";
+import { collectTilesetUsage, convertMaps } from "./convert-maps";
+import { convertTilesets } from "./convert-tilesets";
+import type { MzFormat, MzRawData, RmMap } from "./raw-types";
 
 /** The converted Atlas database (M1·A slice). `system` is a `Partial` patch to
  *  overlay on `newProject().system` (A6); the rest are complete records. Maps +
@@ -98,6 +104,57 @@ export async function importMzDatabase(
   return { ...conv, raw };
 }
 
+/** The converted project (M1·B slice): the M1·A database plus maps, tilesets,
+ *  autotile groups, synthesized map folders, and the `project.assets.tiles`
+ *  id-map that couples this step's map layers to M1·D's real tile slicing. */
+export interface MzProjectConversion extends DatabaseConversion {
+  maps: GameMap[];
+  autotiles: Autotile[];
+  tilesets: Tileset[];
+  mapFolders: MapFolder[];
+  /** `project.assets.tiles` seed — stable `asset:tilesets/…` key → Atlas id. */
+  assetTiles: Record<string, number>;
+}
+
+/** Convert database + tilesets + maps in one pass over the parsed raw data.
+ *  `translate` (M1·C) fills event/command bodies; absent = structural shells. */
+export function convertProject(
+  raw: MzRawData,
+  report: ImportReport = new ImportReport(),
+  translate?: CommandTranslator,
+): MzProjectConversion {
+  const dbConv = convertDatabase(raw, report, translate);
+  const rawMaps = raw.maps || [];
+  const usage = collectTilesetUsage(rawMaps);
+  const ts = convertTilesets(raw.tilesets || [], usage, report);
+  const rawById = new Map<number, RmMap>(rawMaps.map((m) => [m.id ?? 0, m]));
+  const { maps, folders } = convertMaps(raw.mapInfos || [], rawById, ts, report);
+  return {
+    ...dbConv,
+    report,
+    maps,
+    autotiles: ts.autotiles,
+    tilesets: ts.tilesets,
+    mapFolders: folders,
+    assetTiles: ts.assetTiles,
+  };
+}
+
+export interface MzProjectResult extends MzProjectConversion {
+  raw: MzRawData;
+}
+
+/** End-to-end: intake → sniff → parse → convert database + tilesets + maps. */
+export async function importMzProject(
+  source: MzFileSource,
+  translate?: CommandTranslator,
+): Promise<MzProjectResult> {
+  const report = new ImportReport();
+  const raw = await readRawProject(source, report);
+  const conv = convertProject(raw, report, translate);
+  return { ...conv, raw };
+}
+
 // Re-exports (the module's public API).
 export { ImportReport } from "./report";
 export type { ReportLine, ReportKind } from "./report";
@@ -121,3 +178,15 @@ export {
 export type { MzFileSource, FsReadFns } from "./intake";
 export type { CommandTranslator } from "./convert-events";
 export type { MzFormat, MzRawData } from "./raw-types";
+export {
+  decodeRmTileId,
+  decodeFlags,
+  isRmAutotile,
+  autotileKind,
+  familyOfKind,
+  TID,
+} from "./tile-ids";
+export { convertTilesets, IMPORT_TILE_BASE } from "./convert-tilesets";
+export type { TilesetsConversion, TilesetUsage } from "./convert-tilesets";
+export { collectTilesetUsage, convertMap, convertMapData, convertMaps, MAX_REGION } from "./convert-maps";
+export { assembleProject } from "./assemble";
