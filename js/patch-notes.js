@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 5, 2026",
+    title: "RPGAtlas 1.1 — the RPG Maker import update is complete",
+    summary:
+      "Project Compass has landed. Since 1.0, RPGAtlas learned to import RPG Maker MV and MZ games — and grew every engine feature those games actually use: pictures and screen effects, the full message toolkit, the whole trait book, real damage formulas, boss-fight battle events, living map tiles, jingles and background sounds, honest add-on guidance, and read-only script snippets that really run. Import your game, read the friendly report, press Playtest. Everything is additive: projects made in RPGAtlas 1.0 open and play exactly as before.",
+    items: [
+      "File ▸ Import from RPG Maker… turns an MV or MZ project folder (or .zip) into a playable RPGAtlas project, with a plain-language report of what came along.",
+      "Seven updates' worth of new engine features shipped along the way — scroll down this list to see each one in detail.",
+      "Re-import the same game any time: RPGAtlas keeps learning, and the report's banner tells you exactly what's newly supported.",
+      "The wiki gained a full “Coming from RPG Maker” guide, with a term-by-term cheat sheet.",
+      "Nothing about your existing projects changed: the project format, plugin API, and every 1.0 game stay exactly as they were.",
+    ],
+  },
+  {
+    date: "July 5, 2026",
     title: "Smoother RPG Maker imports: live progress, re-import, and a savable report",
     summary:
       "Bringing an RPG Maker MV or MZ game into RPGAtlas got friendlier. The importer now shows a live progress bar as it reads and converts your game, so a big project no longer looks frozen. You can save the import report as a text file or copy it, to keep a checklist of anything to touch up. And you can re-import the same game any time: RPGAtlas keeps learning to convert more, so a fresh import picks up whatever's newly supported — the report has a banner that tells you exactly how many things that were “coming later” now come across. There's also a new wiki guide, “Coming from RPG Maker.”",

@@ -2,6 +2,12 @@
 
 **Status:** **SIGNED** at the M0·C Fable gate (2026-07-04, Claude Fable 5) — authored M0·A
 (Opus 4.8 High); §11 bit values amended per decision log D10.
+**M6·C audit (2026-07-05, Claude Fable 5):** ✅ **PASSED — released as 1.1.0.** Every §16 `+` row
+landed in its named phase, or is a conscious re-scope with a report line: 356/357 stay `mzTodo`
+placeholders *by design* (parsed into the Add-ons report, never run — §14); 132/140/203 and the
+variable-operand forms of 122/125–128/201/301 and the change-family stay honest todos with
+aggregated report lines; script *writes* stay todo per the M5·B read-only contract. Locked skips
+(`−`) all emit their friendly lines. Verdict details in `docs/mig-6-spec.md` (M6·C stage log).
 **Contract:** this file is the signed scope for Project Compass. Every `+` row below names
 the phase (M2/M3/M4/M5) that ships the feature AND flips the corresponding
 `translate-commands.ts` / DB-converter entry from `mzTodo` to a real translation. Phases

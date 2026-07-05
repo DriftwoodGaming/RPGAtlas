@@ -1,6 +1,7 @@
 # RPGAtlas Migration Roadmap — "Project Compass": RPG Maker MZ/MV → RPGAtlas
 
-**Status:** PLANNED — phases `M0`–`M6`, tags `mig-0` … `mig-6`, per-phase specs in `docs/mig-N-spec.md`
+**Status:** ✅ **COMPLETE — RELEASED as RPGAtlas 1.1.0** (2026-07-05, tags `mig-0` … `mig-6` + `v1.1.0`;
+M6·C release gate signed by Claude Fable 5 — audit verdict in `docs/mig-6-spec.md`)
 **Authored:** 2026-07-04 by Claude Fable 5 (grand designer / orchestrator)
 **Goal:** A first-class **Import from RPG Maker MZ/MV** path: point RPGAtlas at an MZ or MV
 project folder and get a playable Atlas project — plus the engine features RPGAtlas needs to

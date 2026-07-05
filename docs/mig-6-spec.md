@@ -1,7 +1,7 @@
 # Phase M6 Spec — Wizard polish, docs, QA, release ("Project Compass")
 
-**Status:** M6·A ✅ COMPLETE (branch `mig-6a`) · M6·B ⏳ next · M6·C ⏳ (Fable
-release gate). Phase M6 is the *finish*: the migration works (M1–M5 landed the
+**Status:** M6·A ✅ · M6·B ✅ · M6·C ✅ **RELEASED — RPGAtlas 1.1.0** (tags
+`mig-6` + `v1.1.0`, 2026-07-05). Phase M6 is the *finish*: the migration works (M1–M5 landed the
 conversion, parity, plugins, and the read-only Script adapter); M6 makes it
 *friendly to use* (M6·A), *proven at scale* (M6·B), and *shipped* (M6·C, tag
 `mig-6` + version **1.1.0**).
@@ -80,6 +80,47 @@ rebuild, README mention, help.ts refresh, patch notes, version bumps.
 ---
 
 ## Stage log
+
+### M6·C — Fable release gate — ✅ 2026-07-05 (branch `mig-6c`, tags `mig-6` + `v1.1.0`)
+
+**Gate:** Claude Fable 5 (release review, per locked decision 1).
+
+**Parity-matrix audit (§16 scope contract) — PASSED.** Method: read the roadmap +
+matrix in full, then verified the spine directly against
+`translate-commands.ts` — every flagship `+` code dispatches to a real
+translation (M2·A 105/124/204/213/221–223/231–235 · M2·B 103/104/303 · M2·C
+118/119/285/313–325 · M3·C 331–340 · M4·A 202/206/283/284/323 · M4·B
+243–246/249/251 · M5·B 355/655 read-subset → `mzScript`), and the DB-side `+`
+rows exist in `schema.ts` (`formula`/`variance`/`critical`, `tpCost`, `buffs`,
+`Enemy.drops`). The residual `mzTodo` set is exactly the conscious-re-scope
+list, every entry with an aggregated report line: **356/357** (plugin commands —
+listed in the Add-ons report, never run, by design), **132/140/203** (`≈` rows
+re-scoped to honest todos), and the variable-operand forms of
+122/125–128/201/301/change-family ("resolve or report" per the matrix). Script
+*writes* stay todo per the M5·B read-only contract. All locked skips (`−`) emit
+friendly lines from the `SKIP` table. **Nothing drops silently.**
+
+**Code review:** no findings that block release. The newest surface (M6·A
+`report-format.ts`, M6·B scale generator + tests) was read directly at the gate
+— pure, node-tested, kid-safe copy asserted by vitest. Main still carries its 3
+pre-existing eslint errors (lint is not a phase gate, unchanged since M4).
+
+**Release notes review:** the eight Project Compass patch-note entries
+(M1·D → M6·A) read correctly and kid-friendly; a capstone **"RPGAtlas 1.1"**
+entry was added on top (`?v=` 56→57). The wiki "Coming from RPG Maker" guide
+matches shipped behavior.
+
+**Version bump 1.0.0 → 1.1.0** (additive release — importer + parity features;
+FORMAT_VERSION stays 2, plugin API stays frozen): `package.json`,
+`package-lock.json` (root — was stale at 0.1.0), README badge, `help.ts` About
+box, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` + `Cargo.lock`.
+
+**Gates green at the gate:** `tsc --noEmit` clean · vitest **875** · node
+`--test tests/` **18** · Playwright **70/70** · patch-notes `?v=57`.
+
+**Project Compass final tally:** 17 steps, 7 phases, tags `mig-0`…`mig-6`,
++424 vitest across the migration (451→875), zero e2e regressions throughout, FORMAT_VERSION
+2 preserved, schema additions optional-only.
 
 ### M6·B — Round-trip QA & scale test — ✅ 2026-07-05 (branch `mig-6b`)
 
