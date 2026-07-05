@@ -15,6 +15,7 @@ import { h } from "../dom";
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 import { wizardImport } from "../importers/import-wizard";
+import { dropFolderAvailable, importFolderPath, revealImportFolder, scanImportFolder } from "./asset-dropbox";
 import {
   ASSET_TYPES,
   importAssets,
@@ -164,6 +165,76 @@ export function openAssetBrowser() {
     doImport(Array.from((fileInput as any).files || []));
     (fileInput as any).value = "";
   });
+
+  // ---- desktop drop-folders -------------------------------------------------
+  // On the desktop build, users can copy files straight into per-type folders
+  // with Explorer/Finder; we scan those folders (on open, on window focus, and
+  // on demand) and route whatever turned up through the same wizard as the
+  // file picker. Each scanned original is archived by the backend, so repeat
+  // scans are idempotent.
+  const dropBanner = h("div", { class: "ab-dropbanner" });
+  let dropStatusEl: HTMLElement | null = null;
+  let scanning = false;
+  function dropStatus(msg: string) { if (dropStatusEl) dropStatusEl.textContent = msg; }
+
+  async function importGrouped(byType: Map<AssetMeta["type"], File[]>): Promise<{ files: number; added: number }> {
+    const before = libraryMetas().length;
+    let files = 0;
+    let boundImages = false;
+    for (const [type, group] of byType) {
+      files += group.length;
+      const metas = await wizardImport(group, type);
+      if (metas.some((m) => m.type !== "audio")) boundImages = true;
+    }
+    if (boundImages) {
+      await Assets.registerExternalAssets(libraryImageEntries(), S.proj);
+      editorHooks.rebuildAll();
+    }
+    if (files) touch();
+    return { files, added: libraryMetas().length - before };
+  }
+
+  async function scanFolder(announce = false) {
+    if (!dropFolderAvailable() || scanning) return;
+    scanning = true;
+    try {
+      const byType = await scanImportFolder();
+      if (byType.size) {
+        const { files, added } = await importGrouped(byType);
+        refresh();
+        const dupes = files - added;
+        dropStatus(added
+          ? "Added " + added + " new file" + (added === 1 ? "" : "s") +
+            (dupes ? " (" + dupes + " already in your library)" : "") + "."
+          : "Those files were already in your library.");
+      } else if (announce) {
+        dropStatus("No new files found — copy pictures or sounds into the folder first.");
+      }
+    } catch (e: any) {
+      dropStatus("Couldn't read the import folder: " + ((e && e.message) || e));
+    } finally {
+      scanning = false;
+    }
+  }
+
+  function buildDropBanner() {
+    if (!dropFolderAvailable()) return;
+    dropStatusEl = h("span", { class: "ab-dropstatus dim" });
+    const pathLine = h("code", { class: "ab-droppath", title: "Copy files into the matching sub-folder here" }, "locating folder…");
+    importFolderPath().then((p) => { pathLine.textContent = p; }).catch(() => { pathLine.textContent = ""; });
+    dropBanner.appendChild(h("div", { class: "ab-dropwrap" },
+      h("div", { class: "ab-droptext" },
+        h("strong", null, "📁 Add your own pictures & sounds"),
+        h("div", { class: "dim" },
+          "Copy files into the matching folder (characters, facesets, enemies, tilesets, audio) with your file manager — they appear here automatically, no picker needed."),
+        pathLine),
+      h("div", { class: "ab-dropbtns" },
+        h("button", { class: "primary", async onclick() {
+          try { await revealImportFolder(); } catch (e: any) { dropStatus("Couldn't open the folder: " + ((e && e.message) || e)); }
+        } }, "Open Folder"),
+        h("button", { class: "mini", onclick() { scanFolder(true); } }, "Scan for New Files"),
+        dropStatusEl)));
+  }
 
   // ---- toolbar --------------------------------------------------------------
   const searchBox = h("input", { type: "search", placeholder: "Search…", class: "ab-search" });
@@ -421,7 +492,9 @@ export function openAssetBrowser() {
       grid.appendChild(h("div", { class: "dim", style: "padding:20px" },
         libraryMetas().length
           ? "No assets match the current filters."
-          : "No imported assets yet — drop PNG/OGG files here or use Import Files…. Imported art appears in the same pickers as the built-in sets."));
+          : (dropFolderAvailable()
+              ? "No imported assets yet — copy PNG/OGG files into the import folder above (Open Folder), drop them here, or use Import Files…. Imported art appears in the same pickers as the built-in sets."
+              : "No imported assets yet — drop PNG/OGG files here or use Import Files…. Imported art appears in the same pickers as the built-in sets.")));
     } else {
       for (const meta of list) grid.appendChild(card(meta, used));
     }
@@ -434,9 +507,10 @@ export function openAssetBrowser() {
   }
 
   // ---- drag & drop ----------------------------------------------------------
+  buildDropBanner();
   const body = h("div", { class: "ab-body" },
     rail,
-    h("div", { class: "ab-main" }, bar, tagRow, grid, foot));
+    h("div", { class: "ab-main" }, dropBanner, bar, tagRow, grid, foot));
   body.addEventListener("dragover", (e: any) => { e.preventDefault(); body.classList.add("ab-drop"); });
   body.addEventListener("dragleave", () => body.classList.remove("ab-drop"));
   body.addEventListener("drop", (e: any) => {
@@ -445,12 +519,23 @@ export function openAssetBrowser() {
     doImport(Array.from(e.dataTransfer && e.dataTransfer.files ? e.dataTransfer.files : []));
   });
 
+  // Re-scan the drop-folders whenever the window regains focus (e.g. after the
+  // user alt-tabs to Explorer, pastes files, and comes back), so new files show
+  // up on their own. Scoped to while the browser is open, then torn down.
+  const onFocus = () => { scanFolder(); };
+  if (dropFolderAvailable()) window.addEventListener("focus", onFocus);
+
   modal({
     title: "Asset Browser",
     wide: true,
     class: "assetbrowser",
     content: body,
-    onClose() { stopPreview(); },
+    onClose() {
+      stopPreview();
+      window.removeEventListener("focus", onFocus);
+    },
   });
   refresh();
+  // Pick up anything already sitting in the drop-folders when the browser opens.
+  scanFolder();
 }

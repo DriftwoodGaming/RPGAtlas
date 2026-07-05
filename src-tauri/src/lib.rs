@@ -240,6 +240,196 @@ fn library_set_meta(app: tauri::AppHandle, meta_json: String) -> Result<(), Stri
     write_index(&app, &items)
 }
 
+// ---------------------------------------------------------------------------
+// Import drop-folders: a human-friendly inbox so users can copy image/audio
+// files straight from their file manager (Explorer/Finder) and have the editor
+// pick them up — no in-app file picker required. Layout:
+//   <app-data>/library/import/{characters,facesets,enemies,tilesets,audio}/
+//   <app-data>/library/import/Imported/   (processed originals move here)
+//   <app-data>/library/import/READ ME — how to add assets.txt
+// The frontend calls library_scan_import, imports the returned files through
+// the same wizard the Asset Browser uses (content-hash dedupe keeps it safe),
+// and each scanned original is moved into Imported/ so re-scans stay clean and
+// nothing is ever lost. Names from the file system are never trusted as paths.
+// ---------------------------------------------------------------------------
+
+/// The asset-type subfolders under import/ (index 0..3 are image types, the
+/// last is audio); drives both directory creation and the scan.
+const IMPORT_TYPES: [&str; 5] = ["characters", "facesets", "enemies", "tilesets", "audio"];
+const IMAGE_EXTS: [&str; 4] = ["png", "webp", "jpg", "jpeg"];
+const AUDIO_EXTS: [&str; 5] = ["ogg", "mp3", "wav", "m4a", "flac"];
+
+const IMPORT_README: &str = "\
+RPGAtlas — how to add your own pictures and sounds\r\n\
+==================================================\r\n\
+\r\n\
+Copy (or drag) your files into the matching folder below. The editor picks\r\n\
+them up automatically when you open the Asset Browser, or when you click\r\n\
+\"Scan for New Files\" there. Once imported, each file is moved into the\r\n\
+\"Imported\" folder so this inbox stays tidy — nothing is deleted.\r\n\
+\r\n\
+  characters\\  Walking sprites (PNG). A standard sheet is 3 columns x 4 rows.\r\n\
+  facesets\\    Message-box face pictures (PNG).\r\n\
+  enemies\\     Battler / enemy pictures (PNG).\r\n\
+  tilesets\\    Map tiles (PNG). Large sheets open the tile slicer so you can\r\n\
+               cut them into 48px tiles.\r\n\
+  audio\\       Music & sound effects (OGG, MP3, WAV, M4A, FLAC).\r\n\
+\r\n\
+Tips\r\n\
+----\r\n\
+- The file name becomes the asset name (lower-cased; spaces become dashes).\r\n\
+- Adding the same file twice is harmless — duplicates are ignored.\r\n\
+- A sound's role is guessed from its name: \"music\"/\"theme\" -> BGM,\r\n\
+  \"ambience\"/\"loop\" -> BGS, \"victory\"/\"jingle\" -> ME, otherwise a sound\r\n\
+  effect (SE). You can change any of this later in the Asset Browser.\r\n";
+
+fn import_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    Ok(library_dir(app)?.join("import"))
+}
+
+/// Create the import folder tree (per-type subfolders + README) if missing and
+/// return its absolute path.
+fn ensure_import_dirs(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let root = import_dir(app)?;
+    for ty in IMPORT_TYPES {
+        std::fs::create_dir_all(root.join(ty)).map_err(|e| e.to_string())?;
+    }
+    let readme = root.join("READ ME — how to add assets.txt");
+    if !readme.exists() {
+        // A missing README must never fail the whole operation.
+        let _ = std::fs::write(&readme, IMPORT_README);
+    }
+    Ok(root)
+}
+
+fn mime_for_ext(ext: &str) -> Option<&'static str> {
+    Some(match ext {
+        "png" => "image/png",
+        "webp" => "image/webp",
+        "jpg" | "jpeg" => "image/jpeg",
+        "ogg" => "audio/ogg",
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "m4a" => "audio/mp4",
+        "flac" => "audio/flac",
+        _ => return None,
+    })
+}
+
+/// A free filename inside `dir` for `name`, suffixing -2, -3, … on collision so
+/// archiving a same-named file never clobbers an earlier one.
+fn free_path(dir: &std::path::Path, name: &str) -> PathBuf {
+    if !dir.join(name).exists() {
+        return dir.join(name);
+    }
+    let p = std::path::Path::new(name);
+    let stem = p.file_stem().and_then(|s| s.to_str()).unwrap_or("asset");
+    let ext = p.extension().and_then(|e| e.to_str());
+    for i in 2..1_000_000 {
+        let candidate = match ext {
+            Some(e) => format!("{stem}-{i}.{e}"),
+            None => format!("{stem}-{i}"),
+        };
+        if !dir.join(&candidate).exists() {
+            return dir.join(candidate);
+        }
+    }
+    dir.join(name)
+}
+
+/// Open a folder in the OS file manager. Uses the platform's own launcher (no
+/// extra Tauri plugin/permission needed); we spawn and don't wait, since some
+/// launchers return a nonzero exit code even on success.
+fn reveal_path(path: &std::path::Path) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    let spawned = std::process::Command::new("explorer").arg(path).spawn();
+    #[cfg(target_os = "macos")]
+    let spawned = std::process::Command::new("open").arg(path).spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let spawned = std::process::Command::new("xdg-open").arg(path).spawn();
+    spawned.map(|_| ()).map_err(|e| e.to_string())
+}
+
+/// Ensure the import folder tree exists and return its absolute path (shown in
+/// the Asset Browser so users know where to paste files).
+#[tauri::command]
+fn library_import_dir(app: tauri::AppHandle) -> Result<String, String> {
+    Ok(ensure_import_dirs(&app)?.to_string_lossy().into_owned())
+}
+
+/// Open the import folder in the OS file manager.
+#[tauri::command]
+fn library_reveal_import(app: tauri::AppHandle) -> Result<(), String> {
+    let root = ensure_import_dirs(&app)?;
+    reveal_path(&root)
+}
+
+#[derive(serde::Serialize)]
+struct ImportFile {
+    #[serde(rename = "type")]
+    asset_type: String,
+    name: String,
+    mime: String,
+    data: String,
+}
+
+/// Scan every import subfolder, returning the files found (base64) as a JSON
+/// array. Each file's asset type comes from its subfolder; only known image /
+/// audio extensions are picked up. Every returned original is moved into the
+/// Imported/ archive so the next scan sees only genuinely new files.
+#[tauri::command]
+fn library_scan_import(app: tauri::AppHandle) -> Result<String, String> {
+    let root = ensure_import_dirs(&app)?;
+    let archive = root.join("Imported");
+    std::fs::create_dir_all(&archive).map_err(|e| e.to_string())?;
+
+    let mut out: Vec<ImportFile> = Vec::new();
+    for ty in IMPORT_TYPES {
+        let exts: &[&str] = if ty == "audio" { &AUDIO_EXTS } else { &IMAGE_EXTS };
+        let Ok(entries) = std::fs::read_dir(root.join(ty)) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_ascii_lowercase())
+                .unwrap_or_default();
+            if !exts.contains(&ext.as_str()) {
+                continue;
+            }
+            let Some(mime) = mime_for_ext(&ext) else {
+                continue;
+            };
+            let name = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("asset")
+                .to_string();
+            let Ok(bytes) = std::fs::read(&path) else {
+                continue;
+            };
+            // Archive the original (rename first, copy+remove across volumes);
+            // on total failure the file stays put and simply re-scans later.
+            let dest = free_path(&archive, &name);
+            if std::fs::rename(&path, &dest).is_err() && std::fs::write(&dest, &bytes).is_ok() {
+                let _ = std::fs::remove_file(&path);
+            }
+            out.push(ImportFile {
+                asset_type: ty.to_string(),
+                name,
+                mime: mime.to_string(),
+                data: base64::engine::general_purpose::STANDARD.encode(&bytes),
+            });
+        }
+    }
+    serde_json::to_string(&out).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -265,7 +455,10 @@ pub fn run() {
             library_read,
             library_write,
             library_delete,
-            library_set_meta
+            library_set_meta,
+            library_import_dir,
+            library_reveal_import,
+            library_scan_import
         ])
         .run(tauri::generate_context!())
         .expect("error while running RPGAtlas");

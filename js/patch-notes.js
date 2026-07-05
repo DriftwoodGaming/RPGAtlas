@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 4, 2026",
+    title: "Add art & sound by copying files into a folder — the Asset Browser picks them up",
+    summary:
+      "No more guessing where your pictures and sound files should go. On the desktop app the Asset Browser now has an import folder with a labelled sub-folder for each kind of asset — copy files in with Windows Explorer (or your file manager) and they show up in the editor on their own.",
+    items: [
+      "New “Add your own pictures & sounds” banner at the top of the Asset Browser with an “Open Folder” button that opens the import folder in Explorer/Finder, and the full folder path shown so you can find it yourself.",
+      "Drop files into the matching sub-folder — characters, facesets, enemies, tilesets, or audio — and they import automatically: when you open the Asset Browser, when you switch back to the app after adding files, or when you click “Scan for New Files”.",
+      "Imported pictures immediately appear in the same pickers and palettes as the built-in art, and sounds appear in the Audio Manager and event sound/music lists.",
+      "Each file you add is copied into your library and then tucked into an “Imported” folder so the drop folders stay tidy — nothing is ever deleted, and adding the same file twice is harmless.",
+      "A plain-language READ ME is created in the folder explaining what goes where.",
+    ],
+  },
+  {
+    date: "July 4, 2026",
     title: "Bring fallen heroes back: a Revive mechanic, the Phoenix Feather & four new states",
     summary:
       "When a party member's HP hits 0 they're out of the fight — and now you can bring them back. New projects start with a Revive skill and a Phoenix Feather item that raise a fallen ally, plus four fresh status effects to spice up battles. Ordinary Potions and heals still can't touch the fallen, so reviving means something.",
