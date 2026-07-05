@@ -434,6 +434,11 @@ export interface RmMap {
   encounterList?: RmEncounter[];
   encounterStep?: number;
   parallaxName?: string;
+  parallaxLoopX?: boolean;
+  parallaxLoopY?: boolean;
+  parallaxSx?: number;
+  parallaxSy?: number;
+  parallaxShow?: boolean;
   scrollType?: number;
   specifyBattleback?: boolean;
   battleback1Name?: string;

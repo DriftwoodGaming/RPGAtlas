@@ -9,6 +9,7 @@
    GPL-3.0-or-later (see LICENSE). */
 
 import type { IdType, Params, SystemData, VehicleDef } from "../../../shared/schema";
+import { assetKeyOf, slugName } from "../../../shared/asset-library";
 import type { ImportReport } from "./report";
 import type { RmSystem, RmVehicle } from "./raw-types";
 import { slugKey, synthKeyedTypes } from "./slug";
@@ -76,6 +77,9 @@ export function convertSystem(sys: RmSystem, report: ImportReport): SystemConver
     mzBattleFlow: true,
     // M3·B: the TP gauge flag (and one of the TP-mechanics activators).
     ...(sys.optDisplayTp ? { displayTp: true } : {}),
+    // M4·A: damage-floor / map-slip lethality (absent = HP floors at 1).
+    ...(sys.optFloorDeath ? { optFloorDeath: true } : {}),
+    ...(sys.optSlipDeath ? { optSlipDeath: true } : {}),
     types: {
       elements: elements.types,
       skillTypes: skillTypes.types,
@@ -84,6 +88,18 @@ export function convertSystem(sys: RmSystem, report: ImportReport): SystemConver
       equipTypes: idTypes(sys.equipTypes),
     },
   };
+
+  // M4·A: the System-wide default battle background (a map's own wins).
+  if (sys.battleback1Name || sys.battleback2Name) {
+    patch.battleback = {
+      ...(sys.battleback1Name ? { back1: assetKeyOf("pictures", slugName(sys.battleback1Name)) } : {}),
+      ...(sys.battleback2Name ? { back2: assetKeyOf("pictures", slugName(sys.battleback2Name)) } : {}),
+    };
+    report.add({
+      area: "System", kind: "partial", what: "battle background image files",
+      detail: "your battle backgrounds now show in Atlas — add their image files to the Assets library and they'll appear",
+    });
+  }
 
   // windowTone [r,g,b,gray] → base window color (gray channel dropped).
   if (Array.isArray(sys.windowTone) && sys.windowTone.length >= 3) {

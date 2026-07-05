@@ -91,6 +91,20 @@ export function registerPresentationCommands(): void {
     }
   });
 
+  // ---- battle background + parallax (Project Compass M4·A) ----
+  // 283 Change Battle Back: overrides the battleback until the next map load.
+  registerCommand("battleback", (c: any, { state }: InterpContext) => {
+    state.battlebackOverride = { back1: c.back1 || "", back2: c.back2 || "" };
+  });
+  // 284 Change Parallax: swaps the map's background picture until the next
+  // map load. An empty key removes it.
+  registerCommand("parallax", (c: any, { services }: InterpContext) => {
+    if (!services.setMapParallax) return;
+    services.setMapParallax(
+      c.key ? { key: c.key, loopX: !!c.loopX, loopY: !!c.loopY, sx: c.sx, sy: c.sy } : null,
+    );
+  });
+
   // ---- Presentation family (Project Compass M2·A) ----
   // Pictures, screen tint, timer, map scroll, balloon icons, scrolling text.
   // The mutable screen state lives in scenes/presentation-runtime.ts and is

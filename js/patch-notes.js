@@ -5,6 +5,23 @@
 export const PATCH_NOTES = [
   {
     date: "July 5, 2026",
+    title: "Living maps: bushes, ladders, counters, damage floors & looping worlds",
+    summary:
+      "Maps caught up with battles. Tiles can now behave: tall grass hides your hero's feet, ladders make you climb, shop counters let you talk across them, and lava floors hurt to walk on. Maps can wrap around at the edges like a little planet, scroll a background picture behind the tiles, and bring their own battle backdrop. Vehicles obey events too. Everything is off until you turn it on — Atlas-made games play exactly as before, and imported RPG Maker MV/MZ games get all of it automatically.",
+    items: [
+      "Tile behaviors are live: the Bush, Ladder, Counter, and Damage-floor flags in Database ▸ Tilesets (and imported RPG Maker tilesets) now do their thing in play.",
+      "Damage floors follow RPG Maker's rules — 10 damage per step (heroes' Floor Damage trait scales it), never lethal unless the game says so.",
+      "Terrain tags read for real: Get Location Info's “terrain” option returns the tile's tag instead of 0.",
+      "Looping maps: check “Loop left↔right / top↕bottom” in Map Properties and walking off one edge brings you out the other.",
+      "Parallax backgrounds: give a map a background picture (Map Properties ▸ General) — it can loop, drift, or lock to the map, and the Change Parallax event command swaps it mid-scene.",
+      "Battle backgrounds: a map (or the whole game) can name floor + walls images for its battles, and Change Battle Back overrides them from an event.",
+      "Region-scoped encounters: imported RPG Maker encounter lists tied to painted regions now roll only inside those regions (Atlas region pools already did this — now the importer fills them in).",
+      "Three new event commands for vehicles: Set Vehicle Location, Get on/off Vehicle, and Change Vehicle Image.",
+      "Poison on the go: with RPG Maker battle pacing on, walk-regen and slip-damage traits tick every 20 steps, just like MZ.",
+    ],
+  },
+  {
+    date: "July 5, 2026",
     title: "Boss-fight tools: mid-battle commands, loot drops & surprise rounds",
     summary:
       "Battles learned their last RPG Maker tricks. Battle events can now heal, poison, reveal, transform, or force-act enemies mid-fight; defeated enemies can drop loot; troops can hide a member until the story says “appear!”; and random encounters can open with a first strike or a surprise round. Win/escape/lose branches on Start Battle run for real, and party abilities like Double Gold work from any hero. Atlas-made games play exactly as before unless you turn these on; imported RPG Maker MV/MZ games get them automatically.",

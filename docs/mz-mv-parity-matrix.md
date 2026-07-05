@@ -434,7 +434,7 @@ Mn ships.
 | 216 | Change Player Followers (show/hide) | `system.followers` toggle | `≈` | M2·C/report |
 | 217 | Gather Followers | — | `≈` | report (Atlas followers auto-gather) |
 | 281 | Change Map Name Display | — | `−` | report |
-| 282 | Change Tileset | — | `+` | **M4·A** (or report) |
+| 282 | Change Tileset | — | `−` | **M4·A decision:** Atlas maps bake tile art + ids at import, so a runtime tileset swap has nothing honest to swap — friendly skip line. |
 | 283 | Change Battle Back | — | `+` | **M4·A** |
 | 284 | Change Parallax | — | `+` | **M4·A** |
 | 285 | Get Location Info | — | `+` | **M2·C** |

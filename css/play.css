@@ -435,6 +435,10 @@ body { font: 15px/1.5 "Segoe UI", system-ui, sans-serif; color: #f0f2f8; }
 
 /* ---------- battle ---------- */
 .battlewin { position: absolute; inset: 0; z-index: 18; display: flex; flex-direction: column; background: linear-gradient(180deg, rgba(8,10,22,0.55), rgba(8,10,22,0.8)); }
+/* Battle backgrounds (Project Compass M4·A): the engine sets background-image
+   inline (back2 over back1); this rule sizes them and keeps a dark base so a
+   half-transparent battleback still reads. */
+.battlewin.hasbb { background-size: cover; background-position: center; background-color: #080a16; }
 .battle-fx { position: absolute; inset: 0; z-index: 7; overflow: hidden; pointer-events: none; }
 .battle-field, .battle-enemies, .battle-actors { position: relative; z-index: 4; }
 .battle-log, .battle-party { position: relative; z-index: 9; }

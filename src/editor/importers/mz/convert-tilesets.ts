@@ -15,9 +15,10 @@
    into those SAME keys; `js/assets.js bindExternalAssets` reuses the pre-assigned
    ids, so the map layers this step paints resolve to the real art with no
    re-numbering. Unmapped/blocked passability lands in the map's `passOv` +
-   the group `pass` flag now; the ladder/bush/counter/damage BEHAVIORS are M4·A
-   (stored + reported here, honest no-silent-drop per locked decision 6).
-   Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
+   the group `pass` flag; ladder/bush/counter/damage/terrain live in the engine
+   since M4·A (tileProps + autotile `props.flag`/`props.terrainTag` feed the
+   tile-behavior cache). Copyright (C) 2026 RPGAtlas contributors —
+   GPL-3.0-or-later (see LICENSE). */
 
 import type { Autotile, Tileset } from "../../../shared/schema";
 import { assetKeyOf, slugName } from "../../../shared/asset-library";
@@ -151,20 +152,26 @@ export function convertTilesets(
         pass: !f.blockedAll,
       };
       if (family === "A1") group.anim = { frames: 3, fps: 8 }; // RM water/waterfall
-      if (f.terrainTag) group.props = { terrainTag: f.terrainTag } as Autotile["props"];
+      // M4·A: behavior flags (bush grass! ladders!) + terrain ride the group
+      // props — the engine's tile-behavior cache consumes both.
+      const gflag = atlasFlagByte(f);
+      if (f.terrainTag || gflag) {
+        group.props = {
+          ...(f.terrainTag ? { terrainTag: f.terrainTag } : {}),
+          ...(gflag ? { flag: gflag } : {}),
+        } as Autotile["props"];
+      }
       autotiles.push(group);
       one.autotileByKind.set(kind, tileIdOf(groupId));
       one.blockedById.set(base, f.blockedAll || f.blockedPartial);
 
-      // A kind's 48 shape ids can carry their own flags (a partial-passage water
-      // edge, a bush on a shaped tile): scan the range so nothing goes unreported.
+      // A kind's 48 shape ids can carry their own flags (a partial-passage
+      // water edge): Atlas keeps ONE flag set per group (the base shape's), so
+      // shape-level oddities still get their honest line.
       for (let shape = 0; shape < 48; shape++) {
         const sf = decodeFlags(flagOf(base + shape));
         if (sf.blockedPartial) bumpFlag("part-pass", "one-way tile passage",
           "some tiles let you pass only certain directions — Atlas blocks the whole tile for now");
-        if (sf.terrainTag) bumpFlag("terrain-tag", "terrain tags",
-          "terrain tags are saved and used in a later update");
-        reportBehaviorFlags(sf, bumpFlag);
       }
     }
 
@@ -187,16 +194,14 @@ export function convertTilesets(
 
       // Per-tile passage / behavior flags → Atlas tileProps (Database ▸ Tilesets
       // schema: 8-dir pass byte, flag byte bush0/ladder1/counter2/damage3, terrain
-      // 0–7). Behaviors are inert until M4·A; storing them keeps nothing dropped.
+      // 0–7). Live in the engine since M4·A (tile-behavior cache) — no report
+      // line needed anymore; only partial passage keeps its honest line.
       const flagByte = atlasFlagByte(f);
       if (f.passage !== 0 || flagByte || f.terrainTag) {
         tileset.tileProps[key] = { pass: atlasPassByte(f), flag: flagByte, terrain: f.terrainTag };
       }
       if (f.blockedPartial) bumpFlag("part-pass", "one-way tile passage",
         "some tiles let you pass only certain directions — Atlas blocks the whole tile for now");
-      if (f.terrainTag) bumpFlag("terrain-tag", "terrain tags",
-        "terrain tags are saved and used in a later update");
-      reportBehaviorFlags(f, bumpFlag);
     }
 
     tilesets.push(tileset);
@@ -232,16 +237,4 @@ export function convertTilesets(
       return !!one && one.starById.has(rmId);
     },
   };
-}
-
-/** ladder/bush/counter/damage → one friendly report line each (matrix §11 →
- *  M4·A). Stored in tileProps above; the behavior lands later. */
-function reportBehaviorFlags(
-  f: ReturnType<typeof decodeFlags>,
-  bump: (key: string, what: string, detail: string) => void,
-): void {
-  if (f.ladder) bump("ladder", "ladder tiles", "climbing behavior arrives in a later update");
-  if (f.bush) bump("bush", "bush tiles", "the see-through-bush effect arrives in a later update");
-  if (f.counter) bump("counter", "counter tiles", "talking across counters arrives in a later update");
-  if (f.damage) bump("damage-floor", "damage floors", "step-damage tiles arrive in a later update");
 }

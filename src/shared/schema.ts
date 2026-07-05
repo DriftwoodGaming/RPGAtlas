@@ -16,8 +16,9 @@
      src/editor/event-editor/command-defs.ts, which are exactly the types
      registered in src/engine/interpreter/commands/*.ts (43 as of Project
      Compass M2·A, which added the presentation family: pictures, tint, timer,
-     scroll, balloons, scrolling text; M2·C added the actor-data family and
-     M3·B the TP pair changeTp/changeEnemyTp) — plus `mzTodo`, the
+     scroll, balloons, scrolling text; M2·C added the actor-data family,
+     M3·B the TP pair changeTp/changeEnemyTp, and M4·A the map-feature five:
+     setVehiclePos/vehicle/vehicleImage/battleback/parallax) — plus `mzTodo`, the
      MZ/MV-importer placeholder (Project Compass M1·C): editor-rendered,
      preserved for re-import, and deliberately WITHOUT an interpreter handler
      so the engine silently skips it.
@@ -164,6 +165,16 @@ export interface SystemData {
    *  troop AGI, +0.1 per failed try). The importer always sets it; absent =
    *  the classic Atlas flow, byte-identical draws. */
   mzBattleFlow?: boolean;
+  /** Damage-floor lethality (Project Compass M4·A, MZ optFloorDeath): true =
+   *  step damage can kill; absent/false = HP floors at 1. */
+  optFloorDeath?: boolean;
+  /** Map slip-damage lethality (M4·A, MZ optSlipDeath): true = the 20-step
+   *  regen tick can kill; absent/false = HP floors at 1. The tick itself runs
+   *  only under mzBattleFlow. */
+  optSlipDeath?: boolean;
+  /** Default battle background (M4·A, MZ System battleback1/2Name): asset
+   *  keys; a map's own `battleback` wins. Absent = the classic backdrop. */
+  battleback?: { back1?: string; back2?: string };
 }
 
 /** One vehicle's charset + starting placement (Phase 5 Stage C). */
@@ -939,6 +950,46 @@ export interface CmdScrollMap {
   speed: number;
   wait?: boolean;
 }
+/** Place a vehicle on a map (Project Compass M4·A, RM 202). With `byVar`,
+ *  mapId/x/y are variable ids read at run time. */
+export interface CmdSetVehiclePos {
+  t: "setVehiclePos";
+  vehicle: "boat" | "ship" | "airship";
+  byVar?: boolean;
+  mapId: number;
+  x: number;
+  y: number;
+}
+/** Board the vehicle the player faces/stands on, or step off the one being
+ *  ridden (M4·A, RM 206 — a toggle, exactly like MZ's). */
+export interface CmdVehicle {
+  t: "vehicle";
+}
+/** Swap a vehicle's charset (M4·A, RM 323). Persists with the save. */
+export interface CmdVehicleImage {
+  t: "vehicleImage";
+  vehicle: "boat" | "ship" | "airship";
+  charset: string;
+}
+/** Override the battle background until the next map load (M4·A, RM 283).
+ *  back1/back2 are asset keys or URLs; empty strings clear a layer. */
+export interface CmdBattleback {
+  t: "battleback";
+  back1?: string;
+  back2?: string;
+}
+/** Swap the map's parallax background (M4·A, RM 284) until the next map load.
+ *  An empty `key` removes it. */
+export interface CmdParallax {
+  t: "parallax";
+  key: string;
+  loopX?: boolean;
+  loopY?: boolean;
+  sx?: number;
+  sy?: number;
+  /** Scroll 1:1 with the map (RM's `!`-prefixed source names). */
+  lock?: boolean;
+}
 /** Pop a speech-balloon glyph (`balloonId` 1–15) over a target: "player",
  *  "this" event, or an event id. */
 export interface CmdBalloon {
@@ -1118,6 +1169,11 @@ export type AnyCommand =
   | CmdTint
   | CmdTimer
   | CmdScrollMap
+  | CmdSetVehiclePos
+  | CmdVehicle
+  | CmdVehicleImage
+  | CmdBattleback
+  | CmdParallax
   | CmdBalloon
   | CmdScrollText
   | CmdInputNumber
@@ -1451,6 +1507,18 @@ export interface GameMap {
   automapRules?: AutomapRule[];
   /** Map-tree folder this map sits in (Phase 8). Editor-only; absent = root. */
   folderId?: number;
+  /** Edge-wrapping map (Project Compass M4·A, MZ scrollType): h = wraps
+   *  left/right, v = wraps top/bottom. Absent = bounded (classic). */
+  loop?: { h?: boolean; v?: boolean };
+  /** Scrolling background picture drawn under the tile layers (M4·A, MZ
+   *  parallax). `key` is an asset key (or URL); a `!`-prefixed source name
+   *  locks it to the map. sx/sy drift in MZ units (px/2 per tick on the loop
+   *  axis). Absent = the classic opaque backdrop. */
+  parallax?: { key: string; loopX?: boolean; loopY?: boolean; sx?: number; sy?: number; lock?: boolean };
+  /** Per-map battle background (M4·A, MZ battleback1/2Name — only when the
+   *  RM map set "Specify Battleback"). Asset keys; wins over the System
+   *  default. Absent = System default, then the classic backdrop. */
+  battleback?: { back1?: string; back2?: string };
 }
 
 /** A map-tree folder (Phase 8, proj.mapFolders). Purely organizational —

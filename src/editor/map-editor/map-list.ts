@@ -724,6 +724,14 @@ import { subTabs } from "../database/shared";
     }
     redrawNight();
     const miniW = { show: m.minimap !== false };
+    // Map features (Project Compass M4·A): edge looping, parallax background,
+    // per-map battle background. All optional — empty = classic behavior.
+    const loopW = { h: !!(m.loop && m.loop.h), v: !!(m.loop && m.loop.v) };
+    const px = m.parallax || {};
+    const pxW = { key: px.key || "", loopX: !!px.loopX, loopY: !!px.loopY,
+      sx: px.sx || 0, sy: px.sy || 0, lock: !!px.lock };
+    const bb = m.battleback || {};
+    const bbW = { back1: bb.back1 || "", back2: bb.back2 || "" };
     const hd = m.hd2d || {};
     const hdW = {
       enabled: !!hd.enabled,
@@ -759,6 +767,15 @@ import { subTabs } from "../database/shared";
         row(field("Width", nIn(work, "width", 5, 200)), field("Height", nIn(work, "height", 5, 200))),
         row(field("Tileset", sel(work, "tilesetId", dbOpts(tilesets))), field("Music", sel(work, "music", MUSIC_OPTS()))),
         h("div", { class: "fld" }, h("span", null, "Ambience layers (looping imported audio, crossfaded on transfer)"), ambBox),
+        row(field("Loop left ↔ right (walk off one edge, appear on the other)", chk(loopW, "h")),
+          field("Loop top ↕ bottom", chk(loopW, "v"))),
+        h("div", { class: "fld" }, h("span", null, "Parallax background (asset key or URL; empty = none)"),
+          tIn(pxW, "key"),
+          row(field("Loop ↔", chk(pxW, "loopX")), field("Loop ↕", chk(pxW, "loopY")),
+            field("Drift X", nIn(pxW, "sx", -32, 32)), field("Drift Y", nIn(pxW, "sy", -32, 32)),
+            field("Locked to map", chk(pxW, "lock")))),
+        row(field("Battle back — floor image (asset key or URL)", tIn(bbW, "back1")),
+          field("Battle back — walls image", tIn(bbW, "back2"))),
         row(field("Show on the minimap (when System ▸ Minimap is on)", chk(miniW, "show"))),
         h("div", { class: "fld" }, h("span", null, "Notes (World View)"), notesIn),
       ) },
@@ -814,6 +831,21 @@ import { subTabs } from "../database/shared";
           if (Object.keys(byRegion).length) m.encounters.byRegion = byRegion;
           if (nightTroops.length) m.encounters.byTime = { night: nightTroops };
           if (miniW.show) delete m.minimap; else m.minimap = false;
+          // Map features (M4·A) — absent fields keep the classic engine path.
+          if (loopW.h || loopW.v) m.loop = { ...(loopW.h ? { h: true } : {}), ...(loopW.v ? { v: true } : {}) };
+          else delete m.loop;
+          { const pk = String(pxW.key || "").trim();
+            if (pk) {
+              m.parallax = { key: pk };
+              if (pxW.loopX) m.parallax.loopX = true;
+              if (pxW.loopY) m.parallax.loopY = true;
+              if (Number(pxW.sx)) m.parallax.sx = Number(pxW.sx);
+              if (Number(pxW.sy)) m.parallax.sy = Number(pxW.sy);
+              if (pxW.lock) m.parallax.lock = true;
+            } else delete m.parallax; }
+          { const b1 = String(bbW.back1 || "").trim(), b2 = String(bbW.back2 || "").trim();
+            if (b1 || b2) m.battleback = { ...(b1 ? { back1: b1 } : {}), ...(b2 ? { back2: b2 } : {}) };
+            else delete m.battleback; }
           { const nv = String(notesIn.value || ""); if (nv) m.notes = nv; else delete m.notes; }
           m.hd2d = {
             enabled: hdW.enabled, tilt: hdW.tilt,

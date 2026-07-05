@@ -42,6 +42,7 @@ import { createBattleFx } from "./battle-fx.js";
 import { playAnimation } from "../../shared/anim-player.js";
 import { resolvePlaybackSheet } from "../../shared/asset-library.js";
 import { Interp } from "../interpreter/interp.js";
+import { resolvePictureSrc } from "./presentation-runtime.js";
 import {
   rowOf,
   rowDealtScale,
@@ -111,6 +112,20 @@ export const Battle: any = {
       if (hid) hid.hidden = true;
     }
     const win = el("div", "battlewin" + (sideView ? " side" : ""));
+    // Battle backgrounds (Project Compass M4·A): override (RM 283, cleared on
+    // map load) → per-map battleback → System default. Missing art resolves
+    // null and the classic backdrop stays.
+    const bb = G.battlebackOverride || (ctx.map && ctx.map.battleback) || proj.system.battleback;
+    if (bb) {
+      const urls = [bb.back2, bb.back1] // back2 (walls) paints over back1 (floor)
+        .map((k: any) => (k ? resolvePictureSrc(String(k)) : null))
+        .filter(Boolean)
+        .map((u: any) => `url("${u}")`);
+      if (urls.length) {
+        win.classList.add("hasbb");
+        win.style.backgroundImage = urls.join(",");
+      }
+    }
     const fxLayer = el("div", "battle-fx");
     const enemyArea = el("div", "battle-enemies");
     const log = el("div", "battle-log");
