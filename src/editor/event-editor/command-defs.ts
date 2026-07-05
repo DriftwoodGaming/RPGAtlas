@@ -143,6 +143,8 @@ import { openLocationPicker } from "./location-picker";
       case "changeNickname": return "Change Nickname: " + actorLabel(c.actorId) + " → " + (c.nickname || "");
       case "changeProfile": return "Change Profile: " + actorLabel(c.actorId);
       case "changeState": return (c.op === "remove" ? "Remove" : "Add") + " State: " + actorLabel(c.actorId) + " — " + dbName(S.proj.states, c.stateId);
+      case "changeTp": return "Change TP: " + actorLabel(c.actorId) + " " + (c.op === "sub" ? "−" : "+") + (c.value || 0);
+      case "changeEnemyTp": return "Change Enemy TP: " + (c.enemyIndex < 0 ? "Entire Troop" : "Enemy #" + ((c.enemyIndex || 0) + 1)) + " " + (c.op === "sub" ? "−" : "+") + (c.value || 0);
       case "access": {
         const label = c.kind === "save" ? "Save" : c.kind === "encounter" ? "Encounters" : c.kind === "formation" ? "Formation" : "Menu";
         return "Change " + label + " Access: " + (c.enabled === false ? "Disable" : "Enable");
@@ -833,6 +835,27 @@ import { openLocationPicker } from "./location-picker";
           field("Op", sel(w, "op", [{ v: "add", l: "Add" }, { v: "remove", l: "Remove" }])),
           field("State", sel(w, "stateId", dbOpts(S.proj.states)))));
         return () => { c.actorId = Number(w.actorId); c.op = w.op; c.stateId = Number(w.stateId); };
+      } },
+    // --- TP (Project Compass M3·B) ---
+    { t: "changeTp", label: "Change TP", make: () => ({ t: "changeTp", actorId: 0, op: "add", value: 25 }),
+      form(c: any, box: any) {
+        const w = { actorId: c.actorId == null ? 0 : c.actorId, op: c.op || "add", value: c.value == null ? 25 : c.value };
+        box.appendChild(row(field("Hero", sel(w, "actorId", actorPartyOpts())),
+          field("Op", sel(w, "op", [{ v: "add", l: "Increase" }, { v: "sub", l: "Decrease" }])),
+          field("Amount", nIn(w, "value", 0, 100))));
+        box.appendChild(h("div", { class: "dim" }, "TP only matters when the TP system is on (System ▸ “Show TP in battle”, or any skill with a TP cost)."));
+        return () => { c.actorId = Number(w.actorId); c.op = w.op; c.value = Number(w.value); };
+      } },
+    { t: "changeEnemyTp", label: "Change Enemy TP", make: () => ({ t: "changeEnemyTp", enemyIndex: -1, op: "add", value: 25 }),
+      form(c: any, box: any) {
+        const w = { enemyIndex: c.enemyIndex == null ? -1 : c.enemyIndex, op: c.op || "add", value: c.value == null ? 25 : c.value };
+        const slots: any = [{ v: -1, l: "Entire Troop" }];
+        for (let i = 0; i < 8; i++) slots.push({ v: i, l: "Enemy #" + (i + 1) });
+        box.appendChild(row(field("Enemy", sel(w, "enemyIndex", slots)),
+          field("Op", sel(w, "op", [{ v: "add", l: "Increase" }, { v: "sub", l: "Decrease" }])),
+          field("Amount", nIn(w, "value", 0, 100))));
+        box.appendChild(h("div", { class: "dim" }, "Runs during battle (troop event pages). Outside battle it does nothing."));
+        return () => { c.enemyIndex = Number(w.enemyIndex); c.op = w.op; c.value = Number(w.value); };
       } },
     // --- System toggles (Project Compass M2·C) ---
     { t: "access", label: "Change Access (Menu/Save/…)", make: () => ({ t: "access", kind: "menu", enabled: true }),

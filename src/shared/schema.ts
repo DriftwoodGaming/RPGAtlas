@@ -16,7 +16,8 @@
      src/editor/event-editor/command-defs.ts, which are exactly the types
      registered in src/engine/interpreter/commands/*.ts (43 as of Project
      Compass M2·A, which added the presentation family: pictures, tint, timer,
-     scroll, balloons, scrolling text) — plus `mzTodo`, the
+     scroll, balloons, scrolling text; M2·C added the actor-data family and
+     M3·B the TP pair changeTp/changeEnemyTp) — plus `mzTodo`, the
      MZ/MV-importer placeholder (Project Compass M1·C): editor-rendered,
      preserved for re-import, and deliberately WITHOUT an interpreter handler
      so the engine silently skips it.
@@ -154,6 +155,10 @@ export interface SystemData {
     ship?: VehicleDef;
     airship?: VehicleDef;
   };
+  /** Show the TP gauge in battle (Project Compass M3·B, MZ optDisplayTp).
+   *  Also one of the two switches that activate the TP mechanics — the other
+   *  is any skill carrying tpCost/gainTp. Absent = classic no-TP battles. */
+  displayTp?: boolean;
 }
 
 /** One vehicle's charset + starting placement (Phase 5 Stage C). */
@@ -242,6 +247,45 @@ export interface Skill {
   /** Heals also restore this % of the target's max HP (MZ Recover-HP effect
    *  value1, M3·A). Absent = 0. */
   powerPct?: number;
+  // ---- Project Compass M3·B (all optional — absent = classic behavior) ----
+  /** Imported MZ skill-type key, kept when `type` was rewritten to "heal" so
+   *  add/seal-type traits can still gate the skill (a sealed "Magic" must
+   *  silence magic heals too). Gating reads `stype || type`. */
+  stype?: string;
+  /** TP cost (MZ). Only enforced while the project's TP system is active
+   *  (see battle-logic tpActive) — never gates Atlas-native projects. */
+  tpCost?: number;
+  /** TP granted to the user on use (MZ effect 13 / tpGain). */
+  gainTp?: number;
+  /** MZ effect 21 dataId 0 ("normal attack"): landing hits also roll the
+   *  attacker's on-attack state traits (`state`/`attack:<id>`). */
+  attackStates?: boolean;
+  /** MZ damage elementId −1: the hit uses the attacker's attack-element
+   *  traits (MZ elementsMaxRate) instead of a fixed element. */
+  attackElement?: boolean;
+  /** Buff/debuff effects (MZ 31–34): each stat's buff level is −2…+2, ±25%
+   *  per level, ticking down at round end and cleared after battle. */
+  buffs?: BuffEffect[];
+  /** Permanent stat growth on the target (MZ effect 42) — rides the same
+   *  per-actor `paramPlus` bonus as the Change Parameters command. */
+  grow?: GrowEffect[];
+  /** Skills the target permanently learns (MZ effect 43). */
+  learn?: number[];
+}
+
+/** One buff/debuff effect row (MZ effect codes 31–34, M3·B). */
+export interface BuffEffect {
+  /** Battle param key ("atk", "def", …). */
+  stat: string;
+  op: "buff" | "debuff" | "removeBuff" | "removeDebuff";
+  /** Duration in rounds (add ops; MZ value1). */
+  turns?: number;
+}
+
+/** One permanent-growth effect row (MZ effect 42, M3·B). */
+export interface GrowEffect {
+  stat: string;
+  amount: number;
 }
 
 export interface StateDef {
@@ -254,6 +298,18 @@ export interface StateDef {
   minTurns?: number;
   maxTurns?: number;
   removeAtEnd?: boolean;
+  // ---- Project Compass M3·B (all optional) ----
+  /** Walk-off removal (MZ stepsToRemove/removeByWalking): the state falls off
+   *  after this many map steps. Absent/0 = walking never cures it. */
+  stepsToRemove?: number;
+  /** Chance % (0–100) the state is shed when the battler takes HP damage
+   *  (MZ removeByDamage + chanceByDamage). Absent = damage never cures it. */
+  removeByDamage?: number;
+  /** Shed when a restricting ("can't act") state lands on the battler. */
+  removeByRestriction?: boolean;
+  /** Trait rows active while the state is on the battler (MZ state traits —
+   *  how Silence/Blind work). Joined with the class/enemy traits. */
+  traits?: Trait[];
 }
 
 export interface Item {
@@ -278,6 +334,20 @@ export interface Item {
    *  value1, M3·A). Absent = 0. */
   hpPct?: number;
   mpPct?: number;
+  // ---- Project Compass M3·B (all optional) ----
+  /** State add/remove on use (MZ item effects 21/22) — cures at last. Same
+   *  vocabulary as the Skill fields. */
+  stateId?: number;
+  stateChance?: number;
+  stateOp?: "add" | "remove" | string;
+  /** TP granted to the user (MZ effect 13). */
+  gainTp?: number;
+  /** Buff/debuff effects (MZ 31–34). */
+  buffs?: BuffEffect[];
+  /** Permanent stat growth (MZ effect 42). */
+  grow?: GrowEffect[];
+  /** Skills the target learns (MZ effect 43). */
+  learn?: number[];
 }
 
 export interface Weapon {
@@ -329,6 +399,10 @@ export interface Enemy {
   exp?: number;
   gold?: number;
   actions?: EnemyAction[];
+  /** Trait rows (Project Compass M3·B) — enemies are their own effective
+   *  battler (D6), so element/state rates and combat specials live here.
+   *  Absent = the exact pre-M3·B neutral behavior. */
+  traits?: Trait[];
 }
 
 /** A troop battle-event page condition (Phase 5). An empty cond never fires. */
@@ -906,6 +980,13 @@ export interface CmdChangeNickname { t: "changeNickname"; actorId: number; nickn
 export interface CmdChangeProfile { t: "changeProfile"; actorId: number; profile: string; }
 /** Add or remove a state outside battle (RM Change State). */
 export interface CmdChangeState { t: "changeState"; actorId: number; op: "add" | "remove"; stateId: number; }
+/** Add/subtract TP (RM Change TP, Project Compass M3·B). Works anywhere;
+ *  only meaningful while the project's TP system is active. */
+export interface CmdChangeTp { t: "changeTp"; actorId: number; op: "add" | "sub"; value: number; }
+/** Add/subtract a troop member's TP mid-battle (RM Change Enemy TP, M3·B).
+ *  `enemyIndex` is the 0-based troop slot; −1 = the whole troop. No-ops
+ *  outside battle (reaches the live battle through the battle bridge). */
+export interface CmdChangeEnemyTp { t: "changeEnemyTp"; enemyIndex: number; op: "add" | "sub"; value: number; }
 
 /** Toggle a map-system access flag (RM Change Menu/Save/Encounter/Formation
  *  Access). `enabled` false locks the menu, its save/formation entry, or the
@@ -987,6 +1068,8 @@ export type AnyCommand =
   | CmdChangeNickname
   | CmdChangeProfile
   | CmdChangeState
+  | CmdChangeTp
+  | CmdChangeEnemyTp
   | CmdAccess
   | CmdFollowers
   | CmdWindowTone

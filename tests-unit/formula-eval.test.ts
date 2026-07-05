@@ -376,3 +376,60 @@ describe("importer: the MZ companions travel with the formula", () => {
     expect(report.lines.some((l) => /damage enemies/.test(l.what))).toBe(true);
   });
 });
+
+// ============================================================================
+// Project Compass M3·B — the sp-param pipeline args (pdr/mdr/rec via dmgRate,
+// grd deepening the guard divisor). Absent args must keep every M3·A vector.
+// ============================================================================
+describe("MZ pipeline sp-params (M3·B: dmgRate + grd)", () => {
+  const seq = (nums: number[]) => {
+    let i = 0;
+    return () => nums[i++];
+  };
+
+  it("vector B1 — pdr 0.5 applies after element, before crit → 132", () => {
+    // 176 × 1 × 0.5 = 88 → crit ×3 = 264 → variance 0 → guard ÷2 = 132.
+    expect(
+      mzDamageValue({
+        base: 176, elementRate: 1, dmgRate: 0.5, critical: true,
+        variance: 0, guarding: true, randomInt: seq([0, 0]),
+      }),
+    ).toBe(132);
+  });
+
+  it("vector B2 — element 2 × mdr 0.75 stack multiplicatively → 264", () => {
+    // 176 × 2 × 0.75 = 264 (no crit, variance 0, no guard).
+    expect(
+      mzDamageValue({
+        base: 176, elementRate: 2, dmgRate: 0.75, critical: false,
+        variance: 0, guarding: false, randomInt: seq([0, 0]),
+      }),
+    ).toBe(264);
+  });
+
+  it("vector B3 — grd 2 deepens the guard divisor: ÷(2·2) → 44", () => {
+    expect(
+      mzDamageValue({
+        base: 176, elementRate: 1, critical: false, variance: 0,
+        guarding: true, grd: 2, randomInt: seq([0, 0]),
+      }),
+    ).toBe(44);
+  });
+
+  it("vector B4 — rec on a heal rides the same dmgRate slot → 150", () => {
+    // heal base 100 × rec 1.5 = 150 (heals pass rec as dmgRate, MZ order).
+    expect(
+      mzDamageValue({
+        base: 100, elementRate: 1, dmgRate: 1.5, critical: false,
+        variance: 0, guarding: false, randomInt: seq([0, 0]),
+      }),
+    ).toBe(150);
+  });
+
+  it("absent dmgRate/grd keep the M3·A behavior byte-identical", () => {
+    const args = { base: 176, elementRate: 1, critical: false, variance: 20, guarding: true } as const;
+    expect(mzDamageValue({ ...args, randomInt: seq([10, 20]) })).toBe(
+      mzDamageValue({ ...args, dmgRate: 1, grd: 1, randomInt: seq([10, 20]) }),
+    );
+  });
+});

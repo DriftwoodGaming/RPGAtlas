@@ -1,8 +1,11 @@
 /* RPGAtlas — src/editor/importers/mz/convert-battlers.ts
-   Project Compass M1·A: the battler DB — Classes (curve fit + traits +
+   Project Compass M1·A / M3·B: the battler DB — Classes (curve fit + traits +
    learnings), Actors (equip reduction + actor-trait merge onto class, D6),
-   Enemies (stats + actions + condition kinds), States (restrict / turns /
-   `hpTurn` from the hrg trait). Matrix §2/§5/§8. Copyright (C) 2026 RPGAtlas
+   Enemies (stats + actions + condition kinds + their own trait carrier, M3·B),
+   States (restrict / turns / `hpTurn` from the hrg trait, plus M3·B removal
+   timing and live state traits). Weapon/armor trait rows merge onto the class
+   of each initially-equipping actor (D6 (a), flipped from M1's report-only
+   stance in M3·B). Matrix §2/§5/§8. Copyright (C) 2026 RPGAtlas
    contributors — GPL-3.0-or-later (see LICENSE). */
 
 import type {
@@ -18,11 +21,13 @@ import type {
 import type { ImportReport } from "./report";
 import type {
   RmActor,
+  RmArmor,
   RmClass,
   RmEnemy,
   RmEnemyAction,
   RmList,
   RmState,
+  RmWeapon,
 } from "./raw-types";
 import { paramsFromArray } from "./convert-system";
 import { slugKey, PARAM_KEYS } from "./slug";
@@ -45,7 +50,12 @@ function fitCurve(row: number[] | undefined): { base: number; growth: number } {
 // Classes
 // ---------------------------------------------------------------------------
 
-export function convertClasses(list: RmList<RmClass>, report: ImportReport, elementKeyByIndex: string[]): ClassDef[] {
+export function convertClasses(
+  list: RmList<RmClass>,
+  report: ImportReport,
+  elementKeyByIndex: string[],
+  skillTypeKeyByIndex: string[],
+): ClassDef[] {
   const out: ClassDef[] = [];
   for (const c of (list || []).filter(notNull)) {
     const base: Params = {};
@@ -61,6 +71,7 @@ export function convertClasses(list: RmList<RmClass>, report: ImportReport, elem
 
     const ctx: TraitConvertCtx = {
       elementKeyByIndex,
+      skillTypeKeyByIndex,
       report,
       area: "Classes",
       owner: "the " + c.name + " class",
@@ -95,6 +106,7 @@ export function convertActors(
   classes: ClassDef[],
   report: ImportReport,
   elementKeyByIndex: string[],
+  skillTypeKeyByIndex: string[],
 ): Actor[] {
   const byClassId = new Map(classes.map((c) => [c.id, c]));
   const out: Actor[] = [];
@@ -134,6 +146,7 @@ export function convertActors(
       if (cls) {
         const ctx: TraitConvertCtx = {
           elementKeyByIndex,
+          skillTypeKeyByIndex,
           report,
           area: "Actors",
           owner: a.name,
@@ -181,6 +194,73 @@ export function convertActors(
 }
 
 // ---------------------------------------------------------------------------
+// Weapon/armor trait merge (D6 (a), flipped in M3·B)
+// ---------------------------------------------------------------------------
+
+/** Merge weapon/armor trait rows onto the class of each actor who starts with
+ *  that equip (Atlas has no per-equip trait carrier — D6). One report line per
+ *  merged source (required by D6); a trait-bearing equip nobody starts with is
+ *  reported honestly instead. Deduped per (class, item) so two same-class
+ *  actors sharing a sword don't double its bonuses. */
+export function mergeEquipTraits(
+  actors: Actor[],
+  classes: ClassDef[],
+  weapons: RmList<RmWeapon>,
+  armors: RmList<RmArmor>,
+  report: ImportReport,
+  elementKeyByIndex: string[],
+  skillTypeKeyByIndex: string[],
+): void {
+  const byClassId = new Map(classes.map((c) => [c.id, c]));
+  const rawWeapons = new Map((weapons || []).filter(notNull).map((w) => [w.id, w]));
+  const rawArmors = new Map((armors || []).filter(notNull).map((a) => [a.id, a]));
+  const merged = new Set<string>();
+  const worn = new Set<string>();
+
+  const mergeOne = (kind: "weapon" | "armor", id: number | undefined, cls: ClassDef | undefined): void => {
+    const src = kind === "weapon" ? rawWeapons.get(id || 0) : rawArmors.get(id || 0);
+    if (!src || !src.traits || !src.traits.length) return;
+    worn.add(kind + ":" + src.id);
+    if (!cls || merged.has(cls.id + "/" + kind + ":" + src.id)) return;
+    merged.add(cls.id + "/" + kind + ":" + src.id);
+    const rows = convertTraits(src.traits, {
+      elementKeyByIndex,
+      skillTypeKeyByIndex,
+      report,
+      area: "Equipment",
+      owner: src.name,
+    });
+    if (!rows.length) return;
+    cls.traits.push(...rows);
+    report.add({
+      area: "Equipment",
+      kind: "partial",
+      what: src.name + "'s special effects",
+      detail: "moved onto the " + cls.name + " class (Atlas keeps bonuses on classes, so they apply even when re-equipped)",
+    });
+  };
+
+  for (const a of actors) {
+    const cls = byClassId.get(a.classId);
+    mergeOne("weapon", a.weaponId, cls);
+    mergeOne("armor", a.armorId, cls);
+  }
+  // Trait-bearing equips nobody starts with: their rows have nowhere to live.
+  for (const [kind, map] of [["weapon", rawWeapons], ["armor", rawArmors]] as const) {
+    for (const src of map.values()) {
+      if (src.traits && src.traits.length && !worn.has(kind + ":" + src.id)) {
+        report.add({
+          area: "Equipment",
+          kind: "partial",
+          what: src.name + "'s special effects",
+          detail: "no hero starts with it, so its bonuses couldn't move onto a class (base stats still work)",
+        });
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Enemies
 // ---------------------------------------------------------------------------
 
@@ -215,7 +295,12 @@ function enemyCond(a: RmEnemyAction, report: ImportReport): EnemyActionCond | un
   }
 }
 
-export function convertEnemies(list: RmList<RmEnemy>, report: ImportReport): Enemy[] {
+export function convertEnemies(
+  list: RmList<RmEnemy>,
+  report: ImportReport,
+  elementKeyByIndex: string[],
+  skillTypeKeyByIndex: string[],
+): Enemy[] {
   const out: Enemy[] = [];
   for (const e of (list || []).filter(notNull)) {
     const enemy: Enemy = {
@@ -253,13 +338,17 @@ export function convertEnemies(list: RmList<RmEnemy>, report: ImportReport): Ene
         detail: "loot from defeated enemies arrives in a later update",
       }));
     }
+    // M3·B: enemies carry their own traits (D6 — the enemy IS its effective
+    // battler). Element/state rates, counters, and combat specials all ride.
     if (e.traits && e.traits.length) {
-      report.bump("enemy-traits", () => ({
+      const rows = convertTraits(e.traits, {
+        elementKeyByIndex,
+        skillTypeKeyByIndex,
+        report,
         area: "Enemies",
-        kind: "todo",
-        what: "enemy resistances & bonuses",
-        detail: "enemy element/state resistances need a later update (Atlas enemies don't store them yet)",
-      }));
+        owner: e.name,
+      });
+      if (rows.length) enemy.traits = rows;
     }
     out.push(enemy);
   }
@@ -270,7 +359,12 @@ export function convertEnemies(list: RmList<RmEnemy>, report: ImportReport): Ene
 // States
 // ---------------------------------------------------------------------------
 
-export function convertStates(list: RmList<RmState>, report: ImportReport): StateDef[] {
+export function convertStates(
+  list: RmList<RmState>,
+  report: ImportReport,
+  elementKeyByIndex: string[],
+  skillTypeKeyByIndex: string[],
+): StateDef[] {
   const out: StateDef[] = [];
   for (const s of (list || []).filter(notNull)) {
     const st: StateDef = { id: s.id, name: s.name };
@@ -278,11 +372,33 @@ export function convertStates(list: RmList<RmState>, report: ImportReport): Stat
     st.restrict = s.restriction ? "act" : "none";
     if (s.minTurns != null) st.minTurns = s.minTurns;
     if (s.maxTurns != null) st.maxTurns = s.maxTurns;
-    if (s.autoRemovalTiming === 2) st.removeAtEnd = true;
+    // M3·B: the MZ removeAtBattleEnd field joins auto-removal timing 2 on the
+    // Atlas "removed after battle" flag.
+    if (s.autoRemovalTiming === 2 || s.removeAtBattleEnd) st.removeAtEnd = true;
 
-    // Slip-damage / regen comes from the hrg ex-param trait (code 22, dataId 7).
+    // Slip-damage / regen comes from the hrg ex-param trait (code 22, dataId 7)
+    // — kept on the dedicated hpTurn field, NOT duplicated as an hpRegen trait.
     const hrg = (s.traits || []).find((t) => t.code === 22 && t.dataId === 7);
     if (hrg) st.hpTurn = Math.round((Number(hrg.value) || 0) * 100);
+
+    // M3·B: removal timing set (walk-off / damage / restriction).
+    if (s.removeByWalking && s.stepsToRemove) st.stepsToRemove = s.stepsToRemove;
+    if (s.removeByDamage) st.removeByDamage = Math.max(0, Math.min(100, Number(s.chanceByDamage) || 100));
+    if (s.removeByRestriction) st.removeByRestriction = true;
+
+    // M3·B: the remaining state traits ride the state itself and join the
+    // battler's effective traits while afflicted (Silence/Blind-style).
+    const rest = (s.traits || []).filter((t) => !(t.code === 22 && t.dataId === 7));
+    if (rest.length) {
+      const rows = convertTraits(rest, {
+        elementKeyByIndex,
+        skillTypeKeyByIndex,
+        report,
+        area: "States",
+        owner: s.name,
+      });
+      if (rows.length) st.traits = rows;
+    }
 
     if (s.restriction && s.restriction >= 1 && s.restriction <= 3) {
       report.bump("state-restrict", () => ({
@@ -290,23 +406,6 @@ export function convertStates(list: RmList<RmState>, report: ImportReport): Stat
         kind: "partial",
         what: "state attack restrictions",
         detail: "'attack an ally/enemy' restrictions become a plain 'can't act' in Atlas",
-      }));
-    }
-    if (s.removeByDamage || s.removeByWalking || s.removeByRestriction || s.removeAtBattleEnd) {
-      report.bump("state-timing", () => ({
-        area: "States",
-        kind: "todo",
-        what: "extra state removal rules",
-        detail: "removing a state by damage / walking / battle-end arrives in a later update",
-      }));
-    }
-    // Non-hrg state traits have no Atlas carrier yet.
-    if ((s.traits || []).some((t) => !(t.code === 22 && t.dataId === 7))) {
-      report.bump("state-traits", () => ({
-        area: "States",
-        kind: "todo",
-        what: "state bonuses",
-        detail: "extra effects attached to states need a later update",
       }));
     }
     out.push(st);

@@ -136,13 +136,38 @@ export function registerActorCommands(): void {
   });
 
   // ---- 313 Change State (out of battle) ----
-  registerCommand("changeState", (c: any, { state }: InterpContext) => {
+  // M3·B fix: entries are the battle's {id, turns} objects (the M2·C version
+  // pushed bare numbers, which the battle scene filtered out as unknown —
+  // map-applied Poison never poisoned). Turns come from the state's maxTurns
+  // (deterministic — no RNG draw outside battle).
+  registerCommand("changeState", (c: any, { state, services }: InterpContext) => {
     const id = Number(c.stateId) || 0;
     if (!id) return;
+    const def = ((services.getProj().states || []) as any[]).find((s: any) => s && s.id === id);
     forEachActor(state, c.actorId, (a: any) => {
       const states = a.states || (a.states = []);
-      if (c.op === "remove") { const i = states.indexOf(id); if (i >= 0) states.splice(i, 1); }
-      else if (!states.includes(id)) states.push(id);
+      const idx = states.findIndex((st: any) => (st && st.id != null ? st.id : st) === id);
+      if (c.op === "remove") {
+        if (idx >= 0) states.splice(idx, 1);
+      } else if (idx < 0) {
+        states.push({ id, turns: Math.max(1, (def && def.maxTurns) || 3) });
+      }
     });
+  });
+
+  // ---- 326 Change TP (Project Compass M3·B) ----
+  registerCommand("changeTp", (c: any, { state }: InterpContext) => {
+    const delta = (c.op === "sub" ? -1 : 1) * (Number(c.value) || 0);
+    forEachActor(state, c.actorId, (a: any) => {
+      a.tp = Math.max(0, Math.min(100, (Number(a.tp) || 0) + delta));
+    });
+  });
+
+  // ---- 342 Change Enemy TP (M3·B) — through the battle bridge; a no-op
+  // outside battle (there is no troop to change). ----
+  registerCommand("changeEnemyTp", (c: any, { services }: InterpContext) => {
+    if (!services.battleAddEnemyTp) return;
+    const delta = (c.op === "sub" ? -1 : 1) * (Number(c.value) || 0);
+    services.battleAddEnemyTp(Number(c.enemyIndex) || 0, delta);
   });
 }

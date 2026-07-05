@@ -109,10 +109,11 @@ describe("Classes (§2/§5)", () => {
   });
   it("converts the representable trait codes and drops luk", () => {
     const c = byId(mv.db.classes, 1);
-    // 11 element (ice), 21 param (atk ×1.1 → 110), 43 skill, 51 equip-type.
+    // 11 element (ice), 21 param (atk ×1.1 → 110), 43 skill (M3·B `add:`
+    // prefix — the grant is real now), 51 equip-type.
     expect(c.traits).toContainEqual({ type: "element", key: "ice", value: 50 });
     expect(c.traits).toContainEqual({ type: "param", key: "atk", value: 110 });
-    expect(c.traits).toContainEqual({ type: "skill", key: "3", value: 100 });
+    expect(c.traits).toContainEqual({ type: "skill", key: "add:3", value: 100 });
     expect(c.traits).toContainEqual({ type: "equip", key: "weaponType", value: 2 });
     // 21 dataId 7 (luk) never becomes a param trait.
     expect(c.traits.some((t) => t.type === "param" && t.value === 120)).toBe(false);
@@ -123,8 +124,17 @@ describe("Classes (§2/§5)", () => {
     // real in M3·A so the imported fixture battle plays like a real import).
     const c = byId(mv.db.classes, 1);
     expect(c.traits).toContainEqual({ type: "special", key: "hitChance", value: 95 });
-    // The code-62 special flag on the same class still reports for M3·B.
-    expect(mv.report.lines.some((l) => /advanced battler bonuses/i.test(l.what))).toBe(true);
+  });
+  it("converts the M3·B trait codes — special flags, add-skill-type, state rate 0", () => {
+    // Wanderer's code-62 dataId-1 flag (Guard) is a real trait now…
+    expect(byId(mv.db.classes, 1).traits).toContainEqual({ type: "special", key: "guardFlag", value: 100 });
+    // …and the old "advanced battler bonuses" todo line is gone (only party
+    // abilities, an M3·C feature, would still land there).
+    expect(mv.report.lines.some((l) => /advanced battler bonuses/i.test(l.what))).toBe(false);
+    // Scout: code 13 (state rate 0 = immune-by-rate) + code 41 (Add Skill Type).
+    const scout = byId(mv.db.classes, 2);
+    expect(scout.traits).toContainEqual({ type: "state", key: "1", value: 0 });
+    expect(scout.traits).toContainEqual({ type: "skill", key: "addType:special", value: 100 });
   });
   it("keeps learnings (note dropped)", () => {
     expect(byId(mv.db.classes, 1).learnings).toEqual([
@@ -188,6 +198,30 @@ describe("Skills (§2/§6/§7)", () => {
     expect(heal.variance).toBeUndefined();
     expect(heal.critical).toBeUndefined();
   });
+  it("converts the M3·B skill fields — TP, attack element/states, stype, buffs", () => {
+    // Attack: elementId −1 → attackElement; effect 21 dataId 0 → attackStates
+    // (MZ's real default Attack skill shape).
+    const attack = byId(mv.db.skills, 1);
+    expect(attack.attackElement).toBe(true);
+    expect(attack.attackStates).toBe(true);
+    // Guard: tpCost stored (M1 dropped it).
+    expect(byId(mv.db.skills, 4).tpCost).toBe(25);
+    // Heal keeps its MZ skill type for seal gating (`stype`), the visible
+    // type stays Atlas's "heal".
+    const heal = byId(mv.db.skills, 3);
+    expect(heal.type).toBe("heal");
+    expect(heal.stype).toBe("magic");
+    // Firebolt: Add Debuff DEF 4 rounds (effect 32).
+    expect(byId(mv.db.skills, 2).buffs).toEqual([{ stat: "def", op: "debuff", turns: 4 }]);
+    // War Chant: ATK buff 5 rounds + remove DEF debuff + Gain TP (31/34/13).
+    const chant = byId(mv.db.skills, 5);
+    expect(chant.buffs).toEqual([
+      { stat: "atk", op: "buff", turns: 5 },
+      { stat: "def", op: "removeDebuff" },
+    ]);
+    expect(chant.gainTp).toBe(10);
+    expect(chant.scope).toBe("allies");
+  });
   it("every fixture formula compiles — no reject report lines (M3·A)", () => {
     for (const r of [mv, mz]) {
       expect(r.report.lines.filter((l) => /can't run/i.test(l.what))).toHaveLength(0);
@@ -206,10 +240,27 @@ describe("Items / Weapons / Armors (§2)", () => {
     expect(mv.report.lines.some((l) => /key item/i.test(l.what))).toBe(true);
     expect(mv.report.lines.some((l) => /reusable/i.test(l.what))).toBe(true);
   });
-  it("converts weapon/armor params dropping luk; trait rows are reported", () => {
+  it("converts item state effects + grow/learn (M3·B — the Antidote cures)", () => {
+    const antidote = byId(mv.db.items, 2);
+    expect(antidote.stateId).toBe(1);
+    expect(antidote.stateOp).toBe("remove");
+    const tonic = byId(mv.db.items, 4);
+    expect(tonic.grow).toEqual([{ stat: "mat", amount: 3 }]);
+    expect(tonic.learn).toEqual([2]);
+  });
+  it("converts weapon/armor params dropping luk", () => {
     expect(byId(mv.db.weapons, 1).params).toEqual({ atk: 12, agi: 2 }); // luk 3 dropped
     expect(byId(mv.db.armors, 1).params).toEqual({ def: 8, mdf: 2 });
-    expect(mv.report.lines.some((l) => l.area === "Equipment")).toBe(true);
+  });
+  it("merges equip trait rows onto the wearers' classes (M3·B, D6)", () => {
+    const wanderer = byId(mv.db.classes, 1);
+    // Cutlass (Mara's starting weapon): code 31 → attack element Fire.
+    expect(wanderer.traits).toContainEqual({ type: "element", key: "attack:fire", value: 100 });
+    // Leather Vest (her starting armor): code 21 def ×1.05 → 105.
+    expect(wanderer.traits).toContainEqual({ type: "param", key: "def", value: 105 });
+    expect(mv.report.lines.some((l) => l.area === "Equipment" && /moved onto/i.test(l.detail))).toBe(true);
+    // Sailor's Charm: trait-bearing but nobody starts with it → honest line.
+    expect(mv.report.lines.some((l) => /Sailor's Charm/i.test(l.what))).toBe(true);
   });
 });
 
@@ -224,9 +275,14 @@ describe("Enemies (§2/§8)", () => {
       { skillId: 2, weight: 4, cond: { kind: "turn", a: 2, b: 3 } },
     ]);
   });
-  it("reports drops, enemy traits, and unsupported action conditions", () => {
+  it("converts enemy traits for real (M3·B — enemies carry their own)", () => {
+    const slime = byId(mv.db.enemies, 1);
+    expect(slime.traits).toContainEqual({ type: "element", key: "ice", value: 200 });
+    expect(slime.traits).toContainEqual({ type: "special", key: "counterAttack", value: 10 });
+    expect(mv.report.lines.some((l) => /enemy resistances/i.test(l.what))).toBe(false);
+  });
+  it("reports drops and unsupported action conditions", () => {
     expect(mv.report.lines.some((l) => /item drops/i.test(l.what))).toBe(true);
-    expect(mv.report.lines.some((l) => /enemy resistances/i.test(l.what))).toBe(true);
     // Crab uses a party-level condition (type 5) → deferred to M3·C.
     expect(mv.report.lines.some((l) => /advanced enemy action/i.test(l.what))).toBe(true);
   });
@@ -239,8 +295,20 @@ describe("States (§2)", () => {
     expect(poison.minTurns).toBe(3);
     expect(poison.maxTurns).toBe(5);
     expect(poison.hpTurn).toBe(-10); // trait code 22 dataId 7 (hrg) −0.1 → −10
+    // The hrg trait rides hpTurn only — never duplicated as a state trait.
+    expect(poison.traits).toBeUndefined();
     const sleep = byId(mv.db.states, 2);
     expect(sleep.restrict).toBe("act"); // restriction 4
+  });
+  it("maps the M3·B removal-timing set (walking / damage / battle end)", () => {
+    const poison = byId(mv.db.states, 1);
+    expect(poison.stepsToRemove).toBe(100);
+    expect(poison.removeByDamage).toBe(100);
+    expect(poison.removeAtEnd).toBeUndefined(); // removeAtBattleEnd false
+    const sleep = byId(mv.db.states, 2);
+    expect(sleep.removeAtEnd).toBe(true); // the MZ removeAtBattleEnd field
+    expect(sleep.removeByDamage).toBe(100);
+    expect(sleep.stepsToRemove).toBeUndefined(); // removeByWalking false
   });
 });
 
@@ -283,5 +351,9 @@ describe("MV vs MZ parity", () => {
     // …but only MZ carries the advanced-block sizing.
     expect(mz.db.system.fontSize).toBe(26);
     expect(mv.db.system.fontSize).toBeUndefined();
+  });
+  it("imports the TP gauge flag (M3·B — the MZ fixture shows TP, MV doesn't)", () => {
+    expect(mz.db.system.displayTp).toBe(true);
+    expect(mv.db.system.displayTp).toBeUndefined();
   });
 });

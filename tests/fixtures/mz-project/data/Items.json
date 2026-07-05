@@ -91,5 +91,44 @@
     },
     "effects": [],
     "note": ""
+  },
+  {
+    "id": 4,
+    "name": "Sage Tonic",
+    "iconIndex": 176,
+    "description": "A bitter draught that sharpens the mind for good.",
+    "itypeId": 1,
+    "price": 120,
+    "consumable": true,
+    "scope": 7,
+    "occasion": 2,
+    "speed": 0,
+    "successRate": 100,
+    "repeats": 1,
+    "tpGain": 0,
+    "hitType": 0,
+    "animationId": 0,
+    "damage": {
+      "type": 0,
+      "elementId": 0,
+      "formula": "0",
+      "variance": 0,
+      "critical": false
+    },
+    "effects": [
+      {
+        "code": 42,
+        "dataId": 4,
+        "value1": 3,
+        "value2": 0
+      },
+      {
+        "code": 43,
+        "dataId": 2,
+        "value1": 0,
+        "value2": 0
+      }
+    ],
+    "note": ""
   }
 ]

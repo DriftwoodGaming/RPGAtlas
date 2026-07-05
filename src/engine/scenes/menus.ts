@@ -14,16 +14,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, RA, RPGAtlasJournalView } from "../../shared/deps.js";
-import { el, esc, clamp, rnd, sysSe } from "../util.js";
+import { el, esc, clamp, rnd, rndf, sysSe } from "../util.js";
 import { getFormula, mzApplyVariance } from "../../shared/formula.js";
+import { applyBuffOp } from "./battle-logic.js";
 import { showList, pushUI, removeUI } from "../ui-stack.js";
 import { ctx, fns } from "../state/engine-context.js";
 import {
   G,
   actorClass,
+  actorEffCarrier,
   actorFormulaFacade,
   param,
   learnedSkills,
+  skillBlocked,
   skillMpCost,
   skillPowerRate,
   canActorEquip,
@@ -528,10 +531,21 @@ async function menuItems(): Promise<void> {
     useItemOn(it, target);
   }
 }
+/** What an item did to its target (the battle scene narrates from this). */
+export interface ItemUseResult {
+  hp: number;
+  mp: number;
+  stateAdded?: string;
+  stateRemoved?: string;
+}
+
 /** Apply an item to a target. Returns false (with a buzzer) when the item
  *  can't act on that target — a revive item on a living ally, or an ordinary
- *  restorative on a fallen one — so callers can skip the "used it" flourish. */
-export function useItemOn(it: any, target: any): false | { hp: number; mp: number } {
+ *  restorative on a fallen one — so callers can skip the "used it" flourish.
+ *  M3·B: items can also add/remove states, buff/debuff stats, grow stats
+ *  permanently, teach skills, and grant TP — all optional fields, so classic
+ *  items behave byte-identically (and roll nothing extra). */
+export function useItemOn(it: any, target: any): false | ItemUseResult {
   const fallen = target.hp <= 0;
   // M3·A: %-of-max recovery (hpPct/mpPct) and an imported recovery formula
   // join the flat amounts. The formula evaluates with a = b = target (item
@@ -552,6 +566,16 @@ export function useItemOn(it: any, target: any): false | { hp: number; mp: numbe
     });
     hp += Math.max(0, Math.round(mzApplyVariance(base, Number(it.variance) || 0, rnd)));
   }
+  // M3·B: the target's recovery (rec) and item-effect (pha) rates scale item
+  // healing — both 1 without the traits (imported/authored battlers only).
+  const carrier = actorEffCarrier(target);
+  const recRate =
+    RA.traitRate(carrier, "special", "recovery", 1) *
+    RA.traitRate(carrier, "special", "itemEffect", 1);
+  if (recRate !== 1) {
+    hp = Math.max(0, Math.floor(hp * recRate));
+    mp = Math.max(0, Math.floor(mp * recRate));
+  }
   if (it.revive) {
     if (!fallen) {
       sysSe("buzzer");
@@ -569,9 +593,54 @@ export function useItemOn(it: any, target: any): false | { hp: number; mp: numbe
     if (hp) target.hp = clamp(target.hp + hp, 0, param(target, "mhp"));
     if (mp) target.mp = clamp(target.mp + mp, 0, param(target, "mmp"));
   }
+  const out: ItemUseResult = { hp, mp };
+  // ---- M3·B extras (every block is field-gated — classic items skip all) ----
+  // State add/remove (MZ item effects 21/22). States live as {id, turns}
+  // entries; outside battle the turn count only matters once a battle starts.
+  if (it.stateId) {
+    const d = RA.byId(ctx.proj.states || [], Number(it.stateId));
+    const states = target.states || (target.states = []);
+    const idx = states.findIndex(
+      (st: any) => (st && st.id != null ? st.id : st) === Number(it.stateId),
+    );
+    if (it.stateOp === "remove") {
+      if (idx >= 0) {
+        states.splice(idx, 1);
+        out.stateRemoved = d ? d.name : "the ailment";
+      }
+    } else if (d && target.hp > 0) {
+      const chance =
+        (it.stateChance == null ? 100 : it.stateChance) *
+        RA.traitRate(carrier, "state", String(it.stateId), 1);
+      const resist = RA.traitsOf(carrier, "state", "resist:" + it.stateId).length > 0;
+      if (!resist && idx < 0 && rnd(100) < chance) {
+        states.push({ id: Number(it.stateId), turns: Math.max(1, d.maxTurns || 3) });
+        out.stateAdded = d.name;
+      }
+    }
+  }
+  // Buffs/debuffs (battle-scoped; a map-side buff simply opens the next battle).
+  for (const be of it.buffs || []) {
+    if (be.op === "debuff" && RA.traitsOf(carrier, "param", "debuff:" + be.stat).length) {
+      if (rndf() >= RA.traitRate(carrier, "param", "debuff:" + be.stat, 1)) continue;
+    }
+    applyBuffOp(target.buffs || (target.buffs = {}), be.stat, be.op, Number(be.turns) || 1);
+  }
+  // Permanent growth + learned skills (the M2·C carriers).
+  for (const g of it.grow || []) {
+    const plus = target.paramPlus || (target.paramPlus = {});
+    plus[g.stat] = (plus[g.stat] || 0) + (Number(g.amount) || 0);
+  }
+  for (const id of it.learn || []) {
+    const skills = target.skills || (target.skills = []);
+    const forgot = target.forgot;
+    if (forgot) { const fi = forgot.indexOf(Number(id)); if (fi >= 0) forgot.splice(fi, 1); }
+    if (Number(id) && !skills.includes(Number(id))) skills.push(Number(id));
+  }
+  if (it.gainTp) target.tp = clamp((Number(target.tp) || 0) + Number(it.gainTp), 0, 100);
   sysSe("heal");
   addInv("item", it.id, -1);
-  return { hp, mp };
+  return out;
 }
 
 async function menuSkills(): Promise<void> {
@@ -590,8 +659,15 @@ async function menuSkills(): Promise<void> {
           ' <span class="cnt">' +
           skillMpCost(a, s) +
           " MP</span>",
-        disabled: s.type !== "heal" || a.mp < skillMpCost(a, s),
-        help: s.type === "heal" ? "Restores HP." : "Usable in battle only.",
+        // M3·B: sealed skills (seal/seal-type/ungranted-type traits) are
+        // disabled here too — natively skillBlocked is always false.
+        disabled: s.type !== "heal" || a.mp < skillMpCost(a, s) || skillBlocked(a, s),
+        help:
+          s.type !== "heal"
+            ? "Usable in battle only."
+            : skillBlocked(a, s)
+              ? "This skill is sealed right now."
+              : "Restores HP.",
       })),
       { title: a.name + "'s Skills", className: "itemwin" },
     );
@@ -649,6 +725,19 @@ async function menuEquip(): Promise<void> {
     );
     if (slot < 0) return;
     const kind = slot === 0 ? "weapon" : "armor";
+    // Lock/Seal Equip (M3·B traits 53/54): the slot can't be changed. Native
+    // classes carry neither key, so the gate never fires for them.
+    {
+      const carrier = actorEffCarrier(a);
+      if (
+        RA.traitsOf(carrier, "equip", "lock:" + kind).length ||
+        RA.traitsOf(carrier, "equip", "seal:" + kind).length
+      ) {
+        sysSe("buzzer");
+        await ctx.showMessage("", a.name + "'s " + kind + " can't be changed right now.");
+        continue;
+      }
+    }
     const db = dbFor(kind);
     const candidates = db.filter((e: any) => invCount(kind, e.id) > 0);
     const opts: any[] = candidates.map((e: any) => ({

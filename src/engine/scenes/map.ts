@@ -316,6 +316,20 @@ export function update(): void {
 
 function onPlayerStep(): void {
   G.steps++;
+  // Walk-off states (Project Compass M3·B, MZ stepsToRemove): each party step
+  // ticks a counter on states that cure by walking; at zero the state falls
+  // off. States without the field (all Atlas-native ones) are never touched.
+  for (const a of G.party) {
+    if (!a.states || !a.states.length) continue;
+    for (const st of a.states.slice()) {
+      const id = st && st.id != null ? st.id : st;
+      const d = RA.byId(ctx.proj.states || [], id);
+      if (!d || !d.stepsToRemove) continue;
+      if (typeof st === "number") continue; // legacy entry; battle normalizes
+      st.steps = (st.steps == null ? d.stepsToRemove : st.steps) - 1;
+      if (st.steps <= 0) a.states.splice(a.states.indexOf(st), 1);
+    }
+  }
   const p = G.player;
   // touch events on the tile we stepped onto (not from a vehicle's deck)
   if (!ctx.blockingRun && !G.vehicle) {

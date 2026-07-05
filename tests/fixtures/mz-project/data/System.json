@@ -46,7 +46,10 @@
     "Steps Taken",
     "Puzzle State"
   ],
-  "partyMembers": [1,2],
+  "partyMembers": [
+    1,
+    2
+  ],
   "boat": {
     "characterName": "Vehicle",
     "characterIndex": 0,
@@ -326,14 +329,19 @@
   "optTransparent": false,
   "optFollowers": true,
   "optSideView": true,
-  "optDisplayTp": false,
+  "optDisplayTp": true,
   "optDrawTitle": true,
   "optExtraExp": false,
   "optFloorDeath": false,
   "optSlipDeath": false,
   "battleback1Name": "",
   "battleback2Name": "",
-  "windowTone": [16,-16,48,0],
+  "windowTone": [
+    16,
+    -16,
+    48,
+    0
+  ],
   "battleSystem": 0,
   "hasEncryptedImages": true,
   "hasEncryptedAudio": false,
@@ -342,7 +350,13 @@
     {
       "actorId": 1,
       "level": 3,
-      "equips": [1,1,0,2,3]
+      "equips": [
+        1,
+        1,
+        0,
+        2,
+        3
+      ]
     }
   ],
   "testTroopId": 1,

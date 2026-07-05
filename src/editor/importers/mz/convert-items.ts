@@ -1,24 +1,30 @@
 /* RPGAtlas — src/editor/importers/mz/convert-items.ts
-   Project Compass M1·A: Skills (type / element / scope / mp / effects +
-   `formula` verbatim), Items (hp/mp/revive/desc + formula), Weapons/Armors
-   (params, `luk` dropped; trait rows reported). Matrix §2/§6/§7, decision
-   A5 (formula field) / A3 (equip traits reported). M3·A: formulas are
-   parse-validated at import (reject → kept verbatim + honest report +
-   structured fallback, per D1), and the MZ companions convert — variance /
-   critical / dmgType (MP damage + drains) / powerPct / hpPct / mpPct.
+   Project Compass M1·A / M3·A / M3·B: Skills (type / element / scope / mp /
+   effects + `formula` verbatim), Items (hp/mp/revive/desc + formula),
+   Weapons/Armors (params, `luk` dropped; trait rows merge onto classes via
+   convert-battlers.mergeEquipTraits since M3·B). Matrix §2/§6/§7. M3·A:
+   formulas parse-validated at import (reject → kept verbatim + honest report +
+   structured fallback, per D1) with the MZ companions (variance / critical /
+   dmgType / powerPct / hpPct / mpPct). M3·B: tpCost/gainTp, `stype` (heal
+   skills keep their type for seal gating), attackElement (elementId −1),
+   attackStates (effect 21 dataId 0), buffs/debuffs (31–34), grow (42),
+   learn (43), and item state add/remove (21/22 — cures at last).
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
 
 import type {
   Armor,
+  BuffEffect,
+  GrowEffect,
   Item,
   Skill,
   SkillScope,
   Weapon,
 } from "../../../shared/schema";
 import type { ImportReport } from "./report";
-import type { RmArmor, RmDamage, RmItem, RmList, RmSkill, RmWeapon } from "./raw-types";
+import type { RmArmor, RmDamage, RmEffect, RmItem, RmList, RmSkill, RmWeapon } from "./raw-types";
 import { paramsFromArray } from "./convert-system";
 import { bumpLuk } from "./traits";
+import { paramKey } from "./slug";
 import { parseFormula } from "../../../shared/formula";
 
 const notNull = <T>(x: T | null): x is T => x != null;
@@ -101,14 +107,25 @@ export function convertSkills(
     const skill: Skill = { id: s.id, name: s.name, type };
     if (s.iconIndex) skill.icon = s.iconIndex;
     if (s.mpCost) skill.mp = s.mpCost;
+    if (s.tpCost) skill.tpCost = s.tpCost; // M3·B — honored while TP is active.
     if (s.repeats && s.repeats !== 1) skill.hits = s.repeats;
     if (s.animationId && s.animationId > 0) skill.animationId = s.animationId;
+    // M3·B: heal skills lose their MZ skill type to Atlas's "heal", so the
+    // original key rides `stype` — add/seal-type traits must still gate them
+    // (a sealed "Magic" silences magic heals too).
+    if (heal) {
+      const stype = skillTypeKeyByIndex[s.stypeId || 0];
+      if (stype) skill.stype = stype;
+    }
 
-    // Element: −1 = attacker's attack element (leave unset), 0 = none, n = key.
+    // Element: −1 = attacker's attack-element traits (M3·B `attackElement`),
+    // 0 = none, n = key.
     const elId = s.damage ? s.damage.elementId : 0;
     if (elId && elId > 0) {
       const key = elementKeyByIndex[elId];
       if (key) skill.element = key;
+    } else if (elId === -1 && s.damage && [1, 2, 5, 6].includes(s.damage.type)) {
+      skill.attackElement = true;
     }
 
     const { scope, revive } = mapScope(s.scope, report);
@@ -144,9 +161,35 @@ export function convertSkills(
   return out;
 }
 
+/** MZ Add/Remove Buff effect (31–34) → one Atlas `BuffEffect` row, or null
+ *  for a `luk` row (dropped + counted, D7). */
+function buffEffectOf(e: RmEffect, report: ImportReport): BuffEffect | null {
+  const stat = paramKey(e.dataId);
+  if (!stat) {
+    bumpLuk(report);
+    return null;
+  }
+  const op: BuffEffect["op"] =
+    e.code === 31 ? "buff" : e.code === 32 ? "debuff" : e.code === 33 ? "removeBuff" : "removeDebuff";
+  const row: BuffEffect = { stat, op };
+  if (e.code === 31 || e.code === 32) row.turns = Math.max(1, Number(e.value1) || 1);
+  return row;
+}
+
+/** MZ Grow effect (42) → `GrowEffect`, or null for `luk`. */
+function growEffectOf(e: RmEffect, report: ImportReport): GrowEffect | null {
+  const stat = paramKey(e.dataId);
+  if (!stat) {
+    bumpLuk(report);
+    return null;
+  }
+  return { stat, amount: Number(e.value1) || 0 };
+}
+
 /** Map recover/state/common-event effects onto Skill fields (matrix §6).
- *  %-recover converts since M3·A (`powerPct`); buffs, TP, learn, grow → M3·B
- *  (reported). */
+ *  %-recover converts since M3·A (`powerPct`); TP, buffs/debuffs, grow, learn,
+ *  and the "normal attack" state (21 dataId 0) convert since M3·B — only the
+ *  escape effect (41) still waits for M3·C. */
 function applyEffects(
   effects: RmSkill["effects"],
   skill: Skill,
@@ -161,8 +204,14 @@ function applyEffects(
         if (e.value1)
           skill.powerPct = (skill.powerPct || 0) + Math.round((Number(e.value1) || 0) * 100);
         break;
-      case 21: // Add State.
-        if (!stateSet) {
+      case 13: // Gain TP (M3·B).
+        if (e.value1) skill.gainTp = (skill.gainTp || 0) + (Number(e.value1) || 0);
+        break;
+      case 21: // Add State. dataId 0 = "normal attack" → the attacker's
+        // on-attack state traits roll on each landing hit (M3·B).
+        if (e.dataId === 0) {
+          skill.attackStates = true;
+        } else if (!stateSet) {
           skill.stateId = e.dataId;
           skill.stateChance = Math.round((Number(e.value1) || 0) * 100) || 100;
           skill.stateOp = "add";
@@ -176,6 +225,19 @@ function applyEffects(
           stateSet = true;
         }
         break;
+      case 31: case 32: case 33: case 34: { // Buffs/debuffs (M3·B).
+        const row = buffEffectOf(e, report);
+        if (row) (skill.buffs || (skill.buffs = [])).push(row);
+        break;
+      }
+      case 42: { // Grow (M3·B) — permanent stat bonus on the target.
+        const row = growEffectOf(e, report);
+        if (row) (skill.grow || (skill.grow = [])).push(row);
+        break;
+      }
+      case 43: // Learn Skill (M3·B).
+        if (e.dataId) (skill.learn || (skill.learn = [])).push(e.dataId);
+        break;
       case 44: // Common Event.
         skill.commonEventId = e.dataId;
         break;
@@ -187,12 +249,20 @@ function applyEffects(
           detail: "skills that restore MP arrive in a later update",
         }));
         break;
-      default: // 13 TP · 31–34 buffs · 42 grow · 43 learn · 41 escape → M3·A/B.
+      case 41: // Special Effect: escape — battle flow, M3·C.
+        report.bump("skill-escape", () => ({
+          area,
+          kind: "todo",
+          what: "escape-from-battle skills",
+          detail: "skills that let you flee the battle arrive in a later update",
+        }));
+        break;
+      default:
         report.bump("skill-effect", () => ({
           area,
           kind: "todo",
           what: "extra skill effects",
-          detail: "buffs, TP and other effects need a later update",
+          detail: "some skill effects need a later update",
         }));
         break;
     }
@@ -211,28 +281,58 @@ export function convertItems(list: RmList<RmItem>, report: ImportReport): Item[]
     if (it.price) item.price = it.price;
     if (it.description) item.desc = it.description;
 
+    let stateSet = false;
     for (const e of it.effects || []) {
-      if (e.code === 11 || e.code === 12) {
-        // Recover HP/MP — flat part → hp/mp, %-of-max part → hpPct/mpPct (M3·A).
-        const flat: "hp" | "mp" = e.code === 11 ? "hp" : "mp";
-        const pctKey: "hpPct" | "mpPct" = e.code === 11 ? "hpPct" : "mpPct";
-        if (e.value2) item[flat] = (item[flat] || 0) + e.value2;
-        if (e.value1)
-          item[pctKey] = (item[pctKey] || 0) + Math.round((Number(e.value1) || 0) * 100);
-      } else if (e.code === 22) {
-        report.bump("item-cure", () => ({
-          area: "Items",
-          kind: "todo",
-          what: "status-curing items",
-          detail: "items that cure Poison/Sleep etc. arrive in a later update",
-        }));
-      } else if (e.code !== 11 && e.code !== 12) {
-        report.bump("item-effect", () => ({
-          area: "Items",
-          kind: "todo",
-          what: "extra item effects",
-          detail: "some item effects need a later update",
-        }));
+      switch (e.code) {
+        case 11: case 12: {
+          // Recover HP/MP — flat part → hp/mp, %-of-max part → hpPct/mpPct (M3·A).
+          const flat: "hp" | "mp" = e.code === 11 ? "hp" : "mp";
+          const pctKey: "hpPct" | "mpPct" = e.code === 11 ? "hpPct" : "mpPct";
+          if (e.value2) item[flat] = (item[flat] || 0) + e.value2;
+          if (e.value1)
+            item[pctKey] = (item[pctKey] || 0) + Math.round((Number(e.value1) || 0) * 100);
+          break;
+        }
+        case 13: // Gain TP (M3·B).
+          if (e.value1) item.gainTp = (item.gainTp || 0) + (Number(e.value1) || 0);
+          break;
+        case 21: // Add State (M3·B — items can inflict too). dataId 0 needs an
+          // attacker's attack states, which item use has no carrier for.
+          if (e.dataId && !stateSet) {
+            item.stateId = e.dataId;
+            item.stateChance = Math.round((Number(e.value1) || 0) * 100) || 100;
+            item.stateOp = "add";
+            stateSet = true;
+          }
+          break;
+        case 22: // Remove State (M3·B) — the Antidote finally cures.
+          if (!stateSet) {
+            item.stateId = e.dataId;
+            item.stateOp = "remove";
+            stateSet = true;
+          }
+          break;
+        case 31: case 32: case 33: case 34: { // Buffs/debuffs (M3·B).
+          const row = buffEffectOf(e, report);
+          if (row) (item.buffs || (item.buffs = [])).push(row);
+          break;
+        }
+        case 42: { // Grow (M3·B).
+          const row = growEffectOf(e, report);
+          if (row) (item.grow || (item.grow = [])).push(row);
+          break;
+        }
+        case 43: // Learn Skill (M3·B).
+          if (e.dataId) (item.learn || (item.learn = [])).push(e.dataId);
+          break;
+        default:
+          report.bump("item-effect", () => ({
+            area: "Items",
+            kind: "todo",
+            what: "extra item effects",
+            detail: "some item effects need a later update",
+          }));
+          break;
       }
     }
 
@@ -309,7 +409,8 @@ export function convertWeapons(list: RmList<RmWeapon>, report: ImportReport): We
     if (w.animationId && w.animationId > 0) weapon.animationId = w.animationId;
     const params = paramsFromArray(w.params, () => bumpLuk(report));
     if (Object.keys(params).length) weapon.params = params;
-    reportEquipTraits(w.traits, report);
+    // Trait rows merge onto the wearers' classes (M3·B, D6) — see
+    // convert-battlers.mergeEquipTraits.
     out.push(weapon);
   }
   return out;
@@ -325,21 +426,7 @@ export function convertArmors(list: RmList<RmArmor>, report: ImportReport): Armo
     if (a.etypeId) armor.etypeId = a.etypeId;
     const params = paramsFromArray(a.params, () => bumpLuk(report));
     if (Object.keys(params).length) armor.params = params;
-    reportEquipTraits(a.traits, report);
     out.push(armor);
   }
   return out;
-}
-
-/** Weapon/armor trait rows have no Atlas carrier (A3) — the stat block converts,
- *  the trait rows are reported for M3·B. */
-function reportEquipTraits(traits: { code: number }[] | undefined, report: ImportReport): void {
-  if (traits && traits.length) {
-    report.bump("equip-traits", () => ({
-      area: "Equipment",
-      kind: "todo",
-      what: "special equipment effects",
-      detail: "bonuses like 'adds fire to attacks' need a later update (base stats still work)",
-    }));
-  }
 }

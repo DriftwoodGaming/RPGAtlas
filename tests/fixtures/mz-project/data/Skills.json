@@ -16,7 +16,14 @@
       "variance": 20,
       "critical": true
     },
-    "effects": [],
+    "effects": [
+      {
+        "code": 21,
+        "dataId": 0,
+        "value1": 1,
+        "value2": 0
+      }
+    ],
     "animationId": -1,
     "repeats": 1,
     "message1": "",
@@ -46,6 +53,12 @@
         "code": 21,
         "dataId": 1,
         "value1": 0.5,
+        "value2": 0
+      },
+      {
+        "code": 32,
+        "dataId": 3,
+        "value1": 4,
         "value2": 0
       }
     ],
@@ -112,6 +125,50 @@
       "critical": false
     },
     "effects": [],
+    "animationId": 0,
+    "repeats": 1,
+    "message1": "",
+    "message2": "",
+    "requiredWtypeId1": 0,
+    "requiredWtypeId2": 0,
+    "note": ""
+  },
+  {
+    "id": 5,
+    "name": "War Chant",
+    "iconIndex": 80,
+    "stypeId": 2,
+    "mpCost": 4,
+    "tpCost": 0,
+    "scope": 8,
+    "occasion": 1,
+    "damage": {
+      "type": 0,
+      "elementId": 0,
+      "formula": "0",
+      "variance": 0,
+      "critical": false
+    },
+    "effects": [
+      {
+        "code": 31,
+        "dataId": 2,
+        "value1": 5,
+        "value2": 0
+      },
+      {
+        "code": 34,
+        "dataId": 3,
+        "value1": 0,
+        "value2": 0
+      },
+      {
+        "code": 13,
+        "dataId": 0,
+        "value1": 10,
+        "value2": 0
+      }
+    ],
     "animationId": 0,
     "repeats": 1,
     "message1": "",

@@ -159,3 +159,98 @@ describe("ATB / CTB scheduling", () => {
     expect(a[0]).toBe(1); // lower remaining wait acts first
   });
 });
+
+// ============================================================================
+// Project Compass M3·B — buffs/debuffs, TP, action times, target rate.
+// ============================================================================
+
+import {
+  buffRate,
+  applyBuffOp,
+  tickBuffDurations,
+  MAX_TP,
+  tpDamageCharge,
+  extraActionRolls,
+} from "../src/engine/scenes/battle-logic";
+
+describe("buffs/debuffs (M3·B, MZ ±25% per level)", () => {
+  it("buffRate matches MZ paramBuffRate and clamps at ±2", () => {
+    expect(buffRate(0)).toBe(1);
+    expect(buffRate(1)).toBe(1.25);
+    expect(buffRate(2)).toBe(1.5);
+    expect(buffRate(-1)).toBe(0.75);
+    expect(buffRate(-2)).toBe(0.5);
+    expect(buffRate(5)).toBe(1.5); // clamped
+    expect(buffRate(-9)).toBe(0.5);
+  });
+  it("applyBuffOp stacks to ±2 and cancels through zero", () => {
+    const buffs: any = {};
+    expect(applyBuffOp(buffs, "atk", "buff", 3)).toBe("buff");
+    expect(buffs.atk).toEqual({ level: 1, turns: 3 });
+    applyBuffOp(buffs, "atk", "buff", 5);
+    applyBuffOp(buffs, "atk", "buff", 2); // clamped at +2, longest turns kept
+    expect(buffs.atk.level).toBe(2);
+    expect(buffs.atk.turns).toBe(5);
+    // one debuff steps it down; two more swing negative
+    applyBuffOp(buffs, "atk", "debuff", 4);
+    expect(buffs.atk.level).toBe(1);
+    applyBuffOp(buffs, "atk", "debuff", 4);
+    expect(buffs.atk).toBeUndefined(); // level 0 = gone
+    applyBuffOp(buffs, "atk", "debuff", 4);
+    expect(buffs.atk.level).toBe(-1);
+  });
+  it("removeBuff/removeDebuff clear only the matching sign", () => {
+    const buffs: any = { atk: { level: 2, turns: 3 }, def: { level: -1, turns: 3 } };
+    expect(applyBuffOp(buffs, "atk", "removeDebuff", 0)).toBe(null);
+    expect(applyBuffOp(buffs, "atk", "removeBuff", 0)).toBe("removed");
+    expect(buffs.atk).toBeUndefined();
+    expect(applyBuffOp(buffs, "def", "removeBuff", 0)).toBe(null);
+    expect(applyBuffOp(buffs, "def", "removeDebuff", 0)).toBe("removed");
+  });
+  it("tickBuffDurations expires at zero and reports the stat", () => {
+    const buffs: any = { atk: { level: 1, turns: 2 }, agi: { level: -2, turns: 1 } };
+    expect(tickBuffDurations(buffs)).toEqual(["agi"]);
+    expect(buffs.atk.turns).toBe(1);
+    expect(tickBuffDurations(buffs)).toEqual(["atk"]);
+    expect(buffs).toEqual({});
+  });
+});
+
+describe("TP (M3·B)", () => {
+  it("tpDamageCharge matches MZ chargeTpByDamage (50 × dmg/mhp × tcr)", () => {
+    expect(tpDamageCharge(50, 100, 1)).toBe(25);
+    expect(tpDamageCharge(100, 100, 1)).toBe(50);
+    expect(tpDamageCharge(100, 100, 1.5)).toBe(75); // tcr scales the charge
+    expect(tpDamageCharge(10, 200, 1)).toBe(2); // floor(50 × 0.05)
+    expect(tpDamageCharge(500, 100, 1)).toBe(50); // damage rate clamps at 1
+    expect(tpDamageCharge(10, 0, 1)).toBe(50); // degenerate mhp guarded
+    expect(MAX_TP).toBe(100);
+  });
+});
+
+describe("Action Times+ (M3·B, trait 61)", () => {
+  it("rolls each row independently and consumes exactly one draw per row", () => {
+    let draws = 0;
+    const seq = [0.1, 0.9, 0.49];
+    const rng = () => seq[draws++];
+    expect(extraActionRolls([50, 50, 50], rng)).toBe(2); // 0.1<0.5, 0.9≥0.5, 0.49<0.5
+    expect(draws).toBe(3);
+    expect(extraActionRolls([], () => { throw new Error("no draw allowed"); })).toBe(0);
+  });
+});
+
+describe("target-rate weighting (M3·B, tgr)", () => {
+  it("keeps the classic 3:1 row split when every rate is 1", () => {
+    const pool = [{ row: "front" }, { row: "back" }];
+    expect(weightedTargetIndex(pool, 0.7, () => 1)).toBe(
+      weightedTargetIndex(pool, 0.7),
+    );
+  });
+  it("a tgr of 0 makes a battler untargetable; a huge tgr draws fire", () => {
+    const pool = [{ n: "a" }, { n: "b" }];
+    const rate = (b: any) => (b.n === "a" ? 0 : 1);
+    expect(weightedTargetIndex(pool, 0.01, rate)).toBe(1);
+    const magnet = (b: any) => (b.n === "a" ? 100 : 1);
+    expect(weightedTargetIndex(pool, 0.9, magnet)).toBe(0);
+  });
+});

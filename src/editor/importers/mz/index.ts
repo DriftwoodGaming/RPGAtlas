@@ -26,7 +26,7 @@ import type {
 import { ImportReport } from "./report";
 import { readRawProject, type MzFileSource } from "./intake";
 import { convertSystem } from "./convert-system";
-import { convertActors, convertClasses, convertEnemies, convertStates } from "./convert-battlers";
+import { convertActors, convertClasses, convertEnemies, convertStates, mergeEquipTraits } from "./convert-battlers";
 import { convertArmors, convertItems, convertSkills, convertWeapons } from "./convert-items";
 import { convertCommonEvents, convertTroops, type CommandTranslator } from "./convert-events";
 import { makeTranslator } from "./translate-commands";
@@ -71,15 +71,18 @@ export function convertDatabase(
 ): DatabaseConversion {
   const doTranslate = translate ?? makeTranslator(report);
   const sys = convertSystem(raw.system, report);
-  const classes = convertClasses(raw.classes, report, sys.elementKeyByIndex);
+  const classes = convertClasses(raw.classes, report, sys.elementKeyByIndex, sys.skillTypeKeyByIndex);
   // Actors must convert AFTER classes — actor traits merge onto the class (D6).
-  const actors = convertActors(raw.actors, classes, report, sys.elementKeyByIndex);
+  const actors = convertActors(raw.actors, classes, report, sys.elementKeyByIndex, sys.skillTypeKeyByIndex);
+  // Weapon/armor trait rows merge onto the initially-equipping actors' classes
+  // (D6 (a), flipped in M3·B — Atlas has no per-equip trait carrier).
+  mergeEquipTraits(actors, classes, raw.weapons, raw.armors, report, sys.elementKeyByIndex, sys.skillTypeKeyByIndex);
   const skills = convertSkills(raw.skills, report, sys.elementKeyByIndex, sys.skillTypeKeyByIndex);
   const items = convertItems(raw.items, report);
   const weapons = convertWeapons(raw.weapons, report);
   const armors = convertArmors(raw.armors, report);
-  const enemies = convertEnemies(raw.enemies, report);
-  const states = convertStates(raw.states, report);
+  const enemies = convertEnemies(raw.enemies, report, sys.elementKeyByIndex, sys.skillTypeKeyByIndex);
+  const states = convertStates(raw.states, report, sys.elementKeyByIndex, sys.skillTypeKeyByIndex);
   const commonEvents = convertCommonEvents(raw.commonEvents, report, doTranslate);
   const troops = convertTroops(raw.troops, report, doTranslate);
 

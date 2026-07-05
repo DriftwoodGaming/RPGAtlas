@@ -343,25 +343,32 @@ export function mzApplyVariance(
 export interface MzDamageArgs {
   /** evalDamageFormula result — already ≥ 0 (heal sign handled by caller). */
   base: number;
-  /** Target-side element multiplier (1 = neutral; M3·B adds enemy carriers). */
+  /** Target-side element multiplier (1 = neutral). */
   elementRate: number;
   /** Crit already ROLLED by the caller; true applies MZ's ×3. */
   critical: boolean;
   /** damage.variance percent (0–100). */
   variance: number;
-  /** Target is guarding → MZ applyGuard ÷ (2 × grd), grd = 1 until M3·B. */
+  /** Target is guarding → MZ applyGuard ÷ (2 × grd). */
   guarding: boolean;
   randomInt: (n: number) => number;
+  /** M3·B sp-params (optional — absent keeps the M3·A behavior exactly):
+   *  target pdr/mdr for damage or rec for heals, applied after the element
+   *  rate like MZ makeDamageValue. */
+  dmgRate?: number;
+  /** Target grd (guardEffect rate) — deepens the guard divisor (M3·B). */
+  grd?: number;
 }
 
-/** MZ Game_Action.makeDamageValue with sp-params at their defaults:
- *  base × elementRate → (pdr/mdr/rec = 1) → crit ×3 → variance → guard ÷2 →
+/** MZ Game_Action.makeDamageValue:
+ *  base × elementRate × (pdr/mdr/rec) → crit ×3 → variance → guard ÷(2·grd) →
  *  round. Can legitimately return 0 (MZ shows a 0-damage hit). */
 export function mzDamageValue(args: MzDamageArgs): number {
   let value = args.base * args.elementRate;
+  if (args.dmgRate != null) value *= args.dmgRate;
   if (args.critical) value *= 3;
   value = mzApplyVariance(value, args.variance, args.randomInt);
-  if (value > 0 && args.guarding) value /= 2;
+  if (value > 0 && args.guarding) value /= 2 * Math.max(0.01, args.grd == null ? 1 : args.grd);
   return Math.round(value);
 }
 

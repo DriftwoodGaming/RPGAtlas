@@ -53,7 +53,6 @@ const TODO: Record<number, TodoInfo> = {
   283: { what: "changing the battle background", detail: "custom battle backgrounds arrive in a later update (M4·A)" },
   284: { what: "changing the parallax", detail: "scrolling background pictures arrive in a later update (M4·A)" },
   323: { what: "changing a vehicle's picture", detail: "swapping a vehicle's sprite arrives in a later update (M4·A)" },
-  326: { what: "changing TP", detail: "the TP system arrives in a later update (M3·B)" },
   331: { what: "changing an enemy's HP", detail: "in-battle enemy commands arrive in a later update (M3·C)" },
   332: { what: "changing an enemy's MP", detail: "in-battle enemy commands arrive in a later update (M3·C)" },
   333: { what: "changing an enemy's status", detail: "in-battle enemy commands arrive in a later update (M3·C)" },
@@ -63,7 +62,6 @@ const TODO: Record<number, TodoInfo> = {
   337: { what: "a battle animation on an enemy", detail: "in-battle animations arrive in a later update (M3·C)" },
   339: { what: "forcing a battle action", detail: "forced battle actions arrive in a later update (M3·C)" },
   340: { what: "ending the battle early", detail: "aborting a battle arrives in a later update (M3·C)" },
-  342: { what: "changing an enemy's TP", detail: "the TP system arrives in a later update (M3·B)" },
   356: { what: "a plugin command", detail: "plugin commands are listed in the import report, not run (M5·A)" },
   357: { what: "a plugin command", detail: "plugin commands are listed in the import report, not run (M5·A)" },
   601: { what: "what happens if you win the battle", detail: "battle win/lose branches arrive in a later update (M3·C)" },
@@ -236,6 +234,11 @@ class Translator {
       case 322: this.changeActorImage(c, out); return;
       case 324: out.push({ t: "changeNickname", actorId: num(p[0]), nickname: String(p[1] ?? "") }); return;
       case 325: out.push({ t: "changeProfile", actorId: num(p[0]), profile: String(p[1] ?? "") }); return;
+      case 326: this.changeTp(c, out); return; // M3·B — the TP system.
+      case 342: // Change Enemy TP: [enemyIndex(−1 = all), op, operandType, operand].
+        if (num(p[2]) !== 0) { this.changeActorVarValue(c, out); return; }
+        out.push({ t: "changeEnemyTp", enemyIndex: num(p[0]), op: num(p[1]) === 1 ? "sub" : "add", value: num(p[3]) });
+        return;
       // ---- §8.10 battle-result branch openers (siblings after 301) ----
       case 601: case 602: case 603:
         out.push(this.todoCmd(c)); this.branchThen(indent); return; // consume+discard the branch body (M3·C)
@@ -499,6 +502,15 @@ class Translator {
     const aid = this.changeActorTarget(c, out, 0, 1);
     if (aid === null) return;
     out.push({ t: "changeSkill", actorId: aid, op: num(p[2]) === 1 ? "forget" : "learn", skillId: num(p[3]) });
+  }
+  /** 326 Change TP (M3·B): [desig, actor, op, operandType, operand] — the
+   *  same shape as Change EXP. */
+  private changeTp(c: RmCommand, out: AnyCommand[]): void {
+    const p = (c.parameters as any[]) || [];
+    const aid = this.changeActorTarget(c, out, 0, 1);
+    if (aid === null) return;
+    if (num(p[3]) !== 0) { this.changeActorVarValue(c, out); return; }
+    out.push({ t: "changeTp", actorId: aid, op: num(p[2]) === 1 ? "sub" : "add", value: num(p[4]) });
   }
   /** 321 Change Class: [actor, classId, keepExp]. Atlas keeps the hero's level
    *  either way; report when RM would have reset it. */

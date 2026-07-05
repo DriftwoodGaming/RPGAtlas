@@ -33,17 +33,98 @@ export function applyRowScale(dmg: number, scale: number): number {
 
 /** Pick a target index from `pool`, weighting front-row members 3:1 over
  *  back row. `roll` is a 0..1 random sample (injected for tests). All-front
- *  pools (every pre-Phase-5 party) stay a uniform pick. */
-export function weightedTargetIndex(pool: any[], roll: number): number {
+ *  pools (every pre-Phase-5 party) stay a uniform pick. `rateOf` (M3·B)
+ *  multiplies a battler's weight by its MZ Target Rate (tgr) — absent or 1
+ *  everywhere keeps the classic distribution (and the same single draw). */
+export function weightedTargetIndex(
+  pool: any[],
+  roll: number,
+  rateOf?: (b: any) => number,
+): number {
   if (!pool.length) return -1;
-  const weights = pool.map((b) => (rowOf(b) === "back" ? 1 : 3));
+  const weights = pool.map(
+    (b) => (rowOf(b) === "back" ? 1 : 3) * Math.max(0, rateOf ? rateOf(b) : 1),
+  );
   const total = weights.reduce((s, w) => s + w, 0);
+  if (total <= 0) return pool.length - 1;
   let r = roll * total;
   for (let i = 0; i < pool.length; i++) {
     r -= weights[i];
     if (r < 0) return i;
   }
   return pool.length - 1;
+}
+
+// ---- buffs / debuffs (Project Compass M3·B, MZ effect codes 31–34) ----
+// MZ model: each battle param holds a buff level −2…+2; every level is ±25%
+// (paramBuffRate). Levels tick down at round end and clear after battle.
+
+/** Param multiplier for one buff level (MZ Game_BattlerBase.paramBuffRate). */
+export function buffRate(level: number): number {
+  const l = Math.max(-2, Math.min(2, Number(level) || 0));
+  return 1 + l * 0.25;
+}
+
+/** Apply one buff/debuff op to a battler's `buffs` map ({stat: {level,turns}}).
+ *  Returns what happened ("buff"/"debuff"/"removed"/null) for the log line.
+ *  Add ops clamp at ±2 and keep the LONGER of the old/new duration (MZ
+ *  overwrites turns; keeping the max is the kinder read for stacked casts). */
+export function applyBuffOp(
+  buffs: any,
+  stat: string,
+  op: "buff" | "debuff" | "removeBuff" | "removeDebuff",
+  turns: number,
+): "buff" | "debuff" | "removed" | null {
+  const cur = buffs[stat];
+  if (op === "removeBuff") {
+    if (cur && cur.level > 0) { delete buffs[stat]; return "removed"; }
+    return null;
+  }
+  if (op === "removeDebuff") {
+    if (cur && cur.level < 0) { delete buffs[stat]; return "removed"; }
+    return null;
+  }
+  const delta = op === "buff" ? 1 : -1;
+  const level = Math.max(-2, Math.min(2, (cur ? cur.level : 0) + delta));
+  if (level === 0) { delete buffs[stat]; return op; }
+  buffs[stat] = { level, turns: Math.max(turns, cur && cur.level * delta > 0 ? cur.turns : 0) };
+  return op;
+}
+
+/** Tick every buff's duration down one round; returns the stats whose buff
+ *  expired (so the scene can log/clamp). */
+export function tickBuffDurations(buffs: any): string[] {
+  const expired: string[] = [];
+  for (const stat of Object.keys(buffs || {})) {
+    buffs[stat].turns--;
+    if (buffs[stat].turns <= 0) {
+      delete buffs[stat];
+      expired.push(stat);
+    }
+  }
+  return expired;
+}
+
+// ---- TP (Project Compass M3·B) ----
+
+export const MAX_TP = 100;
+
+/** TP charged by taking damage (MZ Game_Battler.chargeTpByDamage): 50 × the
+ *  fraction of max HP lost, × the battler's tcr (tpCharge rate). */
+export function tpDamageCharge(damage: number, mhp: number, tcr: number): number {
+  const rate = Math.max(0, Math.min(1, damage / Math.max(1, mhp)));
+  return Math.floor(50 * rate * Math.max(0, tcr));
+}
+
+// ---- Action Times+ (M3·B, trait 61) ----
+
+/** Extra actions this round: each trait row's value (percent) is rolled
+ *  independently (MZ Game_Battler.makeActionTimes). Draws exactly one rng
+ *  sample per row — zero rows, zero draws (native projects). */
+export function extraActionRolls(values: number[], rng: () => number): number {
+  let extra = 0;
+  for (const v of values) if (rng() * 100 < (Number(v) || 0)) extra++;
+  return extra;
 }
 
 // ---- condition-weighted enemy AI ----

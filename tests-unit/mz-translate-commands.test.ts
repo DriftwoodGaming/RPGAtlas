@@ -150,7 +150,7 @@ const SPEC: Row[] = [
   { code: 323, name: "Change Vehicle Image", list: [c(323, [0, "V", 0])], expect: { todo: 323 } },
   { code: 324, name: "Change Nickname", list: [c(324, [1, "N"])], expect: { first: "changeNickname" } },
   { code: 325, name: "Change Profile", list: [c(325, [1, "P"])], expect: { first: "changeProfile" } },
-  { code: 326, name: "Change TP", list: [c(326, [0, 1, 0, 0, 10])], expect: { todo: 326 } },
+  { code: 326, name: "Change TP", list: [c(326, [0, 1, 0, 0, 10])], expect: { first: "changeTp" } },
   // §8.12 enemy/battle in-troop
   { code: 331, name: "Change Enemy HP", list: [c(331, [0, 0, 0, 20])], expect: { todo: 331 } },
   { code: 332, name: "Change Enemy MP", list: [c(332, [0, 0, 0, 20])], expect: { todo: 332 } },
@@ -161,7 +161,7 @@ const SPEC: Row[] = [
   { code: 337, name: "Show Battle Animation", list: [c(337, [0, 0, 2])], expect: { todo: 337 } },
   { code: 339, name: "Force Action", list: [c(339, [0, 0, 1, 0])], expect: { todo: 339 } },
   { code: 340, name: "Abort Battle", list: [c(340)], expect: { todo: 340 } },
-  { code: 342, name: "Change Enemy TP", list: [c(342, [0, 0, 0, 10])], expect: { todo: 342 } },
+  { code: 342, name: "Change Enemy TP", list: [c(342, [0, 0, 0, 10])], expect: { first: "changeEnemyTp" } },
   // §8.13 script / plugin
   { code: 355, name: "Script", list: [c(355, ["$gameSwitches.value(1)"])], expect: { todo: 355 } },
   { code: 356, name: "Plugin Command (MV)", list: [c(356, ["Foo bar"])], expect: { todo: 356 } },

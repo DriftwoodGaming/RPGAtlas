@@ -7,7 +7,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, RA, editorState as S } from "../editor-state";
-import { h, tIn, sel, nIn, field } from "../dom";
+import { h, tIn, sel, nIn, field, dbOpts, elementSelOpts } from "../dom";
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 import { flashStatus } from "../map-editor/status";
@@ -40,6 +40,161 @@ export function traitDefault(type: any) {
   if (type === "equip") return { type, key: "weapon", value: S.proj.weapons[0] ? S.proj.weapons[0].id : 0 };
   if (type === "special") return { type, key: "critChance", value: 5 };
   return { type: "param", key: "atk", value: 100 };
+}
+
+// ---------------------------------------------------------------------------
+// The shared traits editor (Project Compass M3·B): one builder for Classes,
+// Enemies, and States. Extends the classic key dropdowns with the M3·B
+// prefixed keys — attack elements, on-attack/resist states, skill grant/seal,
+// equip lock/seal, and debuff chances — in plain language.
+// ---------------------------------------------------------------------------
+
+function traitKeyOptions(t: any) {
+  if (t.type === "param") {
+    const opts: any = STAT_KEYS.map((k) => ({ v: k, l: k.toUpperCase() }));
+    for (const k of STAT_KEYS) opts.push({ v: "debuff:" + k, l: "Debuff chance: " + k.toUpperCase() });
+    opts.stringValues = true;
+    return opts;
+  }
+  if (t.type === "element") {
+    const opts: any = elementSelOpts();
+    const base = opts.slice();
+    for (const e of base) opts.push({ v: "attack:" + e.v, l: "Attack element: " + e.l });
+    opts.stringValues = true;
+    return opts;
+  }
+  if (t.type === "state") {
+    const opts: any = dbOpts(S.proj.states);
+    const base = opts.slice();
+    for (const s of base) opts.push({ v: "resist:" + s.v, l: "Resist: " + s.l });
+    for (const s of base) opts.push({ v: "attack:" + s.v, l: "Inflict on attack: " + s.l });
+    opts.stringValues = true;
+    return opts;
+  }
+  if (t.type === "skill") {
+    const opts: any = skillTypeTraitOpts();
+    for (const st of RA.typeList(S.proj, "skillTypes")) {
+      opts.push({ v: "addType:" + st.key, l: "Grant type: " + st.name });
+      opts.push({ v: "sealType:" + st.key, l: "Seal type: " + st.name });
+    }
+    for (const s of S.proj.skills) {
+      opts.push({ v: "add:" + s.id, l: "Grant skill: " + s.name });
+      opts.push({ v: "seal:" + s.id, l: "Seal skill: " + s.name });
+    }
+    opts.stringValues = true;
+    return opts;
+  }
+  if (t.type === "equip") {
+    const opts: any = [
+      { v: "weapon", l: "Weapon" }, { v: "armor", l: "Armor" },
+      { v: "lock:weapon", l: "Lock weapon slot" }, { v: "lock:armor", l: "Lock armor slot" },
+      { v: "seal:weapon", l: "Seal weapon slot" }, { v: "seal:armor", l: "Seal armor slot" },
+    ];
+    opts.stringValues = true;
+    return opts;
+  }
+  const opts: any = RA.TRAIT_SPECIALS.slice();
+  opts.stringValues = true;
+  return opts;
+}
+
+function traitValueLabel(t: any) {
+  const key = String(t.key || "");
+  if (t.type === "param") return key.startsWith("debuff:") ? "Debuff chance %" : "Stat rate %";
+  if (t.type === "element") return key.startsWith("attack:") ? "(always on)" : "Damage taken %";
+  if (t.type === "state") {
+    if (key.startsWith("resist:")) return "(immune)";
+    if (key.startsWith("attack:")) return "Inflict chance %";
+    return "Infliction chance %";
+  }
+  if (t.type === "skill") {
+    if (/^(add|seal|addType|sealType):/.test(key)) return "(always on)";
+    return "Power rate %";
+  }
+  return "Value %";
+}
+
+/** Build the trait-list editor for any record with a `traits` array (M3·B:
+ *  shared by Classes, Enemies, and States). `emptyNote` is the friendly line
+ *  shown when the list is empty. */
+export function traitsEditor(e: any, emptyNote: string) {
+  e.traits = Array.isArray(e.traits) ? e.traits : [];
+  const p = h("div");
+  const traitBox = h("div", { class: "trait-list" });
+  function redrawTraits() {
+    traitBox.innerHTML = "";
+    e.traits.forEach((t: any, i: any) => {
+      const typeOpts: any = RA.TRAIT_TYPES.slice();
+      typeOpts.stringValues = true;
+      const typeSelect = sel(t, "type", typeOpts, (type: any) => {
+        Object.assign(t, traitDefault(type));
+        redrawTraits();
+      });
+      const keySelect = sel(t, "key", traitKeyOptions(t), () => {
+        if (t.type === "equip") {
+          const db = t.key === "armor" ? S.proj.armors : S.proj.weapons;
+          if (!String(t.key).includes(":") && !db.some((item: any) => item.id === Number(t.value))) {
+            t.value = db[0] ? db[0].id : 0;
+          }
+          redrawTraits();
+        } else redrawTraits(); // value label/control can change with the key
+      });
+      let valueControl;
+      const key = String(t.key || "");
+      if (t.type === "equip" && !key.includes(":")) {
+        const db = t.key === "armor" ? S.proj.armors : S.proj.weapons;
+        valueControl = field("Allowed item", sel(t, "value", dbOpts(db, "(none)")));
+      } else if (t.type === "special" && t.key === "attackSkill") {
+        // Attack-skill trait: the value is a skill id, not a percent.
+        valueControl = field("Skill", sel(t, "value", dbOpts(S.proj.skills)));
+      } else if (traitValueLabel(t).startsWith("(")) {
+        // Presence-only rows (grants, seals, locks, resists): keep value 100.
+        t.value = 100;
+        valueControl = field("Effect", h("span", { class: "dim" }, traitValueLabel(t)));
+      } else {
+        const max = t.type === "special" && t.key === "critChance" ? 100 : 999;
+        valueControl = field(traitValueLabel(t), nIn(t, "value", -999, max));
+      }
+      const controls = h("div", { class: "trait-actions" },
+        h("button", {
+          class: "mini", title: "Move trait up", "aria-label": "Move trait up",
+          ...(i === 0 ? { disabled: "" } : {}),
+          onclick() {
+            if (i <= 0) return;
+            const [moved] = e.traits.splice(i, 1); e.traits.splice(i - 1, 0, moved);
+            touch(); redrawTraits();
+          },
+        }, "↑"),
+        h("button", {
+          class: "mini", title: "Move trait down", "aria-label": "Move trait down",
+          ...(i === e.traits.length - 1 ? { disabled: "" } : {}),
+          onclick() {
+            if (i >= e.traits.length - 1) return;
+            const [moved] = e.traits.splice(i, 1); e.traits.splice(i + 1, 0, moved);
+            touch(); redrawTraits();
+          },
+        }, "↓"),
+        h("button", {
+          class: "mini danger", title: "Delete trait", "aria-label": "Delete trait",
+          onclick() { e.traits.splice(i, 1); touch(); redrawTraits(); },
+        }, "Delete"),
+      );
+      traitBox.appendChild(h("div", { class: "trait-row" },
+        field("Trait type", typeSelect), field("Target", keySelect), valueControl, controls));
+    });
+    if (!e.traits.length) {
+      traitBox.appendChild(h("div", { class: "dim trait-empty" }, emptyNote));
+    }
+    traitBox.appendChild(h("button", {
+      class: "mini trait-add",
+      onclick() { e.traits.push(traitDefault("param")); touch(); redrawTraits(); },
+    }, "+ Add trait"));
+  }
+  redrawTraits();
+  p.appendChild(h("div", { class: "dim" },
+    "Rates use 100% as normal, 50% as half, and 0% as immunity. Multiple matching rates multiply. Equipment permissions become a whitelist for that slot."));
+  p.appendChild(traitBox);
+  return p;
 }
 
 // Sub-tabs (post-1.0 UX): a horizontal tab strip that splits a big tab's

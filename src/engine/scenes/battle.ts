@@ -18,14 +18,16 @@ import { showList } from "../ui-stack.js";
 import { ctx, fns } from "../state/engine-context.js";
 import {
   G,
-  actorClass,
+  actorEffCarrier,
   actorFormulaFacade,
   param,
   learnedSkills,
+  skillBlocked,
   skillMpCost,
   skillPowerRate,
   actorIncomingRate,
   skillElement,
+  stateTraitRows,
   gainExp,
   invCount,
   onEnemyKilled,
@@ -51,6 +53,12 @@ import {
   ATB_FULL,
   ctbCost,
   ctbForecast,
+  buffRate,
+  applyBuffOp,
+  tickBuffDurations,
+  MAX_TP,
+  tpDamageCharge,
+  extraActionRolls,
 } from "./battle-logic.js";
 
 const TILE = Assets.TILE;
@@ -213,6 +221,9 @@ export const Battle: any = {
             param(a, "mmp") +
             " " +
             bar(a.mp, param(a, "mmp"), gaugeColors().mp) +
+            (tpActive && proj.system.displayTp
+              ? " TP " + tpOf(a) + " " + bar(tpOf(a), MAX_TP, "#d9a941")
+              : "") +
             stateTagsHtml(a) +
             "</div>",
         )
@@ -253,14 +264,75 @@ export const Battle: any = {
       if (en.mp == null) en.mp = Number(en.d.stats.mmp) || 0;
       return en.mp;
     }
+    // ---- M3·B: effective traits (class/enemy + active-state rows) ----
+    // Native projects: enemies and states carry no traits, so every eff* read
+    // returns the exact pre-M3·B value and no gated roll ever fires.
+    function effCarrier(b: any): any {
+      if (!b || !b.d) return actorEffCarrier(b);
+      const extra = stateTraitRows(b.states);
+      const own = b.d.traits || [];
+      return extra.length ? { traits: [...own, ...extra] } : { traits: own };
+    }
+    const effRate = (b: any, type: string, key: any, fb: number) =>
+      RA.traitRate(effCarrier(b), type, key, fb);
+    const effSum = (b: any, type: string, key: any) =>
+      RA.traitSum(effCarrier(b), type, key, 0);
+    const effHas = (b: any, type: string, key: any) =>
+      RA.traitsOf(effCarrier(b), type, key).length > 0;
+    // ---- M3·B: buffs/debuffs (±25% per level, battle-scoped) ----
+    const buffsOf = (b: any) => b.buffs || (b.buffs = {});
+    /** A battler's stat with its buff level applied (native: no buffs ⇒ the
+     *  exact base value — floor(int × 1)). */
+    function bStat(b: any, stat: string): number {
+      const base = b && b.d ? Number(b.d.stats[stat]) || 0 : param(b, stat);
+      const buff = b && b.buffs && b.buffs[stat];
+      return buff ? Math.max(0, Math.floor(base * buffRate(buff.level))) : base;
+    }
+    /** Clamp vitals under (possibly buff-shrunk) maxima. */
+    function clampVitalsB(b: any): void {
+      if (isEnemy(b)) {
+        b.hp = Math.min(b.hp, bStat(b, "mhp"));
+        if (b.mp != null) b.mp = Math.min(b.mp, bStat(b, "mmp"));
+      } else {
+        b.hp = Math.min(b.hp, bStat(b, "mhp"));
+        b.mp = Math.min(b.mp, bStat(b, "mmp"));
+      }
+    }
+    // ---- M3·B: TP. Mechanics gate: the system flag or any TP-using skill/
+    // item. Atlas-native projects: gate closed ⇒ zero draws, zero UI. ----
+    const tpActive =
+      !!proj.system.displayTp ||
+      (proj.skills || []).some((s: any) => s && (s.tpCost || s.gainTp)) ||
+      (proj.items || []).some((it: any) => it && it.gainTp);
+    const tpOf = (b: any) => Number(b.tp) || 0;
+    function gainTpTo(b: any, amount: number): void {
+      if (!tpActive || !amount) return;
+      b.tp = clamp(tpOf(b) + Math.round(amount), 0, MAX_TP);
+      if (!isEnemy(b)) refreshParty();
+    }
+    /** Guarding check incl. the MZ Special-Flag Guard trait (62.1, M3·B). */
+    function isGuardingB(b: any): boolean {
+      return guards.has(b) || effHas(b, "special", "guardFlag");
+    }
     function battlerFacade(b: any): any {
-      if (!b || !b.d) return actorFormulaFacade(b);
-      const s = b.d.stats;
-      return {
-        atk: s.atk || 0, def: s.def || 0, mat: s.mat || 0, mdf: s.mdf || 0,
-        agi: s.agi || 0, mhp: s.mhp || 0, mmp: s.mmp || 0,
-        hp: b.hp, mp: enemyMp(b), level: 0,
-      };
+      let f: any;
+      if (!b || !b.d) f = actorFormulaFacade(b);
+      else {
+        const s = b.d.stats;
+        f = {
+          atk: s.atk || 0, def: s.def || 0, mat: s.mat || 0, mdf: s.mdf || 0,
+          agi: s.agi || 0, mhp: s.mhp || 0, mmp: s.mmp || 0,
+          hp: b.hp, mp: enemyMp(b), level: 0,
+        };
+      }
+      // M3·B: formulas see buffed stats (MZ params include buff rates).
+      if (b && b.buffs) {
+        for (const k of ["atk", "def", "mat", "mdf", "agi", "mhp", "mmp"]) {
+          const buff = b.buffs[k];
+          if (buff) f[k] = Math.max(0, Math.floor(f[k] * buffRate(buff.level)));
+        }
+      }
+      return f;
     }
     /** The skill's formula evaluated for attacker/target, or null → the
      *  structured path (no formula, or one that doesn't compile). */
@@ -275,25 +347,147 @@ export const Battle: any = {
       });
     }
     /** MZ crit roll for a formula hit: gated on the skill's `critical` flag
-     *  and the attacker's critChance trait sum (enemies have no trait carrier
-     *  until M3·B → never crit → no draw). */
-    function formulaCrit(skill: any, attacker: any): boolean {
-      if (!skill || !skill.critical || (attacker && attacker.d)) return false;
-      return rnd(100) < RA.traitSum(actorClass(attacker), "special", "critChance", 0);
+     *  and the attacker's critChance trait sum, shaved by the target's
+     *  critEvade (M3·B). Actors keep the M3·A draw pattern; enemies roll only
+     *  when they actually carry critChance rows (draw-conserving). */
+    function formulaCrit(skill: any, attacker: any, target?: any): boolean {
+      if (!skill || !skill.critical) return false;
+      if (attacker && attacker.d && !effHas(attacker, "special", "critChance"))
+        return false;
+      const cev = target ? effSum(target, "special", "critEvade") : 0;
+      return rnd(100) < effSum(attacker, "special", "critChance") * (1 - cev / 100);
     }
     /** To-hit for physical actions: MZ-additive hitChance (attacker) and
-     *  evadeChance (defender) trait sums. Rolls consume draws ONLY when the
-     *  traits exist, so Atlas-native battles never miss and their seeded RNG
-     *  streams don't shift by a single draw. */
+     *  evadeChance (defender) trait sums over the EFFECTIVE carriers (M3·B —
+     *  enemies and states join in). Rolls consume draws ONLY when the traits
+     *  exist, so Atlas-native battles never miss and their seeded RNG streams
+     *  don't shift by a single draw. */
     function physToHit(attacker: any, target: any): "hit" | "miss" | "evade" {
-      const aCls = attacker && attacker.d ? null : actorClass(attacker);
-      const tCls = target && target.d ? null : actorClass(target);
-      const hasHit = aCls && RA.traitsOf(aCls, "special", "hitChance").length;
+      const aC = effCarrier(attacker);
+      const hasHit = RA.traitsOf(aC, "special", "hitChance").length > 0;
       return mzHitRoll({
-        hitPct: hasHit ? RA.traitSum(aCls, "special", "hitChance", 0) : null,
-        evadePct: tCls ? RA.traitSum(tCls, "special", "evadeChance", 0) : 0,
+        hitPct: hasHit ? RA.traitSum(aC, "special", "hitChance", 0) : null,
+        evadePct: effSum(target, "special", "evadeChance"),
         rndf,
       });
+    }
+    /** Magic evade (MZ mev, M3·B): magical actions roll against the target's
+     *  magicEvade sum — gated on the trait existing. */
+    function magicEvaded(target: any): boolean {
+      const pct = effSum(target, "special", "magicEvade");
+      return pct > 0 && rndf() < pct / 100;
+    }
+    /** The attacker's attack-element keys (trait 31, `element`/`attack:*`). */
+    function attackElementKeys(b: any): string[] {
+      const rows: any[] = RA.traitsOf(effCarrier(b), "element", null);
+      return rows
+        .filter((t: any) => String(t.key).startsWith("attack:"))
+        .map((t: any) => String(t.key).slice(7));
+    }
+    /** MZ calcElementRate against `target`: a fixed-element skill reads that
+     *  element's rate; a basic attack / `attackElement` skill takes the MAX
+     *  over the attacker's attack elements (MZ elementsMaxRate); no elements
+     *  at all = neutral 1. */
+    function elementRateVs(attacker: any, target: any, skill: any): number {
+      if (skill && !skill.attackElement)
+        return effRate(target, "element", skillElement(skill), 1);
+      const keys = attackElementKeys(attacker);
+      if (!keys.length) return 1;
+      let best = -Infinity;
+      for (const k of keys) best = Math.max(best, effRate(target, "element", k, 1));
+      return best;
+    }
+    /** Target-side pdr/mdr (M3·B sp-params 6/7) for a skill's damage kind. */
+    function dmgRateVs(target: any, skill: any): number {
+      const phys = !skill || skill.type === "phys";
+      return effRate(target, "special", phys ? "physDamage" : "magicDamage", 1);
+    }
+    /** MZ guard factor for ENEMY targets (actors route through
+     *  actorIncomingRate): ÷(2·grd) while guarding, else 1. */
+    function guardFactorE(t: any): number {
+      if (!isGuardingB(t)) return 1;
+      return 1 / (2 * Math.max(0.01, effRate(t, "special", "guardEffect", 1)));
+    }
+    /** Roll the attacker's on-attack states (trait 32) against a landed hit —
+     *  draws only when rows exist; each chance is shaved by the target's
+     *  state rate and blocked outright by a resist trait (in addStateTo). */
+    async function applyAttackStates(attacker: any, target: any): Promise<void> {
+      const rows: any[] = RA.traitsOf(effCarrier(attacker), "state", null);
+      for (const row of rows) {
+        if (!String(row.key).startsWith("attack:")) continue;
+        if (!aliveB(target)) return;
+        const id = Number(String(row.key).slice(7)) || 0;
+        if (!id) continue;
+        const chance = (Number(row.value) || 0) * effRate(target, "state", String(id), 1);
+        if (rnd(100) < chance) await addStateTo(target, id);
+      }
+    }
+    /** Shed states flagged removeByDamage after an HP hit (M3·B state
+     *  timing) — a roll per FLAGGED state only. */
+    async function shedStatesOnDamage(b: any): Promise<void> {
+      for (const st of statesOf(b).slice()) {
+        const d = stateDef(st.id);
+        if (d && d.removeByDamage && rnd(100) < d.removeByDamage)
+          await removeStateFrom(b, st.id);
+      }
+    }
+    /** HP damage side-effects (M3·B): TP charge + damage-shed states. */
+    async function afterHpDamage(b: any, dmg: number): Promise<void> {
+      if (dmg <= 0) return;
+      if (tpActive && aliveB(b))
+        gainTpTo(b, tpDamageCharge(dmg, bStat(b, "mhp"), effRate(b, "special", "tpCharge", 1)));
+      await shedStatesOnDamage(b);
+    }
+    /** Apply a skill/item's M3·B extras to one target: buffs/debuffs (with
+     *  the debuff-rate trait), permanent growth, learned skills, and TP. */
+    async function applySkillExtras(eff: any, target: any): Promise<void> {
+      if (!eff || !aliveB(target)) return;
+      for (const be of eff.buffs || []) {
+        if (be.op === "debuff" && effHas(target, "param", "debuff:" + be.stat)) {
+          // Debuff Rate (trait 12): a gated resistance roll.
+          if (rndf() >= effRate(target, "param", "debuff:" + be.stat, 1)) {
+            await say(nameOf(target) + " shrugs off the " + be.stat.toUpperCase() + " drop!", 500);
+            continue;
+          }
+        }
+        const outcome = applyBuffOp(buffsOf(target), be.stat, be.op, Number(be.turns) || 1);
+        if (!outcome) continue;
+        const arrow = outcome === "buff" ? "↑" : outcome === "debuff" ? "↓" : "—";
+        floatText(battlerElement(target), be.stat.toUpperCase() + arrow, "state");
+        clampVitalsB(target);
+        refreshParty();
+        await say(
+          nameOf(target) +
+            (outcome === "buff"
+              ? "'s " + be.stat.toUpperCase() + " rises!"
+              : outcome === "debuff"
+                ? "'s " + be.stat.toUpperCase() + " falls!"
+                : "'s " + be.stat.toUpperCase() + " returns to normal."),
+          500,
+        );
+      }
+      if (!isEnemy(target)) {
+        for (const g of eff.grow || []) {
+          const plus = target.paramPlus || (target.paramPlus = {});
+          plus[g.stat] = (plus[g.stat] || 0) + (Number(g.amount) || 0);
+          await say(
+            nameOf(target) + "'s " + g.stat.toUpperCase() + " grew by " + g.amount + "!",
+            550,
+          );
+        }
+        for (const id of eff.learn || []) {
+          const s = RA.byId(proj.skills, Number(id) || 0);
+          if (!s) continue;
+          const skills = target.skills || (target.skills = []);
+          const forgot = target.forgot;
+          if (forgot) { const fi = forgot.indexOf(s.id); if (fi >= 0) forgot.splice(fi, 1); }
+          if (!skills.includes(s.id) && !learnedSkills(target).some((k: any) => k.id === s.id))
+            skills.push(s.id);
+          await say(nameOf(target) + " learned " + s.name + "!", 550);
+        }
+        refreshParty();
+      }
+      if (eff.gainTp) gainTpTo(target, Number(eff.gainTp) || 0);
     }
 
     async function pickTarget() {
@@ -357,8 +551,13 @@ export const Battle: any = {
                 iconEntryHtml(s) +
                 ' <span class="cnt">' +
                 skillMpCost(a, s) +
-                " MP</span>",
-              disabled: a.mp < skillMpCost(a, s),
+                " MP" +
+                (tpActive && s.tpCost ? " · " + s.tpCost + " TP" : "") +
+                "</span>",
+              disabled:
+                a.mp < skillMpCost(a, s) ||
+                (tpActive && tpOf(a) < (Number(s.tpCost) || 0)) ||
+                skillBlocked(a, s),
             })),
             { title: "Skill", className: "cmdwin" },
           );
@@ -397,10 +596,27 @@ export const Battle: any = {
     }
 
     function enemyAction(en: any): any {
-      const all =
+      const raw =
         en.d.actions && en.d.actions.length
           ? en.d.actions
           : [{ skillId: 0, weight: 1 }];
+      // M3·B: rows whose skill the enemy can't use right now — sealed by a
+      // state's trait, or TP-short — drop out. Native rows always pass.
+      const canUse = (a2: any) => {
+        if (!a2.skillId) return true;
+        const s = RA.byId(proj.skills, a2.skillId);
+        if (!s) return true;
+        if (tpActive && tpOf(en) < (Number(s.tpCost) || 0)) return false;
+        const carrier = effCarrier(en);
+        if (!(carrier.traits || []).length) return true;
+        if (RA.traitsOf(carrier, "skill", "seal:" + s.id).length) return false;
+        const gate = String(s.stype || s.type || "");
+        if (gate && RA.traitsOf(carrier, "skill", "sealType:" + gate).length)
+          return false;
+        return true;
+      };
+      const usable = raw.filter(canUse);
+      const all = usable.length ? usable : [{ skillId: 0, weight: 1 }];
       // Phase 5: condition-weighted AI — rows whose cond fails drop out of
       // the roll; rows without a cond are always valid (pre-Phase-5 data
       // picks identically). Nothing valid ⇒ basic attack.
@@ -448,15 +664,27 @@ export const Battle: any = {
       }
     }
     function actorDef(a: any) {
-      return param(a, "def");
+      return bStat(a, "def");
     }
 
     // ---- states (poison / stun / regen…) ----
     const stateDef = (id: any) => RA.byId(proj.states || [], id);
-    const statesOf = (b: any) => b.states || (b.states = []);
+    const statesOf = (b: any) => {
+      const list = b.states || (b.states = []);
+      // M3·B: normalize stray numeric entries (pre-fix Change State saves)
+      // into the {id, turns} shape the battle has always used.
+      for (let i = 0; i < list.length; i++) {
+        if (typeof list[i] === "number") {
+          const d = stateDef(list[i]);
+          list[i] = { id: list[i], turns: Math.max(1, (d && d.maxTurns) || 3) };
+        }
+      }
+      return list;
+    };
     const isEnemy = (b: any) => !!b.d;
     const nameOf = (b: any) => (isEnemy(b) ? b.d.name : b.name);
-    const maxHpOf = (b: any) => (isEnemy(b) ? b.d.stats.mhp : param(b, "mhp"));
+    // Buff-aware since M3·B (bStat == the classic read when no buffs exist).
+    const maxHpOf = (b: any) => bStat(b, "mhp");
     const aliveB = (b: any) => (isEnemy(b) ? b.alive : b.hp > 0);
     function cannotAct(b: any) {
       return statesOf(b).some((st: any) => {
@@ -493,6 +721,12 @@ export const Battle: any = {
     async function addStateTo(b: any, stateId: any) {
       const d = stateDef(stateId);
       if (!d || !aliveB(b)) return;
+      // State Resist (M3·B trait 14): full immunity, no roll consumed.
+      if (effHas(b, "state", "resist:" + stateId)) {
+        floatText(battlerElement(b), "IMMUNE", "state");
+        await say(nameOf(b) + " resists " + d.name + "!", 550);
+        return;
+      }
       const min = Math.max(1, d.minTurns || 1);
       const max = Math.max(min, d.maxTurns || min);
       const turns = min + rnd(max - min + 1);
@@ -506,6 +740,14 @@ export const Battle: any = {
       floatText(battlerElement(b), d.name.toUpperCase(), "state");
       refreshStates();
       await say(nameOf(b) + " is afflicted by " + d.name + "!", 600);
+      // M3·B state timing: a restricting state sheds flagged states.
+      if (d.restrict === "act") {
+        for (const st of list.slice()) {
+          const sd = stateDef(st.id);
+          if (sd && sd.removeByRestriction && st.id !== stateId)
+            await removeStateFrom(b, st.id);
+        }
+      }
     }
     async function removeStateFrom(b: any, stateId: any) {
       const d = stateDef(stateId);
@@ -525,13 +767,9 @@ export const Battle: any = {
         return;
       }
       let chance = skill.stateChance == null ? 100 : skill.stateChance;
-      if (!isEnemy(target))
-        chance *= RA.traitRate(
-          actorClass(target),
-          "state",
-          String(skill.stateId),
-          1,
-        );
+      // M3·B: the state-rate read runs over the effective carrier, so enemy
+      // records and state-carried traits count too (native: same value).
+      chance *= effRate(target, "state", String(skill.stateId), 1);
       if (rnd(100) < chance) await addStateTo(target, skill.stateId);
     }
     // end-of-round damage/regen ticks and turn-count expiry
@@ -590,6 +828,48 @@ export const Battle: any = {
             list.splice(list.indexOf(st), 1);
             await say(nameOf(b) + "'s " + d.name + " wore off.", 500);
           }
+        }
+      }
+      // ---- M3·B round-end effects: trait regen, TP regen, buff expiry ----
+      // All gated on the trait/buff existing — native rounds are untouched.
+      for (const b of [...livingP(), ...livingE()]) {
+        if (!aliveB(b)) continue;
+        const hr = effSum(b, "special", "hpRegen");
+        if (hr) {
+          const amt = Math.max(1, Math.floor((maxHpOf(b) * Math.abs(hr)) / 100));
+          if (hr > 0) {
+            b.hp = Math.min(maxHpOf(b), b.hp + amt);
+            floatText(battlerElement(b), "+" + amt, "heal");
+            await say(nameOf(b) + " recovers " + amt + " HP.", 500);
+          } else {
+            b.hp = Math.max(0, b.hp - amt);
+            floatText(battlerElement(b), "-" + amt, "damage");
+            if (isEnemy(b) && b.hp <= 0) { b.alive = false; onEnemyKilled(b.d.id); }
+            await say(nameOf(b) + " takes " + amt + " damage.", 500);
+          }
+          refreshParty();
+          refreshEnemies();
+        }
+        const mr = effSum(b, "special", "mpRegen");
+        if (mr) {
+          const mmp = bStat(b, "mmp");
+          const amt = Math.floor((mmp * mr) / 100);
+          if (amt) {
+            if (isEnemy(b)) b.mp = clamp(enemyMp(b) + amt, 0, mmp);
+            else b.mp = clamp(b.mp + amt, 0, mmp);
+            refreshParty();
+          }
+        }
+        if (tpActive) {
+          const tr = effSum(b, "special", "tpRegen");
+          if (tr) gainTpTo(b, tr);
+        }
+        if (b.buffs) {
+          for (const stat of tickBuffDurations(b.buffs)) {
+            clampVitalsB(b);
+            await say(nameOf(b) + "'s " + stat.toUpperCase() + " returns to normal.", 450);
+          }
+          refreshParty();
         }
       }
       refreshStates();
@@ -686,12 +966,14 @@ export const Battle: any = {
               burst(actorElement(c.target), revived ? "heal" : "item", {
                 count: revived ? 18 : 13,
               });
-              floatText(
-                actorElement(c.target),
-                used.hp ? "+" + used.hp : "+" + used.mp + " MP",
-                "heal",
-              );
+              if (used.hp || used.mp)
+                floatText(
+                  actorElement(c.target),
+                  used.hp ? "+" + used.hp : "+" + used.mp + " MP",
+                  "heal",
+                );
               refreshParty();
+              refreshStates(); // M3·B: items can add/cure states now
               await say(
                 a.name +
                   " uses " +
@@ -700,6 +982,10 @@ export const Battle: any = {
                     ? " — " + c.target.name + " is revived!"
                     : " on " + c.target.name + "!"),
               );
+              if (used.stateRemoved)
+                await say(c.target.name + " is cured of " + used.stateRemoved + ".", 550);
+              if (used.stateAdded)
+                await say(c.target.name + " is afflicted by " + used.stateAdded + "!", 550);
               return;
             }
             if (
@@ -707,11 +993,23 @@ export const Battle: any = {
               (c.type === "skill" && c.skill.scope === "enemy") ||
               (c.type === "skill" && c.skill.scope === "enemies")
             ) {
-              const skill = c.type === "skill" ? c.skill : null;
+              let skill = c.type === "skill" ? c.skill : null;
               if (skill) {
                 const cost = skillMpCost(a, skill);
-                if (a.mp < cost) return;
+                const tcost = tpActive ? Number(skill.tpCost) || 0 : 0;
+                if (a.mp < cost || tpOf(a) < tcost) return;
                 a.mp -= cost;
+                if (tcost) a.tp = tpOf(a) - tcost;
+              } else {
+                // Attack Skill trait (M3·B, 35): the Attack command casts the
+                // configured skill's damage/effects (never charging costs —
+                // Attack always works).
+                const rows: any[] = RA.traitsOf(effCarrier(a), "special", "attackSkill");
+                if (rows.length) {
+                  const s = RA.byId(proj.skills, Number(rows[rows.length - 1].value) || 0);
+                  if (s && s.type !== "heal" && s.scope !== "ally" && s.scope !== "allies")
+                    skill = s;
+                }
               }
               const targets =
                 skill && skill.scope === "enemies"
@@ -728,8 +1026,60 @@ export const Battle: any = {
                   actorElement(a),
                   targets.map((t: any) => sprs[t.i]),
                 );
-              const hits = Math.max(1, Math.floor(Number(skill && skill.hits) || 1));
+              let hits = Math.max(1, Math.floor(Number(skill && skill.hits) || 1));
+              // Attack Times+ (M3·B, 34): extra basic-attack strikes.
+              if (c.type === "attack")
+                hits += Math.max(0, Math.floor(effSum(a, "special", "attackTimes") / 100));
               for (const t of targets) {
+                // M3·B: a counterattack (physical) or magic reflection
+                // preempts the whole hit — both rolls gated on the trait.
+                if (!skill || skill.type === "phys") {
+                  const cnt = effSum(t, "special", "counterAttack");
+                  if (cnt > 0 && rndf() < cnt / 100) {
+                    await say(t.d.name + " counters " + a.name + "'s attack!", 600);
+                    let cdmg = variance(bStat(t, "atk") * 2 - bStat(a, "def") * 1.2);
+                    cdmg = Math.max(
+                      1,
+                      Math.floor(cdmg * actorIncomingRate(a, "physical", isGuardingB(a), "phys")),
+                    );
+                    a.hp = Math.max(0, a.hp - cdmg);
+                    actorFlash(a);
+                    floatText(actorElement(a), "-" + cdmg, "damage");
+                    refreshParty();
+                    await say(a.name + " takes " + cdmg + "!", 550);
+                    await afterHpDamage(a, cdmg);
+                    if (a.hp <= 0) await say(a.name + " falls!", 500);
+                    continue;
+                  }
+                } else if (skill.type !== "heal") {
+                  const mrf = effSum(t, "special", "magicReflect");
+                  if (mrf > 0 && rndf() < mrf / 100) {
+                    await say(t.d.name + " reflects " + skill.name + "!", 600);
+                    const rBase = formulaBase(skill, a, a);
+                    const rdmg =
+                      rBase != null
+                        ? mzDamageValue({
+                            base: rBase,
+                            elementRate: 1,
+                            critical: false,
+                            variance: Number(skill.variance) || 0,
+                            guarding: isGuardingB(a),
+                            grd: effRate(a, "special", "guardEffect", 1),
+                            randomInt: rnd,
+                          })
+                        : variance(
+                            (Number(skill.power) || 0) + bStat(a, "mat") * 2 - bStat(a, "mdf") * 1.5,
+                          );
+                    a.hp = Math.max(0, a.hp - rdmg);
+                    actorFlash(a);
+                    floatText(actorElement(a), "-" + rdmg, "damage");
+                    refreshParty();
+                    await say(a.name + " takes " + rdmg + "!", 550);
+                    await afterHpDamage(a, rdmg);
+                    if (a.hp <= 0) await say(a.name + " falls!", 500);
+                    continue;
+                  }
+                }
                 let landed = false;
                 for (let hit = 0; hit < hits; hit++) {
                   if (!t.alive) break;
@@ -751,20 +1101,28 @@ export const Battle: any = {
                     );
                     continue;
                   }
+                  // Magic evade (M3·B mev) — gated on the target's trait.
+                  if (skill && skill.type !== "phys" && magicEvaded(t)) {
+                    floatText(sprs[t.i], "MISS", "state");
+                    await say(t.d.name + " evades " + skill.name + "!", 550);
+                    continue;
+                  }
                   landed = true;
                   let dmg;
                   let critical;
                   const fBase = skill ? formulaBase(skill, a, t) : null;
                   if (fBase != null) {
-                    // MZ pipeline (element rate vs enemies is neutral until
-                    // enemies get a trait carrier in M3·B).
-                    critical = formulaCrit(skill, a);
+                    // MZ pipeline — element/pdr/mdr/guard now read the
+                    // enemy's trait carrier (M3·B); neutral without one.
+                    critical = formulaCrit(skill, a, t);
                     dmg = mzDamageValue({
                       base: fBase,
-                      elementRate: 1,
+                      elementRate: elementRateVs(a, t, skill),
                       critical,
                       variance: Number(skill.variance) || 0,
-                      guarding: false,
+                      guarding: isGuardingB(t),
+                      grd: effRate(t, "special", "guardEffect", 1),
+                      dmgRate: dmgRateVs(t, skill),
                       randomInt: rnd,
                     });
                     if (skill.type === "phys")
@@ -777,28 +1135,34 @@ export const Battle: any = {
                     critical =
                       (!skill || skill.type === "phys") &&
                       rnd(100) <
-                        RA.traitSum(actorClass(a), "special", "critChance", 0);
+                        effSum(a, "special", "critChance") *
+                          (1 - effSum(t, "special", "critEvade") / 100);
                     if (!skill) {
-                      dmg = variance(param(a, "atk") * 2 - t.d.stats.def * 1.2);
+                      dmg = variance(bStat(a, "atk") * 2 - bStat(t, "def") * 1.2);
                       if (!anim) Sfx.play(critical ? "crit" : "hit");
                     } else if (skill.type === "phys") {
                       dmg = variance(
                         ((Number(skill.power) || 0) +
-                          param(a, "atk") * 2 -
-                          t.d.stats.def * 1.2) *
+                          bStat(a, "atk") * 2 -
+                          bStat(t, "def") * 1.2) *
                           skillPowerRate(a, skill),
                       );
                       if (!anim) Sfx.play("crit");
                     } else {
                       dmg = variance(
                         ((Number(skill.power) || 0) +
-                          param(a, "mat") * 2 -
-                          t.d.stats.mdf * 1.5) *
+                          bStat(a, "mat") * 2 -
+                          bStat(t, "mdf") * 1.5) *
                           skillPowerRate(a, skill),
                       );
                       if (!anim) Sfx.play("magic");
                     }
                     if (critical) dmg = Math.max(1, Math.floor(dmg * 1.5));
+                    // M3·B: the enemy's element/pdr/mdr/guard rates fold into
+                    // the structured path too (×1 without a trait carrier).
+                    const mult =
+                      elementRateVs(a, t, skill) * dmgRateVs(t, skill) * guardFactorE(t);
+                    if (mult !== 1) dmg = Math.max(1, Math.floor(dmg * mult));
                     if (!skill || skill.type === "phys")
                       dmg = applyRowScale(dmg, rowDealtScale(rowOf(a)));
                   }
@@ -812,7 +1176,7 @@ export const Battle: any = {
                     burst(sprs[t.i], skillKind(skill));
                     floatText(sprs[t.i], "-" + dealt + " MP", "damage");
                     if (dtype === "mpDrain") {
-                      a.mp = clamp(a.mp + dealt, 0, param(a, "mmp"));
+                      a.mp = clamp(a.mp + dealt, 0, bStat(a, "mmp"));
                       floatText(actorElement(a), "+" + dealt + " MP", "heal");
                       refreshParty();
                     }
@@ -850,15 +1214,22 @@ export const Battle: any = {
                       "!",
                     550,
                   );
+                  await afterHpDamage(t, dmg);
                   if (drained > 0 && a.hp > 0) {
-                    a.hp = clamp(a.hp + drained, 0, param(a, "mhp"));
+                    a.hp = clamp(a.hp + drained, 0, bStat(a, "mhp"));
                     floatText(actorElement(a), "+" + drained, "heal");
                     refreshParty();
                     await say(a.name + " absorbs " + drained + " HP!", 450);
                   }
                   if (!t.alive) await say(t.d.name + " is defeated!", 450);
                 }
-                if (landed) await applySkillState(skill, t);
+                if (landed) {
+                  await applySkillState(skill, t);
+                  // On-attack states (M3·B, trait 32): basic attacks always
+                  // roll them; skills only when flagged (MZ effect 21·0).
+                  if (!skill || skill.attackStates) await applyAttackStates(a, t);
+                  if (skill) await applySkillExtras(skill, t);
+                }
               }
               if (skill && skill.commonEventId) {
                 await new Interp(null).callCommonEvent(Number(skill.commonEventId));
@@ -869,8 +1240,10 @@ export const Battle: any = {
               (c.skill.scope === "ally" || c.skill.scope === "allies")
             ) {
               const cost = skillMpCost(a, c.skill);
-              if (a.mp < cost) return;
+              const tcost = tpActive ? Number(c.skill.tpCost) || 0 : 0;
+              if (a.mp < cost || tpOf(a) < tcost) return;
               a.mp -= cost;
+              if (tcost) a.tp = tpOf(a) - tcost;
               // Revive skills reach the fallen: a mass revive raises every
               // downed member; ordinary group heals still touch the living
               // only. Single-target already picked its ally in actorCommand.
@@ -906,20 +1279,25 @@ export const Battle: any = {
                     mzDamageValue({
                       base: fBase,
                       elementRate: 1,
-                      critical: formulaCrit(c.skill, a),
+                      critical: formulaCrit(c.skill, a, t),
                       variance: Number(c.skill.variance) || 0,
                       guarding: false,
+                      // MZ rec: heals received scale by the target's
+                      // recovery rate (M3·B sp-param 2; 1 natively).
+                      dmgRate: effRate(t, "special", "recovery", 1),
                       randomInt: rnd,
                     }) + (Number(c.skill.power) || 0);
                 } else {
                   amount = variance(
-                    ((Number(c.skill.power) || 0) + param(a, "mat") * 1.2) *
+                    ((Number(c.skill.power) || 0) + bStat(a, "mat") * 1.2) *
                       skillPowerRate(a, c.skill),
                   );
+                  const rec = effRate(t, "special", "recovery", 1);
+                  if (rec !== 1) amount = Math.max(0, Math.floor(amount * rec));
                 }
                 if (c.skill.dmgType === "mp" && !wasFallen) {
                   // MP recover (MZ type 4): restores MP instead of HP.
-                  t.mp = clamp(t.mp + amount, 0, param(t, "mmp"));
+                  t.mp = clamp(t.mp + amount, 0, bStat(t, "mmp"));
                   burst(actorElement(t), "heal", {
                     color: c.skill.color,
                     count: 14,
@@ -937,14 +1315,15 @@ export const Battle: any = {
                     550,
                   );
                   await applySkillState(c.skill, t);
+                  await applySkillExtras(c.skill, t);
                   continue;
                 }
                 // %-of-max recovery (MZ Recover-HP effect value1, M3·A).
                 if (c.skill.powerPct)
                   amount += Math.floor(
-                    (param(t, "mhp") * c.skill.powerPct) / 100,
+                    (bStat(t, "mhp") * c.skill.powerPct) / 100,
                   );
-                t.hp = clamp(t.hp + amount, 0, param(t, "mhp"));
+                t.hp = clamp(t.hp + amount, 0, bStat(t, "mhp"));
                 burst(actorElement(t), "heal", {
                   color: c.skill.color,
                   count: wasFallen ? 18 : 14,
@@ -962,6 +1341,7 @@ export const Battle: any = {
                   550,
                 );
                 await applySkillState(c.skill, t);
+                await applySkillExtras(c.skill, t);
               }
               refreshParty();
               if (c.skill.commonEventId) {
@@ -975,6 +1355,11 @@ export const Battle: any = {
             if (cannotAct(en)) {
               await say(en.d.name + " can't move!", 500);
               return;
+            }
+            // M3·B: TP cost for the enemy's skill (validity checked at pick).
+            if (tpActive && c.skill) {
+              const tc = Number(c.skill.tpCost) || 0;
+              if (tc) en.tp = Math.max(0, tpOf(en) - tc);
             }
             if (c.skill && c.skill.type === "heal") {
               // The Actions editor offers every skill, so heal-type ones must
@@ -998,19 +1383,24 @@ export const Battle: any = {
                   ? mzDamageValue({
                       base: fBase,
                       elementRate: 1,
-                      critical: formulaCrit(c.skill, en),
+                      critical: formulaCrit(c.skill, en, ally),
                       variance: Number(c.skill.variance) || 0,
                       guarding: false,
+                      dmgRate: effRate(ally, "special", "recovery", 1),
                       randomInt: rnd,
                     }) + (Number(c.skill.power) || 0)
                   : variance(
-                      (Number(c.skill.power) || 0) + en.d.stats.mat * 1.2,
+                      (Number(c.skill.power) || 0) + bStat(en, "mat") * 1.2,
                     );
+              if (fBase == null) {
+                const rec = effRate(ally, "special", "recovery", 1);
+                if (rec !== 1) amount = Math.max(0, Math.floor(amount * rec));
+              }
               if (c.skill.powerPct)
                 amount += Math.floor(
-                  ((ally.d.stats.mhp || 0) * c.skill.powerPct) / 100,
+                  (bStat(ally, "mhp") * c.skill.powerPct) / 100,
                 );
-              ally.hp = Math.min(ally.d.stats.mhp, ally.hp + amount);
+              ally.hp = Math.min(bStat(ally, "mhp"), ally.hp + amount);
               if (healAnim) {
                 await playBattleAnim(healAnim, sprs[en.i], [sprs[ally.i]]);
               } else {
@@ -1031,13 +1421,70 @@ export const Battle: any = {
                 550,
               );
               await applySkillState(c.skill, ally);
+              await applySkillExtras(c.skill, ally);
               return;
             }
             const pool = livingP();
             if (!pool.length) return;
-            const t = pool[weightedTargetIndex(pool, rndf())];
+            // M3·B: the Target Rate trait (tgr) weighs the pick — same
+            // single draw, classic 3:1 row weighting when no one carries it.
+            const t = pool[
+              weightedTargetIndex(pool, rndf(), (b: any) =>
+                effRate(b, "special", "targetRate", 1),
+              )
+            ];
             const enemyAnim = c.skill ? animById(c.skill.animationId) : null;
             enemyStep(en);
+            // M3·B: an actor's counterattack (physical actions) or magic
+            // reflection preempts the enemy's hit — rolls gated on the trait.
+            if (!c.skill || c.skill.type === "phys") {
+              const cnt = effSum(t, "special", "counterAttack");
+              if (cnt > 0 && rndf() < cnt / 100) {
+                await say(t.name + " counters " + en.d.name + "'s attack!", 600);
+                let cdmg = variance(bStat(t, "atk") * 2 - bStat(en, "def") * 1.2);
+                const mult =
+                  elementRateVs(t, en, null) *
+                  effRate(en, "special", "physDamage", 1) *
+                  guardFactorE(en);
+                if (mult !== 1) cdmg = Math.max(1, Math.floor(cdmg * mult));
+                await dealToEnemy(en, cdmg, en.i);
+                await say(en.d.name + " takes " + cdmg + "!", 550);
+                await afterHpDamage(en, cdmg);
+                if (!en.alive) await say(en.d.name + " is defeated!", 450);
+                return;
+              }
+            } else if (c.skill.type !== "heal") {
+              const mrf = effSum(t, "special", "magicReflect");
+              if (mrf > 0 && rndf() < mrf / 100) {
+                await say(t.name + " reflects " + c.skill.name + "!", 600);
+                const rBase = formulaBase(c.skill, en, en);
+                const rdmg =
+                  rBase != null
+                    ? mzDamageValue({
+                        base: rBase,
+                        elementRate: elementRateVs(en, en, c.skill),
+                        critical: false,
+                        variance: Number(c.skill.variance) || 0,
+                        guarding: isGuardingB(en),
+                        grd: effRate(en, "special", "guardEffect", 1),
+                        dmgRate: dmgRateVs(en, c.skill),
+                        randomInt: rnd,
+                      })
+                    : Math.max(
+                        1,
+                        variance(
+                          (Number(c.skill.power) || 0) +
+                            bStat(en, "mat") * 2 -
+                            bStat(en, "mdf") * 1.5,
+                        ),
+                      );
+                await dealToEnemy(en, rdmg, en.i, skillKind(c.skill));
+                await say(en.d.name + " takes " + rdmg + "!", 550);
+                await afterHpDamage(en, rdmg);
+                if (!en.alive) await say(en.d.name + " is defeated!", 450);
+                return;
+              }
+            }
             // M3·A: the defender can evade physical actions when evadeChance
             // traits exist (Atlas-native: no traits → no roll → never evades).
             if (
@@ -1055,31 +1502,42 @@ export const Battle: any = {
               );
               return;
             }
+            // Magic evade (M3·B mev) — gated on the actor's trait.
+            if (
+              c.skill &&
+              c.skill.type !== "phys" &&
+              c.skill.type !== "heal" &&
+              magicEvaded(t)
+            ) {
+              floatText(actorElement(t), "EVADED", "state");
+              await say(
+                en.d.name + " uses " + c.skill.name + " — " + t.name + " evades!",
+                550,
+              );
+              return;
+            }
             let dmg;
             let drainedE = 0;
             if (c.skill && c.skill.type !== "heal") {
               const fBase = formulaBase(c.skill, en, t);
               if (fBase != null) {
-                // M3·A MZ pipeline: element rate from the actor's class
-                // traits; guard is MZ's ÷2 (grd stays 1 until M3·B).
+                // M3·A/B MZ pipeline: element (incl. attack elements), the
+                // target's pdr/mdr and grd — all neutral without traits.
                 dmg = mzDamageValue({
                   base: fBase,
-                  elementRate: RA.traitRate(
-                    actorClass(t),
-                    "element",
-                    skillElement(c.skill),
-                    1,
-                  ),
-                  critical: formulaCrit(c.skill, en),
+                  elementRate: elementRateVs(en, t, c.skill),
+                  critical: formulaCrit(c.skill, en, t),
                   variance: Number(c.skill.variance) || 0,
-                  guarding: guards.has(t),
+                  guarding: isGuardingB(t),
+                  grd: effRate(t, "special", "guardEffect", 1),
+                  dmgRate: dmgRateVs(t, c.skill),
                   randomInt: rnd,
                 });
               } else {
                 const atkStat =
-                  c.skill.type === "phys" ? en.d.stats.atk : en.d.stats.mat;
+                  c.skill.type === "phys" ? bStat(en, "atk") : bStat(en, "mat");
                 const defStat =
-                  c.skill.type === "phys" ? actorDef(t) : param(t, "mdf") * 1.5;
+                  c.skill.type === "phys" ? actorDef(t) : bStat(t, "mdf") * 1.5;
                 dmg = variance(
                   (Number(c.skill.power) || 0) + atkStat * 2 - defStat,
                 );
@@ -1090,10 +1548,17 @@ export const Battle: any = {
                       actorIncomingRate(
                         t,
                         skillElement(c.skill),
-                        guards.has(t),
+                        isGuardingB(t),
+                        c.skill.type === "phys" ? "phys" : "magic",
                       ),
                   ),
                 );
+                // Attack-element skills (elementId −1) read the enemy's
+                // attack elements against the actor's rates (M3·B, gated).
+                if (c.skill.attackElement) {
+                  const ae = elementRateVs(en, t, c.skill);
+                  if (ae !== 1) dmg = Math.max(1, Math.floor(dmg * ae));
+                }
               }
               if (c.skill.type === "phys")
                 dmg = applyRowScale(dmg, rowTakenScale(rowOf(t)));
@@ -1145,13 +1610,16 @@ export const Battle: any = {
                 550,
               );
             } else {
-              dmg = variance(en.d.stats.atk * 2 - actorDef(t) * 1.2);
+              dmg = variance(bStat(en, "atk") * 2 - actorDef(t) * 1.2);
               dmg = Math.max(
                 1,
                 Math.floor(
-                  dmg * actorIncomingRate(t, "physical", guards.has(t)),
+                  dmg * actorIncomingRate(t, "physical", isGuardingB(t), "phys"),
                 ),
               );
+              // Attack elements on a basic attack (M3·B trait 31, gated).
+              const ae = elementRateVs(en, t, null);
+              if (ae !== 1) dmg = Math.max(1, Math.floor(dmg * ae));
               dmg = applyRowScale(dmg, rowTakenScale(rowOf(t)));
               Sfx.play("hit");
               await say(
@@ -1179,13 +1647,18 @@ export const Battle: any = {
             win.classList.add("shake");
             refreshParty();
             if (t.hp <= 0) await say(t.name + " falls!", 500);
+            await afterHpDamage(t, dmg);
             if (drainedE > 0 && en.alive) {
               // HP drain (MZ type 5): the enemy absorbs what it dealt.
-              en.hp = Math.min(en.d.stats.mhp, en.hp + drainedE);
+              en.hp = Math.min(bStat(en, "mhp"), en.hp + drainedE);
               floatText(sprs[en.i], "+" + drainedE, "heal");
               await say(en.d.name + " absorbs " + drainedE + " HP!", 450);
             }
             if (c.skill) await applySkillState(c.skill, t);
+            // On-attack states (M3·B): basic attacks always roll them; skills
+            // only when flagged. Then the skill's buff/grow/learn/TP extras.
+            if (!c.skill || c.skill.attackStates) await applyAttackStates(en, t);
+            if (c.skill) await applySkillExtras(c.skill, t);
           }
     }
     // ---- ATB / CTB (Phase 5 Stage B): timed scheduling over the core ----
@@ -1234,8 +1707,8 @@ export const Battle: any = {
     }
     async function runTimedBattle(): Promise<any> {
       const battlers: any[] = [
-        ...G.party.map((a: any) => ({ actor: a, agi: () => param(a, "agi") })),
-        ...enemies.map((en: any) => ({ enemy: en, agi: () => en.d.stats.agi })),
+        ...G.party.map((a: any) => ({ actor: a, agi: () => bStat(a, "agi") })),
+        ...enemies.map((en: any) => ({ enemy: en, agi: () => bStat(en, "agi") })),
       ];
       for (const b of battlers) {
         b.gauge = rndf() * ATB_FULL * 0.35;
@@ -1290,10 +1763,10 @@ export const Battle: any = {
             c.actor = a;
             if (c.type === "escape") {
               const pa =
-                livingP().reduce((s: any, x: any) => s + param(x, "agi"), 0) /
+                livingP().reduce((s: any, x: any) => s + bStat(x, "agi"), 0) /
                 livingP().length;
               const ea =
-                livingE().reduce((s: any, x: any) => s + x.d.stats.agi, 0) /
+                livingE().reduce((s: any, x: any) => s + bStat(x, "agi"), 0) /
                 livingE().length;
               const chance = clamp(0.55 + (pa - ea) * 0.03, 0.2, 0.95);
               if (rndf() < chance) {
@@ -1305,12 +1778,40 @@ export const Battle: any = {
             } else {
               if (c.type === "guard") guards.add(a);
               await resolveAction(c);
+              // Action Times+ (M3·B): gated rolls for immediate extras.
+              const rows: any[] = RA.traitsOf(effCarrier(a), "special", "actionTimes");
+              let extra = rows.length
+                ? extraActionRolls(rows.map((r: any) => Number(r.value) || 0), rndf)
+                : 0;
+              while (extra-- > 0 && a.hp > 0 && livingE().length && !cannotAct(a)) {
+                const c2: any = await actorCommand(a);
+                c2.actor = a;
+                if (c2.type === "escape") break; // extra actions can't flee
+                if (c2.type === "guard") guards.add(a);
+                await resolveAction(c2);
+              }
             }
           }
         } else {
           const en = next.enemy;
           if (cannotAct(en)) await say(en.d.name + " can't move!", 500);
-          else await resolveAction(enemyAction(en));
+          else {
+            const act = enemyAction(en);
+            await resolveAction(act);
+            // Attack Times+ (34): extra basic-attack strikes (M3·B).
+            if (act.type === "attack") {
+              let strikes = Math.floor(effSum(en, "special", "attackTimes") / 100);
+              while (strikes-- > 0 && en.alive && livingP().length)
+                await resolveAction({ type: "attack", enemy: en });
+            }
+            // Action Times+ (61): gated rolls for immediate extra actions.
+            const rows: any[] = RA.traitsOf(effCarrier(en), "special", "actionTimes");
+            let extra = rows.length
+              ? extraActionRolls(rows.map((r: any) => Number(r.value) || 0), rndf)
+              : 0;
+            while (extra-- > 0 && en.alive && livingP().length && !cannotAct(en))
+              await resolveAction(enemyAction(en));
+          }
         }
         await checkTroopPages();
         // a "turn" = one act per living battler; states tick at the boundary
@@ -1325,6 +1826,17 @@ export const Battle: any = {
     }
 
     let result = null;
+    // M3·B: TP opens at 0–24 per battler (MZ initTp) — draws only when the
+    // project actually uses TP; preserve-TP battlers keep what they carried.
+    if (tpActive) {
+      for (const a of G.party) if (!effHas(a, "special", "preserveTp")) a.tp = rnd(25);
+      for (const en of enemies) if (!effHas(en, "special", "preserveTp")) en.tp = rnd(25);
+    }
+    // M3·B: the Change Enemy TP command (342) reaches the live troop here.
+    fns.battleAddEnemyTp = (index: number, delta: number) => {
+      const list = index < 0 ? enemies : [enemies[index]].filter(Boolean);
+      for (const en of list) en.tp = clamp(tpOf(en) + delta, 0, MAX_TP);
+    };
     try {
       await say("Enemies appear!", 700);
       await checkTroopPages();
@@ -1335,47 +1847,77 @@ export const Battle: any = {
         refreshEnemies();
         // ---- collect party commands ----
         const cmds = [];
-        for (const a of livingP()) {
+        collect: for (const a of livingP()) {
           refreshParty();
           if (cannotAct(a)) {
             cmds.push({ type: "stunned", actor: a });
             continue;
           }
-          const c = await actorCommand(a);
-          c.actor = a;
-          if (c.type === "escape") {
-            const pa =
-              livingP().reduce((s: any, x: any) => s + param(x, "agi"), 0) /
-              livingP().length;
-            const ea =
-              livingE().reduce((s: any, x: any) => s + x.d.stats.agi, 0) /
-              livingE().length;
-            const chance = clamp(0.55 + (pa - ea) * 0.03, 0.2, 0.95);
-            if (rndf() < chance) {
-              sysSe("escape");
-              await say("Got away safely!", 800);
-              result = "escape";
-              break battleLoop;
-            } else {
-              await say("Couldn't escape!", 700);
-              cmds.length = 0;
-              break; // enemies still act
+          // Action Times+ (M3·B, trait 61): each row's percent is a gated
+          // roll for one extra command this round (zero rows ⇒ zero draws).
+          const atRows: any[] = RA.traitsOf(effCarrier(a), "special", "actionTimes");
+          const times =
+            1 +
+            (atRows.length
+              ? extraActionRolls(atRows.map((r: any) => Number(r.value) || 0), rndf)
+              : 0);
+          for (let n = 0; n < times; n++) {
+            const c: any = await actorCommand(a);
+            c.actor = a;
+            if (c.type === "escape") {
+              const pa =
+                livingP().reduce((s: any, x: any) => s + bStat(x, "agi"), 0) /
+                livingP().length;
+              const ea =
+                livingE().reduce((s: any, x: any) => s + bStat(x, "agi"), 0) /
+                livingE().length;
+              const chance = clamp(0.55 + (pa - ea) * 0.03, 0.2, 0.95);
+              if (rndf() < chance) {
+                sysSe("escape");
+                await say("Got away safely!", 800);
+                result = "escape";
+                break battleLoop;
+              } else {
+                await say("Couldn't escape!", 700);
+                cmds.length = 0;
+                break collect; // enemies still act
+              }
             }
+            cmds.push(c);
           }
-          cmds.push(c);
         }
         guards = new Set(
           cmds.filter((c: any) => c.type === "guard").map((c: any) => c.actor),
         );
         // ---- enemy commands ----
-        for (const en of livingE()) cmds.push(enemyAction(en));
-        // ---- sort by agility ----
+        for (const en of livingE()) {
+          const act = enemyAction(en);
+          cmds.push(act);
+          // Attack Times+ (34) on a basic attack: extra strikes, pushed as
+          // extra attack commands (the target re-rolls per strike, M3·B).
+          if (act.type === "attack") {
+            const strikes = Math.floor(effSum(en, "special", "attackTimes") / 100);
+            for (let n = 0; n < strikes; n++) cmds.push({ type: "attack", enemy: en });
+          }
+          // Action Times+ for enemies (M3·B, gated rolls).
+          const rows: any[] = RA.traitsOf(effCarrier(en), "special", "actionTimes");
+          const extra = rows.length
+            ? extraActionRolls(rows.map((r: any) => Number(r.value) || 0), rndf)
+            : 0;
+          for (let n = 0; n < extra; n++) cmds.push(enemyAction(en));
+        }
+        // ---- sort by agility (buffed since M3·B; basic attacks add the
+        // Attack Speed trait — both read 0/base natively) ----
         cmds.sort((x: any, y: any) => {
-          const ax = x.actor ? param(x.actor, "agi") : x.enemy.d.stats.agi;
-          const ay = y.actor ? param(y.actor, "agi") : y.enemy.d.stats.agi;
+          const sp = (cmd: any) => {
+            const b = cmd.actor || cmd.enemy;
+            let v = bStat(b, "agi");
+            if (cmd.type === "attack") v += effSum(b, "special", "attackSpeed");
+            return v;
+          };
           return (
-            ay * (0.8 + rndf() * 0.4) -
-            ax * (0.8 + rndf() * 0.4)
+            sp(y) * (0.8 + rndf() * 0.4) -
+            sp(x) * (0.8 + rndf() * 0.4)
           );
         });
 
@@ -1408,7 +1950,11 @@ export const Battle: any = {
           900,
         );
         G.gold = clamp(G.gold + gold, 0, 9999999);
-        for (const a of livingP()) gainExp(a, exp, (m: any) => lines.push(m));
+        // M3·B: the EXP Rate trait (exr) scales each member's share (×1 natively).
+        for (const a of livingP())
+          gainExp(a, Math.floor(exp * effRate(a, "special", "expRate", 1)), (m: any) =>
+            lines.push(m),
+          );
         refreshParty();
         for (const m of lines) await say(m, 800);
       } else if (result === "lose") {
@@ -1416,6 +1962,7 @@ export const Battle: any = {
         await say("The party has fallen...", 1100);
       }
     } finally {
+      delete fns.battleAddEnemyTp;
       // shed battle-only states (poison etc. configured to clear after battle)
       for (const a of G.party) {
         if (a.states)
@@ -1423,6 +1970,8 @@ export const Battle: any = {
             const d = stateDef(st.id);
             return d && !d.removeAtEnd;
           });
+        // M3·B: buffs are battle-scoped (MZ removes all buffs at battle end).
+        delete a.buffs;
       }
       win.remove();
       ctx.scene = prevScene;

@@ -68,6 +68,8 @@ async function loadRegistry() {
     "label", "jump", "changeExp", "changeLevel", "changeParam", "changeSkill",
     "changeEquip", "changeName", "changeClass", "changeActorImage",
     "changeNickname", "changeProfile", "changeState",
+    // M3·B: the TP pair.
+    "changeTp", "changeEnemyTp",
     "access", "followers", "windowTone", "getLocationInfo"]) {
     assert.equal(
       typeof getCommand(type),
@@ -137,6 +139,8 @@ async function loadRegistry() {
       syncFollowers: () => { follSynced++; },
       applyWindowTone: (t) => { toneApplied = t; },
       locationInfo: (x, y, info) => (info === "region" ? 7 : 0),
+      // M3·B: changeState reads the state's maxTurns off the project.
+      getProj: () => ({ states: [{ id: 3, maxTurns: 4 }, { id: 4, maxTurns: 5 }] }),
     };
     const run = (cmd) => getCommand(cmd.t)(cmd, { interp: {}, state: astate, services: asvc });
     const ann = astate.party[0];
@@ -148,9 +152,12 @@ async function loadRegistry() {
     await run({ t: "changeName", actorId: 1, name: "Annette" });
     assert.equal(ann.name, "Annette", "changeName renames the actor");
     await run({ t: "changeState", actorId: 1, op: "add", stateId: 4 });
-    assert.ok(ann.states.includes(4), "changeState adds a state");
+    // M3·B fix: entries are the battle's {id, turns} objects (the M2·C
+    // version pushed bare numbers the battle scene couldn't read).
+    assert.ok(ann.states.some((st) => st.id === 4), "changeState adds a state");
+    assert.equal(ann.states.find((st) => st.id === 4).turns, 5, "changeState takes turns from the state's maxTurns");
     await run({ t: "changeState", actorId: 1, op: "remove", stateId: 4 });
-    assert.ok(!ann.states.includes(4), "changeState removes a state");
+    assert.ok(!ann.states.some((st) => st.id === 4), "changeState removes a state");
     await run({ t: "changeSkill", actorId: 1, op: "learn", skillId: 9 });
     assert.ok(ann.skills.includes(9), "changeSkill (learn) adds a skill");
     await run({ t: "changeSkill", actorId: 1, op: "forget", skillId: 9 });
@@ -168,7 +175,7 @@ async function loadRegistry() {
     // whole-party target (actorId 0)
     astate.party.push({ actorId: 2, name: "Bo", level: 1, exp: 0, hp: 5, mp: 1, classId: 1, weaponId: 0, armorId: 0 });
     await run({ t: "changeState", actorId: 0, op: "add", stateId: 3 });
-    assert.ok(astate.party.every((a) => a.states && a.states.includes(3)), "actorId 0 targets the whole party");
+    assert.ok(astate.party.every((a) => a.states && a.states.some((st) => st.id === 3)), "actorId 0 targets the whole party");
 
     await run({ t: "access", kind: "menu", enabled: false });
     assert.equal(astate.menuDisabled, true, "access(menu, disable) locks the menu");

@@ -20,7 +20,7 @@ import { scriptApi } from "./script-api.js";
 import { Plugins } from "./plugin-runtime.js";
 import { el, esc, clamp, rnd, setSysProjectProvider } from "./util.js";
 import { showList, initUiStack } from "./ui-stack.js";
-import { ctx } from "./state/engine-context.js";
+import { ctx, fns } from "./state/engine-context.js";
 import {
   initQuestRuntime,
   Quests,
@@ -126,6 +126,8 @@ const EngineServices: any = {
   setRoute, transferPlayer, saveLoadMenu, gameOver, toTitle,
   // battle / shop
   Battle, Shop,
+  // Change Enemy TP bridge (M3·B): live only while a battle runs.
+  get battleAddEnemyTp() { return (fns as any).battleAddEnemyTp; },
   // battle animations on the map (Phase 5)
   playMapAnimation,
 };

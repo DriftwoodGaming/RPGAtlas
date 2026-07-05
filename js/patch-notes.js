@@ -5,6 +5,23 @@
 export const PATCH_NOTES = [
   {
     date: "July 5, 2026",
+    title: "Traits everywhere, buffs & debuffs, and the TP gauge",
+    summary:
+      "The battle system learned the whole RPG Maker trait book. Enemies and states can now carry traits (a Slime weak to Ice, a Silence that seals magic), skills and items can raise or lower stats for a few rounds, grow a stat forever, or teach a skill — and an optional TP gauge charges as heroes take hits and pays for special skills. Atlas-made games play exactly as before unless you turn these on; imported RPG Maker MV/MZ games get them automatically.",
+    items: [
+      "Traits moved into a shared editor and now live on Classes, Enemies, AND States — so a state can seal magic (Silence), blind a fighter (Hit chance down), or poison-proof a hero (Resist).",
+      "Every RPG Maker trait converts now: counterattacks, magic reflection, magic evasion, critical dodge, HP/MP regen, attack elements (a fire sword really burns), on-attack states (a poison blade really poisons), extra attack hits, extra actions per round, attack speed, guard strength, healing received, physical/magic damage taken, EXP earned, how often enemies aim at you, always-guarding, and more.",
+      "Skills grant and seal: a class (or state) can grant a whole skill type, seal one skill, or seal a type — sealed skills grey out in battle and in the menu.",
+      "Buffs & debuffs: skills and items can raise or lower ATK/DEF/and friends by 25% a step (up to two steps) for a few rounds, with ↑/↓ pop-ups; Grow adds to a stat permanently and Teach hands over a new skill.",
+      "TP: flip on “Show TP in battle” (System tab) or give a skill a TP cost — heroes build TP from damage taken and spend it on their big moves. New Change TP / Change Enemy TP event commands too.",
+      "States got their full removal rules: walk them off after N steps, shake them off when hit, shed them when stunned, or clear them after battle.",
+      "Items can cure and inflict states at last — the imported Antidote finally cures Poison.",
+      "Fix: a state added by the Change State event command now actually shows up (and ticks) in battle.",
+      "Equipment special effects from imported games (like the Cutlass's fire attacks) move onto the wearer's class, reported in plain language; re-import an RPG Maker MV/MZ game to switch everything on.",
+    ],
+  },
+  {
+    date: "July 5, 2026",
     title: "Real damage formulas — skills can now do the math themselves",
     summary:
       "Skills (and healing items) can carry a damage formula like a.atk * 4 - b.def * 2, and battles run it with the classic RPG Maker rules: variance wiggle, critical hits, guarding cutting damage in half, HP/MP draining attacks, and heals that restore a % of max HP. Games imported from RPG Maker MV/MZ get their custom formulas working automatically — and safely: formulas are read by Atlas's own checker, never run as raw code.",

@@ -71,6 +71,8 @@ export function convertSystem(sys: RmSystem, report: ImportReport): SystemConver
     followers: !!sys.optFollowers,
     battleView: sys.optSideView ? "side" : "front",
     battleSystem: sys.battleSystem ? "atb" : "turn",
+    // M3·B: the TP gauge flag (and one of the TP-mechanics activators).
+    ...(sys.optDisplayTp ? { displayTp: true } : {}),
     types: {
       elements: elements.types,
       skillTypes: skillTypes.types,

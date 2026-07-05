@@ -128,25 +128,60 @@ Each state controls:
 | **Action restriction** | Whether the afflicted can still act (e.g. stun = can't act) |
 | **Duration** | How many turns it lasts |
 | **Removed after battle** | Whether it wears off automatically when combat ends |
+| **Removal rules** | Walk it off after N map steps, a chance to shake it off when hit, or shed it the moment a stun lands |
+| **Traits** | Trait rows that apply *while the state is on* — a Silence that seals magic, a Blind that drops hit chance |
 | **Colors & icon** | How it's shown |
 
-**Skills and items inflict or cure states.** A poison dagger applies *Poison*; an antidote removes it;
-a healing spell might also cure *Stun*. Classic examples to build: Poison, Stun/Paralyze, Regen,
-Sleep, Silence (block magic), and Berserk.
+**Skills and items inflict or cure states.** A poison dagger applies *Poison*; an antidote removes it
+(set the item's **State effect** to *Cure state*); a healing spell might also cure *Stun*. Classic
+examples to build: Poison, Stun/Paralyze, Regen, Sleep, Silence (seal the Magic type with a state
+trait), and Berserk.
 
 ---
 
-## Class traits
+## Buffs, debuffs & extra effects
 
-Combat depth largely comes from **classes** (Database ▸ Classes). Traits let you tune:
+Skills and items can carry **Extra effects** (on their Effects panel):
 
-- **Stats and growth** per level.
-- **Elemental resistances** (resist fire, weak to ice…), using the elements you defined in
+- **Raise / Lower (buff/debuff)** — nudges a stat by ±25% per step (two steps max) for a few
+  rounds, with an ↑/↓ pop-up. Buffs tick down at the end of each round and clear after battle.
+  A battler's *Debuff chance* trait can resist incoming debuffs.
+- **Permanent growth** — adds to a stat for good (the classic stat-seed item).
+- **Teach a skill** — the target learns a skill permanently.
+- Items can also grant **TP** and add or cure **states**.
+
+## TP (optional)
+
+Turn on **Show TP in battle** (Database ▸ System) or give any skill a **TP cost** and battles gain
+a third resource: every battler opens with a little TP, charges more as they *take damage*, and
+spends it on their big moves. Skills can also grant TP on use, traits can regenerate it each round
+or keep it between battles, and the **Change TP** / **Change Enemy TP** event commands adjust it
+mid-game. Leave the toggle off (and TP costs empty) for classic HP/MP battles.
+
+---
+
+## Traits (classes, enemies & states)
+
+Combat depth largely comes from **traits** — and since the trait editor is shared, they live on
+**Classes**, **Enemies**, and **States** alike (Database tabs each have a Traits panel):
+
+- **Stats and growth** per level (classes), plus stat-rate and *debuff chance* rows.
+- **Elemental resistances** (resist fire, weak to ice…) and **attack elements** (“Attack
+  element: Fire” makes every basic attack burn), using the elements you defined in
   [Types](The-Database#types).
-- **Skill bonuses** and which skills are learned, and when.
-- **Equipment permissions** — which weapons/armors the class may wield.
+- **State rows**: infliction rates, outright **Resist** (immunity), and **Inflict on attack**
+  (a poison blade).
+- **Skill rows**: power bonuses per type, **grant/seal a skill or a whole type** — sealed skills
+  grey out in battle and in the menu.
+- **Equipment permissions** — which weapons/armors may be wielded, plus **lock** (can't change)
+  and **seal** (slot forced empty) rows.
+- **Special combat effects** — hit/evade/crit chances, critical dodge, magic evade,
+  **counterattack**, **magic bounce-back**, HP/MP/TP regen, guard strength, healing received,
+  physical/magic damage taken, EXP earned, how often enemies aim here, extra attack hits, extra
+  actions per round, always-guarding, and more.
 
-Two characters of different classes will *feel* different in battle even with the same gear.
+Two characters of different classes will *feel* different in battle even with the same gear — and
+enemies with traits (an Ice-weak Slime that sometimes counterattacks) fight back with character.
 
 ---
 

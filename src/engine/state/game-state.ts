@@ -45,23 +45,82 @@ export function actorClass(a: any): any {
 export function skillElement(skill: any): any {
   return RA.elementOfSkill(skill);
 }
+// ---- effective traits (Project Compass M3·B) ----
+// A battler's live trait list = its class (or enemy record) traits plus the
+// traits of every state currently on it (imported Silence/Blind-style states
+// carry rows). Native projects: states/enemies have no traits, so every read
+// below returns the exact pre-M3·B value.
+/** Trait rows carried by a battler's active states (`{id,turns}` entries;
+ *  stray numeric entries from pre-fix saves are read too). */
+export function stateTraitRows(states: any): any[] {
+  if (!states || !states.length) return [];
+  const out: any[] = [];
+  for (const st of states) {
+    const d = RA.byId(ctx.proj.states || [], st && st.id != null ? st.id : st);
+    if (d && d.traits && d.traits.length) out.push(...d.traits);
+  }
+  return out;
+}
+/** Effective trait carrier for an ACTOR (class + state traits) — a plain
+ *  `{traits}` object usable with RA.traitRate/traitSum/traitsOf. */
+export function actorEffCarrier(a: any): any {
+  const c = actorClass(a);
+  const extra = stateTraitRows(a.states);
+  return extra.length ? { traits: [...(c.traits || []), ...extra] } : c;
+}
 export function skillMpCost(a: any, skill: any): number {
   return Math.max(
     0,
     Math.ceil(
-      (skill.mp || 0) * RA.traitRate(actorClass(a), "special", "mpCost", 1),
+      (skill.mp || 0) * RA.traitRate(actorEffCarrier(a), "special", "mpCost", 1),
     ),
   );
 }
 export function skillPowerRate(a: any, skill: any): number {
-  return RA.traitRate(actorClass(a), "skill", skill.type, 1);
+  return RA.traitRate(actorEffCarrier(a), "skill", skill.type, 1);
 }
-export function actorIncomingRate(a: any, element: any, guarding: any): number {
-  const c = actorClass(a);
+export function actorIncomingRate(
+  a: any,
+  element: any,
+  guarding: any,
+  kind?: "phys" | "magic" | null,
+): number {
+  const c = actorEffCarrier(a);
   let rate = RA.traitRate(c, "element", element, 1);
   rate *= RA.traitRate(c, "special", "damageTaken", 1);
-  if (guarding) rate *= RA.traitRate(c, "special", "guardDamage", 0.55);
+  // M3·B: MZ pdr/mdr fold in when the caller knows the damage kind (absent
+  // traits ⇒ ×1, byte-identical natively).
+  if (kind === "phys") rate *= RA.traitRate(c, "special", "physDamage", 1);
+  else if (kind === "magic") rate *= RA.traitRate(c, "special", "magicDamage", 1);
+  if (guarding) {
+    rate *= RA.traitRate(c, "special", "guardDamage", 0.55);
+    // MZ grd (guardEffect) deepens the guard — ÷grd, default 1 (M3·B).
+    const grd = RA.traitRate(c, "special", "guardEffect", 1);
+    if (grd > 0 && grd !== 1) rate /= grd;
+  }
   return rate;
+}
+/** Is this skill sealed / type-gated for the actor (M3·B trait codes
+ *  41/42/44)? Reads `stype || type` so imported heal skills keep their MZ
+ *  skill type for gating. Native classes carry none of these keys ⇒ false. */
+export function skillBlocked(a: any, skill: any): boolean {
+  const c = actorEffCarrier(a);
+  if (!((c.traits || []).length)) return false;
+  const gateType = String(skill.stype || skill.type || "");
+  if (RA.traitsOf(c, "skill", "seal:" + skill.id).length) return true;
+  if (gateType && RA.traitsOf(c, "skill", "sealType:" + gateType).length) return true;
+  // Add-Skill-Type gating: once a battler has ANY granted types, project
+  // skill types it wasn't granted are unusable (MZ). Types outside the
+  // project's skillTypes list (Atlas natives like "heal") stay ungated.
+  const grants = (c.traits || []).filter(
+    (t: any) => t && t.type === "skill" && String(t.key).startsWith("addType:"),
+  );
+  if (grants.length && gateType) {
+    const listed = RA.typeList(ctx.proj, "skillTypes").some((s: any) => s.key === gateType);
+    if (listed && !grants.some((t: any) => String(t.key) === "addType:" + gateType))
+      return true;
+  }
+  return false;
 }
 export function canActorEquip(a: any, kind: any, itemId: any): boolean {
   return RA.canEquip(actorClass(a), kind, itemId);
@@ -80,9 +139,13 @@ export function param(a: any, stat: any): number {
   if (a.paramPlus) v += a.paramPlus[stat] || 0;
   const w = RA.byId(ctx.proj.weapons, a.weaponId),
     ar = RA.byId(ctx.proj.armors, a.armorId);
-  if (w && w.params) v += w.params[stat] || 0;
-  if (ar && ar.params) v += ar.params[stat] || 0;
-  v = Math.floor(v * RA.traitRate(c, "param", stat, 1));
+  // Seal Equip (M3·B trait 54): a sealed slot contributes nothing. Native
+  // classes carry no seal rows, so the check never fires for them.
+  const sealed = (kind: string) =>
+    (c.traits || []).length && RA.traitsOf(c, "equip", "seal:" + kind).length > 0;
+  if (w && w.params && !sealed("weapon")) v += w.params[stat] || 0;
+  if (ar && ar.params && !sealed("armor")) v += ar.params[stat] || 0;
+  v = Math.floor(v * RA.traitRate(actorEffCarrier(a), "param", stat, 1));
   return Math.max(1, v);
 }
 /** Read-only battler facade for the sandboxed damage-formula evaluator
@@ -104,6 +167,14 @@ export function learnedSkills(a: any): any[] {
     .filter((l: any) => l.level <= a.level)
     .map((l: any) => l.skillId);
   if (a.skills) for (const id of a.skills) if (!ids.includes(id)) ids.push(id);
+  // Add-Skill traits (M3·B, `skill`/`add:<id>`) grant for real — from the
+  // class and from active states. M1's inert numeric-key rows never match.
+  for (const t of [...(c.traits || []), ...stateTraitRows(a.states)]) {
+    if (t && t.type === "skill" && String(t.key).startsWith("add:")) {
+      const id = Number(String(t.key).slice(4)) || 0;
+      if (id && !ids.includes(id)) ids.push(id);
+    }
+  }
   const forgot = a.forgot;
   return ids
     .filter((id: number) => !(forgot && forgot.includes(id)))
@@ -198,30 +269,55 @@ export function initQuestRuntime(): void {
 
 export function traitDescription(t: any): string {
   const value = Number(t.value) || 0;
-  if (t.type === "param")
-    return String(t.key).toUpperCase() + " " + value + "%";
+  const key = String(t.key || "");
+  const stateName = (id: any) => {
+    const s = RA.byId(ctx.proj.states || [], Number(id));
+    return s ? s.name : "State " + id;
+  };
+  const elementName = (k: string) => {
+    const e = RA.typeList(ctx.proj, "elements").find((x: any) => x.key === k);
+    return e ? e.name : k;
+  };
+  const skillName = (id: any) => {
+    const s = RA.byId(ctx.proj.skills || [], Number(id));
+    return s ? s.name : "Skill " + id;
+  };
+  if (t.type === "param") {
+    if (key.startsWith("debuff:"))
+      return key.slice(7).toUpperCase() + " debuff chance " + value + "%";
+    return key.toUpperCase() + " " + value + "%";
+  }
   if (t.type === "element") {
-    const e = RA.typeList(ctx.proj, "elements").find((x: any) => x.key === t.key);
-    return (e ? e.name : t.key) + " damage " + value + "%";
+    if (key.startsWith("attack:"))
+      return "Attacks carry " + elementName(key.slice(7));
+    return elementName(key) + " damage " + value + "%";
   }
   if (t.type === "state") {
-    const state = RA.byId(ctx.proj.states || [], Number(t.key));
-    return (state ? state.name : "State " + t.key) + " chance " + value + "%";
+    if (key.startsWith("resist:")) return "Immune to " + stateName(key.slice(7));
+    if (key.startsWith("attack:"))
+      return "Attacks inflict " + stateName(key.slice(7)) + " " + value + "%";
+    return stateName(key) + " chance " + value + "%";
   }
-  if (t.type === "skill")
-    return (
-      String(t.key).replace(/^\w/, (c: string) => c.toUpperCase()) +
-      " skill power " +
-      value +
-      "%"
-    );
+  if (t.type === "skill") {
+    if (key.startsWith("add:")) return "Grants " + skillName(key.slice(4));
+    if (key.startsWith("seal:")) return "Seals " + skillName(key.slice(5));
+    if (key.startsWith("addType:") || key.startsWith("sealType:")) {
+      const stKey = key.slice(key.indexOf(":") + 1);
+      const st = RA.typeList(ctx.proj, "skillTypes").find((x: any) => x.key === stKey);
+      return (key.startsWith("addType:") ? "Grants " : "Seals ") + (st ? st.name : stKey) + " skills";
+    }
+    return key.replace(/^\w/, (c: string) => c.toUpperCase()) + " skill power " + value + "%";
+  }
   if (t.type === "equip") {
+    if (key.startsWith("lock:")) return "Locked " + key.slice(5) + " slot";
+    if (key.startsWith("seal:")) return "Sealed " + key.slice(5) + " slot";
     const item = RA.byId(
       t.key === "armor" ? ctx.proj.armors : ctx.proj.weapons,
       value,
     );
     return "Can equip " + (item ? item.name : t.key + " " + value);
   }
+  if (t.key === "attackSkill") return "Attack casts " + skillName(value);
   const special = RA.TRAIT_SPECIALS.find((x: any) => x.v === t.key);
   return (
     (special ? special.l.replace(/ %$/, "") : t.key) + ": " + value + "%"

@@ -12,6 +12,7 @@ import { h, tIn, nIn, sel, chk, field, row, dbOpts, switchOpts, typeSelOpts } fr
 import { touch } from "../persistence";
 import { cmdListWidget } from "../event-editor/command-list";
 import { PARAM_KEYS, listFormTab, nameRefresher, iconPickerField, subTabs } from "./shared";
+import { extraEffectsEditor } from "./battler-tabs";
 
 export const itemsTab = () => listFormTab({
   kind: "items",
@@ -23,6 +24,18 @@ export const itemsTab = () => listFormTab({
       field("Revives fallen ally", chk(e, "revive"))));
     box.appendChild(field("Description", tIn(e, "desc")));
     box.appendChild(h("div", { class: "dim" }, "Revive: this item works only on a fallen (0 HP) ally, bringing them back with the “Restores HP” amount. Non-revive items can't be used on the fallen."));
+    // M3·B: state add/cure (the Antidote pattern) + TP + buff/grow/learn extras.
+    if (e.stateId == null) e.stateId = 0;
+    if (!e.stateOp) e.stateOp = "remove";
+    if (e.stateChance == null) e.stateChance = 100;
+    box.appendChild(h("div", { class: "subhead" }, "State effect (optional)"));
+    box.appendChild(row(
+      field("Effect", sel(e, "stateOp", [{ v: "remove", l: "Cure state" }, { v: "add", l: "Add state" }])),
+      field("State", sel(e, "stateId", dbOpts(S.proj.states, "(none)"))),
+      field("Chance %", nIn(e, "stateChance", 0, 100)),
+      field("TP given", nIn(e, "gainTp", 0, 100))));
+    box.appendChild(h("div", { class: "subhead" }, "Extra effects (optional)"));
+    box.appendChild(extraEffectsEditor(e));
   },
 });
 

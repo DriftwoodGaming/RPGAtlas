@@ -59,6 +59,10 @@ export function systemTab() {
       { v: "ctb", l: "CTB (turn-order timeline)" },
     ]))));
     p.appendChild(h("div", { class: "dim" }, "ATB: gauges fill with agility; a battler acts when full (gauges pause during command input). CTB: one battler acts at a time in an agility-driven order shown at the top of the battle."));
+    // TP (Project Compass M3·B): the gauge flag; skills with a TP cost also
+    // switch the mechanics on even while the gauge stays hidden.
+    p.appendChild(row(field("Show TP in battle (battlers build TP from damage and spend it on skills)", chk(s, "displayTp"))));
+    p.appendChild(h("div", { class: "dim" }, "TP starts each battle low, charges as a battler takes damage, and pays for skills with a TP cost (set on the Skills tab). Leave this off for classic HP/MP battles."));
     p.appendChild(h("div", { class: "dim", style: "margin-top:8px" }, "Default key & gamepad bindings have their own “Controls” tab."));
     return p;
   }

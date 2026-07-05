@@ -15,7 +15,7 @@ import { touch } from "../persistence";
 import { parseFormula } from "../../shared/formula";
 import {
   STAT_KEYS, listFormTab, nameRefresher, iconPickerField,
-  traitDefault, skillTypeTraitOpts, subTabs,
+  traitsEditor, subTabs,
 } from "./shared";
 
 export const actorsTab = () => listFormTab({
@@ -98,105 +98,8 @@ export const classesTab = () => listFormTab({
     }
 
     function buildTraits() {
-      const p = h("div");
-      const traitBox = h("div", { class: "trait-list" });
-      function traitKeyOptions(t: any) {
-        if (t.type === "param") {
-          const opts: any = STAT_KEYS.map((k) => ({ v: k, l: k.toUpperCase() }));
-          opts.stringValues = true;
-          return opts;
-        }
-        if (t.type === "element") {
-          return elementSelOpts();
-        }
-        if (t.type === "state") {
-          const opts: any = dbOpts(S.proj.states);
-          opts.stringValues = true;
-          return opts;
-        }
-        if (t.type === "skill") {
-          return skillTypeTraitOpts();
-        }
-        if (t.type === "equip") {
-          const opts: any = [{ v: "weapon", l: "Weapon" }, { v: "armor", l: "Armor" }];
-          opts.stringValues = true;
-          return opts;
-        }
-        const opts: any = RA.TRAIT_SPECIALS.slice();
-        opts.stringValues = true;
-        return opts;
-      }
-      function traitValueLabel(t: any) {
-        if (t.type === "param") return "Stat rate %";
-        if (t.type === "element") return "Damage taken %";
-        if (t.type === "state") return "Infliction chance %";
-        if (t.type === "skill") return "Power rate %";
-        return "Value %";
-      }
-      function redrawTraits() {
-        traitBox.innerHTML = "";
-        e.traits.forEach((t: any, i: any) => {
-          const typeOpts: any = RA.TRAIT_TYPES.slice();
-          typeOpts.stringValues = true;
-          const typeSelect = sel(t, "type", typeOpts, (type: any) => {
-            Object.assign(t, traitDefault(type));
-            redrawTraits();
-          });
-          const keySelect = sel(t, "key", traitKeyOptions(t), () => {
-            if (t.type === "equip") {
-              const db = t.key === "armor" ? S.proj.armors : S.proj.weapons;
-              if (!db.some((item: any) => item.id === Number(t.value))) t.value = db[0] ? db[0].id : 0;
-              redrawTraits();
-            }
-          });
-          let valueControl;
-          if (t.type === "equip") {
-            const db = t.key === "armor" ? S.proj.armors : S.proj.weapons;
-            valueControl = field("Allowed item", sel(t, "value", dbOpts(db, "(none)")));
-          } else {
-            const max = t.type === "special" && t.key === "critChance" ? 100 : 999;
-            valueControl = field(traitValueLabel(t), nIn(t, "value", 0, max));
-          }
-          const controls = h("div", { class: "trait-actions" },
-            h("button", {
-              class: "mini", title: "Move trait up", "aria-label": "Move trait up",
-              ...(i === 0 ? { disabled: "" } : {}),
-              onclick() {
-                if (i <= 0) return;
-                const [moved] = e.traits.splice(i, 1); e.traits.splice(i - 1, 0, moved);
-                touch(); redrawTraits();
-              },
-            }, "↑"),
-            h("button", {
-              class: "mini", title: "Move trait down", "aria-label": "Move trait down",
-              ...(i === e.traits.length - 1 ? { disabled: "" } : {}),
-              onclick() {
-                if (i >= e.traits.length - 1) return;
-                const [moved] = e.traits.splice(i, 1); e.traits.splice(i + 1, 0, moved);
-                touch(); redrawTraits();
-              },
-            }, "↓"),
-            h("button", {
-              class: "mini danger", title: "Delete trait", "aria-label": "Delete trait",
-              onclick() { e.traits.splice(i, 1); touch(); redrawTraits(); },
-            }, "Delete"),
-          );
-          traitBox.appendChild(h("div", { class: "trait-row" },
-            field("Trait type", typeSelect), field("Target", keySelect), valueControl, controls));
-        });
-        if (!e.traits.length) {
-          traitBox.appendChild(h("div", { class: "dim trait-empty" }, "No traits. This class uses the engine's normal rules."));
-        }
-        traitBox.appendChild(h("button", {
-          class: "mini trait-add",
-          onclick() { e.traits.push(traitDefault("param")); touch(); redrawTraits(); },
-        }, "+ Add trait"));
-      }
-      redrawTraits();
-      p.appendChild(h("div", { class: "dim" },
-        "Rates use 100% as normal, 50% as half, and 0% as immunity. Multiple matching rates multiply. Equipment permissions become a whitelist for that slot."));
-      p.appendChild(traitBox);
-      return p;
+      // The shared M3·B traits editor (also on Enemies and States).
+      return traitsEditor(e, "No traits. This class uses the engine's normal rules.");
     }
 
     function buildLearnings() {
@@ -241,7 +144,11 @@ export const skillsTab = () => listFormTab({
       p.appendChild(row(field("Name", nameRefresher(e, redrawList)), iconPickerField(e, redrawList),
         field("Type", sel(e, "type", skillTypeSelOpts())),
         field("Element", sel(e, "element", elementSelOpts())),
-        field("Power", nIn(e, "power", 0, 9999)), field("MP cost", nIn(e, "mp", 0, 999))));
+        field("Power", nIn(e, "power", 0, 9999)), field("MP cost", nIn(e, "mp", 0, 999)),
+        // M3·B: TP — costs/gains only matter once the project uses TP
+        // (System ▸ “Show TP in battle”, or any skill with a TP cost).
+        field("TP cost", nIn(e, "tpCost", 0, 100)),
+        field("TP gained", nIn(e, "gainTp", 0, 100))));
       p.appendChild(row(field("Scope", sel(e, "scope", [
         { v: "enemy", l: "One enemy" }, { v: "enemies", l: "All enemies" },
         { v: "ally", l: "One ally" }, { v: "allies", l: "All allies" }])),
@@ -340,10 +247,75 @@ export const skillsTab = () => listFormTab({
         field("Can critical", chk(e, "critical")),
       ));
       p.appendChild(verdict);
+      // M3·B: buffs/debuffs, permanent growth, and taught skills.
+      p.appendChild(h("div", { class: "subhead" }, "Extra effects (optional)"));
+      p.appendChild(extraEffectsEditor(e));
       return p;
     }
   },
 });
+
+/** M3·B: the buff/debuff + grow + learn effect lists, shared by the Skills
+ *  and Items forms. Buffs raise/lower a stat ±25% per step for a few rounds;
+ *  Grow adds to the stat permanently; Learn teaches a skill for good. */
+export function extraEffectsEditor(e: any) {
+  const wrap = h("div", { class: "minilist" });
+  const statOpts = () => {
+    const o: any = STAT_KEYS.map((k) => ({ v: k, l: k.toUpperCase() }));
+    o.stringValues = true;
+    return o;
+  };
+  const opOpts = () => {
+    const o: any = [
+      { v: "buff", l: "Raise (buff)" }, { v: "debuff", l: "Lower (debuff)" },
+      { v: "removeBuff", l: "Remove raise" }, { v: "removeDebuff", l: "Remove lower" },
+    ];
+    o.stringValues = true;
+    return o;
+  };
+  function redraw() {
+    wrap.innerHTML = "";
+    (e.buffs || []).forEach((b: any, i: number) => {
+      const turnsCtl = b.op === "buff" || b.op === "debuff"
+        ? [h("span", null, "for"), nIn(b, "turns", 1, 99), h("span", null, "rounds")]
+        : [];
+      wrap.appendChild(h("div", { class: "minirow" },
+        sel(b, "op", opOpts(), () => { touch(); redraw(); }),
+        sel(b, "stat", statOpts()),
+        ...turnsCtl,
+        h("button", { class: "mini", onclick() { e.buffs.splice(i, 1); if (!e.buffs.length) delete e.buffs; touch(); redraw(); } }, "✕")));
+    });
+    (e.grow || []).forEach((g: any, i: number) => {
+      wrap.appendChild(h("div", { class: "minirow" },
+        h("span", null, "Grow"), sel(g, "stat", statOpts()),
+        h("span", null, "by"), nIn(g, "amount", 1, 999), h("span", null, "forever"),
+        h("button", { class: "mini", onclick() { e.grow.splice(i, 1); if (!e.grow.length) delete e.grow; touch(); redraw(); } }, "✕")));
+    });
+    (e.learn || []).forEach((_id: any, i: number) => {
+      const holder = { v: e.learn[i] };
+      wrap.appendChild(h("div", { class: "minirow" },
+        h("span", null, "Teach skill"),
+        sel(holder, "v", dbOpts(S.proj.skills), (v: any) => { e.learn[i] = Number(v); touch(); }),
+        h("button", { class: "mini", onclick() { e.learn.splice(i, 1); if (!e.learn.length) delete e.learn; touch(); redraw(); } }, "✕")));
+    });
+    wrap.appendChild(h("div", null,
+      h("button", { class: "mini", onclick() {
+        (e.buffs || (e.buffs = [])).push({ stat: "atk", op: "buff", turns: 3 });
+        touch(); redraw();
+      } }, "+ buff/debuff"),
+      h("button", { class: "mini", onclick() {
+        (e.grow || (e.grow = [])).push({ stat: "atk", amount: 1 });
+        touch(); redraw();
+      } }, "+ permanent growth"),
+      h("button", { class: "mini", onclick() {
+        (e.learn || (e.learn = [])).push(S.proj.skills[0] ? S.proj.skills[0].id : 1);
+        touch(); redraw();
+      } }, "+ teach a skill"),
+    ));
+  }
+  redraw();
+  return wrap;
+}
 
 export const enemiesTab = () => listFormTab({
   kind: "enemies",
@@ -365,6 +337,8 @@ export const enemiesTab = () => listFormTab({
     box.appendChild(subTabs("enemies", [
       { label: "Stats & rewards", build: buildStats },
       { label: "Actions (AI)", build: buildActions },
+      // M3·B: enemies carry their own traits (element/state rates, counters…).
+      { label: "Traits", build: () => traitsEditor(e, "No traits. This enemy uses the engine's normal rules.") },
     ]));
     rp();
     return;
@@ -448,10 +422,34 @@ export const statesTab = () => listFormTab({
   form(e: any, box: any, redrawList: any) {
     const colorIn = h("input", { type: "color", value: e.color || "#a050d8", oninput(ev2: any) { e.color = ev2.target.value; touch(); } });
     box.appendChild(row(field("Name", nameRefresher(e, redrawList)), iconPickerField(e, redrawList), field("Color", colorIn)));
-    box.appendChild(row(field("Restriction", sel(e, "restrict", [{ v: "none", l: "None" }, { v: "act", l: "Cannot act" }])),
-      field("HP per turn %", nIn(e, "hpTurn", -100, 100)),
-      field("Min turns", nIn(e, "minTurns", 1, 99)), field("Max turns", nIn(e, "maxTurns", 1, 99)),
-      field("Removed after battle", chk(e, "removeAtEnd"))));
-    box.appendChild(h("div", { class: "dim" }, "Negative HP per turn deals damage each round (poison); positive restores (regen). “Cannot act” makes the battler skip its turns (stun). States are inflicted or cured by skills — set that on the Skills tab. Full recovery cures all states."));
+    box.appendChild(subTabs("states", [
+      { label: "General", build: buildGeneral },
+      { label: "Removal", build: buildRemoval },
+      // M3·B: states can carry traits while active (Silence/Blind-style).
+      { label: "Traits", build: () => traitsEditor(e, "No traits. This state only does what General says.") },
+    ]));
+
+    function buildGeneral() {
+      const p = h("div");
+      p.appendChild(row(field("Restriction", sel(e, "restrict", [{ v: "none", l: "None" }, { v: "act", l: "Cannot act" }])),
+        field("HP per turn %", nIn(e, "hpTurn", -100, 100)),
+        field("Min turns", nIn(e, "minTurns", 1, 99)), field("Max turns", nIn(e, "maxTurns", 1, 99))));
+      p.appendChild(h("div", { class: "dim" }, "Negative HP per turn deals damage each round (poison); positive restores (regen). “Cannot act” makes the battler skip its turns (stun). States are inflicted or cured by skills and items — set that on their tabs. Full recovery cures all states."));
+      return p;
+    }
+
+    function buildRemoval() {
+      // M3·B: the MZ state-timing set — battle end, walking, damage, restriction.
+      const p = h("div");
+      if (e.stepsToRemove == null) e.stepsToRemove = 0;
+      if (e.removeByDamage == null) e.removeByDamage = 0;
+      p.appendChild(row(
+        field("Removed after battle", chk(e, "removeAtEnd")),
+        field("Steps to walk it off (0 = never)", nIn(e, "stepsToRemove", 0, 9999)),
+        field("Chance % removed when hit (0 = never)", nIn(e, "removeByDamage", 0, 100)),
+        field("Removed when stunned", chk(e, "removeByRestriction"))));
+      p.appendChild(h("div", { class: "dim" }, "“Steps to walk it off” cures the state after that many map steps. “Removed when hit” rolls each time the battler takes HP damage. “Removed when stunned” sheds the state the moment a cannot-act state lands."));
+      return p;
+    }
   },
 });
