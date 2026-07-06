@@ -21,15 +21,31 @@ import { browserSaveRepository as saves } from "../../platform/browser/save-repo
 export function slotInfo(slot: any): any {
   return saves.readSlot(slot);
 }
+
+// Autosave (post-1.1, MZ optAutosave): a dedicated slot the engine writes by
+// itself after map transfers and won random battles. Slot 0 so the three
+// manual slots keep their exact keys; it only appears in the Load list (a
+// player can't overwrite it by hand), and only when the setting is on.
+export const AUTOSAVE_SLOT = 0;
+
+/** Write the autosave slot, silently. No-op unless system.autosave is on,
+ *  saving isn't event-locked (M2·C Save Access), and a map is loaded. A full
+ *  storage is swallowed — an autosave must never interrupt play. */
+export function autosaveNow(): void {
+  if (!ctx.proj.system.autosave || G.saveDisabled || !ctx.map) return;
+  saves.writeSlot(AUTOSAVE_SLOT, buildSavePayload());
+}
+
 export async function saveLoadMenu(mode: any): Promise<boolean> {
-  const slots = [1, 2, 3];
+  const slots =
+    mode === "load" && ctx.proj.system.autosave ? [AUTOSAVE_SLOT, 1, 2, 3] : [1, 2, 3];
   const i = await showList(
     slots.map((s) => {
       const info = slotInfo(s);
       return {
         html:
-          "<b>Slot " +
-          s +
+          "<b>" +
+          (s === AUTOSAVE_SLOT ? "Autosave" : "Slot " + s) +
           "</b> — " +
           (info
             ? esc(info.mapName) +
@@ -49,52 +65,7 @@ export async function saveLoadMenu(mode: any): Promise<boolean> {
   if (i < 0) return false;
   const slot = slots[i];
   if (mode === "save") {
-    const payload = {
-      ts: Date.now(),
-      mapName: ctx.map ? ctx.map.name : "",
-      level: G.party[0] ? G.party[0].level : 1,
-      data: {
-        switches: G.switches,
-        vars: G.vars,
-        selfSw: G.selfSw,
-        quests: G.quests,
-        party: G.party,
-        inv: G.inv,
-        gold: G.gold,
-        steps: G.steps,
-        cameraZoom: ctx.cameraZoom,
-        timeOfDay: G.timeOfDay,
-        vehicles: G.vehicles,
-        vehicle: G.vehicle,
-        // Change Vehicle Image overrides (Project Compass M4·A, RM 323).
-        vehicleImages: G.vehicleImages || null,
-        // Streamed-audio channel state (Project Compass M4·B): the command-
-        // owned BGS layer (245), the remembered BGM (243/244), and the
-        // victory/defeat jingle overrides (133/139).
-        bgs: G.bgs || null,
-        savedBgm: G.savedBgm || null,
-        jingles: G.jingles || null,
-        // Presentation layer (Project Compass M2·A): pictures, screen tint, timer.
-        presentation: serializePresentation(),
-        // System toggles (Project Compass M2·C): menu/save/encounter/formation
-        // access, follower visibility, and the live window-colour override.
-        sysFlags: {
-          menuDisabled: !!G.menuDisabled,
-          saveDisabled: !!G.saveDisabled,
-          encounterDisabled: !!G.encounterDisabled,
-          formationDisabled: !!G.formationDisabled,
-          followersHidden: !!G.followersHidden,
-          windowTone: G.windowTone || null,
-        },
-        mapId: G.mapId,
-        player: {
-          x: G.player.x,
-          y: G.player.y,
-          dir: G.player.dir,
-          transparent: !!G.player.transparent,
-        },
-      },
-    };
+    const payload = buildSavePayload();
     if (!saves.writeSlot(slot, payload)) {
       await ctx.showMessage("", "Could not save — storage is full or unavailable.");
       return false;
@@ -115,6 +86,57 @@ export async function saveLoadMenu(mode: any): Promise<boolean> {
     return true;
   }
 }
+/** The full save payload (manual slots and the autosave write the same
+ *  shape — extracted verbatim from the manual-save branch, post-1.1). */
+function buildSavePayload(): any {
+  return {
+    ts: Date.now(),
+    mapName: ctx.map ? ctx.map.name : "",
+    level: G.party[0] ? G.party[0].level : 1,
+    data: {
+      switches: G.switches,
+      vars: G.vars,
+      selfSw: G.selfSw,
+      quests: G.quests,
+      party: G.party,
+      inv: G.inv,
+      gold: G.gold,
+      steps: G.steps,
+      cameraZoom: ctx.cameraZoom,
+      timeOfDay: G.timeOfDay,
+      vehicles: G.vehicles,
+      vehicle: G.vehicle,
+      // Change Vehicle Image overrides (Project Compass M4·A, RM 323).
+      vehicleImages: G.vehicleImages || null,
+      // Streamed-audio channel state (Project Compass M4·B): the command-
+      // owned BGS layer (245), the remembered BGM (243/244), and the
+      // victory/defeat jingle overrides (133/139).
+      bgs: G.bgs || null,
+      savedBgm: G.savedBgm || null,
+      jingles: G.jingles || null,
+      // Presentation layer (Project Compass M2·A): pictures, screen tint, timer.
+      presentation: serializePresentation(),
+      // System toggles (Project Compass M2·C): menu/save/encounter/formation
+      // access, follower visibility, and the live window-colour override.
+      sysFlags: {
+        menuDisabled: !!G.menuDisabled,
+        saveDisabled: !!G.saveDisabled,
+        encounterDisabled: !!G.encounterDisabled,
+        formationDisabled: !!G.formationDisabled,
+        followersHidden: !!G.followersHidden,
+        windowTone: G.windowTone || null,
+      },
+      mapId: G.mapId,
+      player: {
+        x: G.player.x,
+        y: G.player.y,
+        dir: G.player.dir,
+        transparent: !!G.player.transparent,
+      },
+    },
+  };
+}
+
 async function applySave(d: any): Promise<void> {
   ctx.commonParallels.clear();
   G.switches = d.switches || {};

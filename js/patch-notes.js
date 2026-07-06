@@ -5,6 +5,21 @@
 export const PATCH_NOTES = [
   {
     date: "July 5, 2026",
+    title: "Five more things now come across: Luck, dual wield, autosave, and custom menus",
+    summary:
+      "The RPG Maker import report's “left out on purpose” list just got a lot shorter. Atlas grew a real Luck stat (the eighth battle number — it nudges how often ailments and stat drops land), two-weapon fighting (dual-wield heroes get a second weapon slot in the Equip menu), autosave (the game quietly saves after map moves and won battles), custom pause-menu commands (hide Items, Skills, Save, or any command you don't want), and item-menu categories with a proper Key Items tab — story items can't be used up by accident anymore. Every one of these imports automatically from MZ/MV projects and can be switched on for your own games in Database ▸ System. Projects that don't use them play byte-for-byte the same as before.",
+    items: [
+      "New Luck stat (LUK) on classes, enemies, and equipment — higher Luck makes your ailments land more and enemy ailments land less, exactly like RPG Maker. It only appears once your game actually uses it.",
+      "Two-weapon fighting: give a class the “Two-weapon fighting” bonus (Classes ▸ Traits) and its heroes get a second weapon slot; both weapons' stats count.",
+      "Autosave (Database ▸ System): the game writes a dedicated Autosave slot after map transfers and survived battles; players load it from the Load menu.",
+      "Custom pause-menu commands (Database ▸ System): untick Items, Skills, Equip, Status, Formation, or Save to hide it from the pause menu.",
+      "Item-menu categories (Database ▸ System): the item menu can open with Items / Weapons / Armor / Key Items tabs; mark story items as key items on the Items tab.",
+      "Imports pick all five up automatically — Luck values, dual-wield heroes (their second weapon lands in the right slot now), autosave, hidden menu commands, and key items all convert instead of being “left out on purpose.”",
+      "Damage formulas that read a.luk or b.luk now run for real instead of falling back.",
+    ],
+  },
+  {
+    date: "July 5, 2026",
     title: "Polish pass: sturdier imports and a tidier editor",
     summary:
       "A bug-hunting sweep right after 1.1, including a fix for a real imported-game report: bringing in an RPG Maker project whose first map had no shadows painted failed with a confusing “reading '0'” error. Clicking an imported read-only Script command in the event editor now opens a friendly read-only view instead of breaking the panel — and no command type, however unusual, can crash the inspector anymore. Importing a project folder that's missing its map files now lands you on a fresh starter map with an honest report line instead of failing halfway. And the import safety check got even stricter about which script snippets it vouches for.",

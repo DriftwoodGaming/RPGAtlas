@@ -118,7 +118,7 @@ describe("Classes (§2/§5)", () => {
     expect(c.growth.mhp).toBe(41); // (4418 − 400) / 98
     expect(c.base.atk).toBe(28);
   });
-  it("converts the representable trait codes and drops luk", () => {
+  it("converts the representable trait codes — luk included since post-1.1", () => {
     const c = byId(mv.db.classes, 1);
     // 11 element (ice), 21 param (atk ×1.1 → 110), 43 skill (M3·B `add:`
     // prefix — the grant is real now), 51 equip-type.
@@ -126,8 +126,8 @@ describe("Classes (§2/§5)", () => {
     expect(c.traits).toContainEqual({ type: "param", key: "atk", value: 110 });
     expect(c.traits).toContainEqual({ type: "skill", key: "add:3", value: 100 });
     expect(c.traits).toContainEqual({ type: "equip", key: "weaponType", value: 2 });
-    // 21 dataId 7 (luk) never becomes a param trait.
-    expect(c.traits.some((t) => t.type === "param" && t.value === 120)).toBe(false);
+    // 21 dataId 7 (luk ×1.2) converts for real now (post-1.1, ex-D7).
+    expect(c.traits).toContainEqual({ type: "param", key: "luk", value: 120 });
   });
   it("converts ex-param hit/eva/cri to special traits (M3·A, §5 code 22)", () => {
     // Wanderer carries {code:22, dataId:0, value:0.95} → hitChance 95% (the
@@ -259,8 +259,8 @@ describe("Items / Weapons / Armors (§2)", () => {
     expect(tonic.grow).toEqual([{ stat: "mat", amount: 3 }]);
     expect(tonic.learn).toEqual([2]);
   });
-  it("converts weapon/armor params dropping luk", () => {
-    expect(byId(mv.db.weapons, 1).params).toEqual({ atk: 12, agi: 2 }); // luk 3 dropped
+  it("converts weapon/armor params — luk included since post-1.1", () => {
+    expect(byId(mv.db.weapons, 1).params).toEqual({ atk: 12, agi: 2, luk: 3 });
     expect(byId(mv.db.armors, 1).params).toEqual({ def: 8, mdf: 2 });
   });
   it("merges equip trait rows onto the wearers' classes (M3·B, D6)", () => {
@@ -278,7 +278,7 @@ describe("Items / Weapons / Armors (§2)", () => {
 describe("Enemies (§2/§8)", () => {
   it("converts stats, actions, and action conditions", () => {
     const slime = byId(mv.db.enemies, 1);
-    expect(slime.stats).toEqual({ mhp: 120, atk: 14, def: 8, mat: 4, mdf: 6, agi: 10 });
+    expect(slime.stats).toEqual({ mhp: 120, atk: 14, def: 8, mat: 4, mdf: 6, agi: 10, luk: 5 });
     expect(slime.exp).toBe(15);
     expect(slime.gold).toBe(10);
     expect(slime.actions).toEqual([
@@ -373,11 +373,15 @@ describe("Troops + CommonEvents (§2) — record shells + M1·C-translated bodie
   });
 });
 
-describe("luk locked skip (§5/§7, D7)", () => {
-  it("aggregates every dropped Luck value into a single report line", () => {
-    const luk = mv.report.lines.filter((l) => /luck/i.test(l.what));
-    expect(luk.length).toBe(1);
-    expect(luk[0].count).toBeGreaterThan(1); // curve + param trait + equip + enemy stats
+describe("luk converts for real (post-1.1, ex-D7)", () => {
+  it("keeps every Luck value and drops the old skip line", () => {
+    // No skipped/aggregated "Luck was left out" line anymore…
+    expect(mv.report.lines.some((l) => /luck/i.test(l.what))).toBe(false);
+    // …because the values themselves came across: class curve, enemy stat,
+    // equip param (asserted individually above).
+    const c = byId(mv.db.classes, 1);
+    expect(typeof c.base.luk).toBe("number");
+    expect(byId(mv.db.enemies, 1).stats.luk).toBe(5);
   });
 });
 

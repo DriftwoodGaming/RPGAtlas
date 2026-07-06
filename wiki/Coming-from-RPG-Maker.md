@@ -60,6 +60,11 @@ stuck.
 | System settings (title, party, starting position, sounds) | **Database ▸ System** |
 | Animations (MV sheet animations) | Real flipbook battle animations |
 | Sounds & music (BGM, BGS, ME, SE, volume/pitch/pan) | The RPGAtlas audio system |
+| The Luck stat (LUK) | The eighth battle stat — nudges ailment/debuff odds, just like RM |
+| Dual wield (two-weapon fighting) | A second weapon slot on dual-wield heroes |
+| Autosave | The dedicated Autosave slot (written after map moves and won battles) |
+| Menu commands & item categories | The pause menu shows your picks; the item menu gets Items / Weapons / Armor / **Key Items** tabs |
+| Key items | Real key items — their own tab, and they can't be used up by accident |
 
 A **terminology cheat-sheet**, if the words are new:
 

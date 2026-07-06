@@ -66,6 +66,43 @@ export function systemTab() {
     // M3·C: RPG Maker battle pacing (set automatically on imported games).
     p.appendChild(row(field("RPG Maker battle pacing (first strikes, surprise rounds, RM escape odds)", chk(s, "mzBattleFlow"))));
     p.appendChild(h("div", { class: "dim" }, "Random encounters can open with a first strike (your side acts alone on turn 1) or a surprise round (the enemies do), and escaping uses RPG Maker's agility-ratio odds, which improve after each failed try. Imported RPG Maker games turn this on automatically."));
+    // ---- post-1.1: autosave, pause-menu commands, item-menu categories ----
+    p.appendChild(h("div", { class: "subhead" }, "Saving"));
+    p.appendChild(row(field("Autosave (the game saves itself after map moves and won battles)", chk(s, "autosave"))));
+    p.appendChild(h("div", { class: "dim" }, "Players load it from the Load menu's “Autosave” slot. The three manual save slots are untouched."));
+    p.appendChild(h("div", { class: "subhead" }, "Pause-menu commands"));
+    const mc: any = (s.menuCommands = s.menuCommands || {});
+    for (const k of ["item", "skill", "equip", "status", "formation", "save"]) if (mc[k] == null) mc[k] = true;
+    p.appendChild(row(field("Items", chk(mc, "item")), field("Skills", chk(mc, "skill")), field("Equip", chk(mc, "equip")),
+      field("Status", chk(mc, "status")), field("Formation", chk(mc, "formation")), field("Save", chk(mc, "save"))));
+    p.appendChild(h("div", { class: "dim" }, "Untick a command to hide it from the pause menu. Journal, Options, Load, and To Title always show."));
+    p.appendChild(h("div", { class: "subhead" }, "Item menu"));
+    const catRow = h("div");
+    const masterChk = h("input", {
+      type: "checkbox",
+      ...(s.itemCategories ? { checked: "" } : {}),
+      onchange(e: any) {
+        if (e.target.checked) s.itemCategories = s.itemCategories || { item: true, weapon: true, armor: true, keyItem: true };
+        else delete s.itemCategories;
+        touch();
+        redrawCats();
+      },
+    });
+    p.appendChild(row(field("Category tabs (Items / Weapons / Armor / Key Items)", masterChk)));
+    p.appendChild(catRow);
+    redrawCats();
+    function redrawCats() {
+      catRow.innerHTML = "";
+      const ic: any = s.itemCategories;
+      if (!ic) {
+        catRow.appendChild(h("div", { class: "dim" }, "Off: the item menu is one simple list (the classic Atlas way)."));
+        return;
+      }
+      for (const k of ["item", "weapon", "armor", "keyItem"]) if (ic[k] == null) ic[k] = true;
+      catRow.appendChild(row(field("Items", chk(ic, "item")), field("Weapons", chk(ic, "weapon")),
+        field("Armor", chk(ic, "armor")), field("Key Items", chk(ic, "keyItem"))));
+      catRow.appendChild(h("div", { class: "dim" }, "Mark story items as key items on the Items tab — they get their own tab and can't be used up."));
+    }
     p.appendChild(h("div", { class: "dim", style: "margin-top:8px" }, "Default key & gamepad bindings have their own “Controls” tab."));
     return p;
   }

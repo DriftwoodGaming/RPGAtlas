@@ -6,9 +6,9 @@
    Since M3·B every matrix `+` code converts: ex-params (22) and sp-params (23)
    become `special` keys, attack element/state ride prefixed `element`/`state`
    keys, skill grant/seal ride prefixed `skill` keys, equip lock/seal ride
-   prefixed `equip` keys, and the 62 special flags map by dataId. Locked skips:
-   `luk` (D7, one aggregated line), collapse effect (63), dual wield (55).
-   Party abilities (64) stay a todo until M3·C per the matrix bill.
+   prefixed `equip` keys, and the 62 special flags map by dataId. Post-1.1:
+   `luk` (ex-D7) and dual wield (55) convert for real — the only locked skip
+   left is the collapse effect (63).
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
 
 import type { Trait } from "../../../shared/schema";
@@ -29,17 +29,6 @@ export interface TraitConvertCtx {
 }
 
 const pct = (v: number): number => Math.round((Number(v) || 0) * 100);
-
-/** The single aggregated `luk` report line (D7) — every dropped Luck value (a
- *  class curve, an equip param, an enemy stat, a param trait) funnels here. */
-export function bumpLuk(report: ImportReport): void {
-  report.bump("luk", () => ({
-    area: "Stats",
-    kind: "skipped",
-    what: "the Luck stat",
-    detail: "Atlas has 7 battle stats and no Luck — Luck values were left out",
-  }));
-}
 
 /** Ex-param (code 22) dataId → Atlas `special` key. hit/eva/cri were M3·A;
  *  cev/mev/mrf/cnt/hrg/mrg/trg joined in M3·B. */
@@ -80,10 +69,7 @@ export function convertTrait(t: RmTrait, ctx: TraitConvertCtx): Trait | null {
     case 12: {
       // Debuff Rate (M3·B) — chance multiplier when an Add-Debuff effect rolls.
       const pk = paramKey(t.dataId);
-      if (!pk) {
-        bumpLuk(ctx.report);
-        return null;
-      }
+      if (!pk) return null; // out-of-range dataId (luk is real since post-1.1)
       return { type: "param", key: "debuff:" + pk, value: pct(t.value) };
     }
     case 13:
@@ -95,10 +81,7 @@ export function convertTrait(t: RmTrait, ctx: TraitConvertCtx): Trait | null {
     case 21: {
       // Parameter rate — the engine reads this (param()).
       const pk = paramKey(t.dataId);
-      if (!pk) {
-        bumpLuk(ctx.report);
-        return null;
-      }
+      if (!pk) return null; // out-of-range dataId (luk is real since post-1.1)
       return { type: "param", key: pk, value: pct(t.value) };
     }
     case 22: {
@@ -179,14 +162,16 @@ export function convertTrait(t: RmTrait, ctx: TraitConvertCtx): Trait | null {
       return { type: "equip", key: op + slot, value: 100 };
     }
     case 55:
-      // Slot Type — dual wield has no home (Atlas heroes hold one weapon).
+      // Slot Type (post-1.1): dual wield converts — the trait opens the
+      // hero's second weapon slot. dataId 0 (normal) carries no information.
       if (t.dataId === 1) {
         ctx.report.bump("dual-wield", () => ({
           area: "Battlers",
-          kind: "skipped",
+          kind: "converted",
           what: "two-weapon fighting",
-          detail: "Atlas heroes hold one weapon — dual wield was left out",
+          detail: "dual-wield heroes get a second weapon slot in the Equip menu",
         }));
+        return { type: "special", key: "dualWield", value: 100 };
       }
       return null;
     case 61:

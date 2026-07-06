@@ -23,7 +23,6 @@ import type {
 import type { ImportReport } from "./report";
 import type { RmArmor, RmDamage, RmEffect, RmItem, RmList, RmSkill, RmWeapon } from "./raw-types";
 import { paramsFromArray } from "./convert-system";
-import { bumpLuk } from "./traits";
 import { paramKey } from "./slug";
 import { parseFormula } from "../../../shared/formula";
 
@@ -161,14 +160,11 @@ export function convertSkills(
   return out;
 }
 
-/** MZ Add/Remove Buff effect (31–34) → one Atlas `BuffEffect` row, or null
- *  for a `luk` row (dropped + counted, D7). */
-function buffEffectOf(e: RmEffect, report: ImportReport): BuffEffect | null {
+/** MZ Add/Remove Buff effect (31–34) → one Atlas `BuffEffect` row (all eight
+ *  params since post-1.1 — luk buffs are real), or null when out of range. */
+function buffEffectOf(e: RmEffect): BuffEffect | null {
   const stat = paramKey(e.dataId);
-  if (!stat) {
-    bumpLuk(report);
-    return null;
-  }
+  if (!stat) return null;
   const op: BuffEffect["op"] =
     e.code === 31 ? "buff" : e.code === 32 ? "debuff" : e.code === 33 ? "removeBuff" : "removeDebuff";
   const row: BuffEffect = { stat, op };
@@ -176,13 +172,11 @@ function buffEffectOf(e: RmEffect, report: ImportReport): BuffEffect | null {
   return row;
 }
 
-/** MZ Grow effect (42) → `GrowEffect`, or null for `luk`. */
-function growEffectOf(e: RmEffect, report: ImportReport): GrowEffect | null {
+/** MZ Grow effect (42) → `GrowEffect` (luk included since post-1.1), or null
+ *  when out of range. */
+function growEffectOf(e: RmEffect): GrowEffect | null {
   const stat = paramKey(e.dataId);
-  if (!stat) {
-    bumpLuk(report);
-    return null;
-  }
+  if (!stat) return null;
   return { stat, amount: Number(e.value1) || 0 };
 }
 
@@ -226,12 +220,12 @@ function applyEffects(
         }
         break;
       case 31: case 32: case 33: case 34: { // Buffs/debuffs (M3·B).
-        const row = buffEffectOf(e, report);
+        const row = buffEffectOf(e);
         if (row) (skill.buffs || (skill.buffs = [])).push(row);
         break;
       }
       case 42: { // Grow (M3·B) — permanent stat bonus on the target.
-        const row = growEffectOf(e, report);
+        const row = growEffectOf(e);
         if (row) (skill.grow || (skill.grow = [])).push(row);
         break;
       }
@@ -308,12 +302,12 @@ export function convertItems(list: RmList<RmItem>, report: ImportReport): Item[]
           }
           break;
         case 31: case 32: case 33: case 34: { // Buffs/debuffs (M3·B).
-          const row = buffEffectOf(e, report);
+          const row = buffEffectOf(e);
           if (row) (item.buffs || (item.buffs = [])).push(row);
           break;
         }
         case 42: { // Grow (M3·B).
-          const row = growEffectOf(e, report);
+          const row = growEffectOf(e);
           if (row) (item.grow || (item.grow = [])).push(row);
           break;
         }
@@ -373,12 +367,15 @@ export function convertItems(list: RmList<RmItem>, report: ImportReport): Item[]
     }
 
     if (it.itypeId === 2) {
-      report.add({
+      // Post-1.1: key items are real — they get their own tab in the item
+      // menu (system.itemCategories) and can't be used up by accident.
+      item.keyItem = true;
+      report.bump("key-item", () => ({
         area: "Items",
-        kind: "skipped",
-        what: item.name + " (key item)",
-        detail: "Atlas keeps all items in one bag — this becomes a normal item",
-      });
+        kind: "converted",
+        what: "key items",
+        detail: "story items keep their own Key Items tab in the item menu",
+      }));
     }
     if (it.consumable === false) {
       report.add({
@@ -397,7 +394,7 @@ export function convertItems(list: RmList<RmItem>, report: ImportReport): Item[]
 // Weapons & Armors
 // ---------------------------------------------------------------------------
 
-export function convertWeapons(list: RmList<RmWeapon>, report: ImportReport): Weapon[] {
+export function convertWeapons(list: RmList<RmWeapon>): Weapon[] {
   const out: Weapon[] = [];
   for (const w of (list || []).filter(notNull)) {
     const weapon: Weapon = { id: w.id, name: w.name };
@@ -405,7 +402,7 @@ export function convertWeapons(list: RmList<RmWeapon>, report: ImportReport): We
     if (w.price) weapon.price = w.price;
     if (w.wtypeId) weapon.wtypeId = w.wtypeId;
     if (w.animationId && w.animationId > 0) weapon.animationId = w.animationId;
-    const params = paramsFromArray(w.params, () => bumpLuk(report));
+    const params = paramsFromArray(w.params);
     if (Object.keys(params).length) weapon.params = params;
     // Trait rows merge onto the wearers' classes (M3·B, D6) — see
     // convert-battlers.mergeEquipTraits.
@@ -414,7 +411,7 @@ export function convertWeapons(list: RmList<RmWeapon>, report: ImportReport): We
   return out;
 }
 
-export function convertArmors(list: RmList<RmArmor>, report: ImportReport): Armor[] {
+export function convertArmors(list: RmList<RmArmor>): Armor[] {
   const out: Armor[] = [];
   for (const a of (list || []).filter(notNull)) {
     const armor: Armor = { id: a.id, name: a.name };
@@ -422,7 +419,7 @@ export function convertArmors(list: RmList<RmArmor>, report: ImportReport): Armo
     if (a.price) armor.price = a.price;
     if (a.atypeId) armor.atypeId = a.atypeId;
     if (a.etypeId) armor.etypeId = a.etypeId;
-    const params = paramsFromArray(a.params, () => bumpLuk(report));
+    const params = paramsFromArray(a.params);
     if (Object.keys(params).length) armor.params = params;
     out.push(armor);
   }

@@ -461,11 +461,9 @@ describe("real translations carry their fields (matrix §8)", () => {
     expect(t0([c(316, [0, 1, 1, 0, 2])])).toEqual({ t: "changeLevel", actorId: 1, op: "sub", value: 2 });
     expect((t0([c(315, [0, 1, 0, 1, 3])]) as any).t).toBe("mzTodo"); // variable operand
   });
-  it("317 change parameters maps the param key; luk is skipped", () => {
+  it("317 change parameters maps every param key — luk included (post-1.1)", () => {
     expect(t0([c(317, [0, 1, 2, 0, 0, 10])])).toEqual({ t: "changeParam", actorId: 1, param: "atk", op: "add", value: 10 });
-    const { cmds, report } = tr([c(317, [0, 1, 7, 0, 0, 10])]); // param 7 = luk (no Atlas home)
-    expect(cmds).toHaveLength(0);
-    expect(report.lines.some((l) => l.what === "changing luck")).toBe(true);
+    expect(t0([c(317, [0, 1, 7, 0, 0, 10])])).toEqual({ t: "changeParam", actorId: 1, param: "luk", op: "add", value: 10 });
   });
   it("318 change skills maps learn/forget", () => {
     expect(t0([c(318, [0, 1, 0, 8])])).toEqual({ t: "changeSkill", actorId: 1, op: "learn", skillId: 8 });

@@ -93,17 +93,19 @@ describe("runRmImport → a ready-to-load project + saved report", () => {
 
   it("keeps every honest caveat line (nothing dropped silently)", () => {
     const kinds = new Set(mz.report.lines.map((l) => l.kind));
-    // The fixture deliberately exercises all three "not a clean 1:1" buckets.
+    // The fixture deliberately exercises the "not a clean 1:1" buckets.
     expect(kinds.has("todo")).toBe(true); // e.g. damage formulas, terrain tags
-    expect(kinds.has("skipped")).toBe(true); // e.g. the Rusty Key key-item
+    expect(kinds.has("skipped")).toBe(true); // e.g. collapse effects / reusable items
     // Copy is kid-friendly: no stack-trace / code noise in the detail text.
     for (const l of mz.report.lines) {
       if (l.detail) expect(l.detail).not.toMatch(/undefined|NaN|\bError\b|\.ts:/);
     }
-    // The Luck stat is a locked skip and aggregates to one counted line.
-    const luk = mz.report.lines.find((l) => /luck/i.test(l.what));
-    expect(luk).toBeTruthy();
-    expect(luk!.count).toBeGreaterThan(0);
+    // Post-1.1: the Luck stat converts — the old "left out" line is gone,
+    // and the Rusty Key now lands as a converted key item.
+    expect(mz.report.lines.some((l) => /luck/i.test(l.what))).toBe(false);
+    const key = mz.report.lines.find((l) => /key items/i.test(l.what));
+    expect(key).toBeTruthy();
+    expect(key!.kind).toBe("converted");
   });
 
   it("every imported map event page carries a cond object (engine invariant)", () => {

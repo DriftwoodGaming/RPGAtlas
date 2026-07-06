@@ -62,6 +62,7 @@ import {
   tickBuffDurations,
   MAX_TP,
   tpDamageCharge,
+  lukEffectRate,
   extraActionRolls,
   mzEscapeChance,
   rollDrops,
@@ -341,6 +342,10 @@ export const Battle: any = {
       const buff = b && b.buffs && b.buffs[stat];
       return buff ? Math.max(0, Math.floor(base * buffRate(buff.level))) : base;
     }
+    /** A battler's Luck (post-1.1), buff-aware via bStat: enemy record stat
+     *  or actor param — both read 0 when the project never set Luck, so
+     *  lukEffectRate stays exactly 1 and no chance shifts. */
+    const lukOf = (b: any) => (b ? bStat(b, "luk") : 0);
     /** Clamp vitals under (possibly buff-shrunk) maxima. */
     function clampVitalsB(b: any): void {
       if (isEnemy(b)) {
@@ -375,12 +380,12 @@ export const Battle: any = {
         f = {
           atk: s.atk || 0, def: s.def || 0, mat: s.mat || 0, mdf: s.mdf || 0,
           agi: s.agi || 0, mhp: s.mhp || 0, mmp: s.mmp || 0,
-          hp: b.hp, mp: enemyMp(b), level: 0,
+          hp: b.hp, mp: enemyMp(b), level: 0, luk: s.luk || 0,
         };
       }
       // M3·B: formulas see buffed stats (MZ params include buff rates).
       if (b && b.buffs) {
-        for (const k of ["atk", "def", "mat", "mdf", "agi", "mhp", "mmp"]) {
+        for (const k of ["atk", "def", "mat", "mdf", "agi", "mhp", "mmp", "luk"]) {
           const buff = b.buffs[k];
           if (buff) f[k] = Math.max(0, Math.floor(f[k] * buffRate(buff.level)));
         }
@@ -471,7 +476,12 @@ export const Battle: any = {
         if (!aliveB(target)) return;
         const id = Number(String(row.key).slice(7)) || 0;
         if (!id) continue;
-        const chance = (Number(row.value) || 0) * effRate(target, "state", String(id), 1);
+        // Luck (post-1.1) shaves/boosts the chance — ×1 exactly when neither
+        // side has Luck, so the roll count and outcome never change natively.
+        const chance =
+          (Number(row.value) || 0) *
+          effRate(target, "state", String(id), 1) *
+          lukEffectRate(lukOf(attacker), lukOf(target));
         if (rnd(100) < chance) await addStateTo(target, id);
       }
     }
@@ -493,12 +503,18 @@ export const Battle: any = {
     }
     /** Apply a skill/item's M3·B extras to one target: buffs/debuffs (with
      *  the debuff-rate trait), permanent growth, learned skills, and TP. */
-    async function applySkillExtras(eff: any, target: any): Promise<void> {
+    async function applySkillExtras(eff: any, target: any, user?: any): Promise<void> {
       if (!eff || !aliveB(target)) return;
       for (const be of eff.buffs || []) {
-        if (be.op === "debuff" && effHas(target, "param", "debuff:" + be.stat)) {
-          // Debuff Rate (trait 12): a gated resistance roll.
-          if (rndf() >= effRate(target, "param", "debuff:" + be.stat, 1)) {
+        if (be.op === "debuff") {
+          // Debuff Rate (trait 12) × Luck (post-1.1) — one gated resistance
+          // roll, drawn exactly when a debuff-rate trait exists (the M3·B
+          // draw, unchanged) or a Luck gap shifts the odds (new, gated on
+          // Luck values existing). Native projects: neither ⇒ zero draws.
+          const hasRate = effHas(target, "param", "debuff:" + be.stat);
+          const dr = hasRate ? effRate(target, "param", "debuff:" + be.stat, 1) : 1;
+          const lr = user ? lukEffectRate(lukOf(user), lukOf(target)) : 1;
+          if ((hasRate || lr !== 1) && rndf() >= dr * lr) {
             await say(nameOf(target) + " shrugs off the " + be.stat.toUpperCase() + " drop!", 500);
             continue;
           }
@@ -817,7 +833,7 @@ export const Battle: any = {
       if (d) await say(nameOf(b) + " is cured of " + d.name + ".", 600);
     }
     // roll a skill's state effect against a target
-    async function applySkillState(skill: any, target: any) {
+    async function applySkillState(skill: any, target: any, user?: any) {
       if (!skill || !skill.stateId || !aliveB(target)) return;
       if (skill.stateOp === "remove") {
         await removeStateFrom(target, skill.stateId);
@@ -827,6 +843,9 @@ export const Battle: any = {
       // M3·B: the state-rate read runs over the effective carrier, so enemy
       // records and state-carried traits count too (native: same value).
       chance *= effRate(target, "state", String(skill.stateId), 1);
+      // Luck (post-1.1): ×1 exactly when neither side has Luck — the roll
+      // below always happened for stateId skills, so no draw is added.
+      if (user) chance *= lukEffectRate(lukOf(user), lukOf(target));
       if (rnd(100) < chance) await addStateTo(target, skill.stateId);
     }
     // end-of-round damage/regen ticks and turn-count expiry
@@ -1356,11 +1375,11 @@ export const Battle: any = {
                   if (!t.alive) await say(t.d.name + " is defeated!", 450);
                 }
                 if (landed) {
-                  await applySkillState(skill, t);
+                  await applySkillState(skill, t, a);
                   // On-attack states (M3·B, trait 32): basic attacks always
                   // roll them; skills only when flagged (MZ effect 21·0).
                   if (!skill || skill.attackStates) await applyAttackStates(a, t);
-                  if (skill) await applySkillExtras(skill, t);
+                  if (skill) await applySkillExtras(skill, t, a);
                 }
               }
               if (skill && skill.commonEventId) {
@@ -1449,8 +1468,8 @@ export const Battle: any = {
                       " MP!",
                     550,
                   );
-                  await applySkillState(c.skill, t);
-                  await applySkillExtras(c.skill, t);
+                  await applySkillState(c.skill, t, a);
+                  await applySkillExtras(c.skill, t, a);
                   continue;
                 }
                 // %-of-max recovery (MZ Recover-HP effect value1, M3·A).
@@ -1475,8 +1494,8 @@ export const Battle: any = {
                       : " recovers " + amount + " HP!"),
                   550,
                 );
-                await applySkillState(c.skill, t);
-                await applySkillExtras(c.skill, t);
+                await applySkillState(c.skill, t, a);
+                await applySkillExtras(c.skill, t, a);
               }
               refreshParty();
               if (c.skill.commonEventId) {
@@ -1567,8 +1586,8 @@ export const Battle: any = {
                   " HP!",
                 550,
               );
-              await applySkillState(c.skill, ally);
-              await applySkillExtras(c.skill, ally);
+              await applySkillState(c.skill, ally, en);
+              await applySkillExtras(c.skill, ally, en);
               return;
             }
             const pool = livingP();
@@ -1748,7 +1767,7 @@ export const Battle: any = {
                     " MP!",
                   550,
                 );
-                await applySkillState(c.skill, t);
+                await applySkillState(c.skill, t, en);
                 return;
               }
               if (dtypeE === "hpDrain") drainedE = Math.min(t.hp, dmg);
@@ -1808,11 +1827,11 @@ export const Battle: any = {
               floatText(sprs[en.i], "+" + drainedE, "heal");
               await say(en.d.name + " absorbs " + drainedE + " HP!", 450);
             }
-            if (c.skill) await applySkillState(c.skill, t);
+            if (c.skill) await applySkillState(c.skill, t, en);
             // On-attack states (M3·B): basic attacks always roll them; skills
             // only when flagged. Then the skill's buff/grow/learn/TP extras.
             if (!c.skill || c.skill.attackStates) await applyAttackStates(en, t);
-            if (c.skill) await applySkillExtras(c.skill, t);
+            if (c.skill) await applySkillExtras(c.skill, t, en);
           }
     }
     // ---- ATB / CTB (Phase 5 Stage B): timed scheduling over the core ----

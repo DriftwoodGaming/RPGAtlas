@@ -41,7 +41,7 @@ import {
   saveOptions,
   watchMotionPreference,
 } from "./state/player-options.js";
-import { saveLoadMenu } from "./state/save.js";
+import { saveLoadMenu, autosaveNow } from "./state/save.js";
 import { initMessageSystem } from "./message.js";
 import { initInputSystem } from "./input.js";
 import {
@@ -132,6 +132,8 @@ const EngineServices: any = {
   waitFrames, frameWait, tickTween,
   // routing / scenes
   setRoute, transferPlayer, saveLoadMenu, gameOver, toTitle,
+  // Autosave (post-1.1): event battles call it after a survived fight.
+  autosaveNow,
   // battle / shop
   Battle, Shop,
   // Change Enemy TP bridge (M3·B): live only while a battle runs.

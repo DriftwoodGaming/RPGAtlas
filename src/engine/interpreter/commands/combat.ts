@@ -20,6 +20,10 @@ export function registerCombatCommands(): void {
       await services.gameOver();
       return;
     }
+    // Autosave (post-1.1): a survived event battle autosaves like MZ. The
+    // service guard keeps node test bundles (stubbed services) happy; the
+    // function itself no-ops unless system.autosave is on.
+    if (services.autosaveNow) services.autosaveNow();
     if (result === "win" && c.onWin) await interp.runList(c.onWin);
     else if (result === "escape" && c.onEscape) await interp.runList(c.onEscape);
     else if (result === "lose" && c.onLose) await interp.runList(c.onLose);

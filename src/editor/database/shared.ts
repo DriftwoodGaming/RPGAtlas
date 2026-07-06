@@ -15,8 +15,8 @@ import {
   sharedNumericFields, applyBulk, cloneEntries, writeDbClip, readDbClip, type BulkOp,
 } from "./bulk";
 
-export const STAT_KEYS = ["mhp", "mmp", "atk", "def", "mat", "mdf", "agi"];
-export const PARAM_KEYS = ["atk", "def", "mat", "mdf", "agi"];
+export const STAT_KEYS = ["mhp", "mmp", "atk", "def", "mat", "mdf", "agi", "luk"];
+export const PARAM_KEYS = ["atk", "def", "mat", "mdf", "agi", "luk"];
 export const TRAIT_SKILL_TYPES = [
   { v: "phys", l: "Physical skills" },
   { v: "magic", l: "Magical skills" },

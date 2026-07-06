@@ -125,9 +125,16 @@ export function skillBlocked(a: any, skill: any): boolean {
 export function canActorEquip(a: any, kind: any, itemId: any): boolean {
   return RA.canEquip(actorClass(a), kind, itemId);
 }
+/** Two-weapon fighting (post-1.1): the `special`/`dualWield` trait opens a
+ *  second weapon slot (`a.weapon2Id`). Native classes never carry the key. */
+export function canDualWield(a: any): boolean {
+  return RA.traitsOf(actorEffCarrier(a), "special", "dualWield").length > 0;
+}
 export function sanitizeEquipment(a: any): void {
   if (!canActorEquip(a, "weapon", a.weaponId)) a.weaponId = 0;
   if (!canActorEquip(a, "armor", a.armorId)) a.armorId = 0;
+  if (a.weapon2Id && (!canDualWield(a) || !canActorEquip(a, "weapon", a.weapon2Id)))
+    a.weapon2Id = 0;
 }
 export function param(a: any, stat: any): number {
   const c = actorClass(a);
@@ -145,8 +152,16 @@ export function param(a: any, stat: any): number {
     (c.traits || []).length && RA.traitsOf(c, "equip", "seal:" + kind).length > 0;
   if (w && w.params && !sealed("weapon")) v += w.params[stat] || 0;
   if (ar && ar.params && !sealed("armor")) v += ar.params[stat] || 0;
+  // Second weapon (post-1.1 dual wield) — the field only exists on heroes
+  // whose class grants it, so untouched actors take the exact old path.
+  if (a.weapon2Id) {
+    const w2 = RA.byId(ctx.proj.weapons, a.weapon2Id);
+    if (w2 && w2.params && !sealed("weapon")) v += w2.params[stat] || 0;
+  }
   v = Math.floor(v * RA.traitRate(actorEffCarrier(a), "param", stat, 1));
-  return Math.max(1, v);
+  // Luck floors at 0 (a missing Luck must read as neutral 0, not 1); the
+  // classic seven keep their ≥1 floor.
+  return Math.max(stat === "luk" ? 0 : 1, v);
 }
 /** Read-only battler facade for the sandboxed damage-formula evaluator
  *  (Project Compass M3·A, decision D1) — a plain snapshot of exactly the
@@ -156,6 +171,7 @@ export function actorFormulaFacade(a: any): any {
     atk: param(a, "atk"), def: param(a, "def"), mat: param(a, "mat"),
     mdf: param(a, "mdf"), agi: param(a, "agi"), mhp: param(a, "mhp"),
     mmp: param(a, "mmp"), hp: a.hp, mp: a.mp, level: a.level || 1,
+    luk: param(a, "luk"),
   };
 }
 export function learnedSkills(a: any): any[] {
@@ -193,6 +209,7 @@ export function makeActor(actorId: any): any {
     exp: expForLevel(d.level || 1),
     weaponId: d.weaponId || 0,
     armorId: d.armorId || 0,
+    weapon2Id: d.weapon2Id || 0,
     hp: 1,
     mp: 1,
     // battle row (Phase 5): "front" unless the actor is authored back-row

@@ -551,13 +551,13 @@ class Translator {
       : { t: "changeLevel", actorId: aid, op, value: num(p[4]) });
   }
   /** 317 Change Parameters: [desig, actor, paramId, op, operandType, value].
-   *  `luk` (index 7) has no Atlas home (locked skip) → report + drop. */
+   *  All eight params map since post-1.1 (`luk` is a real Atlas stat now). */
   private changeParam(c: RmCommand, out: AnyCommand[]): void {
     const p = (c.parameters as any[]) || [];
     const aid = this.changeActorTarget(c, out, 0, 1);
     if (aid === null) return;
     const key = paramKey(num(p[2]));
-    if (!key) { this.bump("cmd-param-luk", "skipped", "changing luck", "Atlas has no luck stat, so this change is skipped (the rest of the event runs)", c.code); return; }
+    if (!key) return; // out-of-range paramId — RM never writes one
     if (num(p[4]) !== 0) { this.changeActorVarValue(c, out); return; }
     out.push({ t: "changeParam", actorId: aid, param: key, op: num(p[3]) === 1 ? "sub" : "add", value: num(p[5]) });
   }

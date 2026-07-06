@@ -87,8 +87,8 @@ export function convertDatabase(
   mergeEquipTraits(actors, classes, raw.weapons, raw.armors, report, sys.elementKeyByIndex, sys.skillTypeKeyByIndex);
   const skills = convertSkills(raw.skills, report, sys.elementKeyByIndex, sys.skillTypeKeyByIndex);
   const items = convertItems(raw.items, report);
-  const weapons = convertWeapons(raw.weapons, report);
-  const armors = convertArmors(raw.armors, report);
+  const weapons = convertWeapons(raw.weapons);
+  const armors = convertArmors(raw.armors);
   const enemies = convertEnemies(raw.enemies, report, sys.elementKeyByIndex, sys.skillTypeKeyByIndex);
   const states = convertStates(raw.states, report, sys.elementKeyByIndex, sys.skillTypeKeyByIndex);
   const commonEvents = convertCommonEvents(raw.commonEvents, report, doTranslate);

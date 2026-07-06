@@ -30,6 +30,7 @@ import {
   skillMpCost,
   skillPowerRate,
   canActorEquip,
+  canDualWield,
   invCount,
   addInv,
   dbFor,
@@ -179,56 +180,59 @@ export async function openMenu(): Promise<void> {
     let idx = 0;
     while (true) {
       refreshPanel();
-      const i = await showList(
-        [
-          { html: Assets.iconHtml(24, "menu-icon") + "Items" },
-          { html: Assets.iconHtml(8, "menu-icon") + "Skills" },
-          { html: Assets.iconHtml(48, "menu-icon") + "Equip" },
-          {
-            html:
-              Assets.iconHtml(
-                (actorClass(G.party[0]) || {}).icon,
-                "menu-icon",
-              ) + "Status",
-          },
-          // Change Formation / Save Access (M2·C) grey these out when locked.
-          { html: Assets.iconHtml(20, "menu-icon") + "Formation", disabled: !!G.formationDisabled },
-          { html: Assets.iconHtml(16, "menu-icon") + "Journal" },
-          { html: Assets.iconHtml(46, "menu-icon") + "Options" },
-          { html: Assets.iconHtml(44, "menu-icon") + "Save", disabled: !!G.saveDisabled },
-          { html: Assets.iconHtml(45, "menu-icon") + "Load" },
-          { html: Assets.iconHtml(47, "menu-icon") + "To Title" },
-        ],
-        { className: "mainmenu", start: idx },
-      );
+      // Custom menu commands (post-1.1, MZ System menuCommands): a key set to
+      // false hides that entry. Absent object = every entry shows, in the
+      // exact classic order — untouched projects see the identical menu.
+      const mc: any = ctx.proj.system.menuCommands || {};
+      const show = (k: string) => mc[k] !== false;
+      const entries: any[] = [];
+      if (show("item")) entries.push({ html: Assets.iconHtml(24, "menu-icon") + "Items", act: "items" });
+      if (show("skill")) entries.push({ html: Assets.iconHtml(8, "menu-icon") + "Skills", act: "skills" });
+      if (show("equip")) entries.push({ html: Assets.iconHtml(48, "menu-icon") + "Equip", act: "equip" });
+      if (show("status"))
+        entries.push({
+          html: Assets.iconHtml((actorClass(G.party[0]) || {}).icon, "menu-icon") + "Status",
+          act: "status",
+        });
+      // Change Formation / Save Access (M2·C) grey these out when locked.
+      if (show("formation"))
+        entries.push({ html: Assets.iconHtml(20, "menu-icon") + "Formation", disabled: !!G.formationDisabled, act: "formation" });
+      entries.push({ html: Assets.iconHtml(16, "menu-icon") + "Journal", act: "journal" });
+      entries.push({ html: Assets.iconHtml(46, "menu-icon") + "Options", act: "options" });
+      if (show("save"))
+        entries.push({ html: Assets.iconHtml(44, "menu-icon") + "Save", disabled: !!G.saveDisabled, act: "save" });
+      entries.push({ html: Assets.iconHtml(45, "menu-icon") + "Load", act: "load" });
+      entries.push({ html: Assets.iconHtml(47, "menu-icon") + "To Title", act: "title" });
+      const i = await showList(entries, { className: "mainmenu", start: idx });
       if (i < 0) break;
       idx = i;
 
-      if (i === 0) {
+      const act = entries[i].act;
+      if (act === "items") {
         await menuItems();
-      } else if (i === 1) {
+      } else if (act === "skills") {
         await menuSkills();
-      } else if (i === 2) {
+      } else if (act === "equip") {
         await menuEquip();
-      } else if (i === 3) {
+      } else if (act === "status") {
         await menuStatus();
-      } else if (i === 4) {
+      } else if (act === "formation") {
         await menuFormation();
         refreshPanel();
-      } else if (i === 5) {
+      } else if (act === "journal") {
         panel.style.display = "none";
         try {
           if (await menuJournal() === "close") return;
         } finally {
           panel.style.display = "";
         }
-      } else if (i === 6) {
+      } else if (act === "options") {
         await optionsMenu();
-      } else if (i === 7) {
+      } else if (act === "save") {
         await saveLoadMenu("save");
-      } else if (i === 8) {
+      } else if (act === "load") {
         if (await saveLoadMenu("load")) break;
-      } else if (i === 9) {
+      } else if (act === "title") {
         const c = await showList(
           [{ label: "Return to title" }, { label: "Cancel" }],
           { className: "choicewin" },
@@ -507,6 +511,76 @@ function commitBindings(merged: any): void {
 }
 
 async function menuItems(): Promise<void> {
+  // Item-menu categories (post-1.1, MZ System itemCategories): absent =
+  // the classic single list, byte-identical for untouched projects.
+  const cats: any = ctx.proj.system.itemCategories;
+  if (!cats) return menuItemsClassic();
+  const all: [string, string, number][] = [
+    ["item", "Items", 24],
+    ["weapon", "Weapons", 48],
+    ["armor", "Armor", 56],
+    ["keyItem", "Key Items", 16],
+  ];
+  const shown = all.filter(([k]) => cats[k] !== false);
+  if (!shown.length) return menuItemsClassic();
+  let idx = 0;
+  while (true) {
+    const i = await showList(
+      shown.map(([, label, icon]) => ({ html: Assets.iconHtml(icon, "menu-icon") + label })),
+      { title: "Items", className: "cmdwin", start: idx },
+    );
+    if (i < 0) return;
+    idx = i;
+    await menuItemCategory(shown[i][0], shown[i][1]);
+  }
+}
+/** One category's list. Items are usable as always; key items are shown but
+ *  kept safe from being used up; weapons/armor are view-only (equip them
+ *  from the Equip menu). */
+async function menuItemCategory(cat: string, label: string): Promise<void> {
+  while (true) {
+    let list: any[];
+    let usable = false;
+    if (cat === "item" || cat === "keyItem") {
+      list = ctx.proj.items.filter(
+        (it: any) => invCount("item", it.id) > 0 && !!it.keyItem === (cat === "keyItem"),
+      );
+      usable = cat === "item";
+    } else {
+      list = dbFor(cat).filter((e: any) => invCount(cat, e.id) > 0);
+    }
+    if (!list.length) {
+      await ctx.showMessage("", "Nothing here yet.");
+      return;
+    }
+    const kind = cat === "keyItem" ? "item" : cat;
+    const i = await showList(
+      list.map((it: any) => ({
+        html:
+          iconEntryHtml(it) +
+          ' <span class="cnt">×' +
+          invCount(kind, it.id) +
+          "</span>",
+        disabled: !usable,
+        help:
+          it.desc ||
+          (cat === "weapon" || cat === "armor"
+            ? "Equip it from the Equip menu."
+            : cat === "keyItem"
+              ? "An important item — it can't be used up."
+              : ""),
+      })),
+      { title: label, className: "itemwin" },
+    );
+    if (i < 0) return;
+    if (!usable) continue;
+    const it = list[i];
+    const target = await pickPartyMember("Use on…");
+    if (!target) continue;
+    useItemOn(it, target);
+  }
+}
+async function menuItemsClassic(): Promise<void> {
   while (true) {
     const list = ctx.proj.items.filter((it: any) => invCount("item", it.id) > 0);
     if (!list.length) {
@@ -696,35 +770,48 @@ async function menuEquip(): Promise<void> {
   while (true) {
     const w = RA.byId(ctx.proj.weapons, a.weaponId),
       ar = RA.byId(ctx.proj.armors, a.armorId);
-    const slot = await showList(
-      [
-        {
-          html: iconEntryHtml(
-            w || { icon: 48 },
-            "Weapon: <b>" + esc(w ? w.name : "—") + "</b>",
-          ),
-        },
-        {
-          html: iconEntryHtml(
-            ar || { icon: 56 },
-            "Armor: <b>" + esc(ar ? ar.name : "—") + "</b>",
-          ),
-        },
-      ],
+    // Two-weapon fighting (post-1.1): a dual-wield hero gets a second weapon
+    // slot between weapon and armor. Native classes never grant it.
+    const dual = canDualWield(a);
+    const w2 = dual ? RA.byId(ctx.proj.weapons, a.weapon2Id) : null;
+    const slotRows: any[] = [
       {
-        title:
-          a.name +
-          " — ATK " +
-          param(a, "atk") +
-          " / DEF " +
-          param(a, "def") +
-          " / MAT " +
-          param(a, "mat"),
-        className: "itemwin",
+        html: iconEntryHtml(
+          w || { icon: 48 },
+          "Weapon: <b>" + esc(w ? w.name : "—") + "</b>",
+        ),
       },
-    );
+    ];
+    if (dual)
+      slotRows.push({
+        html: iconEntryHtml(
+          w2 || { icon: 48 },
+          "Weapon 2: <b>" + esc(w2 ? w2.name : "—") + "</b>",
+        ),
+      });
+    slotRows.push({
+      html: iconEntryHtml(
+        ar || { icon: 56 },
+        "Armor: <b>" + esc(ar ? ar.name : "—") + "</b>",
+      ),
+    });
+    const slot = await showList(slotRows, {
+      title:
+        a.name +
+        " — ATK " +
+        param(a, "atk") +
+        " / DEF " +
+        param(a, "def") +
+        " / MAT " +
+        param(a, "mat"),
+      className: "itemwin",
+    });
     if (slot < 0) return;
-    const kind = slot === 0 ? "weapon" : "armor";
+    const slotKind: string =
+      slot === 0 ? "weapon" : dual && slot === 1 ? "weapon2" : "armor";
+    // The second weapon slot holds weapons — every db/inventory/equip-rule
+    // read below uses the underlying kind.
+    const kind = slotKind === "weapon2" ? "weapon" : slotKind;
     // Lock/Seal Equip (M3·B traits 53/54): the slot can't be changed. Native
     // classes carry neither key, so the gate never fires for them.
     {
@@ -755,15 +842,17 @@ async function menuEquip(): Promise<void> {
     }));
     opts.push({ label: "(Remove)" });
     const ci = await showList(opts, {
-      title: "Equip " + kind,
+      title: "Equip " + (slotKind === "weapon2" ? "second weapon" : kind),
       className: "itemwin",
     });
     if (ci < 0) continue;
-    const cur = kind === "weapon" ? a.weaponId : a.armorId;
+    const cur =
+      slotKind === "weapon" ? a.weaponId : slotKind === "weapon2" ? a.weapon2Id : a.armorId;
     if (cur) addInv(kind, cur, 1);
     const next = ci < candidates.length ? candidates[ci].id : 0;
     if (next) addInv(kind, next, -1);
-    if (kind === "weapon") a.weaponId = next;
+    if (slotKind === "weapon") a.weaponId = next;
+    else if (slotKind === "weapon2") a.weapon2Id = next;
     else a.armorId = next;
     sysSe("equip");
     a.hp = Math.min(a.hp, param(a, "mhp"));
@@ -776,7 +865,11 @@ async function menuStatus(): Promise<void> {
   if (!a) return;
   const c = actorClass(a);
   const next = expForLevel(a.level + 1) - a.exp;
-  const stats = ["mhp", "mmp", "atk", "def", "mat", "mdf", "agi"]
+  // Luck (post-1.1) only shows once the project actually uses it — native
+  // heroes read 0 and keep the classic seven-row table.
+  const statKeys = ["mhp", "mmp", "atk", "def", "mat", "mdf", "agi"];
+  if (param(a, "luk") > 0) statKeys.push("luk");
+  const stats = statKeys
     .map(
       (s) =>
         "<tr><td>" +

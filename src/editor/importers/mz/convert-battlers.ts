@@ -31,7 +31,7 @@ import type {
 } from "./raw-types";
 import { paramsFromArray } from "./convert-system";
 import { slugKey, PARAM_KEYS } from "./slug";
-import { bumpLuk, convertTraits, type TraitConvertCtx } from "./traits";
+import { convertTraits, type TraitConvertCtx } from "./traits";
 
 const round2 = (x: number): number => Math.round(x * 100) / 100;
 const notNull = <T>(x: T | null): x is T => x != null;
@@ -67,7 +67,14 @@ export function convertClasses(
       base[key] = fit.base;
       growth[key] = fit.growth;
     }
-    if (params.length > 7) bumpLuk(report); // luk curve dropped (D7)
+    // Post-1.1: the luk curve (index 7) fits like the rest — Atlas grew a
+    // Luck param. Only set when RM provided one, so the classic seven-key
+    // shape is unchanged for hand-fed short arrays.
+    if (params.length > 7) {
+      const fit = fitCurve(params[7]);
+      base.luk = fit.base;
+      growth.luk = fit.growth;
+    }
 
     const ctx: TraitConvertCtx = {
       elementKeyByIndex,
@@ -121,11 +128,23 @@ export function convertActors(
     if (charset) actor.charset = charset;
 
     // equips[] → first weapon + first armor; the rest are reported (matrix §2).
+    // Post-1.1: a dual-wield hero's slot 2 holds a WEAPON id in RM — it lands
+    // on the new second weapon slot instead of being misread as armor.
+    const cls0 = byClassId.get(a.classId);
+    const dualWield =
+      (!!cls0 && cls0.traits.some((t) => t.type === "special" && t.key === "dualWield")) ||
+      // The trait may also sit on the actor record (merged onto the class below).
+      (a.traits || []).some((t) => t && t.code === 55 && t.dataId === 1);
     const equips = a.equips || [];
     if (equips[0]) actor.weaponId = equips[0];
+    let armorStart = 1;
+    if (dualWield) {
+      if (equips[1]) actor.weapon2Id = equips[1];
+      armorStart = 2;
+    }
     let armorId = 0;
     let extraArmors = 0;
-    for (let i = 1; i < equips.length; i++) {
+    for (let i = armorStart; i < equips.length; i++) {
       if (!equips[i]) continue;
       if (!armorId) armorId = equips[i];
       else extraArmors++;
@@ -312,7 +331,7 @@ export function convertEnemies(
     const enemy: Enemy = {
       id: e.id,
       name: e.name,
-      stats: paramsFromArray(e.params, () => bumpLuk(report)),
+      stats: paramsFromArray(e.params),
     };
     if (e.battlerName) enemy.sprite = slugKey(e.battlerName);
     if (e.exp) enemy.exp = e.exp;

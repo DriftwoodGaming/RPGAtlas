@@ -27,13 +27,14 @@ import { openLocationPicker } from "./location-picker";
   const VEHICLE_OPTS = [{ v: "boat", l: "Boat" }, { v: "ship", l: "Ship" }, { v: "airship", l: "Airship" }]; // M4·A
   const ORIGIN_OPTS = [{ v: 0, l: "Upper-left" }, { v: 1, l: "Center" }];
   // Change-actor-data family (Project Compass M2·C): the base parameters Atlas
-  // models (RM's `luk` has no Atlas home), and the actor dropdowns. The
-  // exp/level/param/skill/state commands offer "Entire Party" (id 0).
+  // models (all eight since post-1.1 — Luck included), and the actor
+  // dropdowns. The exp/level/param/skill/state commands offer "Entire Party".
   const PARAM_OPTS = [
     { v: "mhp", l: "Max HP" }, { v: "mmp", l: "Max MP" }, { v: "atk", l: "Attack" },
     { v: "def", l: "Defense" }, { v: "mat", l: "M.Attack" }, { v: "mdf", l: "M.Defense" }, { v: "agi", l: "Agility" },
+    { v: "luk", l: "Luck" },
   ];
-  const PARAM_LABEL: Record<string, string> = { mhp: "Max HP", mmp: "Max MP", atk: "Attack", def: "Defense", mat: "M.Attack", mdf: "M.Defense", agi: "Agility" };
+  const PARAM_LABEL: Record<string, string> = { mhp: "Max HP", mmp: "Max MP", atk: "Attack", def: "Defense", mat: "M.Attack", mdf: "M.Defense", agi: "Agility", luk: "Luck" };
   const actorOnlyOpts = () => S.proj.actors.map((a: any) => ({ v: a.id, l: a.name }));
   const actorPartyOpts = () => [{ v: 0, l: "Entire Party" }, ...actorOnlyOpts()];
   const actorLabel = (id: any) => (Number(id) === 0 ? "Entire Party" : (RA.byId(S.proj.actors, id) || { name: "#" + id }).name);

@@ -23,7 +23,9 @@ export const itemsTab = () => listFormTab({
     box.appendChild(row(field("Restores HP", nIn(e, "hp", 0, 9999)), field("Restores MP", nIn(e, "mp", 0, 9999)),
       field("Revives fallen ally", chk(e, "revive")),
       // M3·C: the MZ escape effect — a Smoke Bomb item.
-      field("Escapes the battle", chk(e, "escapeBattle"))));
+      field("Escapes the battle", chk(e, "escapeBattle")),
+      // Post-1.1: story items — their own tab when item categories are on.
+      field("Key item (story item)", chk(e, "keyItem"))));
     box.appendChild(field("Description", tIn(e, "desc")));
     box.appendChild(h("div", { class: "dim" }, "Revive: this item works only on a fallen (0 HP) ally, bringing them back with the “Restores HP” amount. Non-revive items can't be used on the fallen."));
     // M3·B: state add/cure (the Antidote pattern) + TP + buff/grow/learn extras.

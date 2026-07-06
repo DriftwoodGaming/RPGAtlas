@@ -6,7 +6,7 @@
    grammar is a closed whitelist: numbers, parens, + - * / %, unary minus,
    comparisons, ternary, `a.<stat>`/`b.<stat>` facade reads, `v[n]` variable
    reads, and nine Math functions. Everything else (assignment, strings,
-   `&&`/`||`, unknown identifiers/properties, `a.luk` — D7) is a parse REJECT:
+   `&&`/`||`, unknown identifiers/properties) is a parse REJECT:
    the importer reports it and the engine falls back to structured power, never
    silently zero. Amendment (a): all randomness flows through an INJECTED
    `randomInt` (the engine passes the seedable `rnd`), so `?rngseed=` replays
@@ -22,9 +22,11 @@
 // Grammar surface (decision D1 — do not widen without a new gate decision)
 // ---------------------------------------------------------------------------
 
-/** The read-only battler stats a formula may read off `a`/`b`. */
+/** The read-only battler stats a formula may read off `a`/`b`. `luk` joined
+ *  post-1.1 when Luck became a real Atlas param (D7 retired) — the stat list
+ *  tracks the engine's param set; the grammar itself is unchanged (still D1). */
 export const FORMULA_STATS = [
-  "atk", "def", "mat", "mdf", "agi", "mhp", "mmp", "hp", "mp", "level",
+  "atk", "def", "mat", "mdf", "agi", "mhp", "mmp", "hp", "mp", "level", "luk",
 ] as const;
 
 /** The whitelisted Math functions ([fn, min arity, max arity]). */

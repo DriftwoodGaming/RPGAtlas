@@ -174,12 +174,55 @@ export function convertSystem(sys: RmSystem, report: ImportReport): SystemConver
     });
   }
 
+  // ---- post-1.1: MZ System options that finally have an Atlas home ----
+  // Autosave: the game writes the Autosave slot after transfers and battles.
+  if (sys.optAutosave) {
+    patch.autosave = true;
+    report.add({
+      area: "System",
+      kind: "converted",
+      what: "autosave",
+      detail: "your game saves by itself after map moves and won battles — players load it from the Load menu",
+    });
+  }
+  // Menu commands: [item, skill, equip, status, formation, save] visibility.
+  if (Array.isArray(sys.menuCommands)) {
+    const mcKeys = ["item", "skill", "equip", "status", "formation", "save"] as const;
+    const mc: NonNullable<SystemData["menuCommands"]> = {};
+    let hidden = 0;
+    mcKeys.forEach((k, i) => {
+      mc[k] = sys.menuCommands![i] !== false;
+      if (!mc[k]) hidden++;
+    });
+    if (hidden) {
+      patch.menuCommands = mc;
+      report.add({
+        area: "System",
+        kind: "converted",
+        what: "custom menu commands",
+        detail: "the pause menu shows just the commands you picked",
+      });
+    }
+  }
+  // Item categories: [item, weapon, armor, keyItem] tabs in the item menu.
+  if (Array.isArray(sys.itemCategories)) {
+    const icKeys = ["item", "weapon", "armor", "keyItem"] as const;
+    const ic: NonNullable<SystemData["itemCategories"]> = {};
+    icKeys.forEach((k, i) => {
+      ic[k] = sys.itemCategories![i] !== false;
+    });
+    patch.itemCategories = ic;
+    report.add({
+      area: "System",
+      kind: "converted",
+      what: "item menu categories",
+      detail: "the item menu opens with the category tabs you picked (key items keep their own tab)",
+    });
+  }
+
   // MZ-only options with no Atlas home (matrix §1).
   const dropped: [unknown, string][] = [
-    [sys.optAutosave, "autosave"],
     [sys.optKeyItemsNumber, "key-item counts"],
-    [sys.itemCategories, "custom item menu categories"],
-    [sys.menuCommands, "custom menu commands"],
     [sys.optExtraExp, "the extra-EXP option"],
   ];
   for (const [present, label] of dropped) {
@@ -200,17 +243,16 @@ export function convertSystem(sys: RmSystem, report: ImportReport): SystemConver
   };
 }
 
-/** MZ params array `[mhp,mmp,atk,def,mat,mdf,agi,luk]` → Atlas `Params` (7),
- *  omitting zeros and dropping `luk` (index 7 → counted via the report). Shared
- *  by weapon/armor/enemy stat conversion. */
-export function paramsFromArray(arr: number[] | undefined, onLuk: () => void): Params {
+/** MZ params array `[mhp,mmp,atk,def,mat,mdf,agi,luk]` → Atlas `Params` (all
+ *  eight since post-1.1 — `luk` converts for real), omitting zeros. Shared by
+ *  weapon/armor/enemy stat conversion. */
+export function paramsFromArray(arr: number[] | undefined): Params {
   const src = Array.isArray(arr) ? arr : [];
-  const keys: (keyof Params)[] = ["mhp", "mmp", "atk", "def", "mat", "mdf", "agi"];
+  const keys: (keyof Params)[] = ["mhp", "mmp", "atk", "def", "mat", "mdf", "agi", "luk"];
   const out: Params = {};
   for (let i = 0; i < keys.length; i++) {
     const v = Number(src[i]) || 0;
     if (v) out[keys[i]] = v;
   }
-  if (src.length > 7 && (Number(src[7]) || 0) !== 0) onLuk();
   return out;
 }

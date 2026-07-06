@@ -62,6 +62,8 @@ const RA = {
     { v: "raisePreemptive", l: "Party: more first strikes" },
     { v: "goldDouble", l: "Party: double gold from battles" },
     { v: "dropDouble", l: "Party: double item drops" },
+    // Post-1.1 — two-weapon fighting opens the hero's second weapon slot.
+    { v: "dualWield", l: "Two-weapon fighting (second weapon slot)" },
   ],
   // Default category names seeded into proj.system.types (the Database ▸ Types tab).
   WEAPON_TYPE_NAMES: ["Dagger", "Sword", "Axe", "Spear", "Bow", "Staff", "Wand", "Claw"],

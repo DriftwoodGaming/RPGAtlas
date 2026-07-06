@@ -1,7 +1,8 @@
 /* RPGAtlas — src/editor/importers/mz/slug.ts
    Project Compass M1·A: stable string-key synthesis for the type lists that
    Atlas keys by string (elements, skillTypes — matrix §1) and the MZ param
-   index → Atlas param key table (matrix §5; `luk` has no Atlas home).
+   index → Atlas param key table (matrix §5; `luk` converts for real since
+   post-1.1 retired locked skip D7 — Atlas grew a Luck param).
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
 
 import type { KeyedType } from "../../../shared/schema";
@@ -52,8 +53,8 @@ export function synthKeyedTypes(names: (string | null | undefined)[] | undefined
   return { types, keyByIndex };
 }
 
-/** MZ params are `[mhp,mmp,atk,def,mat,mdf,agi,luk]` (0–7). Atlas has 7 params;
- *  index 7 (`luk`) has no home and returns null (dropped + counted, matrix §5). */
+/** MZ params are `[mhp,mmp,atk,def,mat,mdf,agi,luk]` (0–7) and every index
+ *  now has an Atlas home (`luk` joined post-1.1, retiring locked skip D7). */
 export const PARAM_KEYS: (keyof import("../../../shared/schema").Params | null)[] = [
   "mhp",
   "mmp",
@@ -62,10 +63,10 @@ export const PARAM_KEYS: (keyof import("../../../shared/schema").Params | null)[
   "mat",
   "mdf",
   "agi",
-  null, // luk — locked skip (D7)
+  "luk",
 ];
 
-/** Atlas param key for an MZ param index, or null for `luk` (index 7). */
+/** Atlas param key for an MZ param index, or null when out of range. */
 export function paramKey(index: number): keyof import("../../../shared/schema").Params | null {
   return PARAM_KEYS[index] ?? null;
 }

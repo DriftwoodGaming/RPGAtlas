@@ -61,7 +61,11 @@ test.describe("RPG Maker import wizard", () => {
     await expect(body).toContainText("Cove Test");
     await expect(body).toContainText("Saved for a later update");
     await expect(body).toContainText("Left out on purpose");
-    await expect(body).toContainText(/Luck/i);
+    // Post-1.1: Luck converts for real — the old "left out" line is gone,
+    // and the key items + item-category options land as converted lines.
+    await expect(body).not.toContainText(/Luck/i);
+    await expect(body).toContainText(/key items/i);
+    await expect(body).toContainText(/item menu categories/i);
 
     // The converted project is now the live project.
     const info = await loadedProject(page);

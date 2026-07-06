@@ -54,6 +54,7 @@ import {
   tickMapAnim,
 } from "./map-runtime.js";
 import { counterAt, damageFloorAt } from "./tile-behavior.js";
+import { autosaveNow } from "../state/save.js";
 
 let frameWaiters: any[] = [];
 let lastTimeBand = ""; // day/night page refresh edge (Phase 5)
@@ -151,6 +152,9 @@ export async function transferPlayer(mapId: any, x: any, y: any, dir: any): Prom
   await render();
   if (tr && tr.in) await tr.in();
   else await fadeTo(0, 250);
+  // Autosave (post-1.1): a completed transfer autosaves like MZ. No-op
+  // unless system.autosave is on (and never while saves are event-locked).
+  autosaveNow();
 }
 
 // ============================ map scene update ============================
@@ -423,6 +427,8 @@ function onPlayerStep(): void {
       (async () => {
         const result = await fns.Battle.run(troopId, true, opts);
         if (result === "lose") await fns.gameOver();
+        // Autosave (post-1.1): a survived random battle autosaves like MZ.
+        else autosaveNow();
       })();
     }
   }

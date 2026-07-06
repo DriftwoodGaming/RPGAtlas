@@ -35,6 +35,11 @@ export const actorsTab = () => listFormTab({
     box.appendChild(row(field("Initial weapon", sel(e, "weaponId", dbOpts(S.proj.weapons, "(none)"))),
       field("Initial armor", sel(e, "armorId", dbOpts(S.proj.armors, "(none)"))),
       field("Battle row", sel(e, "row", rowOpts()))));
+    // Two-weapon fighting (post-1.1): only read in play when the hero's class
+    // carries the "Two-weapon fighting" bonus (Classes ▸ Traits).
+    if (e.weapon2Id == null) e.weapon2Id = 0;
+    box.appendChild(row(field("Second weapon (needs the class's Two-weapon fighting bonus)",
+      sel(e, "weapon2Id", dbOpts(S.proj.weapons, "(none)")))));
     rp();
   },
 });
@@ -348,7 +353,7 @@ export const enemiesTab = () => listFormTab({
     function buildStats() {
       const p = h("div");
       const st = h("div", { class: "frow" });
-      for (const k of ["mhp", "atk", "def", "mat", "mdf", "agi"]) st.appendChild(field(k.toUpperCase(), nIn(e.stats, k, 0, 99999)));
+      for (const k of ["mhp", "atk", "def", "mat", "mdf", "agi", "luk"]) st.appendChild(field(k.toUpperCase(), nIn(e.stats, k, 0, 99999)));
       p.appendChild(st);
       p.appendChild(row(field("EXP reward", nIn(e, "exp", 0)), field("Gold reward", nIn(e, "gold", 0))));
       // M3·C: victory drops — each row is one "1 in N" roll on defeat.

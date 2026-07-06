@@ -105,6 +105,15 @@ export function tickBuffDurations(buffs: any): string[] {
   return expired;
 }
 
+// ---- Luck (post-1.1) ----
+
+/** MZ Game_Action.lukEffectRate: state/debuff chance multiplier from the luck
+ *  gap, 0.1% per point, never negative. Both sides 0 (every project without
+ *  Luck values) ⇒ exactly 1 — multiplying a chance by it changes nothing. */
+export function lukEffectRate(userLuk: number, targetLuk: number): number {
+  return Math.max(1 + ((Number(userLuk) || 0) - (Number(targetLuk) || 0)) * 0.001, 0);
+}
+
 // ---- TP (Project Compass M3·B) ----
 
 export const MAX_TP = 100;

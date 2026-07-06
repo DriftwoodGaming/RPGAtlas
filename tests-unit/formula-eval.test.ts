@@ -123,7 +123,7 @@ describe("formula rejects (parsed, never executed)", () => {
     ["a['atk']", "bracket access on a facade"],
     ["a.constructor", "constructor escape"],
     ["a.__proto__ + 1", "__proto__ escape"],
-    ["a.luk", "luk is a locked skip (D7)"],
+    ["a.hit", "non-stat facade property"],
     ["Math.random()", "unseeded randomness"],
     ["Math.imul(1, 2)", "non-whitelisted Math fn"],
     ["Math.pow(2)", "wrong arity (too few)"],
@@ -162,7 +162,10 @@ describe("formula rejects (parsed, never executed)", () => {
   });
 
   it("getFormula treats rejects and '0' noise as null (fallback path)", () => {
-    expect(getFormula("a.luk * 2")).toBeNull();
+    expect(getFormula("a.hit * 2")).toBeNull();
+    // luk is a real stat since post-1.1 — it compiles (a missing facade
+    // field coerces to 0, so old callers stay safe).
+    expect(getFormula("a.luk * 2")).not.toBeNull();
     expect(getFormula("0")).toBeNull();
     expect(getFormula("")).toBeNull();
     expect(getFormula(undefined)).toBeNull();
@@ -347,12 +350,19 @@ describe("importer: the MZ companions travel with the formula", () => {
   });
 
   it("keeps a rejected formula verbatim + one honest partial line (D1)", () => {
-    const s = rawSkill({ damage: { type: 1, elementId: 0, formula: "a.luk * 10", variance: 20, critical: false } });
+    const s = rawSkill({ damage: { type: 1, elementId: 0, formula: "a.hit * 10", variance: 20, critical: false } });
     const { out, report } = convert([null, s]);
-    expect(out[0].formula).toBe("a.luk * 10"); // re-import can upgrade it
+    expect(out[0].formula).toBe("a.hit * 10"); // re-import can upgrade it
     const line = report.lines.find((l) => /can't run/.test(l.what));
     expect(line).toBeTruthy();
     expect(line!.kind).toBe("partial");
+  });
+
+  it("a.luk formulas compile since post-1.1 (no reject line)", () => {
+    const s = rawSkill({ damage: { type: 1, elementId: 0, formula: "a.luk * 10", variance: 0, critical: false } });
+    const { out, report } = convert([null, s]);
+    expect(out[0].formula).toBe("a.luk * 10");
+    expect(report.lines.find((l) => /can't run/.test(l.what))).toBeUndefined();
   });
 
   it("items: %-recover → hpPct/mpPct; recover formulas store; attack formulas report", () => {

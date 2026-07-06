@@ -68,7 +68,7 @@ Every skill works fine with just **Power** — but if you want full control, ope
 
 - **Formula** — a little math expression that *replaces* Power, written the RPG Maker way:
   `a.atk * 4 - b.def * 2`. `a` is the user, `b` is the target, and `v[n]` reads game variable
-  *n*. You can use the stats `atk def mat mdf agi mhp mmp hp mp level`, the operators
+  *n*. You can use the stats `atk def mat mdf agi luk mhp mmp hp mp level`, the operators
   `+ - * / %`, comparisons with `? :` choices, and `Math.min / max / floor / ceil / round /
   abs / pow / sqrt / randomInt`.
 - **Variance %** — how much the result wiggles (20 means ±20%).
@@ -80,6 +80,19 @@ target takes half). The box checks your formula as you type and explains, in pla
 anything it can't accept — formulas are read by Atlas's own safe checker, never run as raw
 code. Games imported from RPG Maker MV/MZ bring their formulas (and HP/MP drains, MP damage,
 %-of-max heals, and hit/evade bonuses) across automatically.
+
+---
+
+## Luck and two-weapon fighting
+
+- **Luck (LUK)** is the eighth battle stat, on classes (base + growth), enemies, and
+  equipment. It nudges chance effects the RPG Maker way: every point of Luck you have *over*
+  your target makes your ailments and stat-drops 0.1% more likely to land (and the other way
+  around). A game that never sets Luck plays exactly as before — the stat only shows on the
+  Status screen once it's non-zero.
+- **Two-weapon fighting**: give a class the **Two-weapon fighting** bonus (Classes ▸ Traits ▸
+  special) and its heroes get a **second weapon slot** in the Equip menu (set a starting one
+  on the hero's Database entry). Both weapons' stats count toward the hero's totals.
 
 ---
 

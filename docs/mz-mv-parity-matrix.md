@@ -8,6 +8,13 @@ placeholders *by design* (parsed into the Add-ons report, never run — §14); 1
 variable-operand forms of 122/125–128/201/301 and the change-family stay honest todos with
 aggregated report lines; script *writes* stay todo per the M5·B read-only contract. Locked skips
 (`−`) all emit their friendly lines. Verdict details in `docs/mig-6-spec.md` (M6·C stage log).
+**Post-1.1 amendment (2026-07-05, Claude Fable 5):** five former locked skips converted after
+1.1.0 shipped — Atlas grew the features: **`luk`** is a real eighth param (D7 retired; curves,
+equip/enemy params, trait 21/12 keys, formula stat, Change Parameters 317, MZ lukEffectRate on
+state/debuff rolls), **trait 55 dual wield** → `special/dualWield` + a second weapon slot,
+**`optAutosave`** → `system.autosave` + an Autosave slot, **`menuCommands`** →
+`system.menuCommands`, **`itemCategories`** → `system.itemCategories` with real key items
+(`Item.keyItem`, itypeId 2). Rows below carry a *(post-1.1)* note where amended.
 **Contract:** this file is the signed scope for Project Compass. Every `+` row below names
 the phase (M2/M3/M4/M5) that ships the feature AND flips the corresponding
 `translate-commands.ts` / DB-converter entry from `mzTodo` to a real translation. Phases
@@ -55,7 +62,7 @@ emits one report line. Re-importing after a phase ships picks up the real transl
 | Battle animations | sheet-based `Animations.json` (5×… grid + timings) | Effekseer `.efkefc` refs in `Animations.json` | MV sheets **`+ M4·B`** (→ `BattleAnimation`); MZ Effekseer **`− → ≈ M4·B`** (skip the particle file, auto-fallback to nearest Atlas animation by name/element + report line). |
 | Plugin command | code **356** — single text string `"PluginName arg arg"` | code **357** — structured `{pluginName, funcName, args:{}}` (+ legacy 356) | Both **`+ M5·A`** (parsed into the plugin report; never executed). |
 | Encrypted assets | `.rpgmvp` (img) · `.rpgmvo` (audio) | `.png_` · `.ogg_` | `= (decrypt) M1·A` — same XOR-with-System-key scheme, different extensions; decrypt with the user's own `System.json` `encryptionKey`. |
-| Autosave / fast-travel opts | absent | `optAutosave`, `optKeyItemsNumber` in System | `−` (report) — Atlas has no autosave-slot concept. |
+| Autosave / fast-travel opts | absent | `optAutosave`, `optKeyItemsNumber` in System | *(post-1.1)* `optAutosave` → `system.autosave` (Autosave slot, converted line); `optKeyItemsNumber` stays `−` (report). |
 | Core scripts | `rpg_*.js` | `rmmz_*.js` | n/a (never imported; JS is M5 guidance only). |
 | Side-view default | `optSideView` | `optSideView` (SV is default) | `= partial` — Atlas `battleView:"side"` exists; SV **battler motions/sheets** are `−` (report: "Atlas uses its own battle FX"). |
 | `data/System.json advanced{}` | absent | present (screen size, fonts) | `≈ M1·A` — map screen/UI size + font size to `SystemData`; drop the rest with a note. |
@@ -82,7 +89,7 @@ emits one report line. Re-importing after a phase ships picks up the real transl
 | `currencyUnit` | `system.currency` | `=` | (dup of above) |
 | `terms.basic[]` | help/terms strings | `≈ M2·B` | Atlas has no full term table; the handful the engine shows (Level/HP/MP…) map where present, rest → report. |
 | `terms.commands[]` | menu labels | `≈ M2·B` | partial; Atlas menu is fixed-vocab. |
-| `terms.params[]` | param labels | `≈ M2·B` | 8 params → Atlas's 7 (`luk` dropped, see §5). |
+| `terms.params[]` | param labels | `≈ M2·B` | 8 params → Atlas's 8 *(post-1.1: `luk` is real, see §5)*. |
 | `terms.messages{}` | battle/system message templates | `− (report)` | Atlas uses its own message copy; note in report. |
 | `windowTone [r,g,b,gray]` | `system.windowColor` | `≈ M2·C` | RGB → `#rrggbb`; the gray channel is dropped (report). Window-color **command** is `+ M2·C`. |
 | `boat`/`ship`/`airship {characterName,characterIndex,bgm,startMapId,startX,startY}` | `system.vehicles.{boat,ship,airship}` (`VehicleDef`) | `= M1·A` | charset name+index → Atlas `charset`; `bgm` → `music`; start pos maps 1:1. See §12. |
@@ -100,10 +107,10 @@ emits one report line. Re-importing after a phase ships picks up the real transl
 | `optDisplayTp` | (TP system) | `+ M3·B` | TP is a M3·B decision (see §5/§6); flag stored, honored when TP lands. |
 | `optSlipDeath`/`optFloorDeath` | floor-damage lethality | `+ M4·A` | tied to damage-floor tiles (§11). |
 | `optExtraExp` | — | `−` | report. |
-| `optAutosave` (MZ) | — | `−` | Atlas has explicit-save only; report. |
+| `optAutosave` (MZ) | — | `+ post-1.1` | → `system.autosave`; the engine writes an Autosave slot after transfers and won battles. |
 | `optKeyItemsNumber` (MZ) | — | `−` | report. |
-| `itemCategories` (MZ) | — | `−` | Atlas menu is fixed; report. |
-| `menuCommands` (MZ) | — | `−` | report. |
+| `itemCategories` (MZ) | — | `+ post-1.1` | → `system.itemCategories` (Items/Weapons/Armor/Key Items tabs; `Item.keyItem` from itypeId 2). |
+| `menuCommands` (MZ) | — | `+ post-1.1` | → `system.menuCommands` (hidden commands only; all-true = absent = classic menu). |
 | `battleback1Name`/`2Name` (default) | per-map battleback | `+ M4·A` | per-map battlebacks are M4·A; System default stored for the importer to apply. |
 | `advanced.screenWidth/Height` | `system.screenWidth/Height` | `= M1·A` | |
 | `advanced.uiAreaWidth/Height` | `system.uiWidth/uiHeight` | `= M1·A` | |
@@ -136,7 +143,7 @@ emits one report line. Re-importing after a phase ships picks up the real transl
 | MZ/MV | Atlas | Disp. | Notes |
 |---|---|:--:|---|
 | `id`,`name` | `id`,`name` | `=` | |
-| `params[8][100]` | `base`+`growth` (`Params`) | `≈ M1·A` | MZ stores a full 100-level curve for 8 params; Atlas stores `base`+linear `growth` for **7** params (`luk` dropped, §5). Importer fits base(=lvl1)+growth(=slope) and notes the curve is linearized in the report (`≈`). |
+| `params[8][100]` | `base`+`growth` (`Params`) | `≈ M1·A` | MZ stores a full 100-level curve for 8 params; Atlas stores `base`+linear `growth` for **8** params *(post-1.1: `luk` fits like the rest, §5)*. Importer fits base(=lvl1)+growth(=slope) and notes the curve is linearized in the report (`≈`). |
 | `expParams[4]` (basis,extra,accA,accB) | exp curve | `≈ M1·A` | Atlas has a simpler exp model; importer approximates and reports. |
 | `learnings[]` `{level,skillId,note}` | `learnings[]` `{level,skillId}` | `= M1·A` | note dropped. |
 | `traits[]` | `traits[]` (`Trait`) | `+ M3·B` | the primary trait carrier — see §5 for per-code mapping. M1 imports the codes it can (`param`/`element`/`state`/`skill`/`equip`) and `mzTodo`-notes the rest until M3·B. |
@@ -173,7 +180,7 @@ emits one report line. Re-importing after a phase ships picks up the real transl
 |---|---|:--:|---|
 | `id`,`name`,`iconIndex`,`price` | same | `=` | |
 | `wtypeId` | `wtypeId` | `=` | |
-| `params[8]` | `params` (`Params`, 7) | `≈` | luk dropped (§5). |
+| `params[8]` | `params` (`Params`, 8) | `≈` | *(post-1.1)* luk converts (§5). |
 | `animationId` (attack anim) | `animationId` | `= M1·A` | |
 | `traits[]` | — | `+ M3·B` | weapon traits (attack element/state/etc.) → §5; M1 `mzTodo`-notes. |
 | `etypeId` (=1) | — | `=` (implicit) | weapons are the weapon slot. |
@@ -185,7 +192,7 @@ emits one report line. Re-importing after a phase ships picks up the real transl
 | `id`,`name`,`iconIndex`,`price` | same | `=` | |
 | `atypeId` | `atypeId` | `=` | |
 | `etypeId` | `etypeId` | `=` | |
-| `params[8]` | `params` (7) | `≈` | luk dropped. |
+| `params[8]` | `params` (8) | `≈` | *(post-1.1)* luk converts. |
 | `traits[]` | — | `+ M3·B` | §5. |
 | `note` | — | `−` | §14. |
 
@@ -194,7 +201,7 @@ emits one report line. Re-importing after a phase ships picks up the real transl
 |---|---|:--:|---|
 | `id`,`name` | `id`,`name` | `=` | |
 | `battlerName`+`battlerHue` | `sprite`+`color` | `≈ M1·A` | battler image imported as `sprite`; hue → nearest `color` tint (report exact hue). |
-| `params[8]` | `stats` (`Params`, 7) | `≈` | luk dropped. |
+| `params[8]` | `stats` (`Params`, 8) | `≈` | *(post-1.1)* luk converts. |
 | `exp`,`gold` | `exp`,`gold` | `=` | |
 | `dropItems[3] {kind,dataId,denominator}` | — | `+ M3·C` | Atlas enemy has no drop field yet; **new optional `Enemy.drops[]`** in M3·C; M1 stores as `mzTodo`-note. |
 | `actions[] {skillId,conditionType,conditionParam1/2,rating}` | `actions[]` (`EnemyAction`+`EnemyActionCond`) | `≈ M1·A / + M3·C` | `skillId`+`rating`→`weight` map now; **condition types** map to `EnemyActionCond.kind` per §8 (turn/hp/state/always exist; `switch`/`party-level`/`turn-valid` refinements are `+ M3·C`). |
@@ -292,7 +299,7 @@ battler at import** — merge strategy in the M0·B decision log). All non-`=` r
 | 12 | Debuff Rate | — | `+ M3·B` | needs debuff model. |
 | 13 | State Rate | `type:"state"` | `= M1·A` | key = state id; value = rate. |
 | 14 | State Resist | `type:"special"` (resist) | `+ M3·B` | full immunity flag. |
-| 21 | Parameter (×8) | `type:"param"` | `≈ M1·A` | 7 of 8 params map (mhp/mmp/atk/def/mat/mdf/agi); **`luk` (param 7) dropped** — no Atlas param. Report per luk trait. |
+| 21 | Parameter (×8) | `type:"param"` | `≈ M1·A` | all 8 params map *(post-1.1: `luk` included — key `luk`)*. |
 | 22 | Ex-Param (hit/eva/cri/cev/mev/mrf/cnt/hrg/mrg/trg) | — | `+ M3·B` | Atlas has no ex-params today; hit/eva/cri feed the M3·A formula path, rest → M3·B special traits. |
 | 23 | Sp-Param (tgr/grd/rec/pha/mcr/tcr/pdr/mdr/fdr/exr) | — | `+ M3·B` | pdr/mdr/rec are the common ones; all → M3·B. |
 | 31 | Attack Element | `type:"element"` (attack) | `+ M3·B` | needs "on attack" semantics. |
@@ -308,16 +315,16 @@ battler at import** — merge strategy in the M0·B decision log). All non-`=` r
 | 52 | Equip Armor Type | `type:"equip"` | `≈ M1·A` | key = armor type id. |
 | 53 | Lock Equip | `type:"equip"` (lock) | `+ M3·B` | |
 | 54 | Seal Equip | `type:"equip"` (seal) | `+ M3·B` | |
-| 55 | Slot Type (dual wield) | — | `+ M3·B` | Atlas single-weapon; dual-wield → report if unmappable. |
+| 55 | Slot Type (dual wield) | `special/dualWield` | `+ post-1.1` | dual wield converts: the trait opens a second weapon slot (`Actor.weapon2Id`); starting slot-2 weapon lands there. |
 | 61 | Action Times+ | — | `+ M3·B` | extra turns. |
 | 62 | Special Flag (autoBattle/guard/substitute/preserveTp) | `type:"special"` | `+ M3·B` | substitute/guard feed M3·C battle flow. |
 | 63 | Collapse Effect | — | `− (report)` | visual death effect; Atlas uses its own. |
 | 64 | Party Ability (encHalf/encNone/cancelSurprise/raisePreempt/goldDouble/dropDouble) | — | `+ M3·C` | encounter + preemptive/surprise abilities land with battle parity (M3·C). |
 
 **Param index → Atlas note:** MZ params `[mhp,mmp,atk,def,mat,mdf,agi,luk]` (0–7) → Atlas
-`Params{mhp,mmp,atk,def,mat,mdf,agi}`. **`luk` has no Atlas home** and is dropped everywhere
-(class curves, equip params, enemy stats, param traits) with an aggregated report line
-("Luck isn't a stat in Atlas — N places used it"). This is a **locked skip**, not a `+`.
+`Params{mhp,mmp,atk,def,mat,mdf,agi,luk}` — a 1:1 map since post-1.1 (`luk` became a real Atlas
+param; the D7 locked skip and its aggregated report line are retired). Luck feeds the MZ
+lukEffectRate on state/debuff chances, floors at 0, and stays invisible in games that never set it.
 
 ---
 
@@ -761,7 +768,7 @@ fade/pitch/pan (241 options/242 timed), SE pitch/pan (250 options/251).
 **M5·B — scripts:** read-only `$gameVariables`/`$gameSwitches`/`$gameParty` adapter for
 Script (355) and Conditional-Branch-Script; everything else `mzTodo` + report.
 
-**Locked skips (`−`, never a phase):** `luk` param everywhere, Play Movie (261), Effekseer
+**Locked skips (`−`, never a phase):** Play Movie (261) — *(post-1.1: the `luk` param converted and left this list)*, Effekseer
 particle files, SV battler sheets/motions, plugin `.js` execution, autosave/key-item-number
 opts, map-name-display toggle (281), collapse effect (trait 63), move-route speed/frequency/
 opacity/blend steps, editor-only System/MapInfo fields.

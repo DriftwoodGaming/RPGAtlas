@@ -39,7 +39,9 @@ export type Dir = 0 | 1 | 2 | 3;
 /** Item bucket kind used across inventory, shop goods, change-items, etc. */
 export type ItemKind = "item" | "weapon" | "armor";
 
-/** The seven battle parameters keyed on class base/growth and equip params. */
+/** The eight battle parameters keyed on class base/growth and equip params.
+ *  `luk` (post-1.1) nudges state/debuff chances in battle (MZ luk semantics);
+ *  unlike the others it floors at 0, so untouched projects read 0 = neutral. */
 export interface Params {
   mhp?: number;
   mmp?: number;
@@ -48,6 +50,7 @@ export interface Params {
   mat?: number;
   mdf?: number;
   agi?: number;
+  luk?: number;
 }
 
 /** A class trait row (Database ▸ Classes). `key` is a string even when it
@@ -175,6 +178,30 @@ export interface SystemData {
   /** Default battle background (M4·A, MZ System battleback1/2Name): asset
    *  keys; a map's own `battleback` wins. Absent = the classic backdrop. */
   battleback?: { back1?: string; back2?: string };
+  // ---- post-1.1 (MZ System options that finally have an Atlas home) ----
+  /** Autosave (MZ optAutosave): the game writes the dedicated Autosave slot
+   *  after map transfers and won random battles. Absent/false = off. */
+  autosave?: boolean;
+  /** Pause-menu command visibility (MZ System menuCommands). Absent = every
+   *  command shows; a key set to false hides that entry. Journal/Options/
+   *  Load/To Title always show. */
+  menuCommands?: {
+    item?: boolean;
+    skill?: boolean;
+    equip?: boolean;
+    status?: boolean;
+    formation?: boolean;
+    save?: boolean;
+  };
+  /** Item-menu categories (MZ System itemCategories). Absent = the classic
+   *  single item list; present = the item menu opens with category tabs for
+   *  the categories set true (key items need `Item.keyItem`). */
+  itemCategories?: {
+    item?: boolean;
+    weapon?: boolean;
+    armor?: boolean;
+    keyItem?: boolean;
+  };
 }
 
 /** One vehicle's charset + starting placement (Phase 5 Stage C). */
@@ -201,6 +228,9 @@ export interface Actor {
   icon?: number;
   /** Starting battle row (Phase 5). Absent = "front". */
   row?: "front" | "back";
+  /** Second weapon (post-1.1 two-weapon fighting). Only read when the hero's
+   *  class carries the `special`/`dualWield` trait; absent = classic. */
+  weapon2Id?: number;
 }
 
 export interface Learning {
@@ -344,6 +374,9 @@ export interface Item {
    *  them back to life with `hp` HP restored. Absent = false — ordinary
    *  restoratives never revive. */
   revive?: boolean;
+  /** Key item (post-1.1, MZ itypeId 2): a story item. Shown under the "Key
+   *  Items" tab when `system.itemCategories` is on; otherwise cosmetic. */
+  keyItem?: boolean;
   /** RPG Maker MZ/MV damage formula string (decision D1) — see
    *  `Skill.formula`. Since M3·A a compilable heal-type formula adds to the
    *  item's recovery (evaluated with a = b = target). */
@@ -1122,7 +1155,7 @@ export interface CmdChangeExp { t: "changeExp"; actorId: number; op: "add" | "su
 /** Add/subtract levels (RM Change Level). EXP snaps to the new level's floor. */
 export interface CmdChangeLevel { t: "changeLevel"; actorId: number; op: "add" | "sub"; value: number; }
 /** Add/subtract a permanent bonus to one base parameter (RM Change Parameters).
- *  `param` is an Atlas param key (mhp/mmp/atk/def/mat/mdf/agi). */
+ *  `param` is an Atlas param key (mhp/mmp/atk/def/mat/mdf/agi/luk). */
 export interface CmdChangeParam { t: "changeParam"; actorId: number; param: string; op: "add" | "sub"; value: number; }
 /** Teach or remove a skill (RM Change Skills). Stored as an extra learned skill
  *  (learn) or a suppression of an otherwise-known one (forget). */
