@@ -58,6 +58,7 @@ interface MapData {
   shadows: number[];
   regions: number[];
   passOv: number[];
+  heights: number[];
 }
 
 /** Rebucket one RM `data[]` (w·h·6) into Atlas role layers + shadow/region/passOv. */
@@ -74,6 +75,7 @@ export function convertMapData(m: RmMap, ts: TilesetsConversion, report: ImportR
   const shadows = new Array(plane).fill(0);
   const regions = new Array(plane).fill(0);
   const passOv = new Array(plane).fill(0);
+  const heights = new Array(plane).fill(0); // RM has no elevation concept — flat
 
   for (let i = 0; i < plane; i++) {
     const rawG = z(i, 0), rawD = z(i, 1), rawD2 = z(i, 2), rawO = z(i, 3);
@@ -112,12 +114,12 @@ export function convertMapData(m: RmMap, ts: TilesetsConversion, report: ImportR
     }
   }
 
-  // Every Atlas map carries shadows/regions/passOv even when empty: data.js
-  // newMap() creates them and the format migrations backfill old projects, but
-  // an imported project is already v2 so nothing backfills after us. The
-  // editor and engine read them unguarded (map-render drawShadows crashes on
-  // the first cell of a map without `shadows`).
-  return { layers: { ground, decor, decor2, over }, shadows, regions, passOv };
+  // Every Atlas map carries the full plane set even when empty (the data.js
+  // newMap invariant). RA.migrateProject now backfills any missing plane at the
+  // load boundary too (the importer's output runs through it), but we still emit
+  // complete maps so the raw output matches newMap directly. RM has no
+  // elevation, so heights is all-zero.
+  return { layers: { ground, decor, decor2, over }, shadows, regions, passOv, heights };
 }
 
 /** encounterList + encounterStep → Atlas `MapEncounters` (matrix §Map###).
@@ -186,6 +188,7 @@ export function convertMap(
   map.shadows = md.shadows;
   map.regions = md.regions;
   map.passOv = md.passOv;
+  map.heights = md.heights;
 
   if (m.autoplayBgm && m.bgm && m.bgm.name) map.music = "asset:audio/" + m.bgm.name;
   // M4·B: the BGS autoplay layer keeps its RM volume (default 80 ⇒ 0.8) —

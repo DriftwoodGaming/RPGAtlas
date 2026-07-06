@@ -11,7 +11,7 @@ import { RA, LAYER_ORDER, editorState as S, curMap } from "../editor-state";
 import { touch } from "../persistence";
 import { renderMap } from "./map-render";
 import { pushUndo } from "./history";
-import { eventAt, heightsOf } from "./painting";
+import { eventAt, heightsOf, shadowsOf } from "./painting";
 import { setStatus, flashStatus } from "./status";
 import { setMode, refreshToolbar } from "../workspace";
 
@@ -40,12 +40,12 @@ import { setMode, refreshToolbar } from "../workspace";
     const w = r.x2 - r.x1 + 1, h2 = r.y2 - r.y1 + 1;
     const clip: any = { w, h: h2, layers: {}, shadows: [], heights: [] };
     for (const ln of LAYER_ORDER) clip.layers[ln] = [];
-    const hts = heightsOf(m);
+    const hts = heightsOf(m), shs = shadowsOf(m);
     for (let y = r.y1; y <= r.y2; y++) {
       for (let x = r.x1; x <= r.x2; x++) {
         const i = y * m.width + x;
         for (const ln of LAYER_ORDER) clip.layers[ln].push(m.layers[ln][i]);
-        clip.shadows.push(m.shadows[i]);
+        clip.shadows.push(shs[i]);
         clip.heights.push(hts[i] || 0);
       }
     }
@@ -57,7 +57,7 @@ import { setMode, refreshToolbar } from "../workspace";
         for (let x = r.x1; x <= r.x2; x++) {
           const i = y * m.width + x;
           for (const ln of LAYER_ORDER) m.layers[ln][i] = 0;
-          m.shadows[i] = 0;
+          shs[i] = 0;
           heightsOf(m)[i] = 0;
         }
       }
@@ -83,14 +83,14 @@ import { setMode, refreshToolbar } from "../workspace";
   export function stampPaste(cell: any) {
     if (S.pasteMode === "tiles" && S.clipTiles) {
       pushUndo("Paste tiles");
-      const m = curMap();
+      const m = curMap(), shs = shadowsOf(m);
       for (let dy = 0; dy < S.clipTiles.h; dy++) {
         for (let dx = 0; dx < S.clipTiles.w; dx++) {
           const x = cell.x + dx, y = cell.y + dy;
           if (x >= m.width || y >= m.height) continue;
           const si = dy * S.clipTiles.w + dx, di = y * m.width + x;
           for (const ln of LAYER_ORDER) m.layers[ln][di] = S.clipTiles.layers[ln][si];
-          m.shadows[di] = S.clipTiles.shadows[si];
+          shs[di] = S.clipTiles.shadows[si];
           heightsOf(m)[di] = (S.clipTiles.heights && S.clipTiles.heights[si]) || 0;
         }
       }

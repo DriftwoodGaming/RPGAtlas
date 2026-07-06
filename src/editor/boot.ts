@@ -245,8 +245,43 @@ async function boot() {
 // everything; register our impl in the one remaining editorHooks slot.
 editorHooks.rebuildAll = rebuildAll;
 
+// A crash during boot (e.g. a corrupt saved project that slips past
+// migrateProject's normalization) must not leave a blank, unrecoverable shell —
+// surface the error and offer a reset instead of bricking "until restored".
+function showBootFailure(e: any): void {
+  console.error("RPGAtlas editor failed to start:", e);
+  try {
+    const ov = document.createElement("div");
+    ov.style.cssText = "position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#1a1a1f;color:#eee;font:14px/1.5 system-ui,sans-serif;padding:24px;box-sizing:border-box";
+    const box = document.createElement("div");
+    box.style.cssText = "max-width:520px;text-align:center";
+    const msg = e && e.message ? String(e.message) : String(e);
+    box.innerHTML =
+      '<h2 style="margin:0 0 8px;font-size:18px">The editor couldn’t start</h2>' +
+      '<p style="margin:0 0 16px;opacity:.8">Something went wrong while loading your project. Reload to try again, or reset the saved project if it’s damaged.</p>' +
+      '<pre style="text-align:left;white-space:pre-wrap;background:#0006;padding:8px;border-radius:6px;max-height:30vh;overflow:auto;font-size:12px;opacity:.7"></pre>' +
+      '<div style="margin-top:16px;display:flex;gap:8px;justify-content:center">' +
+      '<button id="boot-reload" style="padding:8px 14px">Reload</button>' +
+      '<button id="boot-reset" style="padding:8px 14px">Reset saved project &amp; reload</button>' +
+      "</div>";
+    (box.querySelector("pre") as HTMLElement).textContent = msg;
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+    (box.querySelector("#boot-reload") as HTMLElement).onclick = () => location.reload();
+    (box.querySelector("#boot-reset") as HTMLElement).onclick = () => {
+      try { localStorage.removeItem("rpgatlas_project"); localStorage.removeItem("driftwood_project"); } catch { /* storage may be unavailable */ }
+      location.reload();
+    };
+  } catch (overlayErr) {
+    console.error("Boot-failure overlay failed:", overlayErr);
+    alert("The editor couldn't start. Reload; if that fails, clear this site's data to reset the project.");
+  }
+}
+
+function runBoot(): void { boot().catch(showBootFailure); }
+
 if (document.readyState === "loading") {
-  window.addEventListener("DOMContentLoaded", boot, { once: true });
+  window.addEventListener("DOMContentLoaded", runBoot, { once: true });
 } else {
-  boot();
+  runBoot();
 }

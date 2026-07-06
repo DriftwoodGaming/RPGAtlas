@@ -11,7 +11,7 @@ import { $, h, tIn, nIn, sel, chk, field, row, dbOpts, MUSIC_OPTS, BGS_OPTS } fr
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 import { renderMap } from "./map-render";
-import { heightsOf, regionsOf } from "./painting";
+import { heightsOf, regionsOf, shadowsOf, passOvOf } from "./painting";
 import { setStatus, flashStatus } from "./status";
 import { viewportDirty } from "./hd-viewport";
 import { walkCommands } from "../event-editor/command-list";
@@ -153,6 +153,7 @@ import { subTabs } from "../database/shared";
       },
       shadows: new Array(n).fill(0),
       passOv: new Array(n).fill(0),
+      heights: new Array(n).fill(0),
       regions: new Array(n).fill(0),
       events: [],
     };
@@ -884,8 +885,8 @@ import { subTabs } from "../database/shared";
       return arr;
     };
     for (const ln of LAYER_ORDER) m.layers[ln] = remap(m.layers[ln], ln === "ground" ? Assets.T.grass : 0);
-    m.shadows = remap(m.shadows, 0);
-    m.passOv = remap(m.passOv, 0);
+    m.shadows = remap(shadowsOf(m), 0);
+    m.passOv = remap(passOvOf(m), 0);
     m.heights = remap(heightsOf(m), 0);
     m.regions = remap(regionsOf(m), 0);
     m.width = w; m.height = h2;

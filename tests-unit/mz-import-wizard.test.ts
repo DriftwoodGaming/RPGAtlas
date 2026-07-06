@@ -219,11 +219,12 @@ describe("readZip → the wizard's .zip intake", () => {
     expect(new TextDecoder().decode(out[name])).toContain("Deflate Test");
   });
 
-  it("every imported map carries shadows/regions/passOv planes (engine+editor invariant)", async () => {
-    // data.js newMap() always creates these; the migrations backfill old
-    // projects but never run on the importer's v2 output — so the importer
-    // must emit them even for a map with nothing painted (a blank map used to
-    // crash map-render drawShadows right after import committed).
+  it("every imported map carries shadows/regions/passOv/heights planes (engine+editor invariant)", async () => {
+    // data.js newMap() always creates these; migrateProject.normalizeMapPlanes
+    // now backfills any missing plane at the load boundary too, but the importer
+    // still emits them directly so its raw output matches newMap even for a map
+    // with nothing painted (a blank map used to crash map-render drawShadows
+    // right after import committed; heights had been the one plane still omitted).
     const map: Record<string, string> = {};
     for (const rel of walk(root("mz-project"), root("mz-project"))) {
       if (/\.(json|js)$/i.test(rel) || /^Game\./i.test(rel)) map[rel] = readFileSync(join(root("mz-project"), rel), "utf8");
@@ -234,7 +235,7 @@ describe("readZip → the wizard's .zip intake", () => {
     const outcome = await runRmImport(objectSource(map), freshBase());
     for (const gm of outcome.project.maps) {
       const n = gm.width * gm.height;
-      for (const plane of ["shadows", "regions", "passOv"] as const) {
+      for (const plane of ["shadows", "regions", "passOv", "heights"] as const) {
         const arr = (gm as Record<string, unknown>)[plane];
         expect(Array.isArray(arr), `${gm.name}.${plane}`).toBe(true);
         expect((arr as number[]).length, `${gm.name}.${plane} length`).toBe(n);

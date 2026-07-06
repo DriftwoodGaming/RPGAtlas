@@ -667,6 +667,25 @@ const RA = {
       if (!Array.isArray(tr.pages)) tr.pages = [];
     }
   },
+  // Ensure a map carries the full set of tile/plane arrays the editor and engine
+  // index UNGUARDED: the four tile layers plus shadows/passOv/heights/regions,
+  // each exactly width*height long. Idempotent — a correctly-sized array is left
+  // as-is (so migrateProject stays a no-op on an already-normal project); a
+  // missing or wrong-length one is (re)built filled with 0, the "empty" value for
+  // every plane. This is the invariant newMap() guarantees. Mutates + returns m.
+  normalizeMapPlanes(m) {
+    if (!m || typeof m !== "object") return m;
+    const n = m.width * m.height;
+    if (!Number.isInteger(n) || n < 0 || n > 0xffffffff) return m; // no valid array length to size by
+    const layers = m.layers && typeof m.layers === "object" ? m.layers : (m.layers = {});
+    for (const role of ["ground", "decor", "decor2", "over"]) {
+      if (!Array.isArray(layers[role]) || layers[role].length !== n) layers[role] = new Array(n).fill(0);
+    }
+    for (const plane of ["shadows", "passOv", "heights", "regions"]) {
+      if (!Array.isArray(m[plane]) || m[plane].length !== n) m[plane] = new Array(n).fill(0);
+    }
+    return m;
+  },
   // Run every registered migration step whose version is greater than the
   // project's current meta.formatVersion (missing == 0), in ascending order,
   // then stamp meta.formatVersion to RA.FORMAT_VERSION. See the comment above
@@ -678,6 +697,14 @@ const RA = {
     for (const step of RA.migrations) {
       if (step.version > current) step.migrate(p);
     }
+    // Backfill every map's tile/plane arrays. The version-gated steps above only
+    // fire for OLDER projects; an already-current (v2) project — every MZ/MV
+    // import, or a project holding a map some tool left partial — would otherwise
+    // slip through with a missing/short plane and crash the first render on load
+    // ("crashes on launch until restored"). migrateProject is the one boundary
+    // every entry path runs (editor load/import, engine boot, standalone export),
+    // so normalizing here fixes them all at once.
+    if (Array.isArray(p.maps)) for (const m of p.maps) RA.normalizeMapPlanes(m);
     p.meta.formatVersion = RA.FORMAT_VERSION;
     return p;
   },

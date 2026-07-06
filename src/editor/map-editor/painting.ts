@@ -105,13 +105,13 @@ import { tileId } from "../../shared/tile-flags";
     touch(); renderMap();
   }
   export function paintShadow(cell: any, bit: any, add: any) {
-    const m = curMap(), i = cell.y * m.width + cell.x;
-    m.shadows[i] = add ? (m.shadows[i] | bit) : (m.shadows[i] & ~bit);
+    const m = curMap(), i = cell.y * m.width + cell.x, sh = shadowsOf(m);
+    sh[i] = add ? (sh[i] | bit) : (sh[i] & ~bit);
     touch(); renderMap();
   }
   export function paintPass(cell: any, val: any) {
     const m = curMap();
-    m.passOv[cell.y * m.width + cell.x] = val;
+    passOvOf(m)[cell.y * m.width + cell.x] = val;
     touch(); renderMap();
   }
   // HD-2D elevation layer (projects from before the heights layer existed may
@@ -120,6 +120,20 @@ import { tileId } from "../../shared/tile-flags";
     const n = m.width * m.height;
     if (!m.heights || m.heights.length !== n) m.heights = new Array(n).fill(0);
     return m.heights;
+  }
+  // Shadow-quadrant + passability planes: self-heal a missing/mis-sized array
+  // exactly like heightsOf/regionsOf, so a plane write can never index undefined
+  // even on a map some path left partial. Belt-and-suspenders to the load-time
+  // RA.normalizeMapPlanes; keeps all four planes symmetric.
+  export function shadowsOf(m: any) {
+    const n = m.width * m.height;
+    if (!m.shadows || m.shadows.length !== n) m.shadows = new Array(n).fill(0);
+    return m.shadows;
+  }
+  export function passOvOf(m: any) {
+    const n = m.width * m.height;
+    if (!m.passOv || m.passOv.length !== n) m.passOv = new Array(n).fill(0);
+    return m.passOv;
   }
   export function paintHeight(cell: any, val: any) {
     const m = curMap();
