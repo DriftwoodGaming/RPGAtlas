@@ -93,10 +93,15 @@ export function decideRecovery(i: RecoveryInputs): RecoveryDecision {
 export interface ExternalChangeInputs {
   /** The bytes currently in `<root>/game.rpgatlas` (a fresh read). */
   diskDoc: string;
-  /** The bytes we last wrote to (or opened from) disk — our belief of the file. */
+  /** The bytes we last wrote to (or opened from) disk — our record of the file. Both
+   *  sides are *file bytes* (we write `JSON.stringify(proj)` and read it back), so this
+   *  comparison is exact and immune to load-time normalization — unlike diffing the raw
+   *  file against a re-serialized in-memory project, which would misfire on a clean open. */
   lastSavedDoc: string;
-  /** The current in-memory document (JSON.stringify of the live project). */
-  inMemoryDoc: string;
+  /** Whether the editor has edits not yet persisted to the folder (the `folderDirty`
+   *  flag). Using the edit flag — not a content diff — keeps "do we have unsaved changes?"
+   *  precise across load-time normalization. */
+  hasLocalEdits: boolean;
 }
 
 /** `none` = the file is what we last wrote; do nothing. `reload` = the file changed on
@@ -104,8 +109,8 @@ export interface ExternalChangeInputs {
  *  changed AND we have unsaved edits, so offer reload-theirs-or-keep-mine. */
 export type ExternalChange = "none" | "reload" | "conflict";
 
-/** Classify an on-focus disk re-read against our baseline + live document. */
+/** Classify an on-focus disk re-read against our baseline + dirty flag. */
 export function decideExternalChange(i: ExternalChangeInputs): ExternalChange {
   if (i.diskDoc === i.lastSavedDoc) return "none";
-  return i.inMemoryDoc === i.lastSavedDoc ? "reload" : "conflict";
+  return i.hasLocalEdits ? "conflict" : "reload";
 }

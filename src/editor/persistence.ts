@@ -31,7 +31,14 @@ import { flashStatus } from "./map-editor/status";
 // the ?fakehost test host) writes <root>/game.rpgatlas; the mirror bookkeeping lets a
 // crash between the mirror write and the folder write be detected on the next boot.
 import { activeManagerHost } from "./project-manager/manager-host";
-import { MIRROR_META_KEY, stringifyMirrorMeta, type MirrorMeta } from "../shared/folder-sync";
+import { setPendingOpen } from "./project-manager/pending-open";
+import {
+  MIRROR_META_KEY,
+  stringifyMirrorMeta,
+  parseMirrorMeta,
+  decideExternalChange,
+  type MirrorMeta,
+} from "../shared/folder-sync";
 import { viewportDirty } from "./map-editor/hd-viewport";
 import { worldDirty } from "./map-editor/world-view";
 import { advDirty } from "./advanced/adv-panel";
@@ -89,6 +96,10 @@ const projectRepo = new BrowserProjectRepository(
     if (dirty) folderDirty = true;
   }
 
+  // The crash-recovery mirror payload (also the same-origin playtest bridge). Owned by
+  // BrowserProjectRepository; read here (H3·B) for crash-recovery + external-change.
+  const MIRROR_KEY = "rpgatlas_project";
+
   function writeMirrorMeta(root: string, folderConfirmed: boolean): void {
     try {
       const meta: MirrorMeta = { root, savedAt: Date.now(), folderConfirmed };
@@ -96,6 +107,15 @@ const projectRepo = new BrowserProjectRepository(
     } catch {
       /* storage may be unavailable — the mirror simply loses its bookkeeping */
     }
+  }
+
+  /** The localStorage mirror contents (or null). Read by the manager for crash recovery. */
+  export function peekMirror(): string | null {
+    try { return localStorage.getItem(MIRROR_KEY); } catch { return null; }
+  }
+  /** The parsed mirror bookkeeping (or null). Read by the manager for crash recovery. */
+  export function peekMirrorMeta(): MirrorMeta | null {
+    try { return parseMirrorMeta(localStorage.getItem(MIRROR_META_KEY)); } catch { return null; }
   }
 
   export function touch() {
@@ -173,6 +193,79 @@ const projectRepo = new BrowserProjectRepository(
     clearTimeout(saveTimer);
     saveNow();
     flashStatus("Saved to your game's folder");
+  }
+
+  // --- H3·B: external-change detection on focus ------------------------------
+  // When the window regains focus, re-read <root>/game.rpgatlas: if it changed outside
+  // the editor, offer a friendly reload (no local edits) or reload-or-keep-mine (local
+  // edits). Inert unless a folder game is bound (browser build + the existing 70 specs
+  // never trip it). One prompt at a time; re-entrancy-guarded across the async read.
+  let externalPromptOpen = false;
+
+  async function checkExternalChange(): Promise<void> {
+    const root = folderRoot;
+    const base = lastSavedJson;
+    if (!root || base == null || externalPromptOpen) return;
+    let disk: string;
+    try {
+      disk = (await activeManagerHost().open(root)).document;
+    } catch {
+      return; // the file vanished mid-session — leave it (H4 handles missing state)
+    }
+    if (root !== folderRoot || externalPromptOpen) return; // switched games during the await
+    const verdict = decideExternalChange({
+      diskDoc: disk,
+      lastSavedDoc: lastSavedJson ?? base,
+      hasLocalEdits: folderDirty,
+    });
+    if (verdict === "none") return;
+    externalPromptOpen = true;
+    offerExternalReload(root, disk, verdict === "conflict");
+  }
+
+  function offerExternalReload(root: string, disk: string, conflict: boolean): void {
+    const bodyText = conflict
+      ? "This game changed on your computer, and you have changes here that aren't saved yet."
+      : "This game changed on your computer since you opened it.";
+    const keepLabel = conflict ? "Keep my version" : "Keep looking at this";
+    modal({
+      title: "This game changed on your computer",
+      content: h(
+        "div",
+        null,
+        h("p", null, bodyText),
+        h("p", { class: "dim" }, "Loading the newer version replaces what's open here."),
+      ),
+      buttons: [
+        { label: "Load the newer version", primary: true, onClick(c: any) {
+          c(); externalPromptOpen = false; reloadFolder(root);
+        } },
+        { label: keepLabel, onClick(c: any) {
+          c(); externalPromptOpen = false;
+          // Accept the disk state as our new baseline so we stop re-prompting for it.
+          // On a conflict, also mark dirty so our version overwrites the folder next save.
+          noteDiskBaseline(disk, conflict);
+          if (conflict) saveNow();
+        } },
+      ],
+      dismissable: false,
+    });
+  }
+
+  // Reload the newest folder bytes cleanly: mark the mirror as no longer crash evidence
+  // (the child chose to discard the in-memory version), queue this game, and reload —
+  // the fresh load's launchManager re-opens the folder and boots it (no double-bind).
+  function reloadFolder(root: string): void {
+    writeMirrorMeta(root, true);
+    setPendingOpen(root);
+    location.reload();
+  }
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("focus", () => { void checkExternalChange(); });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) void checkExternalChange();
+    });
   }
 
   export function loadStored() {

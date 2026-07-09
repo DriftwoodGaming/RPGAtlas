@@ -80,17 +80,16 @@ describe("decideRecovery", () => {
 });
 
 describe("decideExternalChange", () => {
-  it("file unchanged since we wrote it → none", () => {
-    expect(decideExternalChange({ diskDoc: "A", lastSavedDoc: "A", inMemoryDoc: "A" })).toBe("none");
-    // even with unsaved edits, if the file itself didn't change there's nothing to reconcile
-    expect(decideExternalChange({ diskDoc: "A", lastSavedDoc: "A", inMemoryDoc: "B" })).toBe("none");
+  it("file unchanged since we wrote it → none (regardless of the dirty flag)", () => {
+    expect(decideExternalChange({ diskDoc: "A", lastSavedDoc: "A", hasLocalEdits: false })).toBe("none");
+    expect(decideExternalChange({ diskDoc: "A", lastSavedDoc: "A", hasLocalEdits: true })).toBe("none");
   });
 
-  it("file changed on disk, no local edits → reload (safe)", () => {
-    expect(decideExternalChange({ diskDoc: "B", lastSavedDoc: "A", inMemoryDoc: "A" })).toBe("reload");
+  it("file changed on disk, no unsaved edits → reload (safe)", () => {
+    expect(decideExternalChange({ diskDoc: "B", lastSavedDoc: "A", hasLocalEdits: false })).toBe("reload");
   });
 
   it("file changed on disk AND we have unsaved edits → conflict", () => {
-    expect(decideExternalChange({ diskDoc: "B", lastSavedDoc: "A", inMemoryDoc: "C" })).toBe("conflict");
+    expect(decideExternalChange({ diskDoc: "B", lastSavedDoc: "A", hasLocalEdits: true })).toBe("conflict");
   });
 });
