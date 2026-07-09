@@ -217,3 +217,47 @@ test.describe("Project Manager — Open flow & rewiring (H2·C)", () => {
     await expect(page.locator(".pm-overlay")).toHaveCount(0);
   });
 });
+
+test.describe("Project Manager — fake-host coverage (H2·D)", () => {
+  test("create → relaunch → the game is in recents and reopens", async ({ page }) => {
+    await gotoManagerWithSeed(page);
+    await page.evaluate(() => window.__ATLAS_TEST_HOST__.setNextDirectory("/Games"));
+
+    // Make a game (Starter template by default).
+    await page.locator(".pm-bigbtn", { hasText: "New Project" }).click();
+    await page.locator(".pm-form .pm-input").fill("Reopen Me");
+    await page.locator(".pm-btn", { hasText: "Choose folder…" }).click();
+    await page.locator(".pm-btn", { hasText: "Make my game" }).click();
+    await expect(page.locator("#save-ind")).toBeVisible();
+
+    // Relaunch the manager (fresh load) — the game persisted into recents.
+    await page.goto("/index.html?fakehost");
+    const recent = page.locator(".pm-recent", { hasText: "Reopen Me" });
+    await expect(recent).toBeVisible();
+    await recent.click();
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Reopen Me — RPGAtlas");
+  });
+
+  test("Open Project → Browse opens the chosen game folder", async ({ page }) => {
+    const SEED = "/Games/Browsed";
+    await gotoManagerWithSeed(page, { docs: { [SEED]: atlasQuestJson() } });
+    await page.evaluate((p) => window.__ATLAS_TEST_HOST__.setNextFolder(p), SEED);
+
+    await page.locator(".pm-bigbtn", { hasText: "Open Project" }).click();
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Atlas Quest — RPGAtlas");
+  });
+
+  test("Browse into a folder with no game shows the friendly not-a-project message", async ({ page }) => {
+    await gotoManagerWithSeed(page);
+    await page.evaluate(() => {
+      window.__ATLAS_TEST_HOST__.seedEmptyFolder("/Games/Empty");
+      window.__ATLAS_TEST_HOST__.setNextFolder("/Games/Empty");
+    });
+
+    await page.locator(".pm-bigbtn", { hasText: "Open Project" }).click();
+    await expect(page.locator(".pm-toast")).toContainText("isn't an RPGAtlas game");
+    await expect(page.locator("#save-ind")).toBeHidden(); // nothing booted
+  });
+});

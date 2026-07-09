@@ -370,3 +370,28 @@ manager never mounts).
   same unreleased phase). Git ritual: branch `harbor-2c` → gates green → commit → merge to
   `main` → delete branch. **Next: H2·D** (formalize the `__ATLAS_TEST_HOST__` hook + the final
   additive-coverage audit).
+
+### H2·D — Testability (fake-host hook + additive specs) — 2026-07-09
+
+- **Ordering note:** the `window.__ATLAS_TEST_HOST__` hook landed in H2·A (the manager surface
+  is un-verifiable in the browser without it, and this harness cannot run the desktop app);
+  each stage added its own additive specs on top. H2·D **formalizes** the hook's contract and
+  fills the remaining scenario coverage the roadmap names.
+- **Formalized the public test API** on `FakeHost` (`test-host.ts`): `setNextDirectory` /
+  `setNextFolder` (queue the next picker result), `seedDoc` / `seedRecent` / `seedEmptyFolder`
+  / `deletePath` / `reset`, all documented in one block. Persistence keys
+  (`atlas.fakehost.docs` / `.recents` / `.empty`) are stable so specs can seed them before the
+  `?fakehost` navigation (the pattern in the spec). Errors are thrown as `ProjectHostError`
+  with the matching `code`, so the manager renders the exact H1 kid copy the real host would.
+- **New specs (3, additive):** create → **relaunch** (fresh `?fakehost` load) → the game is in
+  recents and reopens (the roadmap's "reopen → recents shows it", proving localStorage
+  persistence); **Browse** opens the chosen game folder and boots; Browse into a folder with no
+  `game.rpgatlas` shows the friendly **"That folder isn't an RPGAtlas game"** toast and boots
+  nothing (`NOT_A_PROJECT`).
+- **Additive-coverage audit:** `git diff --name-status 5ca9267..HEAD -- tests-e2e/` shows the
+  **only** change across the whole phase is the *added* `project-manager.spec.mjs` — the 70
+  existing specs are byte-for-byte **unmodified** and green.
+- **Gates:** Playwright **83/83** (70 existing **unmodified** + 13 manager) · vitest **941** ·
+  node **19** · eslint **0** · typecheck **clean**. Git ritual: branch `harbor-2d` → gates
+  green → commit → merge to `main` → delete branch. **Next: phase exit** (patch-notes entry +
+  `help.ts`/`shims.d.ts` bump, tag `harbor-2`).
