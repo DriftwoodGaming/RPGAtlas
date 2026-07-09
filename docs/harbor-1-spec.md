@@ -11,12 +11,46 @@ blob-free project JSON.
 
 ## Fable 5 contract gate
 
-> **Verdict: PENDING.** This spec must be reviewed and signed by a fresh Claude Fable 5
-> conversation (the roadmap's H1·A gate) **before any H1·B code is written**. Fable records
-> the verdict (SIGNED / CHANGES REQUESTED) and the date on the line below; H1·B resumes only
-> once this header reads SIGNED.
+> **Verdict: SIGNED** (2026-07-09, with four binding amendments below). Reviewed by a fresh
+> Claude Fable 5 conversation (the roadmap's H1·A gate) against
+> `docs/PROJECT_FOLDERS_ROADMAP.md` (H1 section, locked decisions, cross-phase traps),
+> `AGENTS.md`, and `src-tauri/src/lib.rs`; fact-checked §5.2's app identifier against
+> `tauri.conf.json` (`com.rpgatlas.editor` ✓) and §3's no-new-permission claim against
+> `capabilities/default.json` (`core:default` + `dialog:default` ✓). **H1·B is cleared.**
 >
-> **Signed:** _(Fable 5 fills this in — date + one-line verdict)_
+> **Signed:** SIGNED — 2026-07-09 — Contract is sound and roadmap-faithful: §1.1 fixed
+> `game.rpgatlas` and §1.2 `.atlas/` are the right resolutions; §3.1's template-agnostic
+> `project_create` (ready document JSON in; templates stay in TS) is **confirmed** — Rust
+> must never grow game-content knowledge, and ready-bytes-in mirrors the proven
+> `save_project(json)` contract; §2/§4 correctly extend the `blob_file_name`/`write_index`
+> discipline; §7's never-purge rule and the §6 copy uphold the audience rule;
+> FORMAT_VERSION stays 2 and nothing user-visible ships in H1.
+>
+> **Binding amendments (part of the signed contract — folded into §1/§3/§4/§5.4 below;
+> H1·B implements them):**
+> 1. **`project_create` is all-or-nothing (§3).** If create fails after the root folder was
+>    made, best-effort `remove_dir_all` the root *this call created* (never a pre-existing
+>    folder — that case already returned `FOLDER_EXISTS` before anything was written).
+>    Otherwise a half-scaffolded folder makes a retry say `FOLDER_EXISTS` ("open the game
+>    that's already in this folder") while `project_open` says `NOT_A_PROJECT` — a
+>    kid-visible contradiction with no self-serve way out.
+> 2. **The per-project `assets/` README is rewritten for in-place semantics (§1).** Do NOT
+>    reuse the inbox README text: it promises "each file is moved into the Imported folder",
+>    which contradicts §7 (project asset files are NEVER moved or deleted). The per-project
+>    copy must say files stay exactly where the user put them; final text lands in the H1·B
+>    stage log.
+> 3. **Backups are named `game-<epoch_ms>.rpgatlas.backup` (§4).** Not bare `*.rpgatlas`:
+>    H5 associates that extension, so a double-clicked backup would launch straight into
+>    `NOT_A_PROJECT`. The trailing `.backup` keeps the association off backups and keeps
+>    recovery a simple rename.
+> 4. **`project-errors.ts` also carries the `MISSING_ASSET` copy (§5.4).** §6 declares that
+>    copy FINAL, so it must live in the tested table now (a separate export or a widened
+>    copy key — the command-error union itself stays exactly as specified), or H4 will
+>    re-author it untested.
+>
+> *Non-binding implementation note:* `std::io::ErrorKind::StorageFull` is not stable on the
+> pinned MSRV (1.77.2); detect `DISK_FULL` via `raw_os_error` (`ENOSPC` / Windows error 112)
+> or bump the MSRV in H1·B.
 
 ---
 
@@ -55,7 +89,7 @@ MyGame/                         ← the project root = the folder the user sees 
 │  ├─ enemies/                    Battlers (PNG)
 │  ├─ tilesets/                   Map tiles (PNG → 48px slicer)
 │  ├─ audio/                      OGG / MP3 / WAV / M4A / FLAC
-│  └─ READ ME — how to add assets.txt   (per-project version of the inbox README)
+│  └─ READ ME — how to add assets.txt   (in-place rewrite of the inbox README — gate amendment 2)
 ├─ .atlas/                     ← engine-managed (Godot's .atlas/.godot analogue). See §1.2.
 │  ├─ library.json                asset index: relPath, hash, kind, name, slicer payloads (H4)
 │  ├─ cache/                      derived data (sliced tiles, thumbnails) — safe to delete
@@ -157,7 +191,7 @@ ProjectBundle { root: String, name: String, document: String }
 
 | Command | Signature (IPC args) | Behavior |
 |---|---|---|
-| `project_create` | `(parentDir: String, name: String, documentJson: String)` → `ProjectBundle` | Sanitize `name` → folder leaf (the **frontend** pre-sanitizes with the shared core §5; Rust re-validates the leaf with `validate_component` as defense-in-depth). Root = `parentDir/leaf`. **If root already exists → `FOLDER_EXISTS`** (never clobber). Create the full tree (§1), write `game.rpgatlas` from `documentJson` **atomically** (§4), write empty `.atlas/library.json` (`[]`), the `assets/` README, and `.gitignore`. Return the bundle. **`template` is resolved frontend-side into `documentJson`** — see §3.1. |
+| `project_create` | `(parentDir: String, name: String, documentJson: String)` → `ProjectBundle` | Sanitize `name` → folder leaf (the **frontend** pre-sanitizes with the shared core §5; Rust re-validates the leaf with `validate_component` as defense-in-depth). Root = `parentDir/leaf`. **If root already exists → `FOLDER_EXISTS`** (never clobber). Create the full tree (§1), write `game.rpgatlas` from `documentJson` **atomically** (§4), write empty `.atlas/library.json` (`[]`), the `assets/` README (in-place copy — gate amendment 2), and `.gitignore`. Return the bundle. **On any failure after the root folder was created by this call, best-effort `remove_dir_all` that root (never a pre-existing one) — create is all-or-nothing (gate amendment 1).** **`template` is resolved frontend-side into `documentJson`** — see §3.1. |
 | `project_open` | `(target: String)` → `ProjectBundle` | `resolve_target` → root. Read `root/game.rpgatlas`. Missing folder → `MISSING`; folder exists but no `game.rpgatlas` → `NOT_A_PROJECT`. The document is returned verbatim (migration/validation stays frontend-side, as today's import path does). |
 | `project_save` | `(root: String, documentJson: String)` → `()` | `canonical_root(root)`; require it is a project (contains `game.rpgatlas` **or** `.atlas/`). Roll a backup of the current `game.rpgatlas` (§4), then **atomically** write the new document. |
 | `recents_list` | `()` → `String` (JSON array) | Read `<app-config>/projects.json`; return `[]` if absent or corrupt (never brick — same posture as `read_index`). Does **not** prune; pruning of vanished folders is a **display-time** concern (§5.2, H2). |
@@ -192,7 +226,8 @@ filesystem layer, and mirrors the proven `save_project` contract. **Flagged for 
   `rename` over `game.rpgatlas`, so a crash mid-write never leaves a truncated document. Same for
   `library.json`.
 - **Rolling backups (last 5).** On each `project_save`, if `game.rpgatlas` already exists, copy it
-  into `.atlas/backup/` as `game-<epoch_ms>.rpgatlas` **before** the atomic write, then prune the
+  into `.atlas/backup/` as `game-<epoch_ms>.rpgatlas.backup` (the `.backup` suffix keeps H5's
+  file association off backups — gate amendment 3) **before** the atomic write, then prune the
   backup folder to the **5 newest** (by the embedded timestamp / mtime). Backups are best-effort:
   a backup failure must **not** block the save (the primary write is what matters); it is logged,
   not surfaced. This gives "undo the last few saves" as a recovery affordance for H3.
@@ -282,6 +317,9 @@ projectErrorCopy(code: ProjectErrorCode): { title: string; body: string }
 
 Unit test asserts **every** code in the union returns non-empty `title` + `body` (no code can
 ship without copy). The map is i18n-ready (a single table the future locale layer can translate).
+Per gate amendment 4, the module also exports the `MISSING_ASSET` state copy from §6 (kept out
+of the command-error union — it is an asset *state*, not a command failure) under the same
+non-empty-copy test, so H4 renders §6's final copy from tested code.
 
 ---
 
@@ -386,3 +424,15 @@ oversliced-library safeguards — trap 5: 48px default, overslice warnings, batc
 - **STOP for the Fable 5 contract gate.** H1·B does not begin until this spec's header reads
   SIGNED. Next: a fresh Fable 5 conversation reviews §1–§8 (especially the §3.1 template-document
   reconciliation and the §5.1 sanitizer rules) and records the verdict.
+
+### H1·A — Fable 5 contract gate — 2026-07-09
+
+- Reviewed §1–§8 against the roadmap (H1 section, locked decisions, cross-phase traps),
+  AGENTS.md, and the existing `lib.rs` patterns; fact-checked the §5.2 app identifier and the
+  §3 no-new-capability claim against `tauri.conf.json` / `capabilities/default.json` — both hold.
+- Verdict: **SIGNED** with four binding amendments (create rollback on partial scaffold,
+  in-place README rewrite, `.rpgatlas.backup` backup suffix, `MISSING_ASSET` copy carried in
+  `project-errors.ts`) — recorded in the gate header and folded into §1/§3/§4/§5.4. The
+  §1.1/§1.2 resolutions and the §3.1 template-agnostic design are confirmed as the contract.
+- Docs-only edit, committed straight to `main` (gate ritual; code gates unaffected).
+  **H1·B is cleared to start.**
