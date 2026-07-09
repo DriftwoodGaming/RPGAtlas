@@ -26,6 +26,7 @@ const FILES_KEY = "atlas.fakehost.assetfiles"; // { [root]: { [relPath]: { data,
 const CACHE_KEY = "atlas.fakehost.assetcache"; // { [root]: { [hash]: data(base64) } }
 const INDEX_KEY = "atlas.fakehost.assetindex"; // { [root]: libraryJson }
 const GLOBAL_KEY = "atlas.fakehost.global"; // { metas: AssetMeta[], blobs: { [key]: base64 } } — legacy bridge
+const LAUNCH_KEY = "atlas.fakehost.launch"; // string: the project path the "exe" was launched with (H5·A)
 
 const MIME_BY_EXT: Record<string, string> = {
   png: "image/png",
@@ -117,6 +118,9 @@ export interface FakeHost extends ManagerHost {
   readAssetIndex(root: string): any;
   /** Seed the legacy global <app-data>/library the H4·A bridge migrates from. */
   seedGlobalLibrary(metas: any[], blobs: Record<string, string>): void;
+  /** Queue the project path a launch (double-click / `exe <path>`) hands the app (H5·A).
+   *  Read-and-cleared by `takeLaunchPath`, exactly like the real command. */
+  setLaunchPath(path: string | null): void;
 }
 
 function makeFakeHost(): FakeHost {
@@ -195,6 +199,17 @@ function makeFakeHost(): FakeHost {
       return (
         Object.prototype.hasOwnProperty.call(docs(), root) || empties().includes(root)
       );
+    },
+    async takeLaunchPath() {
+      // Read-and-clear, mirroring the native take_launch_path: a launch path fires
+      // once, so a later reload falls back to the manager / in-session pending-open.
+      try {
+        const v = localStorage.getItem(LAUNCH_KEY);
+        if (v != null) localStorage.removeItem(LAUNCH_KEY);
+        return v;
+      } catch {
+        return null;
+      }
     },
 
     // --- H4·A per-project asset filesystem ---------------------------------
@@ -339,9 +354,17 @@ function makeFakeHost(): FakeHost {
     seedGlobalLibrary(metas, blobs) {
       writeJson(GLOBAL_KEY, { metas: metas || [], blobs: blobs || {} });
     },
+    setLaunchPath(path) {
+      try {
+        if (path == null) localStorage.removeItem(LAUNCH_KEY);
+        else localStorage.setItem(LAUNCH_KEY, path);
+      } catch {
+        /* storage may be unavailable */
+      }
+    },
     reset() {
       try {
-        for (const k of [DOCS_KEY, RECENTS_KEY, EMPTY_KEY, FILES_KEY, CACHE_KEY, INDEX_KEY, GLOBAL_KEY]) {
+        for (const k of [DOCS_KEY, RECENTS_KEY, EMPTY_KEY, FILES_KEY, CACHE_KEY, INDEX_KEY, GLOBAL_KEY, LAUNCH_KEY]) {
           localStorage.removeItem(k);
         }
       } catch {

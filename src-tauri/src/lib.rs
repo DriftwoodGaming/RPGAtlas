@@ -17,6 +17,9 @@ use tauri_plugin_dialog::DialogExt;
 mod project;
 mod project_assets;
 mod project_paths;
+// Project Harbor (H5·A/H5·B): launch-from-a-project plumbing — capture the initial
+// argv path + the take_launch_path command, plus the single-instance open event.
+mod launch;
 
 /// Save the editor's project JSON to a user-chosen file. Returns the chosen
 /// path, or `None` if the user cancelled the dialog.
@@ -447,7 +450,13 @@ fn library_scan_import(app: tauri::AppHandle) -> Result<String, String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Project Harbor H5·A: capture the project path this process was launched with
+    // (a `.rpgatlas` association or `RPGAtlas.exe <path>`), before the app is built,
+    // so the frontend can pull it once during boot and open straight into that game.
+    let initial_launch = launch::initial_launch_path();
+
     tauri::Builder::default()
+        .manage(launch::LaunchState::new(initial_launch))
         .plugin(tauri_plugin_dialog::init())
         .on_window_event(|window, event| {
             // Hide the play-test window on close rather than destroying it, so it
@@ -488,7 +497,8 @@ pub fn run() {
             project_assets::project_asset_write_cache,
             project_assets::project_asset_delete_cache,
             project_assets::project_assets_scan,
-            project_assets::project_ensure_assets_readme
+            project_assets::project_ensure_assets_readme,
+            launch::take_launch_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running RPGAtlas");

@@ -34,21 +34,47 @@ import { setPendingOpen, takePendingOpen } from "./pending-open";
 let overlay: HTMLElement | null = null;
 let toastEl: HTMLElement | null = null;
 
-/** The desktop / ?fakehost entry point, called from boot.ts's start(). If a game
- *  is queued to open (a File ▸ New/Open reload), open it straight into the editor;
- *  otherwise show the launcher. */
+/** The desktop / ?fakehost entry point, called from boot.ts's start(). Decides what
+ *  to open, in priority order:
+ *  1. an in-session queued game (a File ▸ New/Open reload, an external-change reload) —
+ *     `pendingOpen` (H2·C/H3·B);
+ *  2. a project the exe was LAUNCHED with (a `.rpgatlas` double-click / `exe <path>`) —
+ *     `takeLaunchPath` (H5·A); a bad path falls back to the launcher with a friendly note;
+ *  3. otherwise, show the launcher.
+ *  On a fresh cold launch (1) is empty, so (2) decides; a reload only ever hits (1). */
 export async function launchManager(): Promise<void> {
+  const host = activeManagerHost();
+
   const pending = takePendingOpen();
   if (pending) {
-    const host = activeManagerHost();
     try {
-      const bundle = await host.open(pending);
-      await bootChosen(bundle, host);
+      await bootChosen(await host.open(pending), host);
       return;
     } catch {
-      /* the queued game vanished — fall through to the launcher */
+      /* the queued game vanished — fall through */
     }
   }
+
+  // H5·A: a project path from the command line / a double-clicked .rpgatlas file.
+  let launchPath: string | null = null;
+  try {
+    launchPath = host.takeLaunchPath ? await host.takeLaunchPath() : null;
+  } catch {
+    launchPath = null; // a launch-path probe failure must never block the launcher
+  }
+  if (launchPath) {
+    try {
+      await bootChosen(await host.open(launchPath), host);
+      return;
+    } catch (e) {
+      // Bad path (missing / not a project) → the launcher, with the same kid-friendly
+      // copy the Browse flow shows. showProjectManager mounts the toast element first.
+      showProjectManager();
+      setToast(errText(e));
+      return;
+    }
+  }
+
   showProjectManager();
 }
 
