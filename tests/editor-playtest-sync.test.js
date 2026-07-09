@@ -19,6 +19,15 @@ assert.match(
   "Playtest command opens the cache-busted browser URL",
 );
 
+// Project Harbor H3·C: the same-origin localStorage handoff must survive the H3·A
+// autosave rebind — the playtest action writes the mirror (saveNow) BEFORE opening the
+// player, so play.html reads the latest edits (in the browser and across Tauri windows).
+assert.match(
+  workspaceSource,
+  /act\("play",[\s\S]*?saveNow\(\);[\s\S]*?window\.open\(playtestUrl/,
+  "Playtest saves the mirror before opening the player (same-origin bridge, H3·C)",
+);
+
 // Phase 8 Stage A: the render body moved into renderMapView(g, map, v), so
 // the mode reads are v.mode (the classic editor binds v to S via viewFromS).
 assert.match(
