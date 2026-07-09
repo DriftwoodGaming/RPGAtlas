@@ -324,3 +324,29 @@ post-1.2.0 stretch, per roadmap H3·C).
   Git ritual: branch `harbor-3b` → gates green → commit → merge to `main` → delete branch.
   **Next: H3·C** (playtest bridge — verify the same-origin mirror handoff + document the
   reload-only window and browser `saves/` slots).
+
+### H3·C — Playtest bridge — 2026-07-09
+
+- **No behavior change — verified + documented.** The playtest bridge is the same
+  same-origin localStorage handoff it has always been, and H3·A's autosave rebind kept it
+  intact **by construction**: `saveNow()` writes the mirror (`rpgatlas_project`) **first,
+  synchronously**, before it kicks the async folder save. So the `play` action's `saveNow()`
+  → `window.open(play.html…)` / `open_playtest()` sequence still hands `play.html` the latest
+  edits — in the browser and across the Tauri editor/playtest windows. The playtest window
+  stays **reload-only** (`open_playtest` = reload + show + focus; close = hide); no window is
+  ever built from a command (trap 2). `saves/` slots stay in browser storage for 1.2.0
+  (folder slots = a post-1.2.0 stretch, roadmap H3·C).
+- **`workspace.ts`:** added a comment on the `play` action documenting the mirror-first
+  handoff now that autosave also targets the folder (no code change).
+- **Regression guard (`tests/editor-playtest-sync.test.js`):** asserts the `play` action
+  calls `saveNow()` **before** `window.open(playtestUrl…)` — so a future refactor can't
+  reorder the mirror write after the player opens and silently break the bridge.
+- **New e2e (1, additive):** boot a folder game, make an unsaved edit, then Playtest **while
+  still `●`** (autosave not yet flushed); the recorded `window.open` URL is `play.html?playtest=…`
+  and the mirror already carries the painted edit — proving the play action itself performs
+  the handoff (not a lucky autosave), with the folder autosave untouched.
+- **Gates:** vitest **952** · node **19** · Playwright **91/91** (70 existing **unmodified**
+  + 21 manager) · eslint **0** · typecheck **clean**. Browser build byte-identical; frozen
+  map 1 untouched. No patch-notes entry yet (phase exit adds it). Git ritual: branch
+  `harbor-3c` → gates green → commit → merge to `main` → delete branch. **Next: phase exit**
+  (patch-notes entry + `help.ts`/`shims.d.ts` cache-buster bump, tag `harbor-3`).

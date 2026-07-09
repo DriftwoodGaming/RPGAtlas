@@ -121,6 +121,12 @@ act("save", { label: "Save Project", icon: "save", key: "Ctrl+S",
 act("export", { label: "Export Project As File…", run: exportProject });
 act("build", { label: "Export Standalone Game…", run: openStandaloneExport });
 act("play", { label: "Playtest", icon: "play", key: "F5", tip: "Save and run the game", run() {
+  // Project Harbor H3·C: the playtest bridge stays the proven SAME-ORIGIN localStorage
+  // handoff. saveNow() writes the mirror (rpgatlas_project) FIRST, synchronously — even
+  // now that desktop autosave also targets the project folder — so play.html reads the
+  // latest edits, in the browser AND across the Tauri editor/playtest windows. The
+  // playtest window is reload-only (open_playtest = reload+show+focus); we never build a
+  // window from a command (trap 2). saves/ slots stay in browser storage for 1.2.0.
   saveNow();
   if (host.isTauri) {
     host.openPlaytest().catch((e: any) => alert("Could not open play-test window: " + ((e && e.message) || e)));

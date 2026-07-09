@@ -428,6 +428,50 @@ test.describe("External changes on focus (H3·B)", () => {
   });
 });
 
+test.describe("Playtest bridge (H3·C)", () => {
+  const ROOT = "/Games/Player";
+
+  test("Playtest writes the latest edits to the same-origin mirror, then opens the reload player", async ({ page }) => {
+    await gotoManagerWithSeed(page, {
+      recents: [{ name: "Player", path: ROOT, lastOpened: 1 }],
+      docs: { [ROOT]: atlasQuestJson() },
+    });
+    await page.locator(".pm-recent", { hasText: "Player" }).click();
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page.locator("#save-ind")).toHaveText(/^✓ /);
+
+    // Record play-window opens instead of spawning a real popup.
+    await page.evaluate(() => {
+      window.__opened = [];
+      window.open = (u) => { window.__opened.push(String(u)); return null; };
+    });
+
+    // Make an unsaved edit, then Playtest while still ● (autosave not yet flushed), so
+    // the mirror the player reads can only be current if the play action wrote it.
+    const palette = page.locator("#palette");
+    const map = page.locator("#mapcanvas");
+    const pBox = await palette.boundingBox();
+    await page.mouse.click(pBox.x + pBox.width * 0.5, pBox.y + 8);
+    const mBox = await map.boundingBox();
+    await page.mouse.click(mBox.x + 10, mBox.y + 10);
+    await expect(page.locator("#save-ind")).toHaveText(/^● /);
+
+    await page.locator("button.play-btn").click();
+
+    // The player URL was opened (the reload-only, same-origin browser bridge)...
+    const opened = await page.evaluate(() => window.__opened);
+    expect(opened.some((u) => /play\.html\?playtest=/.test(u))).toBe(true);
+
+    // ...and the mirror play.html reads already carries the just-painted edit.
+    const layersOf = (proj) => {
+      const id = proj.system.startMapId || proj.maps[0].id;
+      return JSON.stringify(proj.maps.find((m) => m.id === id).layers);
+    };
+    const mirror = await page.evaluate(() => JSON.parse(localStorage.getItem("rpgatlas_project")));
+    expect(layersOf(mirror)).not.toEqual(layersOf(JSON.parse(atlasQuestJson())));
+  });
+});
+
 test.describe("Project Manager — fake-host coverage (H2·D)", () => {
   test("create → relaunch → the game is in recents and reopens", async ({ page }) => {
     await gotoManagerWithSeed(page);
