@@ -111,6 +111,16 @@ function makeFakeHost(): FakeHost {
       if (empties().includes(root)) throw new ProjectHostError("NOT_A_PROJECT");
       throw new ProjectHostError("MISSING");
     },
+    async save(root, documentJson) {
+      // The fake folder file: a later open(root) returns exactly these bytes, so the
+      // editor's autosave (H3·A) and external-change re-read (H3·B) are e2e-drivable.
+      const d = docs();
+      if (!Object.prototype.hasOwnProperty.call(d, root)) {
+        throw new ProjectHostError("NOT_A_PROJECT", "no game folder at " + root);
+      }
+      d[root] = documentJson;
+      setDocs(d);
+    },
     async recentsList() {
       return recents();
     },

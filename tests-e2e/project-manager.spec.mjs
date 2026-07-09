@@ -218,6 +218,71 @@ test.describe("Project Manager — Open flow & rewiring (H2·C)", () => {
   });
 });
 
+test.describe("Project-scoped saving (H3·A)", () => {
+  const SAVE_ROOT = "/Games/Saver";
+
+  /** Boot a seeded game, then wait for the editor's first saved tick. */
+  async function bootSeeded(page) {
+    await gotoManagerWithSeed(page, {
+      recents: [{ name: "Saver", path: SAVE_ROOT, lastOpened: 1 }],
+      docs: { [SAVE_ROOT]: atlasQuestJson() },
+    });
+    await page.locator(".pm-recent", { hasText: "Saver" }).click();
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page.locator("#save-ind")).toHaveText(/^✓ /);
+  }
+
+  const folderDoc = (page) =>
+    page.evaluate(
+      (root) => JSON.parse(localStorage.getItem("atlas.fakehost.docs"))[root],
+      SAVE_ROOT,
+    );
+
+  test("opening a game does NOT rewrite the folder file until you edit (no spurious backup)", async ({ page }) => {
+    const seed = atlasQuestJson();
+    await bootSeeded(page);
+    // Boot's saveNow skips the folder write when nothing changed, so the on-disk
+    // game.rpgatlas is still byte-for-byte the seed (only the mirror was refreshed).
+    expect(await folderDoc(page)).toBe(seed);
+    // The mirror bookkeeping records the folder as holding current content.
+    const meta = await page.evaluate(() => JSON.parse(localStorage.getItem("atlas.mirror.meta")));
+    expect(meta).toMatchObject({ root: SAVE_ROOT, folderConfirmed: true });
+  });
+
+  test("an edit autosaves into <root>/game.rpgatlas, not just the localStorage mirror", async ({ page }) => {
+    await bootSeeded(page);
+
+    const startMapLayers = (doc) => {
+      const p = JSON.parse(doc);
+      const id = p.system.startMapId || p.maps[0].id;
+      return JSON.stringify(p.maps.find((m) => m.id === id).layers);
+    };
+    const before = startMapLayers(await folderDoc(page));
+
+    // Paint a tile (the canonical editor edit → touch() → debounced autosave).
+    const palette = page.locator("#palette");
+    const map = page.locator("#mapcanvas");
+    const pBox = await palette.boundingBox();
+    await page.mouse.click(pBox.x + pBox.width * 0.5, pBox.y + 8);
+    const mBox = await map.boundingBox();
+    await page.mouse.click(mBox.x + 10, mBox.y + 10);
+
+    // Wait on the indicator's own unsaved → saved transition (its semantics are
+    // unchanged: ● while dirty, ✓ once the folder write resolves).
+    await expect(page.locator("#save-ind")).toHaveText(/^● /);
+    await expect(page.locator("#save-ind")).toHaveText(/^✓ /, { timeout: 5000 });
+
+    // The FOLDER file changed (autosave rebind), and the mirror stayed a live copy.
+    const after = startMapLayers(await folderDoc(page));
+    expect(after).not.toEqual(before);
+    const mirror = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem("rpgatlas_project")),
+    );
+    const mid = mirror.system.startMapId || mirror.maps[0].id;
+    expect(JSON.stringify(mirror.maps.find((m) => m.id === mid).layers)).toEqual(after);
+  });
+});
+
 test.describe("Project Manager — fake-host coverage (H2·D)", () => {
   test("create → relaunch → the game is in recents and reopens", async ({ page }) => {
     await gotoManagerWithSeed(page);

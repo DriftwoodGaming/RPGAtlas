@@ -24,6 +24,9 @@ import type { Recent } from "../../shared/recents";
 export interface ManagerHost {
   create(parentDir: string, leaf: string, documentJson: string): Promise<ProjectBundle>;
   open(target: string): Promise<ProjectBundle>;
+  /** Persist the document into <root>/game.rpgatlas (atomic + rolling backup). The
+   *  editor's autosave (persistence.ts, H3·A) drives this once a folder game is open. */
+  save(root: string, documentJson: string): Promise<void>;
   recentsList(): Promise<Recent[]>;
   recentsTouch(path: string, name: string): Promise<void>;
   recentsRemove(path: string): Promise<void>;
@@ -60,6 +63,7 @@ function firstPath(res: unknown): string | null {
 const realManagerHost: ManagerHost = {
   create: (parentDir, leaf, documentJson) => projectHost.create(parentDir, leaf, documentJson),
   open: (target) => projectHost.open(target),
+  save: (root, documentJson) => projectHost.save(root, documentJson),
   recentsList: () => projectHost.recentsList(),
   recentsTouch: (path, name) => projectHost.recentsTouch(path, name),
   recentsRemove: (path) => projectHost.recentsRemove(path),

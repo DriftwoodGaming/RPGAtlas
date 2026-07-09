@@ -19,7 +19,7 @@ import {
 import { $, h } from "./dom";
 import { confirmBox } from "./modals";
 import {
-  touch, saveNow, desktopSave, exportProject, openStandaloneExport,
+  touch, saveNow, desktopFlush, exportProject, openStandaloneExport,
 } from "./persistence";
 import { renderMap } from "./map-editor/map-render";
 import { undo, redo, undoTopLabel, redoTopLabel } from "./map-editor/history";
@@ -112,9 +112,9 @@ act("open", { label: "Open Project (.json)…", icon: "open", tip: "Open / impor
 act("import-rm", { label: "Import from RPG Maker…", tip: "Bring your own RPG Maker MV or MZ game into RPGAtlas", run: openRmImportWizard });
 act("import-report", { label: "Import Report", tip: "Reopen the report from your last RPG Maker import", enabled: hasImportReport, run: openSavedImportReport });
 act("save", { label: "Save Project", icon: "save", key: "Ctrl+S",
-  tip: host.isTauri ? "Save the project to its file" : "Save the project to this browser now",
+  tip: host.isTauri ? "Save your game to its folder now" : "Save the project to this browser now",
   run() {
-    if (host.isTauri) { desktopSave(false); return; }
+    if (host.isTauri) { desktopFlush(); return; } // H3·A: flush to <root>/game.rpgatlas
     saveNow();
     flashStatus("Project saved to this browser — use File ▸ Export for a backup file");
   } });

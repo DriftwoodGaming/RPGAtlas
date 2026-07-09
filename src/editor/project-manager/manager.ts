@@ -20,6 +20,7 @@ import { annotateRecents, type Recent } from "../../shared/recents";
 import { TEMPLATES, type TemplateId } from "../../shared/project-templates";
 import type { ProjectBundle } from "../../platform/tauri/project-host";
 import { runBootWith } from "../boot";
+import { bindFolderProject } from "../persistence";
 import { activeManagerHost, type ManagerHost } from "./manager-host";
 import { isEditorBooted, setOpenProjectContext } from "./project-context";
 import { buildTemplateDocument } from "./templates";
@@ -398,6 +399,10 @@ async function bootChosen(bundle: ProjectBundle, host: ManagerHost): Promise<voi
     /* recents is a nicety — never block booting the game on it */
   }
   setOpenProjectContext({ root: bundle.root, name: displayName });
+  // Project Harbor H3·A: bind autosave to this folder. The baseline is the exact bytes
+  // we just read from disk, so a later focus re-read (H3·B) compares like-for-like and
+  // opening a game never rolls a backup for content the folder already holds.
+  bindFolderProject(bundle.root, bundle.document);
   closeManager();
   runBootWith(project);
 }
