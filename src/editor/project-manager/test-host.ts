@@ -41,10 +41,9 @@ const MIME_BY_EXT: Record<string, string> = {
 function mimeForRel(rel: string): string | undefined {
   return MIME_BY_EXT[(rel.split(".").pop() || "").toLowerCase()];
 }
-function typeOfRel(rel: string): string {
-  const parts = rel.split(/[\\/]+/);
-  return parts.length >= 2 ? parts[1] : "characters"; // assets/<type>/<file>
-}
+const ASSET_TYPES = ["characters", "facesets", "enemies", "tilesets", "audio"];
+const IMAGE_EXTS = ["png", "webp", "jpg", "jpeg"];
+const AUDIO_EXTS = ["ogg", "mp3", "wav", "m4a", "flac"];
 function b64Len(data: string): number {
   try {
     return atob(data).length;
@@ -248,13 +247,32 @@ function makeFakeHost(): FakeHost {
       }
     },
     async assetsScan(root) {
+      // Mirror the native scan: only files directly under assets/<knownType>/ with a
+      // known image/audio extension (so the README and stray files are skipped).
       const rootFiles = files()[root] || {};
-      return Object.keys(rootFiles).map((relPath) => ({
-        type: typeOfRel(relPath),
-        relPath,
-        size: b64Len(rootFiles[relPath].data),
-        mtimeMs: rootFiles[relPath].mtimeMs,
-      }));
+      const out = [];
+      for (const relPath of Object.keys(rootFiles)) {
+        const parts = relPath.split("/");
+        if (parts.length !== 3 || parts[0] !== "assets") continue;
+        const type = parts[1];
+        if (!ASSET_TYPES.includes(type)) continue;
+        const ext = (relPath.split(".").pop() || "").toLowerCase();
+        const known = type === "audio" ? AUDIO_EXTS.includes(ext) : IMAGE_EXTS.includes(ext);
+        if (!known) continue;
+        out.push({ type, relPath, size: b64Len(rootFiles[relPath].data), mtimeMs: rootFiles[relPath].mtimeMs });
+      }
+      return out;
+    },
+    async ensureAssetsReadme(root) {
+      const readmeRel = "assets/READ ME — how to add assets.txt";
+      const all = files();
+      const rootFiles = all[root] || (all[root] = {});
+      if (!rootFiles[readmeRel]) {
+        // Plain ASCII so btoa never throws on non-Latin-1 text (the real README's copy
+        // is irrelevant to the fake FS — only the file's presence matters).
+        rootFiles[readmeRel] = { data: btoa("RPGAtlas assets readme"), mtimeMs: Date.now() };
+        setFiles(all);
+      }
     },
 
     // --- H4·A legacy global-library bridge ---------------------------------
