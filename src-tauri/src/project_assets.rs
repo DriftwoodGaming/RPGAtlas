@@ -190,6 +190,21 @@ pub fn project_asset_delete_cache(root: String, hash: String) -> Result<(), Proj
     Ok(())
 }
 
+/// Re-create the in-place `assets/` README if the child deleted it (H4·C), reusing the
+/// H1 scaffold text (project.rs). Present → left untouched. Best-effort by nature; a
+/// failure is returned but the caller treats it as non-fatal.
+#[tauri::command]
+pub fn project_ensure_assets_readme(root: String) -> Result<(), ProjectError> {
+    let croot = canonical_root(&root)?;
+    let assets = contained_join(&croot, &[ASSETS_DIR])?;
+    std::fs::create_dir_all(&assets).map_err(map_io)?;
+    let readme = contained_join(&croot, &[ASSETS_DIR, crate::project::ASSETS_README_NAME])?;
+    if !readme.exists() {
+        std::fs::write(&readme, crate::project::ASSETS_README).map_err(map_io)?;
+    }
+    Ok(())
+}
+
 #[derive(serde::Serialize)]
 struct ScannedFile {
     #[serde(rename = "type")]
@@ -373,6 +388,21 @@ mod tests {
             assert!(v["size"].as_u64().unwrap() >= 1);
             assert!(v.get("mtimeMs").is_some());
         }
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn ensure_readme_recreates_when_missing_but_never_clobbers() {
+        let (root, croot) = make_root("readme");
+        // make_root leaves assets/ without the README → ensure creates it.
+        project_ensure_assets_readme(croot.clone()).unwrap();
+        let path = root.join("assets").join(crate::project::ASSETS_README_NAME);
+        assert!(path.is_file());
+        assert!(std::fs::read_to_string(&path).unwrap().contains("STAY right here"));
+        // An existing (even child-edited) README is left exactly as-is.
+        std::fs::write(&path, "my own notes").unwrap();
+        project_ensure_assets_readme(croot).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "my own notes");
         std::fs::remove_dir_all(&root).ok();
     }
 

@@ -399,3 +399,38 @@ one `runProjectScan()` with a re-entrancy guard (the existing `scanning` flag pa
   Git ritual: branch `harbor-4b` → gates green → commit → merge to `main` → delete branch.
   **Next: H4·C** (Asset Browser polish — Open Project Folder, per-type hints, README
   regeneration, index-only rename verification).
+
+### H4·C — Asset Browser integration — 2026-07-09
+
+- **README regeneration.** New Rust command `project_ensure_assets_readme(root)`
+  (`project_assets.rs`) re-creates the in-place `assets/` README from the H1 scaffold text
+  (`project::ASSETS_README`, now `pub(crate)`) only when it is missing — a child-edited
+  README is never clobbered. cargo-tested (recreate-when-missing + never-clobber). Wired
+  through `project-host.ts` → `ManagerHost.ensureAssetsReadme` (real host → the command;
+  fake host → writes a placeholder into its fake FS). `boot.ts` calls it once on project
+  open (folder-gated, best-effort).
+- **Asset Browser (`asset-browser.ts`).** The folder-game banner now leads with an **Open
+  Project Folder** button (`activeManagerHost().reveal(root)` → `project_reveal`) beside
+  Scan; the empty state names the **exact subfolder** for the selected type ("drop files
+  into `assets/tilesets/` (map-tile PNGs — big sheets open the 48px slicer)") via a new
+  `folderHint()` helper.
+- **Index-only rename — verified.** Renaming a project asset re-keys the index and rewrites
+  the document's references (as always), but the on-disk file keeps its path: the store's
+  `put` **adopts** the preset `relPath` (no rewrite) and `remove` never deletes an in-place
+  file — so `renameAsset`'s put-new-then-remove-old re-keys the entry while the file stays
+  exactly where the child put it. Proven end to end.
+- **Fake-host fidelity.** The fake `assetsScan` now filters to files directly under
+  `assets/<knownType>/` with a known image/audio extension (mirroring the native scan), so
+  the README and stray top-level files are never mistaken for assets. Added `readAssetIndex`
+  was already present; `ensureAssetsReadme` and the scan filter round out the fake FS.
+- **New e2e (2, additive):** Open Project Folder is present and the per-type hint names
+  `assets/tilesets/` (with the README re-created on open); **renaming** an asset re-keys the
+  index (`asset:enemies/goblin` → `asset:enemies/orc`) while `relPath` and the on-disk file
+  keep their original name. `.ab-missing*` styles from H4·B carried; no further CSS this
+  stage (the cache-buster bump is the phase exit's job).
+- **Gates:** vitest **968** · node **19** · cargo **19** (18 + 1) · Playwright **97/97**
+  (91 existing **unmodified** + 6 H4) · eslint **0** · typecheck **clean**. Browser build
+  byte-identical; frozen map 1 untouched. No patch-notes entry yet (phase exit). Git ritual:
+  branch `harbor-4c` → gates green → commit → merge to `main` → delete branch. **Next: phase
+  exit** (patch-notes entry + `help.ts`/`shims.d.ts` + `editor.css` cache-buster bump, tag
+  `harbor-4`).

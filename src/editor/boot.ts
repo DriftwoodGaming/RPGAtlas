@@ -285,7 +285,11 @@ export async function bootWithProject(project: any) {
   // while the game was closed), then keep watching on window focus. Inert on the browser
   // build (no folder game); fire-and-forget so a slicer prompt never blocks boot.
   installProjectScanFocus();
-  if (folderRoot) void runProjectScan();
+  if (folderRoot) {
+    // H4·C: re-create the assets/ README if the child deleted it (best-effort).
+    void activeManagerHost().ensureAssetsReadme(folderRoot).catch(() => {});
+    void runProjectScan();
+  }
   // Boot-to-interactive mark (Phase 7 Stage A): read by the load-time budget
   // e2e; performance.now() is relative to navigation start.
   (window as any).RPGATLAS_BOOT_MS = performance.now();

@@ -64,6 +64,8 @@ export interface ManagerHost {
   assetDeleteCache(root: string, hash: string): Promise<void>;
   /** Cheap snapshot of every known file under `assets/<type>/` (no bytes) — H4·B. */
   assetsScan(root: string): Promise<ScannedFile[]>;
+  /** Re-create the in-place `assets/` README if the child deleted it (H4·C). */
+  ensureAssetsReadme(root: string): Promise<void>;
 
   // --- Legacy global-library bridge (Project Harbor H4·A) -------------------
   // Optional read-only access to the old `<app-data>/library` so opening a project
@@ -139,6 +141,7 @@ const realManagerHost: ManagerHost = {
   assetWriteCache: (root, hash, dataBase64) => projectHost.assetWriteCache(root, hash, dataBase64),
   assetDeleteCache: (root, hash) => projectHost.assetDeleteCache(root, hash),
   assetsScan: (root) => projectHost.assetsScan(root),
+  ensureAssetsReadme: (root) => projectHost.ensureAssetsReadme(root),
 
   // Legacy bridge → the existing app-data library_* commands (no new Rust needed).
   async globalAssetList() {

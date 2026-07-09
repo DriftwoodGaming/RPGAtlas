@@ -13,9 +13,10 @@
 import { Assets, editorState as S, editorHooks } from "../editor-state";
 import { h } from "../dom";
 import { modal, confirmBox } from "../modals";
-import { touch } from "../persistence";
+import { touch, openFolderRoot } from "../persistence";
 import { wizardImport } from "../importers/import-wizard";
 import { dropFolderAvailable, importFolderPath, revealImportFolder, scanImportFolder } from "./asset-dropbox";
+import { activeManagerHost } from "../project-manager/manager-host";
 // Project Harbor H4·B: when a folder game is open, the Scan button and the missing-asset
 // state are driven by the per-project assets/ auto-discovery, not the app-data inbox.
 import {
@@ -110,6 +111,19 @@ function fmtDur(sec?: number): string {
   if (!sec || !isFinite(sec)) return "";
   const s = Math.round(sec);
   return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+}
+
+/** Project Harbor H4·C: the exact assets/ subfolder + what belongs in it, for the
+ *  current type's empty state ("drop files into assets/characters/ (walking sprites)"). */
+function folderHint(type: string): string {
+  switch (type) {
+    case "characters": return "assets/characters/ (walking-sprite PNGs)";
+    case "facesets": return "assets/facesets/ (message-box face PNGs)";
+    case "enemies": return "assets/enemies/ (battler PNGs)";
+    case "tilesets": return "assets/tilesets/ (map-tile PNGs — big sheets open the 48px slicer)";
+    case "audio": return "assets/audio/ (OGG, MP3, WAV, M4A, or FLAC)";
+    default: return "the matching folder inside your game's assets/ folder";
+  }
 }
 
 /** One-field prompt dialog (rename / tags) — Enter commits, Esc cancels. */
@@ -250,8 +264,7 @@ export function openAssetBrowser() {
     }
   }
 
-  // Project Harbor H4·B: a folder game's banner scans its own assets/ folder. The richer
-  // "Open Project Folder" + per-type hints land in H4·C; this is the working Scan button.
+  // Project Harbor H4·C: a folder game's banner opens its own folder and scans its assets/.
   function buildProjectBanner() {
     dropStatusEl = h("span", { class: "ab-dropstatus dim" });
     dropBanner.appendChild(h("div", { class: "ab-dropwrap" },
@@ -260,6 +273,12 @@ export function openAssetBrowser() {
         h("div", { class: "dim" },
           "Copy files into your game's assets folder (characters, facesets, enemies, tilesets, audio) with your file manager — they show up here on their own when you come back, or click Scan.")),
       h("div", { class: "ab-dropbtns" },
+        h("button", { class: "primary", async onclick() {
+          const root = openFolderRoot();
+          if (!root) return;
+          try { await activeManagerHost().reveal(root); }
+          catch (e: any) { dropStatus("Couldn't open the folder: " + ((e && e.message) || e)); }
+        } }, "Open Project Folder"),
         h("button", { class: "mini", onclick() { scanFolder(true); } }, "Scan for New Files"),
         dropStatusEl)));
   }
@@ -548,9 +567,11 @@ export function openAssetBrowser() {
       grid.appendChild(h("div", { class: "dim", style: "padding:20px" },
         libraryMetas().length
           ? "No assets match the current filters."
-          : (dropFolderAvailable()
-              ? "No imported assets yet — copy PNG/OGG files into the import folder above (Open Folder), drop them here, or use Import Files…. Imported art appears in the same pickers as the built-in sets."
-              : "No imported assets yet — drop PNG/OGG files here or use Import Files…. Imported art appears in the same pickers as the built-in sets.")));
+          : (projectScanAvailable()
+              ? "No assets yet — drop files into " + folderHint(curType) + ", then click Scan (or just come back to the editor). Import Files… works too. Your art appears in the same pickers as the built-in sets."
+              : (dropFolderAvailable()
+                  ? "No imported assets yet — copy PNG/OGG files into the import folder above (Open Folder), drop them here, or use Import Files…. Imported art appears in the same pickers as the built-in sets."
+                  : "No imported assets yet — drop PNG/OGG files here or use Import Files…. Imported art appears in the same pickers as the built-in sets."))));
     } else {
       // One key → object-URL map per refresh; a per-card catalog scan was
       // quadratic once a sliced-sheet import put thousands of tiles in here.

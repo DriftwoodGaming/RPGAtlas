@@ -20,9 +20,11 @@ use crate::project_paths::{
 
 // --- On-disk layout constants (docs/harbor-1-spec.md §1) ---------------------
 const PROJECT_FILE: &str = "game.rpgatlas";
-const ASSETS_DIR: &str = "assets";
+// `pub(crate)` so the per-project asset store (project_assets.rs) can re-create the
+// in-place assets/ README if the child deletes it (H4·C).
+pub(crate) const ASSETS_DIR: &str = "assets";
 const ASSET_SUBDIRS: [&str; 5] = ["characters", "facesets", "enemies", "tilesets", "audio"];
-const ASSETS_README_NAME: &str = "READ ME — how to add assets.txt";
+pub(crate) const ASSETS_README_NAME: &str = "READ ME — how to add assets.txt";
 const ATLAS_DIR: &str = ".atlas";
 const LIBRARY_FILE: &str = "library.json";
 const CACHE_DIR: &str = "cache";
@@ -35,7 +37,7 @@ const BACKUPS_KEPT: usize = 5;
 /// The per-project `assets/` README (gate amendment 2): an **in-place** rewrite of
 /// the app-data inbox README. It must NOT promise "moved into Imported" — per §7 a
 /// project's asset files are never moved, renamed, or deleted by the engine.
-const ASSETS_README: &str = "\
+pub(crate) const ASSETS_README: &str = "\
 RPGAtlas — your game's pictures and sounds\r\n\
 ==========================================\r\n\
 \r\n\

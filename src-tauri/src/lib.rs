@@ -487,7 +487,8 @@ pub fn run() {
             project_assets::project_asset_write_inplace,
             project_assets::project_asset_write_cache,
             project_assets::project_asset_delete_cache,
-            project_assets::project_assets_scan
+            project_assets::project_assets_scan,
+            project_assets::project_ensure_assets_readme
         ])
         .run(tauri::generate_context!())
         .expect("error while running RPGAtlas");

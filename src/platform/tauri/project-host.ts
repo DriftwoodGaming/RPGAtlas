@@ -123,4 +123,7 @@ export const projectHost = {
     const parsed = JSON.parse(json || "[]");
     return Array.isArray(parsed) ? parsed : [];
   },
+  ensureAssetsReadme(root: string): Promise<void> {
+    return call<void>("project_ensure_assets_readme", { root });
+  },
 };

@@ -159,3 +159,67 @@ test.describe("Per-project assets — auto-discovery (H4·B)", () => {
     await expect(page.locator(".ab-missing-note")).toContainText("missing");
   });
 });
+
+test.describe("Per-project assets — Asset Browser integration (H4·C)", () => {
+  test("Open Project Folder + per-type folder hints; the README is re-created on open", async ({ page }) => {
+    await newGame(page, "Browse");
+    const root = "/Games/Browse";
+
+    // The assets/ README is re-created on project open (a best-effort boot side effect;
+    // a generous poll rides out CPU starvation from other specs running in parallel).
+    await expect
+      .poll(
+        async () =>
+          page.evaluate((r) => {
+            const files = JSON.parse(localStorage.getItem("atlas.fakehost.assetfiles") || "{}");
+            return Object.keys(files[r] || {});
+          }, root),
+        { timeout: 20_000 },
+      )
+      .toContain("assets/READ ME — how to add assets.txt");
+
+    await page.locator("#menus .menu-label", { hasText: "Tools" }).click();
+    await page.locator(".menu-item", { hasText: "Asset Browser" }).click();
+    await expect(page.locator(".assetbrowser")).toBeVisible();
+
+    await expect(page.locator(".ab-dropbtns button", { hasText: "Open Project Folder" })).toBeVisible();
+    // The empty state names the exact subfolder for the selected type.
+    await page.locator(".ab-railbtn", { hasText: "Tiles" }).click();
+    await expect(page.locator(".ab-grid")).toContainText("assets/tilesets/");
+  });
+
+  test("renaming an asset re-keys the index but never renames the file on disk", async ({ page }) => {
+    await newGame(page, "Rename");
+    const root = "/Games/Rename";
+
+    await page.locator("#menus .menu-label", { hasText: "Tools" }).click();
+    await page.locator(".menu-item", { hasText: "Asset Browser" }).click();
+    await expect(page.locator(".assetbrowser")).toBeVisible();
+    await page.selectOption('.assetbrowser select[title="Type images import as"]', "enemies");
+    await page.setInputFiles("#assetbrowser-file", {
+      name: "goblin.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(PNG_B64, "base64"),
+    });
+    await expect(page.locator(".ab-card .ab-name", { hasText: "goblin" })).toBeVisible();
+
+    await page.locator(".ab-card .ab-actions button", { hasText: "Rename" }).click();
+    // The rename prompt stacks over the Asset Browser modal; its input is the only text box.
+    await page.locator('.modal input[type="text"]').fill("orc");
+    await page.locator(".modal-btns button.primary", { hasText: "OK" }).click();
+
+    const state = await page.evaluate((r) => {
+      const idx = window.__ATLAS_TEST_HOST__.readAssetIndex(r);
+      const files = JSON.parse(localStorage.getItem("atlas.fakehost.assetfiles") || "{}");
+      return {
+        keys: idx.map((m) => m.key),
+        relPaths: idx.map((m) => m.relPath),
+        files: Object.keys(files[r] || {}),
+      };
+    }, root);
+    expect(state.keys).toContain("asset:enemies/orc"); // re-keyed in the index
+    expect(state.keys).not.toContain("asset:enemies/goblin");
+    expect(state.relPaths).toContain("assets/enemies/goblin.png"); // relPath unchanged
+    expect(state.files).toContain("assets/enemies/goblin.png"); // the file kept its name
+  });
+});
