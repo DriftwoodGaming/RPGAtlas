@@ -78,8 +78,9 @@ pub struct ProjectBundle {
 
 /// Write `contents` to `path` atomically: write `<name>.tmp` fully, then rename
 /// over the target (the `write_index` pattern from lib.rs), so a crash mid-write
-/// never leaves a truncated file behind.
-fn atomic_write(path: &Path, contents: &[u8]) -> Result<(), ProjectError> {
+/// never leaves a truncated file behind. `pub(crate)` so the per-project asset
+/// store (project_assets.rs) writes `.atlas/library.json` the same way.
+pub(crate) fn atomic_write(path: &Path, contents: &[u8]) -> Result<(), ProjectError> {
     let mut tmp_name = path
         .file_name()
         .map(|n| n.to_os_string())

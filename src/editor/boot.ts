@@ -14,7 +14,7 @@ import {
 } from "./editor-state";
 import { $ } from "./dom";
 import { modalRoot } from "./modals";
-import { loadStored, saveNow, importProject } from "./persistence";
+import { loadStored, saveNow, importProject, openFolderRoot } from "./persistence";
 import { renderMap, renderPalette } from "./map-editor/map-render";
 import { undo, redo } from "./map-editor/history";
 import { copySelection, startPaste, clearSelection } from "./map-editor/clipboard";
@@ -40,11 +40,14 @@ import { syncAutotileRegistry } from "./autotile-store";
 import { initRmImport } from "./importers/rm-import-wizard";
 import { consumeEmbeddedAssets, initAssetLibrary } from "../shared/asset-library";
 import { createDefaultAssetStore } from "../platform/default-asset-store";
+import { ProjectAssetStore } from "../platform/project-asset-store";
 // Project Harbor H2: the desktop Project Manager launcher. managerActive() gates
 // the whole pre-boot screen behind isTauri (or the H2·D ?fakehost test hook), so
 // the pure browser build never mounts it and boots byte-identically to today.
-import { managerActive, hasFakeHostParam } from "./project-manager/manager-host";
+import { managerActive, hasFakeHostParam, activeManagerHost } from "./project-manager/manager-host";
 import { markEditorBooted } from "./project-manager/project-context";
+// Project Harbor H4·A: when a folder game is open, rescope the asset library to it.
+import { migrateGlobalLibraryAssets, showLegacyMigrationNotice } from "./project-manager/legacy-assets";
 // Side effect: registers window.AtlasAudioDeck so imported audio previews
 // (Audio Manager, command "▶ test" buttons) play in the editor too.
 import "../shared/audio-deck";
@@ -148,8 +151,27 @@ export async function bootWithProject(project: any) {
   // discovery runs (Phase 6); a failed store degrades to shipped-only inside
   // initAssetLibrary. Pre-strip autosaves never carry embedded assets, but a
   // file restored by other means might — intake them like a file open.
-  await initAssetLibrary(await createDefaultAssetStore());
+  //
+  // Project Harbor H4·A: with a folder game open (desktop, or the ?fakehost hook),
+  // the asset library lives INSIDE the project (assets/ in place + .atlas/) via the
+  // per-project store. openFolderRoot() is bound by the manager before boot; it is
+  // null on the pure browser build, so that path stays the IndexedDB store, unchanged.
+  const folderRoot = openFolderRoot();
+  const store = folderRoot
+    ? new ProjectAssetStore(folderRoot, activeManagerHost())
+    : await createDefaultAssetStore();
+  await initAssetLibrary(store);
   await consumeEmbeddedAssets(S.proj);
+  // One-time legacy bridge: pull any used-but-still-global assets into this project's
+  // folder so it is self-contained (idempotent; a hiccup never blocks the boot).
+  let migratedAssetCount = 0;
+  if (folderRoot) {
+    try {
+      migratedAssetCount = await migrateGlobalLibraryAssets(S.proj);
+    } catch (e) {
+      console.warn("Legacy asset migration skipped:", e);
+    }
+  }
   Assets.registerCustomChars(S.proj.customChars);
   await Assets.loadIconSet();
   // External images (shipped img/ + the device library) bind in the background
@@ -254,6 +276,9 @@ export async function bootWithProject(project: any) {
   // Record that the editor is now interactive (Project Harbor H2·C uses this to
   // decide whether File ▸ New/Open reboots via the manager or boots in place).
   markEditorBooted();
+  // Project Harbor H4·A: if the legacy bridge copied global-library assets into this
+  // project's folder, tell the child in plain language (after the gate, never before).
+  showLegacyMigrationNotice(migratedAssetCount);
   // Boot-to-interactive mark (Phase 7 Stage A): read by the load-time budget
   // e2e; performance.now() is relative to navigation start.
   (window as any).RPGATLAS_BOOT_MS = performance.now();

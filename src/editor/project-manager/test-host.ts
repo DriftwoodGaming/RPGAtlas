@@ -21,6 +21,37 @@ import type { ManagerHost } from "./manager-host";
 const DOCS_KEY = "atlas.fakehost.docs"; // { [root]: documentJson }
 const RECENTS_KEY = "atlas.fakehost.recents"; // Recent[]
 const EMPTY_KEY = "atlas.fakehost.empty"; // string[] of folders with no game (NOT_A_PROJECT)
+// Project Harbor H4·A: the fake per-project asset filesystem.
+const FILES_KEY = "atlas.fakehost.assetfiles"; // { [root]: { [relPath]: { data, mtimeMs } } }
+const CACHE_KEY = "atlas.fakehost.assetcache"; // { [root]: { [hash]: data(base64) } }
+const INDEX_KEY = "atlas.fakehost.assetindex"; // { [root]: libraryJson }
+const GLOBAL_KEY = "atlas.fakehost.global"; // { metas: AssetMeta[], blobs: { [key]: base64 } } — legacy bridge
+
+const MIME_BY_EXT: Record<string, string> = {
+  png: "image/png",
+  webp: "image/webp",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  ogg: "audio/ogg",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  m4a: "audio/mp4",
+  flac: "audio/flac",
+};
+function mimeForRel(rel: string): string | undefined {
+  return MIME_BY_EXT[(rel.split(".").pop() || "").toLowerCase()];
+}
+function typeOfRel(rel: string): string {
+  const parts = rel.split(/[\\/]+/);
+  return parts.length >= 2 ? parts[1] : "characters"; // assets/<type>/<file>
+}
+function b64Len(data: string): number {
+  try {
+    return atob(data).length;
+  } catch {
+    return 0;
+  }
+}
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -77,6 +108,16 @@ export interface FakeHost extends ManagerHost {
   seedEmptyFolder(path: string): void;
   deletePath(root: string): void;
   reset(): void;
+  // --- H4 per-project asset controls -------------------------------------
+  /** Drop a file into the fake project at `relPath` (base64), as if the child had
+   *  pasted it into assets/<type>/ — the raw material an assets/ scan discovers. */
+  seedAssetFile(root: string, relPath: string, dataBase64: string, mtimeMs?: number): void;
+  /** Remove a fake in-place file (→ the scan reports it missing → MISSING_ASSET). */
+  deleteAssetFile(root: string, relPath: string): void;
+  /** The project's `.atlas/library.json` as parsed JSON (spec assertions). */
+  readAssetIndex(root: string): any;
+  /** Seed the legacy global <app-data>/library the H4·A bridge migrates from. */
+  seedGlobalLibrary(metas: any[], blobs: Record<string, string>): void;
 }
 
 function makeFakeHost(): FakeHost {
@@ -88,6 +129,17 @@ function makeFakeHost(): FakeHost {
   const recents = () => parseRecents(localStorage.getItem(RECENTS_KEY) ?? "[]");
   const setRecents = (r: Recent[]) => writeJson(RECENTS_KEY, r);
   const empties = () => readJson<string[]>(EMPTY_KEY, []);
+
+  // The fake per-project asset filesystem (H4·A).
+  type FileRec = { data: string; mtimeMs: number };
+  const files = () => readJson<Record<string, Record<string, FileRec>>>(FILES_KEY, {});
+  const setFiles = (v: Record<string, Record<string, FileRec>>) => writeJson(FILES_KEY, v);
+  const cache = () => readJson<Record<string, Record<string, string>>>(CACHE_KEY, {});
+  const setCache = (v: Record<string, Record<string, string>>) => writeJson(CACHE_KEY, v);
+  const indexes = () => readJson<Record<string, string>>(INDEX_KEY, {});
+  const setIndexes = (v: Record<string, string>) => writeJson(INDEX_KEY, v);
+  const globalLib = () =>
+    readJson<{ metas: any[]; blobs: Record<string, string> }>(GLOBAL_KEY, { metas: [], blobs: {} });
 
   return {
     async create(parentDir, leaf, documentJson) {
@@ -146,6 +198,79 @@ function makeFakeHost(): FakeHost {
       );
     },
 
+    // --- H4·A per-project asset filesystem ---------------------------------
+    async assetIndexRead(root) {
+      return indexes()[root] ?? "[]";
+    },
+    async assetIndexWrite(root, json) {
+      const all = indexes();
+      all[root] = json;
+      setIndexes(all);
+    },
+    async assetRead(root, relPath, hash) {
+      if (relPath) {
+        const rec = files()[root]?.[relPath];
+        return rec ? { data: rec.data, mime: mimeForRel(relPath) } : null;
+      }
+      if (hash) {
+        const data = cache()[root]?.[hash];
+        return data != null ? { data } : null;
+      }
+      return null;
+    },
+    async assetWriteInPlace(root, type, fileName, dataBase64) {
+      const all = files();
+      const rootFiles = all[root] || (all[root] = {});
+      // Collision-suffix -2, -3, … (mirrors the native free_path), never clobbering.
+      const dot = fileName.lastIndexOf(".");
+      const stem = dot > 0 ? fileName.slice(0, dot) : fileName;
+      const ext = dot > 0 ? fileName.slice(dot) : "";
+      let leaf = fileName;
+      for (let i = 2; Object.prototype.hasOwnProperty.call(rootFiles, `assets/${type}/${leaf}`); i++) {
+        leaf = `${stem}-${i}${ext}`;
+      }
+      const relPath = `assets/${type}/${leaf}`;
+      rootFiles[relPath] = { data: dataBase64, mtimeMs: Date.now() };
+      setFiles(all);
+      return relPath;
+    },
+    async assetWriteCache(root, hash, dataBase64) {
+      const all = cache();
+      const rootCache = all[root] || (all[root] = {});
+      rootCache[hash] = dataBase64;
+      setCache(all);
+    },
+    async assetDeleteCache(root, hash) {
+      const all = cache();
+      if (all[root]) {
+        delete all[root][hash];
+        setCache(all);
+      }
+    },
+    async assetsScan(root) {
+      const rootFiles = files()[root] || {};
+      return Object.keys(rootFiles).map((relPath) => ({
+        type: typeOfRel(relPath),
+        relPath,
+        size: b64Len(rootFiles[relPath].data),
+        mtimeMs: rootFiles[relPath].mtimeMs,
+      }));
+    },
+
+    // --- H4·A legacy global-library bridge ---------------------------------
+    async globalAssetList() {
+      return globalLib().metas;
+    },
+    async globalAssetRead(key: string) {
+      const data = globalLib().blobs[key];
+      if (data == null) return null;
+      const bin = atob(data);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const mime = (globalLib().metas.find((m) => m && m.key === key) || {}).mime;
+      return new Blob([bytes], mime ? { type: mime } : undefined);
+    },
+
     // --- test controls -----------------------------------------------------
     setNextDirectory(path) {
       nextDirectory = path;
@@ -173,11 +298,34 @@ function makeFakeHost(): FakeHost {
       delete d[root];
       setDocs(d);
     },
+    seedAssetFile(root, relPath, dataBase64, mtimeMs) {
+      const all = files();
+      const rootFiles = all[root] || (all[root] = {});
+      rootFiles[relPath] = { data: dataBase64, mtimeMs: mtimeMs ?? Date.now() };
+      setFiles(all);
+    },
+    deleteAssetFile(root, relPath) {
+      const all = files();
+      if (all[root]) {
+        delete all[root][relPath];
+        setFiles(all);
+      }
+    },
+    readAssetIndex(root) {
+      try {
+        return JSON.parse(indexes()[root] ?? "[]");
+      } catch {
+        return [];
+      }
+    },
+    seedGlobalLibrary(metas, blobs) {
+      writeJson(GLOBAL_KEY, { metas: metas || [], blobs: blobs || {} });
+    },
     reset() {
       try {
-        localStorage.removeItem(DOCS_KEY);
-        localStorage.removeItem(RECENTS_KEY);
-        localStorage.removeItem(EMPTY_KEY);
+        for (const k of [DOCS_KEY, RECENTS_KEY, EMPTY_KEY, FILES_KEY, CACHE_KEY, INDEX_KEY, GLOBAL_KEY]) {
+          localStorage.removeItem(k);
+        }
       } catch {
         /* ignore */
       }

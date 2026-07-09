@@ -55,6 +55,15 @@ export interface AssetMeta {
   dur?: number;
   /** Importer payloads (frame tags, source grid, …). */
   meta?: Record<string, any>;
+  /** Project Harbor H4: for the per-project asset store, the file's path relative
+   *  to the project root (`assets/<type>/<file>`) when this asset IS an in-place
+   *  file. Absent → the blob is a derived/sliced tile in `.atlas/cache/<hash>`. The
+   *  browser (IndexedDB) store ignores this field. Never carried into `assets.external`
+   *  export entries, so a shared single-file `.json` stays portable. */
+  relPath?: string;
+  /** Project Harbor H4: the in-place file's last-modified time at import (epoch ms),
+   *  so a focus-scan can skip an unchanged file without reading or hashing it. */
+  mtimeMs?: number;
 }
 
 /** The per-device binary asset library (Phase 6): IndexedDB in the browser
@@ -71,6 +80,12 @@ export interface AssetStore {
    *  down. Absent → the caller falls back to pooled get() calls. */
   getAllBlobs?(): Promise<Map<string, Blob>>;
   put(meta: AssetMeta, blob: Blob): Promise<void>;
+  /** Optional batch write (Project Harbor H4): write many assets and persist the
+   *  index once. A sliced tileset imports hundreds of tiles in one call; writing the
+   *  project index after each would be the O(n²) flood trap 5 warns about. The
+   *  per-project store implements this; when absent (IndexedDB) the caller falls back
+   *  to per-item put(). */
+  putMany?(items: { meta: AssetMeta; blob: Blob }[]): Promise<void>;
   remove(key: string): Promise<void>;
   /** Update metadata (tags/kind/meta) without touching the blob. */
   setMeta(meta: AssetMeta): Promise<void>;

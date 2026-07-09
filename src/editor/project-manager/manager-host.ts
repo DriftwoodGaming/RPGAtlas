@@ -13,9 +13,12 @@ import { isTauri } from "../../../js/editor/host.js";
 import {
   projectHost,
   ProjectHostError,
+  type AssetBlobResult,
   type ProjectBundle,
+  type ScannedFile,
 } from "../../platform/tauri/project-host";
 import type { Recent } from "../../shared/recents";
+import type { AssetMeta } from "../../shared/services";
 
 /** The project surface the manager depends on. `create`/`open`/`recents*`/`reveal`
  *  mirror the H1 native commands; the two pickers and the optional `exists` are
@@ -40,6 +43,48 @@ export interface ManagerHost {
    *  recent is detected on click; the fake host implements it so the "missing row
    *  up front" behavior is e2e-covered. */
   exists?(path: string): Promise<boolean>;
+
+  // --- Per-project asset filesystem (Project Harbor H4·A) -------------------
+  // The per-project AssetStore (src/platform/project-asset-store.ts) talks to these,
+  // so it works under real desktop AND the ?fakehost test host — the same real-vs-fake
+  // split H3 used for `save`. See docs/harbor-4-spec.md §2.
+  /** Read `.atlas/library.json` (the per-project asset index) as a JSON string. */
+  assetIndexRead(root: string): Promise<string>;
+  /** Atomically write `.atlas/library.json`. */
+  assetIndexWrite(root: string, json: string): Promise<void>;
+  /** Read one asset's bytes: `relPath` (in-place assets/ file) if set, else the cache
+   *  blob `.atlas/cache/<hash>`. `null` when the file is gone (→ MISSING_ASSET state). */
+  assetRead(root: string, relPath: string | null, hash: string | null): Promise<AssetBlobResult | null>;
+  /** Write a whole-file asset in place under `assets/<type>/` (collision-suffixed);
+   *  resolves to the actual project-relative path used. */
+  assetWriteInPlace(root: string, type: string, fileName: string, dataBase64: string): Promise<string>;
+  /** Write a derived/sliced blob to the content-addressed cache `.atlas/cache/<hash>`. */
+  assetWriteCache(root: string, hash: string, dataBase64: string): Promise<void>;
+  /** Delete a cache blob (best-effort; never touches an in-place assets/ file). */
+  assetDeleteCache(root: string, hash: string): Promise<void>;
+  /** Cheap snapshot of every known file under `assets/<type>/` (no bytes) — H4·B. */
+  assetsScan(root: string): Promise<ScannedFile[]>;
+
+  // --- Legacy global-library bridge (Project Harbor H4·A) -------------------
+  // Optional read-only access to the old `<app-data>/library` so opening a project
+  // that references global-library assets can copy them into the project's assets/
+  // (one-time). The real host wraps the existing app-data `library_*` commands; the
+  // pure browser build omits them. See docs/harbor-4-spec.md §2.3.
+  globalAssetList?(): Promise<AssetMeta[]>;
+  globalAssetRead?(key: string): Promise<Blob | null>;
+}
+
+/** base64 → Blob for the legacy global-library reads (mirrors fs-asset-store.ts). */
+function base64ToBlob(base64: string, mime?: string): Blob {
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], mime ? { type: mime } : undefined);
+}
+
+/** Raw invoke for the app-data `library_*` commands (the legacy bridge only). */
+function invokeTauri(cmd: string, args?: Record<string, unknown>): Promise<any> {
+  return (window as any).__TAURI__.core.invoke(cmd, args);
 }
 
 /** The dialog plugin's JS API (withGlobalTauri). Missing → a friendly IO error
@@ -83,6 +128,28 @@ const realManagerHost: ManagerHost = {
       title: "Open your game's folder",
     });
     return firstPath(res);
+  },
+
+  // Per-project asset filesystem → the H4 project_assets.rs commands via the façade.
+  assetIndexRead: (root) => projectHost.assetIndexRead(root),
+  assetIndexWrite: (root, json) => projectHost.assetIndexWrite(root, json),
+  assetRead: (root, relPath, hash) => projectHost.assetRead(root, relPath, hash),
+  assetWriteInPlace: (root, type, fileName, dataBase64) =>
+    projectHost.assetWriteInPlace(root, type, fileName, dataBase64),
+  assetWriteCache: (root, hash, dataBase64) => projectHost.assetWriteCache(root, hash, dataBase64),
+  assetDeleteCache: (root, hash) => projectHost.assetDeleteCache(root, hash),
+  assetsScan: (root) => projectHost.assetsScan(root),
+
+  // Legacy bridge → the existing app-data library_* commands (no new Rust needed).
+  async globalAssetList() {
+    const json: string = await invokeTauri("library_list");
+    const parsed = JSON.parse(json || "[]");
+    return Array.isArray(parsed) ? (parsed as AssetMeta[]) : [];
+  },
+  async globalAssetRead(key: string) {
+    const res: { data: string; mime?: string } | null = await invokeTauri("library_read", { key });
+    if (!res || !res.data) return null;
+    return base64ToBlob(res.data, res.mime || undefined);
   },
 };
 
