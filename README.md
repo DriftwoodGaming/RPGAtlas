@@ -66,6 +66,33 @@ Then open the printed **http://localhost:…** address — that's the editor. Ei
 > Building the launcher from source: run `tools/build-engine-launcher.ps1` (uses the .NET Framework C#
 > compiler already present on Windows). This produces `RPGAtlas.exe` in the project root.
 
+## Opening a game by double-clicking it (desktop app)
+
+The **RPGAtlas desktop app** (`RPGAtlas-Desktop.exe`, its own window — distinct from the browser
+launcher above) treats every game as a folder, and the file inside it named **`game.rpgatlas`** is
+that game's project file. Hand the desktop app one and it opens straight into that game, skipping the
+Project Manager:
+
+- **Double-click a `game.rpgatlas` file** (once the association is set up — see below).
+- **From a shortcut or terminal:** `RPGAtlas-Desktop.exe "C:\Games\My Game"` — pass either the game's
+  **folder** or its `game.rpgatlas` file. A path that isn't a game just opens the Project Manager with
+  a friendly note.
+- **Already running?** RPGAtlas won't start a second copy. Double-clicking another game brings the
+  open window to the front and switches to that game — saving the one you were working on first.
+
+### Windows: making `.rpgatlas` open with RPGAtlas
+
+A future **installer** registers `.rpgatlas` for you (icon and all). With the **portable
+`RPGAtlas-Desktop.exe`** (no installer), tell Windows once which app to use:
+
+1. Right-click any **`game.rpgatlas`** file → **Open with** → **Choose another app**.
+2. Pick **RPGAtlas** if it's listed, or **Choose an app on your PC** / **More apps ▸ Look for another
+   app on this PC** and browse to your **`RPGAtlas-Desktop.exe`**.
+3. Tick **Always use this app to open .rpgatlas files**, then **OK**.
+
+From then on, double-clicking any game's `game.rpgatlas` opens it in RPGAtlas. (Only the desktop app
+opens `.rpgatlas` files this way — the browser launcher `RPGAtlas.exe` just serves the editor.)
+
 ## The editor (`index.html`)
 
 A classic RPG-maker layout: menu bar (File / Edit / Mode / Draw / Layer / Scale / Tools / Game / Help)

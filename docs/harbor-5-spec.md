@@ -219,3 +219,35 @@ game, guarding the current one.
   bundles the note).
 - Git ritual: branch `harbor-5b` → gates green → commit → merge to `main` → delete branch.
   **Next: H5·C (file association).**
+
+### H5·C — File association — 2026-07-09
+
+**Shipped:** the `.rpgatlas` extension is registered with the desktop app via the bundler
+config, and the docs cover the portable-exe "Open with…" path.
+
+- **`src-tauri/tauri.conf.json`:** added `bundle.fileAssociations` for `ext: ["rpgatlas"]`
+  (`name: "RPGAtlas Game"`, `description: "RPGAtlas game project"`, `role: "Editor"`).
+  Tauri's installer path (NSIS/WiX) registers the extension and points its DefaultIcon at the
+  app exe (the bundle `icon` = `icons/icon.ico`), so a registered `.rpgatlas` shows the app
+  icon and double-click launches `RPGAtlas-Desktop.exe <that file>` → the H5·A flow. Validated
+  by `cargo build` (the config is parsed by `generate_context!`). Tauri v2's
+  `FileAssociation` has no per-association `icon` field, so the association reuses the app
+  icon by design (adding one would fail schema validation).
+- **Docs (`README.md`):** new "Opening a game by double-clicking it (desktop app)" section —
+  explains `game.rpgatlas` is the game's project file, that the desktop app opens a handed-in
+  folder or `game.rpgatlas` straight in (double-click, `RPGAtlas-Desktop.exe "C:\Games\My
+  Game"`, or the front-and-switch second-launch behavior), and the **portable-exe Windows
+  "Open with… ▸ Always use this app"** steps for when there is no installer to register the
+  association. Clarifies that only the desktop app opens `.rpgatlas` (the browser launcher
+  `RPGAtlas.exe` just serves the editor). Deliberately compact — H6·B does the full
+  project-folders docs pass (wiki pages + docs-site rebuild) and can fold this in.
+- **Out of scope (per §0):** no installer is built or signed this phase; the portable exe
+  ships today, hence the "Open with…" docs. No `rpgatlas://` protocol handler.
+- **Gates:** tsc **clean** · eslint **0** · cargo **23** · vitest **968** · node **19** ·
+  Playwright **unchanged 103/103** (H5·C touches only `README.md` + `tauri.conf.json`, which
+  Vite never reads — the built `dist/` the e2e suite previews is byte-identical to H5·B; the
+  full suite is re-run authoritatively at the phase-exit gate). `patch-notes.js?v=64`,
+  `editor.css?v=61`, `data.js?v=31`, FORMAT_VERSION 2, version 1.1.0 — unchanged.
+- Git ritual: branch `harbor-5c` → gates green → commit → merge to `main` → delete branch.
+  **Next: phase exit** (patch-notes entry + `help.ts`/`shims.d.ts` cache-buster bump, tag
+  `harbor-5`).

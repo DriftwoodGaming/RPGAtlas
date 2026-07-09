@@ -38,6 +38,14 @@
   },
   "bundle": {
     "active": true,
-    "icon": ["icons/icon.ico"]
+    "icon": ["icons/icon.ico"],
+    "fileAssociations": [
+      {
+        "ext": ["rpgatlas"],
+        "name": "RPGAtlas Game",
+        "description": "RPGAtlas game project",
+        "role": "Editor"
+      }
+    ]
   }
 }
