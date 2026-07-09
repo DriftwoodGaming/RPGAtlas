@@ -303,10 +303,27 @@ async function asepriteItems(jsonFile: File, pngFile: File): Promise<ImportItem[
 // The entry point
 // ---------------------------------------------------------------------------
 
+/** Auto-discovery context (Project Harbor H4·B): when a file is discovered already
+ *  in the project's assets/ folder, its project-relative path + freshly-read size/mtime.
+ *  Whole-file results are ADOPTED at `relPath` (the store never rewrites the child's
+ *  file); sliced results record it as their `sourceRel`, so a re-scan knows the sheet is
+ *  already cut and never re-slices it. */
+export interface DiscoverOpts {
+  relPath?: string;
+  hash?: string;
+  bytes?: number;
+  mtimeMs?: number;
+}
+
 /** Route dropped/picked files through the right importer flow and land them
- *  in the library. `imageType` is the Asset Browser's "Images as" selector.
- *  Returns the imported metas (empty when everything was skipped). */
-export async function wizardImport(files: File[], imageType: AssetMeta["type"]): Promise<AssetMeta[]> {
+ *  in the library. `imageType` is the Asset Browser's "Images as" selector. `opts`
+ *  (H4·B) carries the in-place path for auto-discovered files. Returns the imported
+ *  metas (empty when everything was skipped). */
+export async function wizardImport(
+  files: File[],
+  imageType: AssetMeta["type"],
+  opts: DiscoverOpts = {},
+): Promise<AssetMeta[]> {
   const items: ImportItem[] = [];
   const jsons = files.filter((f) => /\.json$/i.test(f.name));
   const rest = files.filter((f) => !/\.json$/i.test(f.name));
@@ -348,6 +365,27 @@ export async function wizardImport(files: File[], imageType: AssetMeta["type"]):
       items.push({ blob: f, name: f.name, type: "characters" });
     } else {
       items.push({ blob: f, name: f.name, type: imageType });
+    }
+  }
+
+  // H4·B: adopt an auto-discovered file in place. Discovery calls this per file, so
+  // every item here belongs to `opts.relPath`: a whole-file result is referenced at
+  // that path (never copied); a sliced tile records the sheet as its source, so the
+  // sheet stays put in assets/ and a later scan recognises it as already cut.
+  if (opts.relPath) {
+    for (const it of items) {
+      if (it.meta && it.meta.cellPos != null) {
+        it.meta = {
+          ...it.meta,
+          sourceRel: opts.relPath,
+          sourceHash: opts.hash,
+          sourceBytes: opts.bytes,
+          sourceMtime: opts.mtimeMs,
+        };
+      } else {
+        it.relPath = opts.relPath;
+        it.mtimeMs = opts.mtimeMs;
+      }
     }
   }
 

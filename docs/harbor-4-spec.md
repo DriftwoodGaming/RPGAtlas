@@ -355,3 +355,47 @@ one `runProjectScan()` with a re-entrancy guard (the existing `scanning` flag pa
   Git ritual: branch `harbor-4a` → gates green → commit → merge to `main` → delete branch.
   **Next: H4·B** (auto-discovery — scan `assets/` on open/focus/Scan, changed-hash
   re-import, missing state).
+
+### H4·B — Auto-discovery — 2026-07-09
+
+- **New pure planner `planScan`** (`src/shared/asset-scan.ts`, env=node): diffs an
+  `assets/` scan snapshot (`{type, relPath, size, mtimeMs}`) against the index into
+  `{ newFiles, changedFiles, missing }`. A known file whose size **and** mtime match is
+  skipped (no read, no hash — a focus-scan stays cheap); anything else is a candidate; an
+  index source relPath the scan didn't see → its keys are missing. Reads a whole-file
+  entry's `relPath`/`bytes`/`mtimeMs` and a sliced tile's `meta.sourceRel`/`sourceBytes`/
+  `sourceMtime`, so all tiles of one sheet miss/change together.
+- **New orchestrator `src/editor/tools/project-scan.ts`:** `runProjectScan()` reads
+  `activeManagerHost().assetsScan`, runs `planScan`, and for new/changed files reads the
+  bytes, hashes, and routes them through **the same import wizard** (48px slicer default,
+  overslice warning, `putMany` batch — trap 5) with `{relPath, hash, bytes, mtimeMs}` so
+  each is **adopted in place** (the child's file is never copied or moved). A changed
+  whole-file re-adopts under the same name/key (references keep resolving, tags kept); a
+  changed sheet re-cuts; a bare mtime touch is a no-op. Missing keys are recomputed each
+  scan into a live set. `installProjectScanFocus()` adds the editor-wide focus/visibility
+  scan (inert without a folder game); a re-entrancy guard makes a focus event mid-scan (or
+  mid-slicer-prompt) a no-op.
+- **`wizardImport` gained a `DiscoverOpts` param** (`import-wizard.ts`): a one-pass
+  post-process stamps `relPath`/`mtimeMs` on whole-file items and `sourceRel`/`sourceHash`/
+  `sourceBytes`/`sourceMtime` on sliced items — so a dropped sheet stays put in
+  `assets/tilesets/` (its slices point back at it) and a re-scan never re-slices it. The
+  picker/drag-drop path passes no opts and is unchanged.
+- **boot** installs the focus scan and runs one scan on project open (files copied in while
+  the game was closed appear immediately); both are folder-gated, so the browser build is
+  untouched. **Asset Browser** (`asset-browser.ts`): the Scan button + banner now scan the
+  project's own `assets/` when a folder game is open (the app-data inbox stays the legacy
+  fallback); a `MISSING_ASSET` asset renders a friendly "missing" card (H1 copy, `⚠`
+  thumb, `.ab-badge.missing`) instead of a broken thumbnail; the browser subscribes to
+  `onProjectAssetsChanged` so a background focus-scan refreshes its grid. New `.ab-missing*`
+  styles in `editor.css` (cache-buster bumped at the phase exit).
+- **New unit tests (5):** `planScan` — new, unchanged-skip, changed-by-size/mtime, missing,
+  and the sliced-sheet source-via-`meta.sourceRel` (present/gone/re-cut). **New e2e (2,
+  additive):** a PNG pasted into `assets/enemies/` appears on window **focus** (the alt-tab
+  flow), referenced in place; the **Scan button** pulls in a new faceset, and deleting the
+  file then re-scanning degrades it to the friendly **missing** card.
+- **Gates:** vitest **968** (963 + 5) · node **19** · cargo **18** (unchanged — no Rust) ·
+  Playwright **95/95** (91 existing **unmodified** + 4 H4) · eslint **0** · typecheck
+  **clean**. Browser build byte-identical; frozen map 1 untouched. No patch-notes entry yet.
+  Git ritual: branch `harbor-4b` → gates green → commit → merge to `main` → delete branch.
+  **Next: H4·C** (Asset Browser polish — Open Project Folder, per-type hints, README
+  regeneration, index-only rename verification).

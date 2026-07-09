@@ -48,6 +48,8 @@ import { managerActive, hasFakeHostParam, activeManagerHost } from "./project-ma
 import { markEditorBooted } from "./project-manager/project-context";
 // Project Harbor H4·A: when a folder game is open, rescope the asset library to it.
 import { migrateGlobalLibraryAssets, showLegacyMigrationNotice } from "./project-manager/legacy-assets";
+// Project Harbor H4·B: auto-discover files copied into the project's assets/ folder.
+import { installProjectScanFocus, runProjectScan } from "./tools/project-scan";
 // Side effect: registers window.AtlasAudioDeck so imported audio previews
 // (Audio Manager, command "▶ test" buttons) play in the editor too.
 import "../shared/audio-deck";
@@ -279,6 +281,11 @@ export async function bootWithProject(project: any) {
   // Project Harbor H4·A: if the legacy bridge copied global-library assets into this
   // project's folder, tell the child in plain language (after the gate, never before).
   showLegacyMigrationNotice(migratedAssetCount);
+  // Project Harbor H4·B: discover anything already sitting in assets/ (files copied in
+  // while the game was closed), then keep watching on window focus. Inert on the browser
+  // build (no folder game); fire-and-forget so a slicer prompt never blocks boot.
+  installProjectScanFocus();
+  if (folderRoot) void runProjectScan();
   // Boot-to-interactive mark (Phase 7 Stage A): read by the load-time budget
   // e2e; performance.now() is relative to navigation start.
   (window as any).RPGATLAS_BOOT_MS = performance.now();
