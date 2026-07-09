@@ -20,35 +20,19 @@ import { annotateRecents, type Recent } from "../../shared/recents";
 import { TEMPLATES, type TemplateId } from "../../shared/project-templates";
 import type { ProjectBundle } from "../../platform/tauri/project-host";
 import { runBootWith } from "../boot";
-import { bindFolderProject } from "../persistence";
+import { modal } from "../modals";
+import { bindFolderProject, peekMirror, peekMirrorMeta } from "../persistence";
+import { decideRecovery } from "../../shared/folder-sync";
 import { activeManagerHost, type ManagerHost } from "./manager-host";
 import { isEditorBooted, setOpenProjectContext } from "./project-context";
 import { buildTemplateDocument } from "./templates";
+// The "open this game on the next fresh load" handoff (H2·C reboot, H3·B reload).
+// Extracted to its own module so persistence.ts can request a clean reboot for
+// external-change recovery without importing the manager (which would form a cycle).
+import { setPendingOpen, takePendingOpen } from "./pending-open";
 
 let overlay: HTMLElement | null = null;
 let toastEl: HTMLElement | null = null;
-
-// A game to open on the next fresh load (H2·C). File ▸ New/Open while a game is
-// already open re-opens by *reloading* the window rather than re-running boot()
-// in place — boot() binds many one-time listeners, so a second in-place boot
-// would double-bind. sessionStorage survives location.reload() (same tab).
-const PENDING_KEY = "atlas.pendingOpen";
-function setPendingOpen(root: string): void {
-  try {
-    sessionStorage.setItem(PENDING_KEY, root);
-  } catch {
-    /* ignore */
-  }
-}
-function takePendingOpen(): string | null {
-  try {
-    const v = sessionStorage.getItem(PENDING_KEY);
-    if (v != null) sessionStorage.removeItem(PENDING_KEY);
-    return v;
-  } catch {
-    return null;
-  }
-}
 
 /** The desktop / ?fakehost entry point, called from boot.ts's start(). If a game
  *  is queued to open (a File ▸ New/Open reload), open it straight into the editor;
@@ -391,7 +375,31 @@ async function bootChosen(bundle: ProjectBundle, host: ManagerHost): Promise<voi
     location.reload();
     return;
   }
-  const project = validateProject(RA.migrateProject(JSON.parse(bundle.document)), "load");
+  // Project Harbor H3·B: crash recovery. If the localStorage mirror holds changes the
+  // folder file never confirmed (a kill between the mirror write and the folder write),
+  // offer to bring them back. Every other case (no mirror, a different game's mirror, a
+  // confirmed save, matching content) → open the folder document as normal, so an
+  // external edit made while closed is respected, not clobbered by a stale mirror.
+  let documentJson = bundle.document;
+  let recovered = false;
+  if (
+    decideRecovery({
+      root: bundle.root,
+      folderDoc: bundle.document,
+      mirrorDoc: peekMirror(),
+      mirrorMeta: peekMirrorMeta(),
+    }) === "offer-mirror"
+  ) {
+    // Close the launcher first so nothing covers the prompt; boot fills the chrome
+    // right after the child chooses. #save-ind stays hidden until then (the gate).
+    closeManager();
+    const mirror = peekMirror();
+    if (mirror && (await confirmRecovery())) {
+      documentJson = mirror;
+      recovered = true;
+    }
+  }
+  const project = validateProject(RA.migrateProject(JSON.parse(documentJson)), "load");
   const displayName = (project.system && project.system.title) || bundle.name;
   try {
     await host.recentsTouch(bundle.root, displayName);
@@ -400,11 +408,40 @@ async function bootChosen(bundle: ProjectBundle, host: ManagerHost): Promise<voi
   }
   setOpenProjectContext({ root: bundle.root, name: displayName });
   // Project Harbor H3·A: bind autosave to this folder. The baseline is the exact bytes
-  // we just read from disk, so a later focus re-read (H3·B) compares like-for-like and
-  // opening a game never rolls a backup for content the folder already holds.
-  bindFolderProject(bundle.root, bundle.document);
+  // read from disk, so a later focus re-read (H3·B) compares like-for-like and opening a
+  // game never rolls a backup for content the folder already holds. When we recovered a
+  // newer mirror, mark it dirty so the recovered work is written back to the folder on
+  // the next autosave (the in-memory project intentionally differs from disk).
+  bindFolderProject(bundle.root, bundle.document, recovered);
   closeManager();
   runBootWith(project);
+}
+
+/** The crash-recovery prompt (H3·B). Resolves true = restore the unsaved mirror, false =
+ *  open the version saved in the folder. Kid-friendly; not dismissable (a clear choice). */
+function confirmRecovery(): Promise<boolean> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (v: boolean) => {
+      if (done) return;
+      done = true;
+      resolve(v);
+    };
+    modal({
+      title: "Bring your changes back?",
+      content: h(
+        "div",
+        null,
+        h("p", null, "Last time, some changes to this game didn't finish saving into its folder."),
+        h("p", null, "Want to bring those changes back, or open the version saved in the folder?"),
+      ),
+      buttons: [
+        { label: "Bring my changes back", primary: true, onClick(c: any) { c(); finish(true); } },
+        { label: "Use the saved game", onClick(c: any) { c(); finish(false); } },
+      ],
+      dismissable: false,
+    });
+  });
 }
 
 // --- small helpers ---------------------------------------------------------

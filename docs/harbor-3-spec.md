@@ -162,13 +162,19 @@ A `focus` + `visibilitychange` listener (installed once at persistence load, ine
 `folderRoot` is bound — so the browser build and the existing 70 specs never trip it)
 re-reads `<root>/game.rpgatlas` via `activeManagerHost().open(root)` and classifies it:
 
-`decideExternalChange({ diskDoc, lastSavedDoc, inMemoryDoc })` → `none | reload | conflict`:
+`decideExternalChange({ diskDoc, lastSavedDoc, hasLocalEdits })` → `none | reload | conflict`:
 
 | Condition | Result | Action |
 |---|---|---|
 | `diskDoc === lastSavedDoc` (file is what we wrote) | `none` | nothing |
-| file changed, **no** local edits (`inMemoryDoc === lastSavedDoc`) | `reload` | offer a plain reload |
-| file changed **and** local edits | `conflict` | offer reload-theirs / keep-mine |
+| file changed, **no** unsaved edits (`hasLocalEdits` false) | `reload` | offer a plain reload |
+| file changed **and** unsaved edits (`hasLocalEdits` true) | `conflict` | offer reload-theirs / keep-mine |
+
+`hasLocalEdits` is the `folderDirty` flag (set by `touch()`, cleared on save) — **not** a
+content diff. This is deliberate: `lastSavedDoc` and `diskDoc` are both *file bytes* (we
+write `JSON.stringify(proj)` and read it back, so the byte compare is exact), but the live
+project vs. the raw file would differ after load-time normalization even with no edit.
+Using the edit flag keeps "do we have unsaved changes?" precise across normalization.
 
 - **Reload** → `setPendingOpen(root)` + `location.reload()`: the fresh load's
   `launchManager()` consumes the stash, re-opens the folder (newest bytes), and boots
@@ -271,3 +277,50 @@ post-1.2.0 stretch, per roadmap H3·C).
   entry yet (added at the phase exit). Git ritual: branch `harbor-3a` → gates green →
   commit → merge to `main` → delete branch. **Next: H3·B** (external-change on focus +
   crash recovery from a newer mirror, with the kill-process test).
+
+### H3·B — External changes & crash recovery — 2026-07-09
+
+- **Extracted `pending-open.ts`** (`setPendingOpen`/`takePendingOpen`) from `manager.ts`, so
+  persistence can request a clean reboot (the reload path) without importing the manager —
+  which would cycle (manager → persistence → manager). `manager.ts` now imports it.
+- **Crash recovery (`manager.ts` `bootChosen`):** before booting, run `decideRecovery` over
+  the current mirror (`peekMirror`) + bookkeeping (`peekMirrorMeta`). On `offer-mirror`,
+  close the launcher (so nothing covers the prompt) and show `confirmRecovery()` — a
+  not-dismissable, kid-friendly modal (**"Bring your changes back?"** / [Bring my changes
+  back] · [Use the saved game]). Restoring boots on the mirror document and binds the folder
+  **dirty**, so the recovered work is written back to `game.rpgatlas` on the next autosave;
+  declining boots the folder document. `#save-ind` stays hidden through the prompt (the
+  gate). Create / a different game's mirror / a confirmed save never prompt (§2 guards).
+- **External changes on focus (`persistence.ts`):** a `focus` + `visibilitychange` listener
+  (installed once, inert unless `folderRoot` is bound — the browser build never trips it)
+  re-reads `<root>/game.rpgatlas` via `activeManagerHost().open` and runs
+  `decideExternalChange`. `reload` (no unsaved edits) / `conflict` (unsaved edits) show the
+  **"This game changed on your computer"** modal: *Load the newer version* reloads cleanly
+  (mark the mirror non-crash → `setPendingOpen` → reload → `launchManager` re-opens the
+  folder), *Keep my version* overwrites the folder with our version, *Keep looking at this*
+  accepts the disk state as baseline so it stops re-prompting. One prompt at a time
+  (`externalPromptOpen`), re-entrancy-guarded across the async read.
+- **`decideExternalChange` uses the `folderDirty` flag, not a content diff** (spec §3): both
+  `diskDoc`/`lastSavedDoc` are file bytes (exact compare), but the live project vs. the raw
+  file would differ after load-time normalization even with no edit — so "do we have unsaved
+  changes?" reads the edit flag. Revised the core signature + its unit test accordingly.
+- **`persistence.ts` helpers:** `peekMirror`/`peekMirrorMeta` (read the mirror + bookkeeping
+  for the manager), and `noteDiskBaseline` (accept a re-read disk state, optionally dirty).
+- **Kill-process test (spec + e2e).** The real scenario: the OS kills the process between the
+  synchronous mirror write and the async folder write, leaving `folderConfirmed: false` and a
+  mirror ahead of the file. Reproduced under `?fakehost` by seeding `rpgatlas_project` +
+  `atlas.mirror.meta` (`folderConfirmed: false`) newer than the folder doc, then opening →
+  the recovery prompt fires and restoring writes the rescued content back to the folder.
+- **New e2e (5, additive):** crash recovery restore (rescued title boots + folder rewritten);
+  crash recovery decline (folder untouched); a **confirmed** mirror never prompts; an external
+  edit with no local changes → plain reload into the newer version; an external edit with
+  unsaved local edits → conflict, **Keep my version** wins (folder holds ours, paint
+  persisted). The conflict spec fires focus while `#save-ind` is still `●` (guaranteeing
+  `folderDirty` and an un-flushed autosave), so the conflict branch is deterministic —
+  confirmed stable over `--repeat-each=5`.
+- **Gates:** vitest **952** (folder-sync signature revised, count unchanged) · node **19** ·
+  Playwright **90/90** (70 existing **unmodified** + 20 manager) · eslint **0** · typecheck
+  **clean**. Browser build byte-identical; frozen map 1 untouched. No patch-notes entry yet.
+  Git ritual: branch `harbor-3b` → gates green → commit → merge to `main` → delete branch.
+  **Next: H3·C** (playtest bridge — verify the same-origin mirror handoff + document the
+  reload-only window and browser `saves/` slots).

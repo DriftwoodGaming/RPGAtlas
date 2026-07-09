@@ -283,6 +283,151 @@ test.describe("Project-scoped saving (H3·A)", () => {
   });
 });
 
+/** An Atlas Quest document with its display title overridden (to tell two versions apart). */
+function docTitled(title) {
+  const p = JSON.parse(atlasQuestJson());
+  p.system.title = title;
+  return JSON.stringify(p);
+}
+const titleOf = (doc) => JSON.parse(doc).system.title;
+
+test.describe("Crash recovery (H3·B)", () => {
+  const ROOT = "/Games/Crashed";
+
+  /** Seed a folder game plus a crash signature: a mirror (rpgatlas_project) newer than
+   *  the folder file, with meta.folderConfirmed flag as given. */
+  async function seedCrash(page, { folderTitle, mirrorTitle, folderConfirmed }) {
+    await page.goto("/index.html");
+    await page.evaluate(
+      ({ root, folderDoc, mirrorDoc, meta }) => {
+        localStorage.setItem(
+          "atlas.fakehost.recents",
+          JSON.stringify([{ name: "Crashed", path: root, lastOpened: 1 }]),
+        );
+        localStorage.setItem("atlas.fakehost.docs", JSON.stringify({ [root]: folderDoc }));
+        localStorage.setItem("rpgatlas_project", mirrorDoc);
+        localStorage.setItem("atlas.mirror.meta", JSON.stringify(meta));
+      },
+      {
+        root: ROOT,
+        folderDoc: docTitled(folderTitle),
+        mirrorDoc: docTitled(mirrorTitle),
+        meta: { root: ROOT, savedAt: Date.now(), folderConfirmed },
+      },
+    );
+    await page.goto("/index.html?fakehost");
+    await page.locator(".pm-recent", { hasText: "Crashed" }).click();
+  }
+
+  const folderDocOf = (page) =>
+    page.evaluate((root) => JSON.parse(localStorage.getItem("atlas.fakehost.docs"))[root], ROOT);
+
+  test("a newer, unconfirmed mirror offers recovery; restoring boots + writes it to the folder", async ({ page }) => {
+    await seedCrash(page, { folderTitle: "Saved To Disk", mirrorTitle: "Rescued Draft", folderConfirmed: false });
+
+    // The friendly prompt appears (the editor is NOT booted yet — the gate holds).
+    await expect(page.locator(".modal-title", { hasText: "Bring your changes back?" })).toBeVisible();
+    await expect(page.locator("#save-ind")).toBeHidden();
+
+    await page.locator(".modal-btns button", { hasText: "Bring my changes back" }).click();
+
+    // Boots on the rescued mirror, and the recovered work is written back to the folder.
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Rescued Draft — RPGAtlas");
+    await expect(page.locator("#save-ind")).toHaveText(/^✓ /);
+    expect(titleOf(await folderDocOf(page))).toBe("Rescued Draft");
+  });
+
+  test("choosing the saved game ignores the mirror and leaves the folder untouched", async ({ page }) => {
+    const seed = docTitled("Saved To Disk");
+    await seedCrash(page, { folderTitle: "Saved To Disk", mirrorTitle: "Rescued Draft", folderConfirmed: false });
+
+    await page.locator(".modal-btns button", { hasText: "Use the saved game" }).click();
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Saved To Disk — RPGAtlas");
+    // The folder file was never rewritten (recovered=false → not dirty → no folder write).
+    expect(await folderDocOf(page)).toBe(seed);
+  });
+
+  test("a confirmed mirror is NOT crash evidence — boots the folder with no prompt", async ({ page }) => {
+    await seedCrash(page, { folderTitle: "Saved To Disk", mirrorTitle: "Stale Mirror", folderConfirmed: true });
+    // No recovery prompt: the folder document boots straight through.
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Saved To Disk — RPGAtlas");
+    await expect(page.locator(".modal-title", { hasText: "Bring your changes back?" })).toHaveCount(0);
+  });
+});
+
+test.describe("External changes on focus (H3·B)", () => {
+  const ROOT = "/Games/Focus";
+
+  async function bootGame(page, title) {
+    await gotoManagerWithSeed(page, {
+      recents: [{ name: "Focus", path: ROOT, lastOpened: 1 }],
+      docs: { [ROOT]: docTitled(title) },
+    });
+    await page.locator(".pm-recent", { hasText: "Focus" }).click();
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page.locator("#save-ind")).toHaveText(/^✓ /);
+  }
+
+  const folderDocOf = (page) =>
+    page.evaluate((root) => JSON.parse(localStorage.getItem("atlas.fakehost.docs"))[root], ROOT);
+
+  test("an external edit with no local changes offers a plain reload into the newer version", async ({ page }) => {
+    await bootGame(page, "Version One");
+
+    // Something else rewrote game.rpgatlas; focus the window.
+    await page.evaluate(
+      ({ root, doc }) => {
+        window.__ATLAS_TEST_HOST__.seedDoc(root, doc);
+        window.dispatchEvent(new Event("focus"));
+      },
+      { root: ROOT, doc: docTitled("Version Two") },
+    );
+
+    await expect(page.locator(".modal-title", { hasText: "changed on your computer" })).toBeVisible();
+    await page.locator(".modal-btns button", { hasText: "Load the newer version" }).click();
+
+    // Reloads cleanly into the newer version.
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Version Two — RPGAtlas");
+  });
+
+  test("an external edit while YOU have unsaved changes → conflict; Keep my version wins", async ({ page }) => {
+    await bootGame(page, "Mine Base");
+
+    // Make an unsaved local edit (paint a tile), then — while still ● unsaved — the file
+    // changes on disk and the window regains focus.
+    const palette = page.locator("#palette");
+    const map = page.locator("#mapcanvas");
+    const pBox = await palette.boundingBox();
+    await page.mouse.click(pBox.x + pBox.width * 0.5, pBox.y + 8);
+    const mBox = await map.boundingBox();
+    await page.mouse.click(mBox.x + 10, mBox.y + 10);
+    await expect(page.locator("#save-ind")).toHaveText(/^● /); // dirty, autosave not yet flushed
+
+    const painted = await folderDocOf(page); // still the pre-paint bytes (no save yet)
+    await page.evaluate(
+      ({ root, doc }) => {
+        window.__ATLAS_TEST_HOST__.seedDoc(root, doc);
+        window.dispatchEvent(new Event("focus"));
+      },
+      { root: ROOT, doc: docTitled("Theirs") },
+    );
+
+    // The conflict prompt names the unsaved-edits case.
+    await expect(page.locator(".modal-body", { hasText: "aren't saved yet" })).toBeVisible();
+    await page.locator(".modal-btns button", { hasText: "Keep my version" }).click();
+
+    // Our version wins: the folder holds our title (not "Theirs"), and our paint persisted.
+    await expect(page.locator("#save-ind")).toHaveText(/^✓ /, { timeout: 5000 });
+    const after = await folderDocOf(page);
+    expect(titleOf(after)).toBe("Mine Base");
+    expect(after).not.toBe(painted); // the painted layer change is in the folder file
+  });
+});
+
 test.describe("Project Manager — fake-host coverage (H2·D)", () => {
   test("create → relaunch → the game is in recents and reopens", async ({ page }) => {
     await gotoManagerWithSeed(page);
