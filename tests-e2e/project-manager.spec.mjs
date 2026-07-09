@@ -76,3 +76,61 @@ test.describe("Project Manager — surface & boot gate (H2·A)", () => {
     await expect(page).toHaveTitle("Atlas Quest — RPGAtlas");
   });
 });
+
+test.describe("Project Manager — New Project flow (H2·B)", () => {
+  test("live folder preview sanitizes the typed name", async ({ page }) => {
+    await gotoManagerWithSeed(page);
+    await page.locator(".pm-bigbtn", { hasText: "New Project" }).click();
+
+    const preview = page.locator(".pm-preview");
+    const name = page.locator(".pm-form .pm-input");
+    await name.fill("Hero:Quest?"); // ":" and "?" are reserved on Windows
+    await expect(preview.locator("b")).toHaveText("Hero Quest"); // reserved chars → space, trimmed
+    await name.fill("   ");
+    await expect(preview.locator("b")).toHaveText("Untitled Game"); // empty → fallback
+    await expect(page.locator(".pm-template")).toHaveCount(3); // Blank / Starter / Atlas Quest
+  });
+
+  test("name + folder + template creates the game and boots the editor", async ({ page }) => {
+    await gotoManagerWithSeed(page);
+    // Queue the directory the native picker would return.
+    await page.evaluate(() => window.__ATLAS_TEST_HOST__.setNextDirectory("/Games"));
+
+    await page.locator(".pm-bigbtn", { hasText: "New Project" }).click();
+    await page.locator(".pm-form .pm-input").fill("Bug Quest");
+    await page.locator(".pm-template", { hasText: "Empty map" }).click(); // Blank
+    await page.locator(".pm-btn", { hasText: "Choose folder…" }).click();
+    await expect(page.locator(".pm-folder-path")).toHaveText("/Games");
+
+    await page.locator(".pm-btn", { hasText: "Make my game" }).click();
+
+    // The editor boots on the freshly scaffolded game.
+    await expect(page.locator(".pm-overlay")).toHaveCount(0);
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Bug Quest — RPGAtlas");
+
+    // The fake FS recorded the project folder + a recents entry.
+    const state = await page.evaluate(() => ({
+      docs: Object.keys(JSON.parse(localStorage.getItem("atlas.fakehost.docs") || "{}")),
+      recents: JSON.parse(localStorage.getItem("atlas.fakehost.recents") || "[]"),
+    }));
+    expect(state.docs).toContain("/Games/Bug Quest");
+    expect(state.recents[0]).toMatchObject({ name: "Bug Quest", path: "/Games/Bug Quest" });
+  });
+
+  test("a name that collides shows the kid-friendly 'already have a game' error", async ({ page }) => {
+    // Seed a folder already taken, so project_create reports FOLDER_EXISTS.
+    await gotoManagerWithSeed(page, { docs: { "/Games/Taken": "{}" } });
+    await page.evaluate(() => window.__ATLAS_TEST_HOST__.setNextDirectory("/Games"));
+
+    await page.locator(".pm-bigbtn", { hasText: "New Project" }).click();
+    await page.locator(".pm-form .pm-input").fill("Taken");
+    await page.locator(".pm-btn", { hasText: "Choose folder…" }).click();
+    await page.locator(".pm-btn", { hasText: "Make my game" }).click();
+
+    await expect(page.locator(".pm-error")).toContainText("already have a game with that name");
+    // The child stays on the form to fix it — no boot happened.
+    await expect(page.locator("#save-ind")).toBeHidden();
+    await expect(page.locator(".pm-form")).toBeVisible();
+  });
+});

@@ -306,3 +306,29 @@ manager never mounts).
   map 1 untouched. Git ritual: branch `harbor-2a` → gates green → commit → merge to `main` →
   delete branch. **Next: H2·B** (New Project — live folder preview + parent-dir picker UX +
   the Blank/Starter/Atlas Quest template chooser).
+
+### H2·B — New Project flow — 2026-07-09
+
+- **Enriched `renderNewForm` (`manager.ts`):**
+  - **Live folder-safe preview** under the name field ("We'll make a folder called **…**"),
+    recomputed on every keystroke via the H1 `sanitizeFolderName` core — the child watches
+    `Hero:Quest?` become `Hero Quest` and an empty name fall back to `Untitled Game` before
+    committing. (Typing also clears a stale error.)
+  - **Template chooser**: the three `TEMPLATES` cards (Blank "Empty map" / Starter "Starter
+    game" / Atlas Quest "Atlas Quest sample") with their final kid blurbs; clicking selects
+    (`state.template`), Starter is the default.
+  - The parent-directory picker (`host.pickDirectory()` → dialog plugin on desktop) and the
+    inline error surface from H2·A remain; **Make my game** now builds
+    `buildTemplateDocument(state.template, name)`, calls
+    `project_create(parentDir, sanitizeFolderName(name), json)`, and boots on success.
+- **New specs (3, additive):** the live preview sanitizes the typed name (reserved chars →
+  space, empty → fallback) and shows exactly 3 templates; name + folder + **Blank** template →
+  `project_create` records `/Games/Bug Quest` + a recents entry and the editor boots with the
+  title `Bug Quest — RPGAtlas`; a colliding name surfaces the kid-friendly "You already have a
+  game with that name here" copy inline **without booting** (`FOLDER_EXISTS`, the child stays
+  on the form).
+- **Gates:** Playwright **76/76** (70 existing **unmodified** + 6 manager) · vitest **941** ·
+  node **19** · eslint **0** · typecheck **clean**. No CSS/version change beyond H2·A (the
+  `.pm-template*` / `.pm-preview` styles shipped in H2·A's stylesheet). Git ritual: branch
+  `harbor-2b` → gates green → commit → merge to `main` → delete branch. **Next: H2·C** (Open
+  flow — recents missing-rows + Browse + File-menu rewire + window title requirement).
