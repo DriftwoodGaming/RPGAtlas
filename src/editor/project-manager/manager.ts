@@ -17,7 +17,7 @@ import { validateProject } from "../../shared/schema";
 import { sanitizeFolderName } from "../../shared/project-name";
 import { projectErrorCopy, type ProjectErrorCode } from "../../shared/project-errors";
 import type { Recent } from "../../shared/recents";
-import type { TemplateId } from "../../shared/project-templates";
+import { TEMPLATES, type TemplateId } from "../../shared/project-templates";
 import type { ProjectBundle } from "../../platform/tauri/project-host";
 import { runBootWith } from "../boot";
 import { activeManagerHost, type ManagerHost } from "./manager-host";
@@ -82,15 +82,15 @@ function renderLanding(card: HTMLElement, host: ManagerHost): void {
   void loadRecents(recents, host);
 }
 
-// H2·A ships the New Project view as a working name + folder + create; the live
-// folder-name preview and the three template cards are added in H2·B.
+// The New Project view: name (with a live folder-safe preview via the H1
+// sanitizer), a parent-directory picker, and the Blank/Starter/Atlas Quest
+// template chooser — scaffolds via project_create, then boots the editor on it.
 function renderNewForm(card: HTMLElement, host: ManagerHost): void {
   clearToast();
   card.innerHTML = "";
   card.appendChild(header());
 
-  const template: TemplateId = "starter";
-  const state = { parentDir: null as string | null };
+  const state = { parentDir: null as string | null, template: "starter" as TemplateId };
 
   const nameInput = h("input", {
     class: "pm-input",
@@ -99,13 +99,49 @@ function renderNewForm(card: HTMLElement, host: ManagerHost): void {
     maxlength: "80",
   }) as HTMLInputElement;
 
-  const folderPath = h("span", { class: "pm-folder-path" }, "No folder chosen yet");
   const err = h("div", { class: "pm-error", hidden: "" });
   const setErr = (msg: string) => {
     err.textContent = msg;
     err.hidden = !msg;
   };
 
+  // Live preview: show the actual folder that will be made, so the child sees a
+  // "My Game!!!" → "My Game" fix (or the Untitled Game fallback) before committing.
+  const preview = h("div", { class: "pm-preview" });
+  const updatePreview = () => {
+    preview.replaceChildren(
+      document.createTextNode("We'll make a folder called "),
+      h("b", null, sanitizeFolderName(nameInput.value)),
+    );
+  };
+  nameInput.addEventListener("input", () => {
+    updatePreview();
+    if (err.hidden === false) setErr("");
+  });
+  updatePreview();
+
+  // Template chooser.
+  const cardEls: Record<string, HTMLElement> = {};
+  const templates = h("div", { class: "pm-templates" });
+  for (const tpl of TEMPLATES) {
+    const el = h(
+      "button",
+      {
+        class: "pm-template" + (tpl.id === state.template ? " sel" : ""),
+        type: "button",
+        onclick() {
+          state.template = tpl.id;
+          for (const id of Object.keys(cardEls)) cardEls[id].classList.toggle("sel", id === tpl.id);
+        },
+      },
+      h("div", { class: "pm-template-label" }, tpl.label),
+      h("div", { class: "pm-template-desc" }, tpl.description),
+    );
+    cardEls[tpl.id] = el;
+    templates.appendChild(el);
+  }
+
+  const folderPath = h("span", { class: "pm-folder-path" }, "No folder chosen yet");
   const chooseBtn = h(
     "button",
     {
@@ -145,7 +181,7 @@ function renderNewForm(card: HTMLElement, host: ManagerHost): void {
           setErr("Choose a folder to make your game in.");
           return;
         }
-        void createProject(name, state.parentDir, template, host, setErr);
+        void createProject(name, state.parentDir, state.template, host, setErr);
       },
     },
     "Make my game",
@@ -155,7 +191,8 @@ function renderNewForm(card: HTMLElement, host: ManagerHost): void {
     h(
       "div",
       { class: "pm-form" },
-      labeled("What's your game called?", nameInput),
+      labeled("What's your game called?", h("div", null, nameInput, preview)),
+      labeled("What kind of game?", templates),
       labeled("Where should it live?", h("div", { class: "pm-folder-row" }, chooseBtn, folderPath)),
       err,
       h(
