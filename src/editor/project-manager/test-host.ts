@@ -55,7 +55,20 @@ function toRoot(target: string): string {
   return t.replace(/[\\/]+$/, "");
 }
 
-/** The fake host object — a full `ManagerHost` plus test-control helpers. */
+/** The fake host object — a full `ManagerHost` plus the stable **public test API**
+ *  a Playwright spec drives through `window.__ATLAS_TEST_HOST__`:
+ *
+ *  - `setNextDirectory(path)` / `setNextFolder(path)` — queue what the New-Project
+ *    parent-dir picker / the Browse folder picker return next (null = cancelled).
+ *  - `seedDoc(root, json)` — put an openable game at `root` in the fake FS.
+ *  - `seedRecent(entry)` — add a `{name, path, lastOpened}` recents row.
+ *  - `seedEmptyFolder(path)` — a folder with no `game.rpgatlas` (→ `NOT_A_PROJECT`).
+ *  - `deletePath(root)` — make a game's folder "vanish" (→ `MISSING` / missing row).
+ *  - `reset()` — clear the fake FS + queued picks.
+ *
+ *  Persistence lives in localStorage (`atlas.fakehost.docs` / `.recents` / `.empty`),
+ *  so state survives a reload; a spec can also seed those keys directly before the
+ *  `?fakehost` navigation (the pattern in tests-e2e/project-manager.spec.mjs). */
 export interface FakeHost extends ManagerHost {
   setNextDirectory(path: string | null): void;
   setNextFolder(path: string | null): void;
