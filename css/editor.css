@@ -1226,3 +1226,114 @@ a.console-link:hover { text-decoration: underline; color: var(--text-bright); }
 .adv-am-tileval { font-size: var(--fs-tiny); color: var(--text-hi); max-width: 96px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .adv-am-terrsel { max-width: 120px; }
+
+/* ============================ Project Manager (Project Harbor H2) ============
+   The desktop-only pre-boot launcher rendered inside the main window (#pm-overlay
+   is appended to <body> at boot time on desktop / under ?fakehost). It never
+   touches #save-ind — the editor still reveals that last (the e2e boot gate). */
+.pm-overlay {
+  position: fixed; inset: 0; z-index: 4000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px; overflow: auto;
+  background:
+    radial-gradient(1200px 800px at 50% -10%, #1b2a44 0%, transparent 60%),
+    var(--bg-deep);
+  color: var(--text);
+  font: 14px/1.5 system-ui, sans-serif;
+}
+.pm-card {
+  width: min(760px, 100%);
+  background: var(--modal-bg);
+  border: 1px solid var(--line-3);
+  border-radius: 12px;
+  box-shadow: 0 18px 60px #0009;
+  padding: 26px 28px 24px;
+}
+.pm-header { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
+.pm-logo { width: 52px; height: 52px; flex: 0 0 auto; }
+.pm-title { font-size: 26px; font-weight: 800; color: var(--accent-text); letter-spacing: 0.01em; }
+.pm-tag { color: var(--text-mid); font-size: var(--fs-small); margin-top: 2px; }
+
+.pm-cols { display: flex; gap: 22px; align-items: flex-start; }
+.pm-actions { flex: 1 1 0; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pm-recents { flex: 1 1 0; min-width: 0;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 12px 14px; }
+.pm-recents-head { font-size: var(--fs-tiny); text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--text-dim); margin-bottom: 8px; }
+.pm-recents-empty { color: var(--text-dim); font-size: var(--fs-small); padding: 6px 2px; }
+
+.pm-bigbtn {
+  display: flex; align-items: center; gap: 14px; text-align: left; width: 100%;
+  padding: 16px 18px; cursor: pointer;
+  background: var(--raise); color: var(--text-bright);
+  border: 1px solid var(--line-3); border-radius: 10px;
+  transition: background 0.12s, border-color 0.12s, transform 0.05s;
+}
+.pm-bigbtn:hover { background: var(--hover-2); border-color: var(--accent-edge); }
+.pm-bigbtn:active { transform: translateY(1px); }
+.pm-bigbtn-icon { font-size: 30px; line-height: 1; flex: 0 0 auto; color: var(--gold); }
+.pm-bigbtn-text { display: flex; flex-direction: column; min-width: 0; }
+.pm-bigbtn-label { font-size: 17px; font-weight: 700; }
+.pm-bigbtn-sub { font-size: var(--fs-small); color: var(--text-mid); }
+
+.pm-recent {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%;
+  text-align: left; padding: 8px 10px; cursor: pointer; margin-bottom: 6px;
+  background: var(--panel-3); color: var(--text); border: 1px solid var(--line); border-radius: 8px;
+}
+.pm-recent:hover { background: var(--hover); border-color: var(--accent-edge); }
+.pm-recent-name { font-weight: 600; color: var(--text-bright); max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-recent-path { font-size: var(--fs-tiny); color: var(--text-dim); max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-recent.missing { opacity: 0.75; }
+.pm-recent.missing .pm-recent-name::after { content: " — can't find this game"; color: var(--gold-edge); font-weight: 400; }
+.pm-recent-remove { align-self: flex-end; }
+
+/* New Project form (H2·A shell; enriched with the template chooser + live
+   folder preview in H2·B) */
+.pm-form { display: flex; flex-direction: column; gap: 16px; }
+.pm-field { display: flex; flex-direction: column; gap: 6px; }
+.pm-field-label { font-size: var(--fs-small); color: var(--text-mid); font-weight: 600; }
+.pm-input {
+  width: 100%; padding: 9px 11px; font-size: 15px;
+  background: var(--panel-3); color: var(--text-bright);
+  border: 1px solid var(--line-3); border-radius: 8px;
+}
+.pm-input:focus { outline: none; border-color: var(--accent-edge); box-shadow: 0 0 0 2px #34608c55; }
+.pm-folder-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pm-folder-path { font-size: var(--fs-small); color: var(--text-dim); min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pm-folder-path.chosen { color: var(--text); }
+.pm-preview { font-size: var(--fs-small); color: var(--text-mid); }
+.pm-preview b { color: var(--gold); font-weight: 700; }
+
+.pm-templates { display: flex; gap: 10px; flex-wrap: wrap; }
+.pm-template {
+  flex: 1 1 200px; text-align: left; cursor: pointer; padding: 12px 13px;
+  background: var(--panel-3); color: var(--text); border: 1px solid var(--line-3); border-radius: 9px;
+}
+.pm-template:hover { border-color: var(--accent-edge); background: var(--hover); }
+.pm-template.sel { border-color: var(--gold-edge); box-shadow: 0 0 0 2px #ffd86a33; background: var(--hover); }
+.pm-template-label { font-weight: 700; color: var(--text-bright); margin-bottom: 3px; }
+.pm-template-desc { font-size: var(--fs-tiny); color: var(--text-mid); }
+
+.pm-form-btns, .pm-back-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+.pm-back-row { margin-top: 18px; }
+.pm-btn {
+  padding: 9px 16px; cursor: pointer; font-size: 14px;
+  background: var(--raise); color: var(--text-bright);
+  border: 1px solid var(--line-3); border-radius: 8px;
+}
+.pm-btn:hover { background: var(--hover-2); border-color: var(--accent-edge); }
+.pm-btn.primary { background: var(--accent); border-color: var(--accent-edge); color: #fff; font-weight: 700; }
+.pm-btn.primary:hover { background: #3d6ea0; }
+
+.pm-error { color: #ff9b8a; font-size: var(--fs-small); background: #3a1f1f66;
+  border: 1px solid #7a3b3b66; border-radius: 7px; padding: 8px 10px; }
+.pm-toast {
+  position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%);
+  max-width: min(560px, 90%); padding: 11px 16px; border-radius: 9px;
+  background: #3a1f1f; color: #ffd7cd; border: 1px solid #7a3b3b;
+  box-shadow: 0 10px 30px #0008; font-size: var(--fs-small);
+}

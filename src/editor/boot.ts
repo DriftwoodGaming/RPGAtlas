@@ -40,6 +40,11 @@ import { syncAutotileRegistry } from "./autotile-store";
 import { initRmImport } from "./importers/rm-import-wizard";
 import { consumeEmbeddedAssets, initAssetLibrary } from "../shared/asset-library";
 import { createDefaultAssetStore } from "../platform/default-asset-store";
+// Project Harbor H2: the desktop Project Manager launcher. managerActive() gates
+// the whole pre-boot screen behind isTauri (or the H2·D ?fakehost test hook), so
+// the pure browser build never mounts it and boots byte-identically to today.
+import { managerActive, hasFakeHostParam } from "./project-manager/manager-host";
+import { markEditorBooted } from "./project-manager/project-context";
 // Side effect: registers window.AtlasAudioDeck so imported audio previews
 // (Audio Manager, command "▶ test" buttons) play in the editor too.
 import "../shared/audio-deck";
@@ -133,8 +138,12 @@ export function rebuildAll() {
   setStatus();
 }
 
-async function boot() {
-  S.proj = loadStored() || DataDefaults.newProject();
+// Boot the editor on an already-resolved project. Project Harbor H2 splits this
+// out of boot() so the Project Manager can hand the editor whichever game the
+// child chose (created/opened from a folder); boot() keeps the classic
+// localStorage-or-default source for the browser build and the no-manager path.
+export async function bootWithProject(project: any) {
+  S.proj = project;
   // The device asset library must publish its catalog before external-asset
   // discovery runs (Phase 6); a failed store degrades to shipped-only inside
   // initAssetLibrary. Pre-strip autosaves never carry embedded assets, but a
@@ -242,9 +251,24 @@ async function boot() {
   // raced this function: a Ctrl+P could land before the keydown listener above
   // was installed and silently vanish (flaked the tile-slicer spec under load).
   $("save-ind").hidden = false;
+  // Record that the editor is now interactive (Project Harbor H2·C uses this to
+  // decide whether File ▸ New/Open reboots via the manager or boots in place).
+  markEditorBooted();
   // Boot-to-interactive mark (Phase 7 Stage A): read by the load-time budget
   // e2e; performance.now() is relative to navigation start.
   (window as any).RPGATLAS_BOOT_MS = performance.now();
+}
+
+// The classic boot source: the stored project (localStorage) or the bundled
+// default. Unchanged for the browser build and the desktop no-manager path.
+async function boot() {
+  await bootWithProject(loadStored() || DataDefaults.newProject());
+}
+
+// Boot on a manager-chosen project, routing a failure through the same
+// recovery overlay the classic path uses.
+export function runBootWith(project: any): void {
+  bootWithProject(project).catch(showBootFailure);
 }
 
 // The "new" action (workspace.ts) and project import (persistence.ts) rebuild
@@ -286,8 +310,26 @@ function showBootFailure(e: any): void {
 
 function runBoot(): void { boot().catch(showBootFailure); }
 
+// Project Harbor H2: the entry decision. On desktop (or under the ?fakehost test
+// hook) show the Project Manager first and boot the editor only once a game is
+// chosen; everywhere else boot straight into the editor exactly as before. The
+// manager (and the ~187 KB Atlas Quest template it bundles) load through a
+// dynamic import, so the pure browser build never fetches that chunk.
+async function start(): Promise<void> {
+  if (hasFakeHostParam()) {
+    const { installFakeHost } = await import("./project-manager/test-host");
+    installFakeHost();
+  }
+  if (managerActive()) {
+    const { showProjectManager } = await import("./project-manager/manager");
+    showProjectManager();
+  } else {
+    runBoot();
+  }
+}
+
 if (document.readyState === "loading") {
-  window.addEventListener("DOMContentLoaded", runBoot, { once: true });
+  window.addEventListener("DOMContentLoaded", () => { void start(); }, { once: true });
 } else {
-  runBoot();
+  void start();
 }
