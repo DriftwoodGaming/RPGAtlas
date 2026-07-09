@@ -48,3 +48,43 @@ export async function openProjectFromFile() {
   const json = await invoke("open_project");
   return json ? JSON.parse(json) : null;
 }
+
+// --- Project folders (Project Harbor H1·C) ---------------------------------
+// Thin isTauri-gated wrappers over the native project commands (src-tauri/src/
+// project.rs). Each is a one-liner over invoke; the typed façade lives in
+// src/platform/tauri/project-host.ts. Nothing here is wired into boot yet (H2).
+
+/** Create a project folder; resolves to { root, name, document }. */
+export function projectCreate(parentDir, name, documentJson) {
+  return invoke("project_create", { parentDir, name, documentJson });
+}
+
+/** Open a project by folder path or game.rpgatlas path; resolves to the bundle. */
+export function projectOpen(target) {
+  return invoke("project_open", { target });
+}
+
+/** Save the document into <root>/game.rpgatlas (atomic + rolling backup). */
+export function projectSave(root, documentJson) {
+  return invoke("project_save", { root, documentJson });
+}
+
+/** The recents registry as a JSON string ("[]" when absent/corrupt). */
+export function recentsList() {
+  return invoke("recents_list");
+}
+
+/** Upsert a recent to the front (dedupe by path, cap 12). */
+export function recentsTouch(path, name) {
+  return invoke("recents_touch", { path, name });
+}
+
+/** Remove a recent by exact path. */
+export function recentsRemove(path) {
+  return invoke("recents_remove", { path });
+}
+
+/** Reveal the project folder in the OS file manager. */
+export function projectReveal(root) {
+  return invoke("project_reveal", { root });
+}

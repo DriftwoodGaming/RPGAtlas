@@ -486,3 +486,47 @@ oversliced-library safeguards — trap 5: 48px default, overslice warnings, batc
 - Git ritual: branch `harbor-1b` → gates green → commit → merge to `main` → delete branch.
   **Next: H1·C** (host.js project surface + `project-host.ts` façade + the four `src/shared`
   pure cores with vitest).
+
+### H1·C — Host + pure cores (phase exit) — 2026-07-09
+
+- **Four pure cores in `src/shared` (env=node, no window/DOM — trap 3):**
+  - `project-name.ts` — `sanitizeFolderName` per §5.1 (NFC → strip controls →
+    reserved-char→space → collapse ws → strip trailing dot/space → truncate 80 →
+    fallback `Untitled Game` → `_`-prefix reserved device names). Casing preserved.
+    Control chars are stripped by **codepoint** (`stripControlChars`, not a control-char
+    regex) so the source stays clean ASCII and dodges the `no-control-regex` lint.
+  - `recents.ts` — `RECENTS_CAP=12`, `touchRecent` / `removeRecent` / `annotateRecents`
+    (display-time missing-tag, never auto-prune) + `parseRecents` (corrupt/non-array → `[]`).
+  - `project-templates.ts` — `TemplateId` + `TEMPLATES` (final kid copy: Empty map /
+    Starter game / Atlas Quest sample) + `isTemplateId`. **No document bytes** (§3.1).
+  - `project-errors.ts` — the eight-code `ProjectErrorCode` union + `projectErrorCopy`
+    (unknown code → IO fallback) with the FINAL §6 copy, **plus** `MISSING_ASSET_COPY`
+    (gate amendment 4: an asset *state*, kept out of the command union but tested here).
+- **Typed façade `src/platform/tauri/project-host.ts`** — same custom-invoke pattern as
+  `fs-asset-store.ts`; exports `projectHost.{create,open,save,recentsList,recentsTouch,
+  recentsRemove,reveal}` returning `ProjectBundle` / `Recent[]`, and translates a thrown
+  Rust `{code, detail}` into a typed `ProjectHostError` carrying a `ProjectErrorCode`.
+  `recentsList` runs the raw string through the tested `parseRecents`. Not unit-tested (it
+  is the IPC boundary); its pure inputs (the cores) are.
+- **`js/editor/host.js`** — seven thin `isTauri`-gated one-liners over `invoke`
+  (`projectCreate` / `projectOpen` / `projectSave` / `recentsList` / `recentsTouch` /
+  `recentsRemove` / `projectReveal`), matching the `openPlaytest` shape.
+- **No editor wiring.** Nothing imports the cores/façade into `boot.ts`/`persistence.ts`;
+  browser builds never touch any of it (`isTauri` false). Wiring is H2.
+- **New vitest specs (24 tests): 941 total** — `project-name` (9: illegal chars, control
+  strip, trailing dot/space, empty/all-punct fallback, reserved-name prefix incl. COM10/
+  console pass-through, truncation + boundary re-strip, unicode/casing preserved,
+  idempotence), `recents` (8: move-to-front, dedupe, cap, remove no-op, annotate order,
+  parse malformed/corrupt), `project-templates` (4), `project-errors` (3: every code
+  non-empty + distinct titles, unknown→IO, MISSING_ASSET copy).
+- **Gates (phase exit):** vitest **941** (baseline 917 + 24) · node **19** · Playwright
+  **70/70** (browser parity byte-identical — the cores are unreferenced) · eslint **0** ·
+  typecheck **clean** · cargo test **12/12**. No patch-notes entry (§0 — nothing
+  user-visible). Devtools note: create/open/save/traversal are covered by `cargo test`;
+  the recents commands need a live `AppHandle`, so their logic rides on the tested
+  `recents.ts` core (a full manual devtools round-trip needs the running desktop app, which
+  no automated harness here can boot).
+- Git ritual: branch `harbor-1c` → gates green → commit → merge to `main` → delete branch.
+  **Phase exit: tag `harbor-1`.** H1 delivers the signed on-disk contract + native plumbing
+  + host surface + pure cores, all invisible to users. **H2 (Project Manager launcher) is
+  cleared.**
