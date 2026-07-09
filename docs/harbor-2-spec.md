@@ -332,3 +332,41 @@ manager never mounts).
   `.pm-template*` / `.pm-preview` styles shipped in H2·A's stylesheet). Git ritual: branch
   `harbor-2b` → gates green → commit → merge to `main` → delete branch. **Next: H2·C** (Open
   flow — recents missing-rows + Browse + File-menu rewire + window title requirement).
+
+### H2·C — Open flow & in-editor rewiring — 2026-07-09
+
+- **Recents missing-rows (`loadRecents`/`recentRow`).** Rows now render into a
+  `.pm-recents-list` wrapper (so they can refresh in place). When the host implements
+  `exists` (the fake host; the real desktop host cannot stat — §1.1), each recent is probed
+  and `annotateRecents` (H1 core) tags the vanished ones. A missing row is a non-opening
+  plain-language card — the `MISSING` copy "We can't find this game anymore" + a **Remove**
+  control (`recentsRemove` → in-place refresh) — never auto-dropped. Present rows open on
+  click; on the real host a click that hits a vanished folder still degrades via `open()` →
+  `MISSING` → the toast.
+- **Browse…** stays a game-*folder* picker (`host.pickFolder()` → dialog plugin) — the "a game
+  is a folder" mental model for kids; `project_open` also resolves a `game.rpgatlas` path
+  (H5's double-click), so the contract's "folder or file" identity holds.
+- **File-menu rewiring (`workspace.ts`).** With `managerActive()`, `File ▸ New Project` /
+  `Open Project` show a friendly confirm and **return to the manager** (`goToManager` →
+  dynamic `import("./project-manager/manager").returnToManager(view)` — the manager stays a
+  lazy chunk; pure browser keeps today's in-place reset / `.json` picker exactly). New opens
+  straight on the New form; Open opens the landing (recents + Browse), which carries a
+  **"← Back to my game"** row when the editor is already booted.
+- **Clean reboot on re-open.** Because `boot()` binds many one-time listeners, opening another
+  game while one is open **stashes the chosen root in `sessionStorage` and reloads**; the
+  fresh load's `launchManager()` consumes the stash, re-opens that game, and boots it in place
+  (no double-bound listeners). First launch has no stash; a vanished stash falls back to the
+  launcher.
+- **Window title** is satisfied by `setOpenProjectContext` (H2·A): opening/creating a game sets
+  `document.title = "<Game Name> — RPGAtlas"` (asserted by specs) + best-effort native
+  `setTitle`.
+- **New specs (4, additive):** a vanished game shows the friendly Remove row (and Remove
+  clears it); `File ▸ Open` returns to the manager and **Back to my game** restores the editor;
+  `File ▸ New` opens the New form; **opening a different game from the File menu reloads
+  cleanly into it** (title tracks the new game) — the double-bind guard proven end to end.
+- **Gates:** Playwright **80/80** (70 existing **unmodified** + 10 manager) · vitest **941** ·
+  node **19** · eslint **0** · typecheck **clean**. CSS: `.pm-recent-missing` /
+  `.pm-recent-remove` / `.pm-recents-list` refined (`editor.css?v=60`, unchanged this stage —
+  same unreleased phase). Git ritual: branch `harbor-2c` → gates green → commit → merge to
+  `main` → delete branch. **Next: H2·D** (formalize the `__ATLAS_TEST_HOST__` hook + the final
+  additive-coverage audit).

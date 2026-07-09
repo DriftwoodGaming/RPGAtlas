@@ -134,3 +134,86 @@ test.describe("Project Manager — New Project flow (H2·B)", () => {
     await expect(page.locator(".pm-form")).toBeVisible();
   });
 });
+
+test.describe("Project Manager — Open flow & rewiring (H2·C)", () => {
+  test("a vanished game shows a friendly 'can't find it' row with Remove", async ({ page }) => {
+    // A recent whose folder isn't in the fake FS → exists() is false → missing.
+    await gotoManagerWithSeed(page, { recents: [{ name: "Gone Game", path: "/Games/Gone", lastOpened: 1 }] });
+
+    const row = page.locator(".pm-recent.missing", { hasText: "Gone Game" });
+    await expect(row).toBeVisible();
+    await expect(row).toContainText("We can't find this game anymore");
+
+    await row.locator(".pm-recent-remove").click();
+    await expect(page.locator(".pm-recent.missing")).toHaveCount(0);
+  });
+
+  test("File ▸ Open routes back to the manager; Back returns to the open game", async ({ page }) => {
+    const SEED = "/Games/Game A";
+    await gotoManagerWithSeed(page, {
+      recents: [{ name: "Game A", path: SEED, lastOpened: 1 }],
+      docs: { [SEED]: atlasQuestJson() },
+    });
+    await page.locator(".pm-recent", { hasText: "Game A" }).click();
+    await expect(page.locator("#save-ind")).toBeVisible();
+
+    // File ▸ Open Project → confirm → the launcher returns over the editor.
+    await page.locator("#menus .menu-label", { hasText: "File" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "Open Project" }).click();
+    await page.locator(".modal-btns button", { hasText: "OK" }).click();
+    await expect(page.locator(".pm-overlay")).toBeVisible();
+    await expect(page.locator(".pm-back-row")).toBeVisible();
+
+    // Back to my game dismisses the manager — the editor is still there, booted.
+    await page.locator(".pm-btn", { hasText: "Back to my game" }).click();
+    await expect(page.locator(".pm-overlay")).toHaveCount(0);
+    await expect(page.locator("#save-ind")).toBeVisible();
+  });
+
+  test("File ▸ New opens the New Project form", async ({ page }) => {
+    const SEED = "/Games/Game A";
+    await gotoManagerWithSeed(page, {
+      recents: [{ name: "Game A", path: SEED, lastOpened: 1 }],
+      docs: { [SEED]: atlasQuestJson() },
+    });
+    await page.locator(".pm-recent", { hasText: "Game A" }).click();
+    await expect(page.locator("#save-ind")).toBeVisible();
+
+    await page.locator("#menus .menu-label", { hasText: "File" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "New Project" }).click();
+    await page.locator(".modal-btns button", { hasText: "OK" }).click();
+    await expect(page.locator(".pm-form .pm-input")).toBeVisible();
+  });
+
+  test("opening a different game from the File menu reloads cleanly into it", async ({ page }) => {
+    const A = "/Games/Game A";
+    const B = "/Games/Game B";
+    const bDoc = (() => {
+      const p = JSON.parse(atlasQuestJson());
+      p.system.title = "Game Beta";
+      return JSON.stringify(p);
+    })();
+    await gotoManagerWithSeed(page, {
+      recents: [
+        { name: "Game B", path: B, lastOpened: 2 },
+        { name: "Game A", path: A, lastOpened: 1 },
+      ],
+      docs: { [A]: atlasQuestJson(), [B]: bDoc },
+    });
+
+    // Boot Game A.
+    await page.locator(".pm-recent", { hasText: "Game A" }).click();
+    await expect(page).toHaveTitle("Atlas Quest — RPGAtlas");
+
+    // File ▸ Open → pick Game B from recents → the window reloads cleanly into B
+    // (no double-bound listeners), title tracks B's display name.
+    await page.locator("#menus .menu-label", { hasText: "File" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "Open Project" }).click();
+    await page.locator(".modal-btns button", { hasText: "OK" }).click();
+    await page.locator(".pm-recent", { hasText: "Game B" }).click();
+
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Game Beta — RPGAtlas");
+    await expect(page.locator(".pm-overlay")).toHaveCount(0);
+  });
+});

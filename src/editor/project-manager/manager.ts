@@ -16,7 +16,7 @@ import { h } from "../dom";
 import { validateProject } from "../../shared/schema";
 import { sanitizeFolderName } from "../../shared/project-name";
 import { projectErrorCopy, type ProjectErrorCode } from "../../shared/project-errors";
-import type { Recent } from "../../shared/recents";
+import { annotateRecents, type Recent } from "../../shared/recents";
 import { TEMPLATES, type TemplateId } from "../../shared/project-templates";
 import type { ProjectBundle } from "../../platform/tauri/project-host";
 import { runBootWith } from "../boot";
@@ -27,8 +27,49 @@ import { buildTemplateDocument } from "./templates";
 let overlay: HTMLElement | null = null;
 let toastEl: HTMLElement | null = null;
 
-/** Mount (or remount) the Project Manager over the main window. Idempotent. */
-export function showProjectManager(): void {
+// A game to open on the next fresh load (H2·C). File ▸ New/Open while a game is
+// already open re-opens by *reloading* the window rather than re-running boot()
+// in place — boot() binds many one-time listeners, so a second in-place boot
+// would double-bind. sessionStorage survives location.reload() (same tab).
+const PENDING_KEY = "atlas.pendingOpen";
+function setPendingOpen(root: string): void {
+  try {
+    sessionStorage.setItem(PENDING_KEY, root);
+  } catch {
+    /* ignore */
+  }
+}
+function takePendingOpen(): string | null {
+  try {
+    const v = sessionStorage.getItem(PENDING_KEY);
+    if (v != null) sessionStorage.removeItem(PENDING_KEY);
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+/** The desktop / ?fakehost entry point, called from boot.ts's start(). If a game
+ *  is queued to open (a File ▸ New/Open reload), open it straight into the editor;
+ *  otherwise show the launcher. */
+export async function launchManager(): Promise<void> {
+  const pending = takePendingOpen();
+  if (pending) {
+    const host = activeManagerHost();
+    try {
+      const bundle = await host.open(pending);
+      await bootChosen(bundle, host);
+      return;
+    } catch {
+      /* the queued game vanished — fall through to the launcher */
+    }
+  }
+  showProjectManager();
+}
+
+/** Mount (or remount) the Project Manager over the main window. Idempotent.
+ *  `initial === "new"` opens straight on the New Project view (File ▸ New). */
+export function showProjectManager(initial?: "new"): void {
   closeManager();
   const host = activeManagerHost();
   const ov = h("div", { class: "pm-overlay" });
@@ -39,7 +80,13 @@ export function showProjectManager(): void {
   document.body.appendChild(ov);
   overlay = ov;
   toastEl = toast;
-  renderLanding(card, host);
+  if (initial === "new") renderNewForm(card, host);
+  else renderLanding(card, host);
+}
+
+/** Re-show the launcher over the running editor (File ▸ New/Open, H2·C). */
+export function returnToManager(view?: "new" | "open"): void {
+  showProjectManager(view === "new" ? "new" : undefined);
 }
 
 function closeManager(): void {
@@ -66,6 +113,7 @@ function renderLanding(card: HTMLElement, host: ManagerHost): void {
     "div",
     { class: "pm-recents" },
     h("div", { class: "pm-recents-head" }, "Recent games"),
+    h("div", { class: "pm-recents-list" }),
   );
 
   card.appendChild(h("div", { class: "pm-cols" }, actions, recents));
@@ -209,6 +257,9 @@ function renderNewForm(card: HTMLElement, host: ManagerHost): void {
 // --- flows -----------------------------------------------------------------
 
 async function loadRecents(container: HTMLElement, host: ManagerHost): Promise<void> {
+  const listEl = (container.querySelector(".pm-recents-list") as HTMLElement) || container;
+  listEl.innerHTML = "";
+
   let list: Recent[];
   try {
     list = await host.recentsList();
@@ -216,19 +267,70 @@ async function loadRecents(container: HTMLElement, host: ManagerHost): Promise<v
     list = [];
   }
   if (!list.length) {
-    container.appendChild(h("div", { class: "pm-recents-empty" }, "No games yet. Make one to see it here."));
+    listEl.appendChild(h("div", { class: "pm-recents-empty" }, "No games yet. Make one to see it here."));
     return;
   }
-  for (const r of list) {
-    container.appendChild(
+
+  // If the host can stat the filesystem (the fake host; the real desktop host
+  // cannot — see §1.1), flag rows whose folder has vanished up front. Otherwise a
+  // vanished game surfaces on click (open() → MISSING). annotateRecents (H1 core)
+  // keeps ordering + the display-time "never auto-prune" rule.
+  const existsMap = new Map<string, boolean>();
+  if (host.exists) {
+    await Promise.all(
+      list.map(async (r) => {
+        try {
+          existsMap.set(r.path, await host.exists!(r.path));
+        } catch {
+          existsMap.set(r.path, true); // don't cry "missing" on a probe failure
+        }
+      }),
+    );
+  }
+  const rows = annotateRecents(list, (p) => (host.exists ? (existsMap.get(p) ?? true) : true));
+  for (const r of rows) {
+    listEl.appendChild(recentRow(r, host, container));
+  }
+}
+
+/** One recents row: a clickable "open me" button when present, or a plain-language
+ *  "can't find this game anymore" row with a Remove control when its folder is
+ *  gone (never auto-dropped — the child removes it explicitly). */
+function recentRow(
+  r: Recent & { missing: boolean },
+  host: ManagerHost,
+  container: HTMLElement,
+): HTMLElement {
+  if (r.missing) {
+    return h(
+      "div",
+      { class: "pm-recent missing", title: r.path },
+      h("span", { class: "pm-recent-name" }, r.name || leafOf(r.path)),
+      h("span", { class: "pm-recent-missing" }, projectErrorCopy("MISSING").title),
       h(
         "button",
-        { class: "pm-recent", type: "button", title: r.path, onclick: () => openTarget(r.path, host) },
-        h("span", { class: "pm-recent-name" }, r.name || leafOf(r.path)),
-        h("span", { class: "pm-recent-path" }, r.path),
+        {
+          class: "pm-btn pm-recent-remove",
+          type: "button",
+          async onclick() {
+            try {
+              await host.recentsRemove(r.path);
+            } catch {
+              /* ignore */
+            }
+            void loadRecents(container, host);
+          },
+        },
+        "Remove",
       ),
     );
   }
+  return h(
+    "button",
+    { class: "pm-recent", type: "button", title: r.path, onclick: () => openTarget(r.path, host) },
+    h("span", { class: "pm-recent-name" }, r.name || leafOf(r.path)),
+    h("span", { class: "pm-recent-path" }, r.path),
+  );
 }
 
 async function browseOpen(host: ManagerHost): Promise<void> {
@@ -279,6 +381,15 @@ async function createProject(
  *  recents + the open-project context (which sets the window title), tear down the
  *  manager, and boot the editor — which reveals #save-ind last (the gate). */
 async function bootChosen(bundle: ProjectBundle, host: ManagerHost): Promise<void> {
+  // Returning via File ▸ New/Open while a game is already open: reboot cleanly by
+  // reloading with this game queued, rather than re-running boot() over the live
+  // editor (which would double-bind its one-time listeners). The folder already
+  // exists (create/open just succeeded), so the fresh load re-opens it.
+  if (isEditorBooted()) {
+    setPendingOpen(bundle.root);
+    location.reload();
+    return;
+  }
   const project = validateProject(RA.migrateProject(JSON.parse(bundle.document)), "load");
   const displayName = (project.system && project.system.title) || bundle.name;
   try {
