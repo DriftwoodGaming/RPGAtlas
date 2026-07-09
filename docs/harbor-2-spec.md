@@ -395,3 +395,21 @@ manager never mounts).
   node **19** · eslint **0** · typecheck **clean**. Git ritual: branch `harbor-2d` → gates
   green → commit → merge to `main` → delete branch. **Next: phase exit** (patch-notes entry +
   `help.ts`/`shims.d.ts` bump, tag `harbor-2`).
+
+### H2 — phase exit — 2026-07-09
+
+- **Patch note added** (`js/patch-notes.js`, prepended): "RPGAtlas Desktop opens with a Project
+  Manager — make or open a game" (kid-friendly; names the New/Open launcher, the live folder
+  preview, the three templates, recents, the friendly errors, and the window title; notes the
+  web version is unchanged). Cache-buster bumped `patch-notes.js?v=61 → 62` in **both**
+  `src/editor/help.ts` and `src/editor/shims.d.ts` (per AGENTS.md). Product version stays
+  **1.1.0** (bumps to 1.2.0 at H6); `data.js` stays `?v=31`; FORMAT_VERSION stays **2**.
+- **Final gate sweep:** Playwright **83/83** (70 existing **unmodified** + 13 manager) ·
+  vitest **941** · node **19** · eslint **0** · typecheck **clean** · patch-notes `?v=62` ·
+  `editor.css?v=60` · data.js `?v=31`.
+- Git ritual: branch `harbor-2exit` → gates green → commit → merge to `main` → delete branch.
+  **Phase exit: tag `harbor-2`.** H2 delivers the desktop Project Manager launcher (surface,
+  New Project, Open/recents/rewire, and the `?fakehost` test hook), all behind
+  `managerActive()` so the browser build is byte-identical. **H3 (project-scoped saving &
+  playtest) is cleared** — it rebinds desktop autosave to `<root>/game.rpgatlas` via
+  `project_save` (the H2 open-project context already carries the `root` it needs).

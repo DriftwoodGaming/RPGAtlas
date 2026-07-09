@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 9, 2026",
+    title: "RPGAtlas Desktop opens with a Project Manager — make or open a game",
+    summary:
+      "The desktop app now works like the big game-makers: instead of dropping you straight into the editor, it opens a friendly launcher where you make a brand-new game or open one you already have. Making a game asks for a name (and shows you the exact folder it will create — “My Game!!!” becomes “My Game” before your eyes), lets you pick where it lives, and lets you start from an Empty map, the Starter game, or the Atlas Quest sample. Your recent games are one click away, and if you ever move or delete a game's folder the launcher says so kindly instead of breaking. Once you pick a game, the editor opens just like before — and the window title now shows your game's name. (The web version is unchanged.)",
+    items: [
+      "New: a Project Manager launcher on the desktop app — big “New Project” and “Open Project” buttons plus your recent games.",
+      "New Project: type a name and watch the live preview show the safe folder name; choose where to save it; start from Empty map, Starter game, or the Atlas Quest sample.",
+      "Open Project: reopen a recent game in one click, or Browse to your game's folder.",
+      "Friendly by design: “You already have a game with that name here”, “That folder isn't an RPGAtlas game”, and “We can't find this game anymore” (with a Remove button) replace any scary errors.",
+      "File ▸ New Project / Open Project now take you back to the launcher, and the window title reads “<Your Game> — RPGAtlas”.",
+    ],
+  },
+  {
+    date: "July 9, 2026",
     title: "A damaged map can't lock you out of the editor anymore",
     summary:
       "A field report (fixed by community contributor baz — thank you!): a project holding a map that was missing one of its invisible layers (shadows, passability, heights, or regions) crashed the editor on every launch, and the only way back in was restoring the whole project. Now every project heals those layers automatically the moment it loads — saved projects, RPG Maker imports, and playtests alike. And if the editor ever does hit a startup problem, you get a plain-language recovery screen with Reload and Reset buttons instead of a blank window.",
