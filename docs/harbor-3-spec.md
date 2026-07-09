@@ -350,3 +350,24 @@ post-1.2.0 stretch, per roadmap H3·C).
   map 1 untouched. No patch-notes entry yet (phase exit adds it). Git ritual: branch
   `harbor-3c` → gates green → commit → merge to `main` → delete branch. **Next: phase exit**
   (patch-notes entry + `help.ts`/`shims.d.ts` cache-buster bump, tag `harbor-3`).
+
+### H3 — phase exit — 2026-07-09
+
+- **Patch note added** (`js/patch-notes.js`, prepended): "Your desktop game saves right into
+  its own folder now" (kid-friendly; names the autosave-into-the-folder rebind, safe/atomic
+  saves + the backup folder, crash recovery, external-change detection, and that Export still
+  makes a shareable single-file copy while Playtest is unchanged; notes the web version is
+  unchanged). Cache-buster bumped `patch-notes.js?v=62 → 63` in **both** `src/editor/help.ts`
+  and `src/editor/shims.d.ts` (per AGENTS.md). Product version stays **1.1.0** (bumps to 1.2.0
+  at H6); `editor.css` stays `?v=60`; `data.js` stays `?v=31`; FORMAT_VERSION stays **2**.
+- **Final gate sweep:** vitest **952** · node **19** · Playwright **91/91** (70 existing
+  **unmodified** + 21 manager) · eslint **0** · typecheck **clean** · patch-notes `?v=63` ·
+  `editor.css?v=60` · `data.js?v=31`.
+- Git ritual: branch `harbor-3exit` → gates green → commit → merge to `main` → delete branch.
+  **Phase exit: tag `harbor-3`.** H3 delivers project-scoped saving — desktop autosave writes
+  `<root>/game.rpgatlas` (atomic + rolling backup) with localStorage demoted to a
+  crash-recovery mirror, external-change detection + crash recovery on top, and the playtest
+  bridge preserved — all behind `folderRoot` so the browser build is byte-identical. **H4
+  (per-project assets: drop folders & auto-discovery) is cleared** — it rescopes the desktop
+  AssetStore to the open project's `assets/`, which the folder root H3 threads through already
+  supports.

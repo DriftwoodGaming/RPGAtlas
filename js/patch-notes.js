@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 9, 2026",
+    title: "Your desktop game saves right into its own folder now",
+    summary:
+      "On the desktop app, your game now saves straight into its project folder — the game.rpgatlas file updates by itself as you work, exactly like the big game-makers. There's no more “save to a file” step to remember: your folder IS your game. Every save is written safely (so a crash mid-save can never scramble it), and the app quietly keeps the last few versions in a backup folder in case you ever want to step back. If your computer ever shuts down before a save finishes, RPGAtlas notices next time and offers to bring your unsaved changes back. And if you (or another program) change the game's file outside the editor, RPGAtlas spots it when you come back and offers to load the newer version. Playtest still works exactly as before, and “Export” still makes a shareable single-file copy with all its pictures and sounds baked in. (The web version is unchanged.)",
+    items: [
+      "New: on the desktop app, editing autosaves into your project folder's game.rpgatlas — no more first-time “Save As”. Ctrl+S still saves right now.",
+      "Safe saves: each save is written atomically and the last few versions are kept in a backup folder, so a crash can't scramble your game.",
+      "Crash recovery: if a save didn't finish last time, RPGAtlas offers to “Bring your changes back” when you reopen the game.",
+      "Changed outside the editor? When the game's file changes on your computer, RPGAtlas offers to load the newer version — or keep yours.",
+      "Export ▸ Export Project As File still makes a shareable single-file copy with pictures and sounds embedded; Playtest is unchanged.",
+    ],
+  },
+  {
+    date: "July 9, 2026",
     title: "RPGAtlas Desktop opens with a Project Manager — make or open a game",
     summary:
       "The desktop app now works like the big game-makers: instead of dropping you straight into the editor, it opens a friendly launcher where you make a brand-new game or open one you already have. Making a game asks for a name (and shows you the exact folder it will create — “My Game!!!” becomes “My Game” before your eyes), lets you pick where it lives, and lets you start from an Empty map, the Starter game, or the Atlas Quest sample. Your recent games are one click away, and if you ever move or delete a game's folder the launcher says so kindly instead of breaking. Once you pick a game, the editor opens just like before — and the window title now shows your game's name. (The web version is unchanged.)",
