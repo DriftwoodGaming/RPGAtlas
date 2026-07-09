@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 9, 2026",
+    title: "Your pictures and sounds live in your game's folder now",
+    summary:
+      "On the desktop app, your game's art and audio now live right inside your game's folder — in plain \"assets\" folders (characters, facesets, enemies, tilesets, audio) you can see and open. The best part: just copy a picture or a sound into the matching folder with your file manager, switch back to the editor, and it's there — no importing, no dialogs. Big tile sheets still open the friendly 48-tile slicer, and duplicates are still skipped automatically. Your files stay exactly where you put them: renaming or deleting an asset in the editor never moves or erases the real file. If a file goes missing, the Asset Browser says so kindly instead of breaking — put it back and it heals itself. And because everything a game needs is now in one folder, you can zip it, move it to another computer, and open it — all the art and music come along. (Opening an older desktop game tidily brings its pictures and sounds into the new folder for you. The web version is unchanged.)",
+    items: [
+      "New: copy a picture or sound into your game's assets folder (assets/characters, assets/tilesets, …) and it appears in the editor on its own when you come back — or click “Scan for New Files”.",
+      "Your files stay put: the editor references them where they are and never moves, renames, or deletes them. Renaming an asset only changes its name in the editor.",
+      "Big tile sheets still open the 48px slicer with the same “that's a lot of tiles!” safety check; identical files are skipped automatically.",
+      "Missing a picture or sound? The Asset Browser shows a friendly “missing” card instead of breaking — put the file back and it comes home.",
+      "Your whole game is one folder now: zip it, move it, reopen it elsewhere and every picture and sound loads. New “Open Project Folder” button in the Asset Browser.",
+    ],
+  },
+  {
+    date: "July 9, 2026",
     title: "Your desktop game saves right into its own folder now",
     summary:
       "On the desktop app, your game now saves straight into its project folder — the game.rpgatlas file updates by itself as you work, exactly like the big game-makers. There's no more “save to a file” step to remember: your folder IS your game. Every save is written safely (so a crash mid-save can never scramble it), and the app quietly keeps the last few versions in a backup folder in case you ever want to step back. If your computer ever shuts down before a save finishes, RPGAtlas notices next time and offers to bring your unsaved changes back. And if you (or another program) change the game's file outside the editor, RPGAtlas spots it when you come back and offers to load the newer version. Playtest still works exactly as before, and “Export” still makes a shareable single-file copy with all its pictures and sounds baked in. (The web version is unchanged.)",

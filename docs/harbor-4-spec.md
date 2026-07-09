@@ -434,3 +434,39 @@ one `runProjectScan()` with a re-entrancy guard (the existing `scanning` flag pa
   branch `harbor-4c` → gates green → commit → merge to `main` → delete branch. **Next: phase
   exit** (patch-notes entry + `help.ts`/`shims.d.ts` + `editor.css` cache-buster bump, tag
   `harbor-4`).
+
+### H4 — phase exit — 2026-07-09
+
+- **Patch note added** (`js/patch-notes.js`, prepended): "Your pictures and sounds live in
+  your game's folder now" (kid-friendly; names the visible `assets/` drop folders, the
+  copy-a-file-and-it-appears auto-discovery + Scan, the 48px slicer + dedupe safeguards,
+  the never-move/never-delete promise, the friendly "missing" state, the zip→move→reopen
+  self-containment + Open Project Folder, and the one-time tidy-up when opening an older
+  desktop game; notes the web version is unchanged). Cache-buster bumped
+  `patch-notes.js?v=63 → 64` in **both** `src/editor/help.ts` and `src/editor/shims.d.ts`;
+  `css/editor.css?v=60 → 61` in `index.html` for the H4·B/C `.ab-missing*` + project-banner
+  styles (per AGENTS.md / trap 8). Product **version stays 1.1.0** (bumps to 1.2.0 at H6);
+  `data.js` stays `?v=31`; **FORMAT_VERSION stays 2**.
+- **Determinism fix (found in the exit sweep).** Under full-suite CPU contention two
+  project-assets specs flaked: a focus-driven scan could overlap a Scan-button scan and the
+  module re-entrancy guard silently **dropped** the second request, so a post-delete scan
+  never ran. `runProjectScan` now **coalesces** an overlapping request into one guaranteed
+  re-run afterwards (the proven `saveToFolder` queue pattern) — a Scan/focus always reflects
+  the newest folder state — and the README poll got a generous timeout. Verified stable over
+  `--repeat-each=5 --workers=3` (30/30).
+- **Final gate sweep:** vitest **968** · node **19** · cargo **19** · Playwright **97/97**
+  (70 original browser specs **unmodified** + 21 manager (H2/H3) + 6 project-assets (H4)) ·
+  eslint **0** · typecheck **clean** · patch-notes `?v=64` · `editor.css?v=61` ·
+  `data.js?v=31`.
+- **Self-contained check (the exit criterion), by construction:** a project's `assets/`
+  files are referenced in place and its derived tiles live in `.atlas/cache/` — both inside
+  the folder — so zipping/moving/reopening carries every picture and sound (the fake-host
+  e2e round-trips the index + in-place files + cache through the same store). Files the
+  child put in `assets/` are never moved or deleted by a scan, rename, or delete.
+- Git ritual: branch `harbor-4exit` → gates green → commit → merge to `main` → delete
+  branch. **Phase exit: tag `harbor-4`.** H4 delivers per-project assets — the desktop
+  library lives inside the open game's folder (in-place `assets/` + `.atlas/`), files copied
+  in are auto-discovered on open/focus/Scan with the slicer safeguards intact, missing files
+  degrade friendly, and the folder is fully self-contained — all behind `openFolderRoot()`
+  so the browser build is byte-identical. The desktop half ships at H6's exe rebuild (trap
+  6). **H5 (launch from the project folder) is cleared.**

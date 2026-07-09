@@ -32,6 +32,7 @@ import type { AssetMeta } from "../../shared/services";
 const IMAGE_TYPES = new Set(["characters", "facesets", "enemies", "tilesets"]);
 
 let scanning = false;
+let rescanQueued = false;
 const missingKeys = new Set<string>();
 const listeners = new Set<() => void>();
 
@@ -120,14 +121,12 @@ async function reimportChanged(root: string, s: ScannedFile, file: File, hash: s
   return false;
 }
 
-/** Scan assets/, import anything new/changed, and recompute the missing set. Returns a
- *  summary (or null when there's no folder game / the editor isn't up / a scan is running).
- *  Re-entrancy-guarded, so a focus event mid-scan (or mid-slicer-modal) is ignored. */
-export async function runProjectScan(): Promise<{ added: number; changed: number; missing: number } | null> {
+/** One full pass: scan assets/, import anything new/changed, recompute the missing set,
+ *  and notify subscribers. Callers go through `runProjectScan`, which serializes passes. */
+async function scanOnce(): Promise<{ added: number; changed: number; missing: number } | null> {
   const root = openFolderRoot();
-  if (!root || !isEditorBooted() || scanning) return null;
-  scanning = true;
-  try {
+  if (!root || !isEditorBooted()) return null;
+  {
     let scanned: ScannedFile[];
     try {
       scanned = await activeManagerHost().assetsScan(root);
@@ -177,9 +176,31 @@ export async function runProjectScan(): Promise<{ added: number; changed: number
     if (added || changed) touch();
     notifyChanged();
     return { added, changed, missing: plan.missing.length };
+  }
+}
+
+/** Scan assets/, importing anything new/changed and recomputing the missing set. Serialized:
+ *  a scan requested while one is running is coalesced into a single re-run afterwards (never
+ *  dropped), so a Scan-button click or a focus event always reflects the newest folder state
+ *  — even if it lands mid-scan (or mid-slicer-modal). Returns the last pass's summary, or null
+ *  when there's no folder game / the editor isn't up / the request was coalesced. */
+export async function runProjectScan(): Promise<{ added: number; changed: number; missing: number } | null> {
+  if (!projectScanAvailable() || !isEditorBooted()) return null;
+  if (scanning) {
+    rescanQueued = true;
+    return null;
+  }
+  scanning = true;
+  let res: { added: number; changed: number; missing: number } | null = null;
+  try {
+    do {
+      rescanQueued = false;
+      res = await scanOnce();
+    } while (rescanQueued);
   } finally {
     scanning = false;
   }
+  return res;
 }
 
 let focusInstalled = false;
