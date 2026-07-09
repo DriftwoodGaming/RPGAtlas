@@ -44,6 +44,12 @@ export interface ManagerHost {
    *  up front" behavior is e2e-covered. */
   exists?(path: string): Promise<boolean>;
 
+  /** The project path the exe was launched with (a `.rpgatlas` association or
+   *  `RPGAtlas.exe <path>`, Project Harbor H5·A), read-and-cleared once so a later
+   *  reload never re-triggers it. `null` = launched plainly → show the launcher.
+   *  Absent on hosts that can't be launched with a path (never on the pure browser). */
+  takeLaunchPath?(): Promise<string | null>;
+
   // --- Per-project asset filesystem (Project Harbor H4·A) -------------------
   // The per-project AssetStore (src/platform/project-asset-store.ts) talks to these,
   // so it works under real desktop AND the ?fakehost test host — the same real-vs-fake
@@ -115,6 +121,7 @@ const realManagerHost: ManagerHost = {
   recentsTouch: (path, name) => projectHost.recentsTouch(path, name),
   recentsRemove: (path) => projectHost.recentsRemove(path),
   reveal: (root) => projectHost.reveal(root),
+  takeLaunchPath: () => projectHost.takeLaunchPath(),
   async pickDirectory() {
     const res = await tauriDialog().open({
       directory: true,

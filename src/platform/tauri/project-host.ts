@@ -97,6 +97,14 @@ export const projectHost = {
     return call<void>("project_reveal", { root });
   },
 
+  // --- Launch from a project (Project Harbor H5·A) --------------------------
+  // The path the exe was launched with (a `.rpgatlas` association or
+  // `RPGAtlas.exe <path>`), read-and-cleared once. `null` when the app was
+  // started plainly (no path), so boot shows the Project Manager as usual.
+  takeLaunchPath(): Promise<string | null> {
+    return call<string | null>("take_launch_path");
+  },
+
   // --- Per-project asset filesystem (Project Harbor H4·A) -------------------
   // The per-project AssetStore (src/platform/project-asset-store.ts) drives these;
   // they mirror src-tauri/src/project_assets.rs. Args are camelCase over IPC.
