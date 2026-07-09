@@ -110,3 +110,52 @@ test.describe("Per-project assets — legacy bridge (H4·A)", () => {
     expect(keys).toContain("asset:characters/hero");
   });
 });
+
+test.describe("Per-project assets — auto-discovery (H4·B)", () => {
+  test("a file copied into assets/ appears on window focus (alt-tab back)", async ({ page }) => {
+    await newGame(page, "Discover");
+    const root = "/Games/Discover";
+
+    // Simulate the child pasting a battler PNG into assets/enemies/ with their file manager.
+    await page.evaluate(
+      ({ r, png }) => window.__ATLAS_TEST_HOST__.seedAssetFile(r, "assets/enemies/goblin.png", png),
+      { r: root, png: PNG_B64 },
+    );
+    // Alt-tab back to the editor → the focus scan discovers and imports it in place.
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+
+    await expect
+      .poll(async () =>
+        page.evaluate((r) => {
+          const idx = window.__ATLAS_TEST_HOST__.readAssetIndex(r);
+          const hit = idx.find((m) => m.key === "asset:enemies/goblin");
+          return hit ? hit.relPath : null;
+        }, root),
+      )
+      .toBe("assets/enemies/goblin.png");
+  });
+
+  test("the Scan button finds a new file; deleting it shows a friendly missing state", async ({ page }) => {
+    await newGame(page, "Scanned");
+    const root = "/Games/Scanned";
+
+    await page.locator("#menus .menu-label", { hasText: "Tools" }).click();
+    await page.locator(".menu-item", { hasText: "Asset Browser" }).click();
+    await expect(page.locator(".assetbrowser")).toBeVisible();
+
+    // A faceset PNG appears in the folder; the Scan button pulls it in.
+    await page.evaluate(
+      ({ r, png }) => window.__ATLAS_TEST_HOST__.seedAssetFile(r, "assets/facesets/face.png", png),
+      { r: root, png: PNG_B64 },
+    );
+    await page.locator(".ab-dropbtns button", { hasText: "Scan for New Files" }).click();
+    await expect(page.locator(".ab-card .ab-name", { hasText: "face" })).toBeVisible();
+
+    // The child deletes the file from disk → a re-scan degrades it to a friendly
+    // "missing" card (the entry survives; putting the file back would heal it).
+    await page.evaluate((r) => window.__ATLAS_TEST_HOST__.deleteAssetFile(r, "assets/facesets/face.png"), root);
+    await page.locator(".ab-dropbtns button", { hasText: "Scan for New Files" }).click();
+    await expect(page.locator(".ab-badge.missing")).toBeVisible();
+    await expect(page.locator(".ab-missing-note")).toContainText("missing");
+  });
+});

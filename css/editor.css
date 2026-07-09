@@ -887,6 +887,12 @@ button.danger:hover { background: #6a3636; }
 .ab-badges { display: flex; gap: 4px; }
 .ab-badge { font-size: 10px; padding: 0 6px; border-radius: 8px; background: rgba(255,255,255,.08); color: var(--text-dim); }
 .ab-badge.used { background: rgba(72,160,96,.25); color: #9fe0b0; }
+/* Project Harbor H4·B: an asset whose file vanished from assets/ (MISSING_ASSET). */
+.ab-badge.missing { background: rgba(224,138,72,.28); color: #f0c088; }
+.ab-card-missing { outline: 1px solid rgba(224,138,72,.45); }
+.ab-thumb.ab-missing { background: rgba(224,138,72,.1); }
+.ab-missing-icon { font-size: 26px; opacity: .7; }
+.ab-missing-note { color: #f0c088; white-space: normal; font-size: 11px; }
 .ab-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: auto; }
 .ab-foot { border-top: 1px solid var(--line-2); padding-top: 6px; font-size: 11px; }
 

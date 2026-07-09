@@ -16,6 +16,14 @@ import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 import { wizardImport } from "../importers/import-wizard";
 import { dropFolderAvailable, importFolderPath, revealImportFolder, scanImportFolder } from "./asset-dropbox";
+// Project Harbor H4·B: when a folder game is open, the Scan button and the missing-asset
+// state are driven by the per-project assets/ auto-discovery, not the app-data inbox.
+import {
+  projectScanAvailable,
+  runProjectScan,
+  currentMissingKeys,
+  onProjectAssetsChanged,
+} from "./project-scan";
 import {
   ASSET_TYPES,
   importAssets,
@@ -31,6 +39,7 @@ import {
   assetUrl,
 } from "../../shared/asset-library";
 import type { AssetMeta } from "../../shared/services";
+import { MISSING_ASSET_COPY } from "../../shared/project-errors";
 
 const TYPE_LABELS: Record<string, string> = {
   all: "All",
@@ -196,6 +205,29 @@ export function openAssetBrowser() {
   }
 
   async function scanFolder(announce = false) {
+    // Project Harbor H4·B: a folder game scans its own assets/ (in place) — the app-data
+    // inbox path below is the legacy fallback (no project open on desktop).
+    if (projectScanAvailable()) {
+      if (scanning) return;
+      scanning = true;
+      try {
+        const res = await runProjectScan();
+        refresh();
+        if (!res) return;
+        const total = res.added + res.changed;
+        dropStatus(total
+          ? "Found " + total + " new or updated file" + (total === 1 ? "" : "s") +
+            (res.missing ? " · " + res.missing + " missing" : "") + "."
+          : (announce
+              ? "No new files found — copy pictures or sounds into your assets folder first."
+              : (res.missing ? res.missing + " file" + (res.missing === 1 ? " is" : "s are") + " missing." : "")));
+      } catch (e: any) {
+        dropStatus("Couldn't read your assets folder: " + ((e && e.message) || e));
+      } finally {
+        scanning = false;
+      }
+      return;
+    }
     if (!dropFolderAvailable() || scanning) return;
     scanning = true;
     try {
@@ -218,7 +250,22 @@ export function openAssetBrowser() {
     }
   }
 
+  // Project Harbor H4·B: a folder game's banner scans its own assets/ folder. The richer
+  // "Open Project Folder" + per-type hints land in H4·C; this is the working Scan button.
+  function buildProjectBanner() {
+    dropStatusEl = h("span", { class: "ab-dropstatus dim" });
+    dropBanner.appendChild(h("div", { class: "ab-dropwrap" },
+      h("div", { class: "ab-droptext" },
+        h("strong", null, "📁 Add your own pictures & sounds"),
+        h("div", { class: "dim" },
+          "Copy files into your game's assets folder (characters, facesets, enemies, tilesets, audio) with your file manager — they show up here on their own when you come back, or click Scan.")),
+      h("div", { class: "ab-dropbtns" },
+        h("button", { class: "mini", onclick() { scanFolder(true); } }, "Scan for New Files"),
+        dropStatusEl)));
+  }
+
   function buildDropBanner() {
+    if (projectScanAvailable()) { buildProjectBanner(); return; }
     if (!dropFolderAvailable()) return;
     dropStatusEl = h("span", { class: "ab-dropstatus dim" });
     const pathLine = h("code", { class: "ab-droppath", title: "Copy files into the matching sub-folder here" }, "locating folder…");
@@ -395,7 +442,11 @@ export function openAssetBrowser() {
     }
   }
 
-  function thumbFor(meta: AssetMeta, srcByKey: Map<string, string>): any {
+  function thumbFor(meta: AssetMeta, srcByKey: Map<string, string>, missing: boolean): any {
+    if (missing) {
+      return h("div", { class: "ab-thumb ab-missing", title: MISSING_ASSET_COPY.body },
+        h("span", { class: "ab-missing-icon" }, "⚠"));
+    }
     if (meta.type === "audio") {
       return h("div", { class: "ab-thumb ab-audio" },
         h("span", { class: "ab-note" }, "♪"),
@@ -408,10 +459,10 @@ export function openAssetBrowser() {
     return box;
   }
 
-  function card(meta: AssetMeta, used: Set<string>, srcByKey: Map<string, string>): any {
+  function card(meta: AssetMeta, used: Set<string>, srcByKey: Map<string, string>, missing = false): any {
     const inUse = used.has(meta.key);
     const actions = h("div", { class: "ab-actions" });
-    if (meta.type === "audio") {
+    if (meta.type === "audio" && !missing) {
       actions.appendChild(h("button", { class: "mini", async onclick() {
         if (previewKey === meta.key) { stopPreview(); return; }
         stopPreview();
@@ -462,15 +513,19 @@ export function openAssetBrowser() {
       });
     } }, "Delete"));
 
-    return h("div", { class: "ab-card", title: meta.key },
-      thumbFor(meta, srcByKey),
+    return h("div", { class: "ab-card" + (missing ? " ab-card-missing" : ""), title: meta.key },
+      thumbFor(meta, srcByKey, missing),
       h("div", { class: "ab-name" }, meta.name),
-      h("div", { class: "ab-meta dim" },
-        (meta.meta && meta.meta.charset === false ? "Sheet" : TYPE_LABELS[meta.type]) + " · " + fmtBytes(meta.bytes) +
-        (meta.w ? " · " + meta.w + "×" + meta.h : "")),
+      missing
+        ? h("div", { class: "ab-meta ab-missing-note" }, MISSING_ASSET_COPY.title + " — " + MISSING_ASSET_COPY.body)
+        : h("div", { class: "ab-meta dim" },
+            (meta.meta && meta.meta.charset === false ? "Sheet" : TYPE_LABELS[meta.type]) + " · " + fmtBytes(meta.bytes) +
+            (meta.w ? " · " + meta.w + "×" + meta.h : "")),
       (meta.tags || []).length ? h("div", { class: "ab-cardtags dim" }, (meta.tags || []).join(", ")) : null,
       h("div", { class: "ab-badges" },
-        inUse ? h("span", { class: "ab-badge used" }, "in project") : h("span", { class: "ab-badge" }, "unused")),
+        missing ? h("span", { class: "ab-badge missing" }, "missing")
+          : inUse ? h("span", { class: "ab-badge used" }, "in project")
+            : h("span", { class: "ab-badge" }, "unused")),
       actions);
   }
 
@@ -501,7 +556,8 @@ export function openAssetBrowser() {
       // quadratic once a sliced-sheet import put thousands of tiles in here.
       const srcByKey = new Map<string, string>(
         libraryImageEntries().map((e: any) => [e.key, e.src]));
-      for (const meta of list) grid.appendChild(card(meta, used, srcByKey));
+      const missing = projectScanAvailable() ? currentMissingKeys() : null;
+      for (const meta of list) grid.appendChild(card(meta, used, srcByKey, !!missing && missing.has(meta.key)));
       // Recovering from an oversliced import means deleting thousands of
       // tiles — give the Unused-only view a one-click cleanup.
       if (unusedOnly && list.length > 1) {
@@ -539,9 +595,16 @@ export function openAssetBrowser() {
 
   // Re-scan the drop-folders whenever the window regains focus (e.g. after the
   // user alt-tabs to Explorer, pastes files, and comes back), so new files show
-  // up on their own. Scoped to while the browser is open, then torn down.
+  // up on their own. Scoped to while the browser is open, then torn down. For a
+  // folder game (H4·B) the editor-wide focus scan already runs; the browser only
+  // needs to REFRESH when that background scan changes the library.
   const onFocus = () => { scanFolder(); };
-  if (dropFolderAvailable()) window.addEventListener("focus", onFocus);
+  let unsubProject: (() => void) | null = null;
+  if (projectScanAvailable()) {
+    unsubProject = onProjectAssetsChanged(() => refresh());
+  } else if (dropFolderAvailable()) {
+    window.addEventListener("focus", onFocus);
+  }
 
   modal({
     title: "Asset Browser",
@@ -551,9 +614,11 @@ export function openAssetBrowser() {
     onClose() {
       stopPreview();
       window.removeEventListener("focus", onFocus);
+      if (unsubProject) unsubProject();
     },
   });
   refresh();
-  // Pick up anything already sitting in the drop-folders when the browser opens.
+  // Pick up anything already sitting in the assets/ folder (or the app-data inbox)
+  // when the browser opens.
   scanFolder();
 }
