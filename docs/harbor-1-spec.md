@@ -436,3 +436,53 @@ oversliced-library safeguards — trap 5: 48px default, overslice warnings, batc
   §1.1/§1.2 resolutions and the §3.1 template-agnostic design are confirmed as the contract.
 - Docs-only edit, committed straight to `main` (gate ritual; code gates unaffected).
   **H1·B is cleared to start.**
+
+### H1·B — Rust project commands — 2026-07-09
+
+- **New guard module `src-tauri/src/project_paths.rs`** (§2): owns the tagged error
+  taxonomy (`ProjectErrorCode` serialized SCREAMING_SNAKE + `ProjectError { code, detail }`),
+  the `std::io::Error → code` mapper (`map_io`), and the four guard functions —
+  `canonical_root` (`dunce::canonicalize`, existing dir), `validate_component`
+  (rejects empty/`.`/`..`/separators/colon/NUL/control/absolute/trailing-dot-or-space/
+  reserved-device), `contained_join` (validate each segment, join, then canonicalize the
+  deepest existing ancestor and assert `starts_with(root)` — the symlink-escape defense),
+  and `resolve_target` (a `…/game.rpgatlas` file resolves to its parent; a folder to
+  itself). **Disk-full** is detected via `raw_os_error` (`ENOSPC` / Windows 112/39), per the
+  gate's non-binding MSRV note (no `ErrorKind::StorageFull` on 1.77.2). `dunce = "1"` added
+  to `Cargo.toml` (already resolved transitively).
+- **New command module `src-tauri/src/project.rs`**: the seven commands from §3 —
+  `project_create` / `project_open` / `project_save` / `recents_list` / `recents_touch` /
+  `recents_remove` / `project_reveal`, plus `ProjectBundle { root, name, document }`, an
+  `atomic_write` (tmp-then-rename, `game.rpgatlas.tmp` sibling — not `with_extension`), and
+  rolling backups. Wired into `lib.rs` (module decls + `invoke_handler`); `reveal_path` made
+  `pub(crate)` for `project_reveal` to reuse. **No new Tauri capability** (uses `std::fs` +
+  the guard, like `library_*`).
+- **All four binding amendments implemented:**
+  1. `project_create` is all-or-nothing — it `std::fs::create_dir`s the root, and on **any**
+     failure of `canonical_root`+`scaffold` best-effort `remove_dir_all`s exactly that root
+     (a pre-existing folder short-circuits to `FOLDER_EXISTS` before anything is written).
+  2. The per-project `assets/` README (`ASSETS_README`) is an in-place rewrite — "Your files
+     STAY right here… RPGAtlas never moves, renames, or deletes them"; a test asserts it does
+     **not** contain "Imported".
+  3. Backups are `game-<epoch_ms>.rpgatlas.backup` under `.atlas/backup/`, pruned to the 5
+     newest by mtime; best-effort (a backup failure never blocks the save).
+  4. The `MISSING_ASSET` copy is H1·C's `project-errors.ts` concern (carried there); the Rust
+     command-error union stays exactly the eight §6 codes.
+- **`scaffold` writes** the full tree (§1): `assets/` + five subfolders + README, `.atlas/` +
+  empty `library.json` (`[]`) + `cache/` + `backup/`, `.gitignore`, and `game.rpgatlas` (last,
+  atomic). `saves/` is deliberately **not** created (deferred). `library.json` and
+  `game.rpgatlas` are atomic (tmp-then-rename).
+- **Tests (`cargo test --lib`): 12 passing** — 7 guard (traversal/separators/reserved-name
+  rejection, nested-accept + escape-reject, under-root, resolve-target file→parent, missing→
+  MISSING) + 5 command (full-tree scaffold incl. README wording + no `saves/`, open→
+  NOT_A_PROJECT then folder/file round-trip, save atomic + backup rolled, prune keeps 5,
+  create→FOLDER_EXISTS without clobber). Recents commands need an `AppHandle`, so their logic
+  is covered by the shared TS core (H1·C `recents.ts`) + devtools round-trip per §3.
+- **Gates:** `cargo test` 12/12, `cargo build` **0 warnings** (the H5-reserved
+  `SecondInstance` variant is `#[allow(dead_code)]`). Frontend untouched → vitest **917** ·
+  node **19** · eslint **0** · typecheck **clean**, all at baseline. Playwright not re-run: a
+  native-only change with no frontend edit and no exe rebuild cannot affect the browser suite
+  (same rationale as the H1·A docs-only entry). No patch-notes entry (nothing user-visible).
+- Git ritual: branch `harbor-1b` → gates green → commit → merge to `main` → delete branch.
+  **Next: H1·C** (host.js project surface + `project-host.ts` façade + the four `src/shared`
+  pure cores with vitest).

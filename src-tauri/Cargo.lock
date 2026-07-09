@@ -2465,6 +2465,7 @@ name = "rpgatlas"
 version = "1.1.0"
 dependencies = [
  "base64 0.22.1",
+ "dunce",
  "serde",
  "serde_json",
  "tauri",

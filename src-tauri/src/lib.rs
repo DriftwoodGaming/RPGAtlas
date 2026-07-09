@@ -10,6 +10,13 @@ use std::path::PathBuf;
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_dialog::DialogExt;
 
+// Project Harbor (H1·B): real project folders. `project_paths` owns the
+// canonicalize-and-contain path guard + tagged error taxonomy; `project` holds the
+// project_create/open/save, recents, and reveal commands built on it. No UI wiring
+// lands this phase — H2 consumes these. See docs/harbor-1-spec.md.
+mod project;
+mod project_paths;
+
 /// Save the editor's project JSON to a user-chosen file. Returns the chosen
 /// path, or `None` if the user cancelled the dialog.
 #[tauri::command]
@@ -339,8 +346,9 @@ fn free_path(dir: &std::path::Path, name: &str) -> PathBuf {
 
 /// Open a folder in the OS file manager. Uses the platform's own launcher (no
 /// extra Tauri plugin/permission needed); we spawn and don't wait, since some
-/// launchers return a nonzero exit code even on success.
-fn reveal_path(path: &std::path::Path) -> Result<(), String> {
+/// launchers return a nonzero exit code even on success. `pub(crate)` so the
+/// project commands (project.rs, `project_reveal`) reuse it.
+pub(crate) fn reveal_path(path: &std::path::Path) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     let spawned = std::process::Command::new("explorer").arg(path).spawn();
     #[cfg(target_os = "macos")]
@@ -458,7 +466,14 @@ pub fn run() {
             library_set_meta,
             library_import_dir,
             library_reveal_import,
-            library_scan_import
+            library_scan_import,
+            project::project_create,
+            project::project_open,
+            project::project_save,
+            project::recents_list,
+            project::recents_touch,
+            project::recents_remove,
+            project::project_reveal
         ])
         .run(tauri::generate_context!())
         .expect("error while running RPGAtlas");
