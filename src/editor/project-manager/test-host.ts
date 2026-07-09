@@ -121,11 +121,16 @@ export interface FakeHost extends ManagerHost {
   /** Queue the project path a launch (double-click / `exe <path>`) hands the app (H5·A).
    *  Read-and-cleared by `takeLaunchPath`, exactly like the real command. */
   setLaunchPath(path: string | null): void;
+  /** Fire a "second launch wants this game" event (H5·B), standing in for the native
+   *  single-instance callback's `atlas://open-project`. Invokes the manager's listener. */
+  emitOpenProject(path: string): void;
 }
 
 function makeFakeHost(): FakeHost {
   let nextDirectory: string | null = null;
   let nextFolder: string | null = null;
+  // The single listener the manager installs for second-launch open requests (H5·B).
+  let openRequestCb: ((path: string) => void) | null = null;
 
   const docs = () => readJson<Record<string, string>>(DOCS_KEY, {});
   const setDocs = (d: Record<string, string>) => writeJson(DOCS_KEY, d);
@@ -210,6 +215,9 @@ function makeFakeHost(): FakeHost {
       } catch {
         return null;
       }
+    },
+    onOpenProjectRequest(cb) {
+      openRequestCb = cb;
     },
 
     // --- H4·A per-project asset filesystem ---------------------------------
@@ -361,6 +369,9 @@ function makeFakeHost(): FakeHost {
       } catch {
         /* storage may be unavailable */
       }
+    },
+    emitOpenProject(path) {
+      if (openRequestCb) openRequestCb(path);
     },
     reset() {
       try {

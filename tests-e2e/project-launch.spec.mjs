@@ -87,3 +87,74 @@ test.describe("Launch from a project — argv / double-click (H5·A)", () => {
     await expect(page.locator("#save-ind")).toBeHidden();
   });
 });
+
+test.describe("Launch from a project — second launch / single instance (H5·B)", () => {
+  const A = "/Games/Game A";
+  const B = "/Games/Game B";
+
+  const folderDoc = (page, root) =>
+    page.evaluate((r) => JSON.parse(localStorage.getItem("atlas.fakehost.docs"))[r], root);
+
+  test("a second launch opens the requested game, flushing the current one first", async ({ page }) => {
+    await gotoWithLaunch(page, {
+      recents: [{ name: "Game A", path: A, lastOpened: 1 }],
+      docs: { [A]: docTitled("Game A"), [B]: docTitled("Game Beta") },
+    });
+    // Boot Game A from recents.
+    await page.locator(".pm-recent", { hasText: "Game A" }).click();
+    await expect(page).toHaveTitle("Game A — RPGAtlas");
+    await expect(page.locator("#save-ind")).toHaveText(/^✓ /);
+
+    // Make an UNSAVED edit to A (paint a tile), so we can prove the guard flushes it.
+    const seedA = await folderDoc(page, A);
+    const palette = page.locator("#palette");
+    const map = page.locator("#mapcanvas");
+    const pBox = await palette.boundingBox();
+    await page.mouse.click(pBox.x + pBox.width * 0.5, pBox.y + 8);
+    const mBox = await map.boundingBox();
+    await page.mouse.click(mBox.x + 10, mBox.y + 10);
+    await expect(page.locator("#save-ind")).toHaveText(/^● /); // dirty, autosave not flushed
+
+    // A SECOND launch (single-instance callback) asks to open Game B — while A is dirty.
+    await page.evaluate((b) => window.__ATLAS_TEST_HOST__.emitOpenProject(b), B);
+
+    // The window switches cleanly into Game B (no orphan overlay, gate opens on B).
+    await expect(page.locator(".pm-overlay")).toHaveCount(0);
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Game Beta — RPGAtlas");
+
+    // The unsaved-work guard flushed A's paint into A's folder BEFORE the switch.
+    expect(await folderDoc(page, A)).not.toBe(seedA);
+  });
+
+  test("a second launch while on the launcher boots straight into the game", async ({ page }) => {
+    // No game open yet — the launcher is showing.
+    await gotoWithLaunch(page, { docs: { [B]: docTitled("Game Beta") } });
+    await expect(page.locator(".pm-overlay")).toBeVisible();
+    await expect(page.locator("#save-ind")).toBeHidden();
+
+    await page.evaluate((b) => window.__ATLAS_TEST_HOST__.emitOpenProject(b), B);
+
+    // Boots in place (no game was open to guard/reload).
+    await expect(page.locator(".pm-overlay")).toHaveCount(0);
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Game Beta — RPGAtlas");
+  });
+
+  test("a bad second-launch path leaves the open game untouched", async ({ page }) => {
+    await gotoWithLaunch(page, {
+      recents: [{ name: "Game A", path: A, lastOpened: 1 }],
+      docs: { [A]: docTitled("Game A") },
+    });
+    await page.locator(".pm-recent", { hasText: "Game A" }).click();
+    await expect(page).toHaveTitle("Game A — RPGAtlas");
+
+    // A second launch points at a game that isn't there.
+    await page.evaluate(() => window.__ATLAS_TEST_HOST__.emitOpenProject("/Games/Nope"));
+
+    // The open game is undisturbed — no launcher pops over it, title/gate hold.
+    await expect(page.locator(".pm-overlay")).toHaveCount(0);
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Game A — RPGAtlas");
+  });
+});

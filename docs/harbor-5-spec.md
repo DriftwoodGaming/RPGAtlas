@@ -175,3 +175,47 @@ Additive specs in `tests-e2e/project-launch.spec.mjs`:
   `editor.css?v=61`, `data.js?v=31`, FORMAT_VERSION 2, version 1.1.0 — all unchanged.
 - Git ritual: branch `harbor-5a` → gates green → commit → merge to `main` → delete branch.
   **Next: H5·B (single instance).**
+
+### H5·B — Single instance — 2026-07-09
+
+**Shipped:** one running instance; a second launch focuses the app and opens the requested
+game, guarding the current one.
+
+- **Rust:** added `tauri-plugin-single-instance = "2"` (Cargo.toml). `lib.rs` registers it
+  **first** (per the plugin's requirement) so it intercepts a second launch before anything
+  else initializes; its callback runs in the already-running process and calls
+  `launch::focus_and_request_open(app, &argv, &cwd)`. That helper (launch.rs) **focuses the
+  predefined `main` window** (`get_webview_window("main")` → unminimize/show/set_focus — we
+  NEVER build a window from a callback, trap 2) and, if the second launch carried a project
+  path (`project_arg_from_args`, reused from H5·A), emits `atlas://open-project` with it. All
+  window ops are best-effort (a focus hiccup never crashes the running editor). No new
+  capability (the callback is Rust-side; the frontend `listen` is covered by `core:default`).
+- **Frontend:**
+  - `manager-host.ts` — optional `onOpenProjectRequest?(cb)` on `ManagerHost`; the real host
+    subscribes via the withGlobalTauri event API (`__TAURI__.event.listen("atlas://open-
+    project")`), a missing API degrading to no-op.
+  - `test-host.ts` — stores the callback (`onOpenProjectRequest`) + an `emitOpenProject(path)`
+    control that invokes it (stands in for the native single-instance callback).
+  - `manager.ts` — `installExternalOpen(host)` wires the listener **once per page load**
+    (`externalOpenInstalled` guard) at the top of `launchManager`, so it is live whether we
+    end on the launcher or the editor. `requestOpenProject(target, host)`: opens the game;
+    if the editor is booted, **flushes the current game's unsaved edits to its folder first**
+    (the unsaved-work guard) then reboots cleanly via `bootChosen` (booted→`setPendingOpen`+
+    reload); on the launcher it boots in place; a bad path leaves an open game untouched and,
+    only when we're on the launcher, shows the friendly Browse-flow note.
+  - `persistence.ts` — `flushFolderNow(): Promise<void>` resolves once the folder-write queue
+    drains (a `folderIdleWaiters` list woken in `saveToFolder`'s `finally`); a no-op resolve
+    on the browser build or when nothing is dirty (the unchanged-content fast path leaves the
+    queue idle). This is the awaitable flush the guard needs — `desktopFlush` is fire-and-
+    forget, which would let a reload race the write and drop the current game's last edits.
+- **e2e (`tests-e2e/project-launch.spec.mjs`, additive):** a second launch while Game A is
+  **dirty** switches into Game B *and* leaves A's paint flushed into A's folder (guard); a
+  second launch while on the launcher boots straight in; a bad second-launch path leaves the
+  open game untouched (no overlay, title/gate hold). The **focus** half is Rust-side (window
+  focus isn't observable through the browser fake host); the open/guard half is fully covered.
+- **Gates:** vitest **968** · node **19** · cargo **23** · Playwright **103/103** (100 prior
+  + 3 single-instance) · eslint **0** · typecheck **clean**. `patch-notes.js?v=64`,
+  `editor.css?v=61`, `data.js?v=31`, FORMAT_VERSION 2, version 1.1.0 — unchanged (phase exit
+  bundles the note).
+- Git ritual: branch `harbor-5b` → gates green → commit → merge to `main` → delete branch.
+  **Next: H5·C (file association).**

@@ -72,6 +72,16 @@ const projectRepo = new BrowserProjectRepository(
   // calls still waste backups; coalesce a save requested mid-write into one re-run.
   let folderSaveInFlight = false;
   let folderSaveQueued = false;
+  // H5·B: callers that must not switch away from the open game until its edits are safely
+  // on disk (a second-launch "open this other game") await here; resolved once the folder
+  // write queue drains (nothing in flight and nothing queued).
+  let folderIdleWaiters: Array<() => void> = [];
+  function settleFolderIdleIfDone(): void {
+    if (folderSaveInFlight || folderSaveQueued) return;
+    const waiters = folderIdleWaiters;
+    folderIdleWaiters = [];
+    for (const resolve of waiters) resolve();
+  }
 
   /** Called by the Project Manager (bootChosen) when a folder game is chosen: record
    *  the root and the exact on-disk bytes we booted from. `dirty` is true only when the
@@ -184,7 +194,22 @@ const projectRepo = new BrowserProjectRepository(
       .finally(() => {
         folderSaveInFlight = false;
         if (folderSaveQueued) { folderSaveQueued = false; saveToFolder(); }
+        settleFolderIdleIfDone(); // H5·B: wake any "flush before I switch games" waiter
       });
+  }
+
+  /** Flush any pending folder autosave and RESOLVE once it has landed on disk (H5·B).
+   *  Used before switching away from the open game (a second-launch "open this other
+   *  game") so the child's unsaved edits are written into the current game's folder
+   *  first. Resolves immediately on the browser build (no folder root) or when nothing
+   *  changed since the last folder write (saveToFolder's unchanged-content fast path
+   *  leaves the queue idle). */
+  export function flushFolderNow(): Promise<void> {
+    if (!folderRoot) return Promise.resolve();
+    clearTimeout(saveTimer);
+    saveNow(); // writes the mirror + kicks (or fast-path skips) the folder write
+    if (!folderSaveInFlight && !folderSaveQueued) return Promise.resolve();
+    return new Promise<void>((resolve) => { folderIdleWaiters.push(resolve); });
   }
 
   /** Ctrl+S / File ▸ Save on desktop: flush any pending autosave to the folder now
