@@ -6,6 +6,6 @@
    runtime import (query preserved) typechecks. GPL-3.0-or-later (see LICENSE). */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-declare module "*/patch-notes.js?v=64" {
+declare module "*/patch-notes.js?v=65" {
   export const PATCH_NOTES: any;
 }

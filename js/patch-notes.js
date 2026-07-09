@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 9, 2026",
+    title: "Open your game by double-clicking it",
+    summary:
+      "On the desktop app, your game's game.rpgatlas file is now a real, openable file: double-click it (or drop your game's folder onto RPGAtlas) and the editor opens straight into that game, skipping the launcher — just like the big game-makers. If RPGAtlas is already open, double-clicking another game brings the window to the front and switches to it instead of opening a second copy — and it saves the game you were working on first, so nothing is lost. On Windows you tell the app to open .rpgatlas files once (right-click a game.rpgatlas ▸ Open with ▸ choose RPGAtlas ▸ “Always use this app”), and from then on every game is one double-click away. If you ever hand it a path that isn't a game, it just opens the friendly launcher with a note instead of breaking. (The web version is unchanged.)",
+    items: [
+      "New: double-click a game.rpgatlas file (or pass a game folder to RPGAtlas-Desktop.exe) and the editor opens straight into that game.",
+      "Only one RPGAtlas: opening another game while the app is running brings the window to the front and switches to it — after saving your current game first — instead of launching a second copy.",
+      "Windows: set .rpgatlas to open with RPGAtlas once (Open with ▸ Always use this app) and every game becomes a double-click; see the README for the steps.",
+      "A path that isn't a game opens the launcher with a kind “we can't find that game” note — never a crash.",
+    ],
+  },
+  {
+    date: "July 9, 2026",
     title: "Your pictures and sounds live in your game's folder now",
     summary:
       "On the desktop app, your game's art and audio now live right inside your game's folder — in plain \"assets\" folders (characters, facesets, enemies, tilesets, audio) you can see and open. The best part: just copy a picture or a sound into the matching folder with your file manager, switch back to the editor, and it's there — no importing, no dialogs. Big tile sheets still open the friendly 48-tile slicer, and duplicates are still skipped automatically. Your files stay exactly where you put them: renaming or deleting an asset in the editor never moves or erases the real file. If a file goes missing, the Asset Browser says so kindly instead of breaking — put it back and it heals itself. And because everything a game needs is now in one folder, you can zip it, move it to another computer, and open it — all the art and music come along. (Opening an older desktop game tidily brings its pictures and sounds into the new folder for you. The web version is unchanged.)",
