@@ -47,11 +47,13 @@ test.describe("Per-project assets — editor imports (H4·A)", () => {
 
     // The per-project index now records it IN PLACE under assets/enemies/.
     await expect
-      .poll(async () =>
-        page.evaluate((r) => {
-          const idx = window.__ATLAS_TEST_HOST__.readAssetIndex(r);
-          return idx.length ? idx[0].relPath : null;
-        }, root),
+      .poll(
+        async () =>
+          page.evaluate((r) => {
+            const idx = window.__ATLAS_TEST_HOST__.readAssetIndex(r);
+            return idx.length ? idx[0].relPath : null;
+          }, root),
+        { timeout: 20_000 },
       )
       .toBe("assets/enemies/goblin.png");
 
@@ -102,7 +104,9 @@ test.describe("Per-project assets — legacy bridge (H4·A)", () => {
     await page.locator(".pm-recent", { hasText: "Legacy" }).click();
 
     // The bridge ran: a friendly notice, and the asset is now in the project index.
-    await expect(page.locator(".modal-title", { hasText: "We tidied up your game" })).toBeVisible();
+    await expect(page.locator(".modal-title", { hasText: "We tidied up your game" })).toBeVisible({
+      timeout: 20_000,
+    });
     const keys = await page.evaluate(
       (r) => window.__ATLAS_TEST_HOST__.readAssetIndex(r).map((m) => m.key),
       root,
@@ -124,13 +128,17 @@ test.describe("Per-project assets — auto-discovery (H4·B)", () => {
     // Alt-tab back to the editor → the focus scan discovers and imports it in place.
     await page.evaluate(() => window.dispatchEvent(new Event("focus")));
 
+    // Generous timeout: this spec runs alongside the ~24s renderer-perf test, so a
+    // scan (hash + wizard import) can be starved of CPU; the import itself is reliable.
     await expect
-      .poll(async () =>
-        page.evaluate((r) => {
-          const idx = window.__ATLAS_TEST_HOST__.readAssetIndex(r);
-          const hit = idx.find((m) => m.key === "asset:enemies/goblin");
-          return hit ? hit.relPath : null;
-        }, root),
+      .poll(
+        async () =>
+          page.evaluate((r) => {
+            const idx = window.__ATLAS_TEST_HOST__.readAssetIndex(r);
+            const hit = idx.find((m) => m.key === "asset:enemies/goblin");
+            return hit ? hit.relPath : null;
+          }, root),
+        { timeout: 20_000 },
       )
       .toBe("assets/enemies/goblin.png");
   });
@@ -149,13 +157,14 @@ test.describe("Per-project assets — auto-discovery (H4·B)", () => {
       { r: root, png: PNG_B64 },
     );
     await page.locator(".ab-dropbtns button", { hasText: "Scan for New Files" }).click();
-    await expect(page.locator(".ab-card .ab-name", { hasText: "face" })).toBeVisible();
+    // Generous timeouts: shares CPU with the ~24s renderer-perf test (see above).
+    await expect(page.locator(".ab-card .ab-name", { hasText: "face" })).toBeVisible({ timeout: 20_000 });
 
     // The child deletes the file from disk → a re-scan degrades it to a friendly
     // "missing" card (the entry survives; putting the file back would heal it).
     await page.evaluate((r) => window.__ATLAS_TEST_HOST__.deleteAssetFile(r, "assets/facesets/face.png"), root);
     await page.locator(".ab-dropbtns button", { hasText: "Scan for New Files" }).click();
-    await expect(page.locator(".ab-badge.missing")).toBeVisible();
+    await expect(page.locator(".ab-badge.missing")).toBeVisible({ timeout: 20_000 });
     await expect(page.locator(".ab-missing-note")).toContainText("missing");
   });
 });
@@ -201,7 +210,7 @@ test.describe("Per-project assets — Asset Browser integration (H4·C)", () => 
       mimeType: "image/png",
       buffer: Buffer.from(PNG_B64, "base64"),
     });
-    await expect(page.locator(".ab-card .ab-name", { hasText: "goblin" })).toBeVisible();
+    await expect(page.locator(".ab-card .ab-name", { hasText: "goblin" })).toBeVisible({ timeout: 20_000 });
 
     await page.locator(".ab-card .ab-actions button", { hasText: "Rename" }).click();
     // The rename prompt stacks over the Asset Browser modal; its input is the only text box.
