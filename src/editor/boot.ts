@@ -321,8 +321,8 @@ async function start(): Promise<void> {
     installFakeHost();
   }
   if (managerActive()) {
-    const { showProjectManager } = await import("./project-manager/manager");
-    showProjectManager();
+    const { launchManager } = await import("./project-manager/manager");
+    await launchManager();
   } else {
     runBoot();
   }

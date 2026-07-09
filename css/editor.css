@@ -1286,9 +1286,11 @@ a.console-link:hover { text-decoration: underline; color: var(--text-bright); }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pm-recent-path { font-size: var(--fs-tiny); color: var(--text-dim); max-width: 100%;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pm-recent.missing { opacity: 0.75; }
-.pm-recent.missing .pm-recent-name::after { content: " — can't find this game"; color: var(--gold-edge); font-weight: 400; }
-.pm-recent-remove { align-self: flex-end; }
+.pm-recent.missing { opacity: 0.85; cursor: default; }
+.pm-recent.missing:hover { background: var(--panel-3); border-color: var(--line); }
+.pm-recent-missing { font-size: var(--fs-tiny); color: var(--gold-edge); }
+.pm-recent-remove { align-self: flex-end; margin-top: 5px; padding: 3px 11px; font-size: var(--fs-tiny); }
+.pm-recents-list { display: flex; flex-direction: column; }
 
 /* New Project form (H2·A shell; enriched with the template chooser + live
    folder preview in H2·B) */

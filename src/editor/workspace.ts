@@ -42,10 +42,22 @@ import {
   openLanguageSettings, openPatchNotes, openKeyboardShortcuts, openHelp, openAbout,
 } from "./help";
 import { openCommandPalette } from "./command-palette";
+import { managerActive } from "./project-manager/manager-host";
 
 const t = editorI18n.t;
 
 function playtestUrl() { return "play.html?playtest=" + Date.now(); }
+
+// Project Harbor H2·C: with a project open on desktop (or under ?fakehost),
+// File ▸ New/Open route back through the Project Manager instead of the browser's
+// in-place reset / .json picker. The manager chunk is imported dynamically so the
+// pure browser build never pulls it in; a friendly confirm guards the switch.
+function goToManager(view: "new" | "open"): void {
+  confirmBox(
+    "Go back to the Project Manager? Your game is saved — you can open it again anytime.",
+    () => { void import("./project-manager/manager").then((m) => m.returnToManager(view)); },
+  );
+}
 
 // ============================ actions / menus / toolbar ============================
 // The command registry (Phase 3 Stage A): every editor capability is a
@@ -82,6 +94,7 @@ export function runAct(id: any) {
 }
 
 act("new", { label: "New Project…", icon: "new", tip: "New project (resets to the bundled sample game)", run() {
+  if (managerActive()) { goToManager("new"); return; }
   confirmBox("Start a fresh project (the bundled sample game)? Your current project will be replaced — Export first if you want to keep it.", () => {
     S.proj = DataDefaults.newProject();
     Assets.registerCustomChars(S.proj.customChars);
@@ -92,7 +105,10 @@ act("new", { label: "New Project…", icon: "new", tip: "New project (resets to 
     editorHooks.rebuildAll(); touch();
   });
 } });
-act("open", { label: "Open Project (.json)…", icon: "open", tip: "Open / import a project file", run() { $("import-file").click(); } });
+act("open", { label: "Open Project (.json)…", icon: "open", tip: "Open / import a project file", run() {
+  if (managerActive()) { goToManager("open"); return; }
+  $("import-file").click();
+} });
 act("import-rm", { label: "Import from RPG Maker…", tip: "Bring your own RPG Maker MV or MZ game into RPGAtlas", run: openRmImportWizard });
 act("import-report", { label: "Import Report", tip: "Reopen the report from your last RPG Maker import", enabled: hasImportReport, run: openSavedImportReport });
 act("save", { label: "Save Project", icon: "save", key: "Ctrl+S",
