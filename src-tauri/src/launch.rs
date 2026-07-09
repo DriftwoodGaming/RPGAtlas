@@ -71,6 +71,26 @@ pub fn initial_launch_path() -> Option<String> {
     project_arg_from_args(&args, &cwd)
 }
 
+/// The single-instance callback body (Project Harbor H5·B): a *second* launch forwarded
+/// its argv + cwd here (the app is already running). Bring the existing `main` window to
+/// the front — we NEVER build a window from a callback (trap 2), only focus the predefined
+/// one — and, if the second launch carried a project path, push it to the running frontend
+/// as an `atlas://open-project` event so it opens that game (guarding unsaved work). All
+/// window ops are best-effort: a focus hiccup must never crash the running editor.
+pub(crate) fn focus_and_request_open(app: &tauri::AppHandle, argv: &[String], cwd: &str) {
+    use tauri::{Emitter, Manager};
+    if let Some(win) = app.get_webview_window("main") {
+        let _ = win.unminimize();
+        let _ = win.show();
+        let _ = win.set_focus();
+    }
+    if let Some(path) = project_arg_from_args(argv, std::path::Path::new(cwd)) {
+        // The frontend (manager-host.ts `onOpenProjectRequest`) listens for this and
+        // routes it through the same open pipeline the Project Manager uses.
+        let _ = app.emit(OPEN_PROJECT_EVENT, path);
+    }
+}
+
 /// Return (and clear) the project path the app was launched with, or `None`. The
 /// frontend calls this once during boot (manager.ts `launchManager`); clearing it
 /// means a later reload (a File ▸ Open reboot, an external-change reload) never

@@ -456,6 +456,12 @@ pub fn run() {
     let initial_launch = launch::initial_launch_path();
 
     tauri::Builder::default()
+        // Project Harbor H5·B: single-instance MUST be the first plugin registered, so it
+        // intercepts a second launch before anything else initializes. Its callback runs
+        // in the already-running process: focus main + open the requested game.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            launch::focus_and_request_open(app, &argv, &cwd);
+        }))
         .manage(launch::LaunchState::new(initial_launch))
         .plugin(tauri_plugin_dialog::init())
         .on_window_event(|window, event| {

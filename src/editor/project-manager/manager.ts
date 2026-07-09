@@ -21,7 +21,7 @@ import { TEMPLATES, type TemplateId } from "../../shared/project-templates";
 import type { ProjectBundle } from "../../platform/tauri/project-host";
 import { runBootWith } from "../boot";
 import { modal } from "../modals";
-import { bindFolderProject, peekMirror, peekMirrorMeta } from "../persistence";
+import { bindFolderProject, peekMirror, peekMirrorMeta, flushFolderNow } from "../persistence";
 import { decideRecovery } from "../../shared/folder-sync";
 import { activeManagerHost, type ManagerHost } from "./manager-host";
 import { isEditorBooted, setOpenProjectContext } from "./project-context";
@@ -44,6 +44,9 @@ let toastEl: HTMLElement | null = null;
  *  On a fresh cold launch (1) is empty, so (2) decides; a reload only ever hits (1). */
 export async function launchManager(): Promise<void> {
   const host = activeManagerHost();
+  // H5·B: from now on, a second launch (single-instance) can ask us to open a game.
+  // Install the listener once per page load, whether we end on the launcher or the editor.
+  installExternalOpen(host);
 
   const pending = takePendingOpen();
   if (pending) {
@@ -76,6 +79,48 @@ export async function launchManager(): Promise<void> {
   }
 
   showProjectManager();
+}
+
+// H5·B: the single-instance "open this game" listener is installed once per page load.
+let externalOpenInstalled = false;
+
+/** Wire the host's second-launch open requests (H5·B) to `requestOpenProject`, once. */
+function installExternalOpen(host: ManagerHost): void {
+  if (externalOpenInstalled || !host.onOpenProjectRequest) return;
+  externalOpenInstalled = true;
+  host.onOpenProjectRequest((path) => {
+    void requestOpenProject(path, activeManagerHost());
+  });
+}
+
+/** Open a game a SECOND launch asked for (H5·B). If a game is already open, flush its
+ *  unsaved edits into its folder FIRST (the unsaved-work guard), then reboot cleanly into
+ *  the requested one (bootChosen handles the booted→reload handoff). On the launcher, it
+ *  boots in place. A bad path leaves an open game untouched; on the launcher it surfaces
+ *  the same friendly note the Browse flow shows. */
+async function requestOpenProject(target: string, host: ManagerHost): Promise<void> {
+  let bundle: ProjectBundle;
+  try {
+    bundle = await host.open(target);
+  } catch (e) {
+    // Don't disrupt the game the child is working on for a bad second-launch path; only
+    // speak up when we're sitting on the launcher (nothing to lose).
+    if (!isEditorBooted()) {
+      showProjectManager();
+      setToast(errText(e));
+    }
+    return;
+  }
+  if (isEditorBooted()) {
+    // Guard unsaved work: make sure the current game's latest edits are on disk before we
+    // switch away from it (bootChosen will reload the window into the requested game).
+    try {
+      await flushFolderNow();
+    } catch {
+      /* best-effort: a flush failure still shouldn't strand the open request */
+    }
+  }
+  await bootChosen(bundle, host);
 }
 
 /** Mount (or remount) the Project Manager over the main window. Idempotent.

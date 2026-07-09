@@ -50,6 +50,13 @@ export interface ManagerHost {
    *  Absent on hosts that can't be launched with a path (never on the pure browser). */
   takeLaunchPath?(): Promise<string | null>;
 
+  /** Subscribe to "open this project" requests raised by a SECOND launch (Project Harbor
+   *  H5·B): tauri-plugin-single-instance forwards the new launch's path to the running
+   *  app, which emits `atlas://open-project`. The manager installs one listener that
+   *  routes the path through its normal open flow (guarding unsaved work). Absent on hosts
+   *  with no second-launch concept (the pure browser never calls it). */
+  onOpenProjectRequest?(cb: (path: string) => void): void;
+
   // --- Per-project asset filesystem (Project Harbor H4·A) -------------------
   // The per-project AssetStore (src/platform/project-asset-store.ts) talks to these,
   // so it works under real desktop AND the ?fakehost test host — the same real-vs-fake
@@ -122,6 +129,17 @@ const realManagerHost: ManagerHost = {
   recentsRemove: (path) => projectHost.recentsRemove(path),
   reveal: (root) => projectHost.reveal(root),
   takeLaunchPath: () => projectHost.takeLaunchPath(),
+  onOpenProjectRequest(cb) {
+    // The withGlobalTauri event API (core:default covers listen). A second launch's
+    // path arrives as the event payload; a missing API just means no second-launch
+    // support (never throws — the running editor keeps working).
+    const ev = (window as any).__TAURI__ && (window as any).__TAURI__.event;
+    if (ev && typeof ev.listen === "function") {
+      void ev.listen("atlas://open-project", (e: any) => {
+        if (e && typeof e.payload === "string" && e.payload) cb(e.payload);
+      });
+    }
+  },
   async pickDirectory() {
     const res = await tauriDialog().open({
       directory: true,
