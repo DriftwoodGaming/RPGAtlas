@@ -251,3 +251,37 @@ config, and the docs cover the portable-exe "Open with…" path.
 - Git ritual: branch `harbor-5c` → gates green → commit → merge to `main` → delete branch.
   **Next: phase exit** (patch-notes entry + `help.ts`/`shims.d.ts` cache-buster bump, tag
   `harbor-5`).
+
+### H5 — phase exit — 2026-07-09
+
+- **Patch note added** (`js/patch-notes.js`, prepended): "Open your game by double-clicking
+  it" (kid-friendly; names the game.rpgatlas double-click / folder-drop straight-in open, the
+  single-instance front-and-switch that saves your current game first, the Windows
+  "Open with… ▸ Always use this app" one-time setup, and the friendly "we can't find that
+  game" fallback; notes the web version is unchanged). Cache-buster bumped
+  `patch-notes.js?v=64 → 65` in **both** `src/editor/help.ts` and `src/editor/shims.d.ts`
+  (AGENTS.md / trap 8). **No `editor.css` change this phase** (H5 added no styles — the
+  manager overlay/toast are H2's), so `editor.css?v=61` and `data.js?v=31` are unchanged.
+  Product **version stays 1.1.0** (bumps to 1.2.0 at H6); **FORMAT_VERSION stays 2**.
+- **Final gate sweep:** vitest **968** · node **19** · cargo **23** (19 + 4 launch) ·
+  Playwright **103/103** (70 original browser specs **unmodified** + 21 manager (H2/H3) + 6
+  project-assets (H4) + 6 launch (H5)) · eslint **0** · typecheck **clean** ·
+  `patch-notes.js?v=65` · `editor.css?v=61` · `data.js?v=31`.
+- **Exit criterion (double-click opens the game), by construction:** the Tauri
+  `fileAssociations` config registers `.rpgatlas` → a double-click launches
+  `RPGAtlas-Desktop.exe <that game.rpgatlas>`; the initial-argv capture (H5·A) + the
+  single-instance callback (H5·B) both funnel that path through the same `bootChosen`
+  pipeline the Project Manager uses — a fresh launch boots straight in, an already-running
+  instance focuses `main` and switches (saving the current game first). The whole flow is
+  browser-e2e-covered through the `?fakehost` `takeLaunchPath` / `emitOpenProject` seams
+  (the Rust-side window focus is unobservable there but is the plugin's own contract). No new
+  webview windows (trap 2), `#save-ind` still revealed last (trap 1), the 70 browser specs
+  unmodified (trap 4). The desktop half ships at H6's exe rebuild (trap 6) — **H5 ships no
+  exe**.
+- Git ritual: branch `harbor-5exit` → gates green → commit → merge to `main` → delete
+  branch. **Phase exit: tag `harbor-5`.** H5 delivers launch-from-the-project-folder: the
+  desktop exe boots straight into a game handed to it (argv / double-click), one running
+  instance handles a second launch by focusing + switching (guarding unsaved work), and
+  `.rpgatlas` is registered with the app (with portable-exe "Open with…" docs) — all behind
+  `managerActive()` so the browser build is byte-identical. **H6 (migration, docs & release
+  1.2.0) is cleared.**
