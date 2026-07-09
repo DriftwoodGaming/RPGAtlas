@@ -425,6 +425,13 @@ export interface ImportItem {
   /** Pre-slugged name to keep verbatim (embedded-asset intake); still gets a
    *  collision suffix when a different-content asset owns it. */
   exactName?: string;
+  /** Project Harbor H4: for an already-in-place assets/ file (auto-discovery, H4·B),
+   *  its project-relative path. The per-project store ADOPTS it — indexes without
+   *  rewriting — so the child's file is never moved. Ignored by the browser store. */
+  relPath?: string;
+  /** Project Harbor H4: the in-place file's last-modified time (epoch ms), recorded
+   *  on the meta so a later focus-scan can skip it unchanged without re-hashing. */
+  mtimeMs?: number;
 }
 
 export interface ImportOptions {
@@ -491,6 +498,10 @@ export async function importAssets(items: ImportItem[], opts: ImportOptions = {}
     }
     return taken;
   };
+  // The per-project store (H4) offers a batch write so a sliced tileset persists the
+  // index once instead of after every one of hundreds of tiles (trap 5). When absent
+  // (the IndexedDB browser store) each new asset writes through per-item put(), as before.
+  const batch = (store as any).putMany ? ([] as { meta: AssetMeta; blob: Blob }[]) : null;
   for (const item of items) {
     const type = detectType(item);
     const hash = await sha256Hex(item.blob);
@@ -519,15 +530,19 @@ export async function importAssets(items: ImportItem[], opts: ImportOptions = {}
       mime: item.blob.type || undefined,
       kind: type === "audio" ? item.kind || guessAudioKind(item.name) : undefined,
       meta: item.meta,
+      relPath: item.relPath,
+      mtimeMs: item.mtimeMs,
     };
     await probe(item.blob, meta);
-    await store.put(meta, item.blob);
+    if (batch) batch.push({ meta, blob: item.blob });
+    else await store.put(meta, item.blob);
     metas.push(meta);
     byTypeHash.set(type + "\0" + hash, meta);
     taken.add(name);
     if (type !== "audio") makeUrl(meta.key, item.blob);
     results.push(meta);
   }
+  if (batch && batch.length) await (store as any).putMany(batch);
   publish();
   return results;
 }

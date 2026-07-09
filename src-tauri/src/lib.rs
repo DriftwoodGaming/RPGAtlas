@@ -15,6 +15,7 @@ use tauri_plugin_dialog::DialogExt;
 // project_create/open/save, recents, and reveal commands built on it. No UI wiring
 // lands this phase — H2 consumes these. See docs/harbor-1-spec.md.
 mod project;
+mod project_assets;
 mod project_paths;
 
 /// Save the editor's project JSON to a user-chosen file. Returns the chosen
@@ -146,8 +147,9 @@ fn meta_str(meta: &serde_json::Value, field: &str) -> Option<String> {
 }
 
 /// A safe blob filename: the content hash is produced by the frontend as
-/// SHA-256 hex, but never trust IPC input as a path component.
-fn blob_file_name(hash: &str) -> Result<String, String> {
+/// SHA-256 hex, but never trust IPC input as a path component. `pub(crate)` so
+/// the per-project asset store (project_assets.rs) reuses it for `.atlas/cache/`.
+pub(crate) fn blob_file_name(hash: &str) -> Result<String, String> {
     if !hash.is_empty() && hash.chars().all(|c| c.is_ascii_hexdigit()) {
         Ok(hash.to_ascii_lowercase())
     } else {
@@ -263,8 +265,10 @@ fn library_set_meta(app: tauri::AppHandle, meta_json: String) -> Result<(), Stri
 /// The asset-type subfolders under import/ (index 0..3 are image types, the
 /// last is audio); drives both directory creation and the scan.
 const IMPORT_TYPES: [&str; 5] = ["characters", "facesets", "enemies", "tilesets", "audio"];
-const IMAGE_EXTS: [&str; 4] = ["png", "webp", "jpg", "jpeg"];
-const AUDIO_EXTS: [&str; 5] = ["ogg", "mp3", "wav", "m4a", "flac"];
+// `pub(crate)` so the per-project asset store (project_assets.rs) filters a scan of
+// the in-place assets/ folders by the same known extensions.
+pub(crate) const IMAGE_EXTS: [&str; 4] = ["png", "webp", "jpg", "jpeg"];
+pub(crate) const AUDIO_EXTS: [&str; 5] = ["ogg", "mp3", "wav", "m4a", "flac"];
 
 const IMPORT_README: &str = "\
 RPGAtlas — how to add your own pictures and sounds\r\n\
@@ -309,7 +313,9 @@ fn ensure_import_dirs(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(root)
 }
 
-fn mime_for_ext(ext: &str) -> Option<&'static str> {
+/// `pub(crate)` so project_assets.rs maps an in-place file's extension to a MIME
+/// type when it reads bytes back for the import wizard.
+pub(crate) fn mime_for_ext(ext: &str) -> Option<&'static str> {
     Some(match ext {
         "png" => "image/png",
         "webp" => "image/webp",
@@ -324,8 +330,9 @@ fn mime_for_ext(ext: &str) -> Option<&'static str> {
 }
 
 /// A free filename inside `dir` for `name`, suffixing -2, -3, … on collision so
-/// archiving a same-named file never clobbers an earlier one.
-fn free_path(dir: &std::path::Path, name: &str) -> PathBuf {
+/// archiving a same-named file never clobbers an earlier one. `pub(crate)` so the
+/// per-project asset store (project_assets.rs) reuses it for in-place `assets/` writes.
+pub(crate) fn free_path(dir: &std::path::Path, name: &str) -> PathBuf {
     if !dir.join(name).exists() {
         return dir.join(name);
     }
@@ -473,7 +480,14 @@ pub fn run() {
             project::recents_list,
             project::recents_touch,
             project::recents_remove,
-            project::project_reveal
+            project::project_reveal,
+            project_assets::project_asset_index_read,
+            project_assets::project_asset_index_write,
+            project_assets::project_asset_read,
+            project_assets::project_asset_write_inplace,
+            project_assets::project_asset_write_cache,
+            project_assets::project_asset_delete_cache,
+            project_assets::project_assets_scan
         ])
         .run(tauri::generate_context!())
         .expect("error while running RPGAtlas");
