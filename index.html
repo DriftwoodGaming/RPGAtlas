@@ -60,7 +60,10 @@
     <span id="status-text" data-i18n="Ready">Ready</span>
     <span class="spacer"></span>
     <span id="zoom-ind" title="Zoom" data-i18n-title="Zoom">75%</span>
-    <span id="save-ind">✓ saved</span>
+    <!-- Hidden until boot() finishes: its visibility is the "editor is
+         interactive" signal (keyboard map installed, workspace built) that the
+         e2e suite gates on before typing. boot() reveals it after saveNow(). -->
+    <span id="save-ind" hidden>✓ saved</span>
   </footer>
   <input id="import-file" type="file" accept=".json,application/json" hidden>
   <!-- RPG Maker MZ/MV importer (Project Compass M1·D): a directory picker and a

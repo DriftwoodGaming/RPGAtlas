@@ -236,6 +236,12 @@ async function boot() {
   setMode("map");
   rebuildAll();
   saveNow();
+  // The save indicator ships hidden (index.html) and is revealed only here, at
+  // the true end of boot — its visibility is the "editor is interactive" signal
+  // the e2e suite gates on before sending keystrokes. Gating on static markup
+  // raced this function: a Ctrl+P could land before the keydown listener above
+  // was installed and silently vanish (flaked the tile-slicer spec under load).
+  $("save-ind").hidden = false;
   // Boot-to-interactive mark (Phase 7 Stage A): read by the load-time budget
   // e2e; performance.now() is relative to navigation start.
   (window as any).RPGATLAS_BOOT_MS = performance.now();

@@ -4,6 +4,18 @@
 
 export const PATCH_NOTES = [
   {
+    date: "July 9, 2026",
+    title: "A damaged map can't lock you out of the editor anymore",
+    summary:
+      "A field report (fixed by community contributor baz — thank you!): a project holding a map that was missing one of its invisible layers (shadows, passability, heights, or regions) crashed the editor on every launch, and the only way back in was restoring the whole project. Now every project heals those layers automatically the moment it loads — saved projects, RPG Maker imports, and playtests alike. And if the editor ever does hit a startup problem, you get a plain-language recovery screen with Reload and Reset buttons instead of a blank window.",
+    items: [
+      "Fixed: a saved or imported map missing an under-the-hood layer crashed the editor at launch “until restored” — those maps now heal themselves on load and open fine.",
+      "New: if the editor can't start, a friendly screen explains what happened and offers “Reload” and “Reset saved project & reload” — no more staring at a blank page.",
+      "Imported RPG Maker maps now arrive carrying every Atlas layer from the start, including the HD-2D heights layer.",
+      "The status bar's “✓ saved” indicator now appears only once the editor is actually ready, so it can never claim your project is saved while things are still loading.",
+    ],
+  },
+  {
     date: "July 5, 2026",
     title: "RPG Maker add-ons now convert into Atlas plugins — credits included",
     summary:
