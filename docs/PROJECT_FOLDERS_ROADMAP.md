@@ -1,6 +1,11 @@
 # RPGAtlas Roadmap — "Project Harbor": real project folders
 
-**Status:** 🚧 H0 (setup) complete — H1 not started
+**Status:** ✅ H1–H5 complete & tagged (`harbor-1`…`harbor-5`). H6·A (legacy migration),
+H6·B (docs & story), and H6·C (release prep — version **1.2.0** across every site, patch
+notes, rebuilt `RPGAtlas-Desktop.exe`) are landed on `main` (2026-07-09). **Awaiting the
+Fable 5 release gate** before tagging `harbor-6` + `v1.2.0`.
+**Release-gate verdict (Fable 5):** _pending — a fresh Fable 5 conversation audits the phase
+exits vs this roadmap and records the signed verdict here; the tags push only after it lands._
 **Authored:** 2026-07-09 by Claude Fable 5 (grand designer / orchestrator)
 **Goal:** Make RPGAtlas work the way RPG Maker MZ/MV and Godot do: the engine opens to a
 **Project Manager** (create a new game / open an existing one), every game is a **visible

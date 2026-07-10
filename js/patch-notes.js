@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 9, 2026",
+    title: "Turn your older game into a folder (RPGAtlas 1.2.0)",
+    summary:
+      "RPGAtlas 1.2.0 finishes the big \"your game is a folder\" update on the desktop app — and now it brings your older games along too. If you open the desktop app and it finds a game you made before games became folders, it greets you with a friendly one-click \"let's put your game in a folder\" wizard: pick a name and a place, and RPGAtlas makes a proper folder for your game and tidily copies its pictures and sounds in, so nothing is left behind and you're never stranded. You can also do it later from the launcher — the offer stays one click away until you take it. There's a fresh help page too (\"Your Game Is a Folder\"), and the web version now has a gentle File-menu note explaining where your game is saved and what the desktop app's folders add. (The web version's own saving is unchanged.)",
+    items: [
+      "New: open an older desktop game and RPGAtlas offers a one-click “put your game in a folder” wizard — the name is filled in from your game's title, and its pictures and sounds are copied into the new folder for you.",
+      "Not ready? Choose “Not now” and the offer waits for you as a button on the launcher — your old game is never stranded behind the scenes.",
+      "New help pages: “Your Game Is a Folder” and “Adding Your Own Art and Music”, plus a refreshed manual.",
+      "Web version: a new File ▸ “Where's my game saved?” note explains that your game lives in your browser here, and that the desktop app keeps each game in its own folder.",
+    ],
+  },
+  {
+    date: "July 9, 2026",
     title: "Open your game by double-clicking it",
     summary:
       "On the desktop app, your game's game.rpgatlas file is now a real, openable file: double-click it (or drop your game's folder onto RPGAtlas) and the editor opens straight into that game, skipping the launcher — just like the big game-makers. If RPGAtlas is already open, double-clicking another game brings the window to the front and switches to it instead of opening a second copy — and it saves the game you were working on first, so nothing is lost. On Windows you tell the app to open .rpgatlas files once (right-click a game.rpgatlas ▸ Open with ▸ choose RPGAtlas ▸ “Always use this app”), and from then on every game is one double-click away. If you ever hand it a path that isn't a game, it just opens the friendly launcher with a note instead of breaking. (The web version is unchanged.)",

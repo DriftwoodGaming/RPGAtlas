@@ -221,3 +221,40 @@ gains a gentle "your folders live in the desktop app" note in its File menu.
 - Git ritual: branch `harbor-6b` → gates green → commit → merge to `main` → delete branch.
   **Next: H6·C (release — gate sweep, exe rebuild, 1.2.0 bump, patch notes, then STOP for
   the Fable 5 release gate).**
+
+### H6·C — Release (prep) — 2026-07-09
+
+**Shipped:** the full regression sweep, the rebuilt desktop exe, the **1.2.0** version bump
+across every site, and the release patch note. This stage STOPS before tagging — the Fable 5
+release gate signs the roadmap header first, then `harbor-6` + `v1.2.0` are tagged.
+
+- **Full gate sweep (all green):** vitest **977** · node **19** · cargo **23** (19 pure-core
+  + 4 launch; `project`/`project_paths`/`launch` suites) · Playwright **108/108** (70 frozen
+  browser + 25 manager (H2/H3/H6·A) + 6 assets (H4) + 6 launch (H5) + 1 browser note (H6·B)) ·
+  eslint **0** · typecheck **clean** · i18n-parity **31/31**.
+- **Rebuilt `RPGAtlas-Desktop.exe` (trap 6):** killed any running instance first, then
+  `npm run package:exe` (`stage-frontend.mjs` → `vite build` staged into `src-tauri/dist`,
+  then `cargo build --release`, copied to the project root). The exe compiled as
+  `rpgatlas v1.2.0` and embeds the H1–H6 frontend (Project Manager, folder saving, per-project
+  assets, launch, and the H6·A migration wizard). It had been stale since Jul 6 (pre-Harbor);
+  H1–H5 shipped no exe by design, so this is the first Harbor exe. Cargo is at
+  `C:\Users\Zatara\.cargo\bin` (prepended to PATH; trap 7).
+- **Version → 1.2.0 across all sites (trap 8):** `package.json`, `package-lock.json` (root +
+  `packages[""]`), `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`
+  (the `rpgatlas` crate), the `README.md` badge, and `src/editor/help.ts`'s About box.
+  **FORMAT_VERSION stays 2**; the plugin API stays frozen for 1.x.
+- **Cache-busters:** `patch-notes.js?v=65 → 66` (`help.ts` import + `shims.d.ts` module
+  declaration) for the new note; `editor.css?v=61 → 62` (`index.html`) for the H6·A wizard/
+  banner styles. `data.js?v=31` unchanged (no `js/data.js` change this phase).
+- **Patch note (`js/patch-notes.js`, prepended):** "Turn your older game into a folder
+  (RPGAtlas 1.2.0)" — kid-friendly; names the one-click legacy migration wizard (prefilled
+  name + copied art/audio), the "Not now" → launcher banner, the new help pages, and the web
+  build's File-menu "Where's my game saved?" note. Web saving unchanged.
+- **Roadmap header:** updated to record H1–H6 landed on `main` and **Release-gate verdict
+  (Fable 5): pending** — the placeholder where the signed verdict lands before tagging.
+- **STOP for the Fable 5 release gate.** Per the roadmap (locked decision 1 + the H6·C
+  kickoff), a fresh Fable 5 conversation audits the phase exits against this roadmap and
+  records the signed verdict in the header. Only after that do `harbor-6` + `v1.2.0` get
+  tagged and pushed. This conversation does **not** tag.
+- Git ritual: branch `harbor-6c` → gates green → commit → merge to `main` → delete branch
+  (no tag yet — the tags wait on the Fable verdict).
