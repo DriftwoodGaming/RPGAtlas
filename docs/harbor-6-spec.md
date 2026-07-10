@@ -258,3 +258,27 @@ release gate signs the roadmap header first, then `harbor-6` + `v1.2.0` are tagg
   tagged and pushed. This conversation does **not** tag.
 - Git ritual: branch `harbor-6c` → gates green → commit → merge to `main` → delete branch
   (no tag yet — the tags wait on the Fable verdict).
+
+### Release gate — Claude Fable 5 — 2026-07-09
+
+**Verdict: ✅ SIGNED — release approved.** A fresh Fable 5 conversation audited the H6
+phase exits against the roadmap; the signed verdict lives in the roadmap header. Highlights
+of the independent audit (beyond re-running every gate, all green — vitest 977 · node 19 ·
+cargo 23 · Playwright 108/108 · eslint 0 · typecheck clean):
+
+- **H6·A:** `planFolderMigration` guards verified (null mirror / meta present / junk →
+  null); `host.create(parentDir, leaf, documentJson)` signature matches the wizard's call;
+  `decideRecovery` returns `use-folder` for `mirrorMeta == null`, so migration can never
+  trip a spurious recovery prompt; the e2e specs genuinely assert the copied asset via
+  `readAssetIndex` and hold the `#save-ind` gate closed pre-commit (trap 1).
+- **H6·B:** the note is registered and slotted into `FILE_ITEMS` only when
+  `!managerActive()`; `modal()` renders button labels through `t()` (modals.ts), so the 10
+  locale entries for "Got it" are live, not dead keys; docs-site = 22 pages, sidebar wired.
+- **H6·C:** 1.2.0 verified in package.json, package-lock (root + `packages[""]`),
+  tauri.conf.json, Cargo.toml, Cargo.lock (`rpgatlas`), README badge, help.ts About;
+  exe ProductVersion/FileVersion 1.2.0 and build timeline confirms it embeds the final
+  staged frontend (`src-tauri/dist/index.html` carries `editor.css?v=62`, staged before
+  the cargo build); patch note is clean UTF-8; FORMAT_VERSION stays 2.
+
+No defects found; nothing to fix. Tagged `harbor-6` + `v1.2.0` and pushed. **Project
+Harbor is complete.**

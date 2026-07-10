@@ -1,11 +1,20 @@
 # RPGAtlas Roadmap — "Project Harbor": real project folders
 
-**Status:** ✅ H1–H5 complete & tagged (`harbor-1`…`harbor-5`). H6·A (legacy migration),
-H6·B (docs & story), and H6·C (release prep — version **1.2.0** across every site, patch
-notes, rebuilt `RPGAtlas-Desktop.exe`) are landed on `main` (2026-07-09). **Awaiting the
-Fable 5 release gate** before tagging `harbor-6` + `v1.2.0`.
-**Release-gate verdict (Fable 5):** _pending — a fresh Fable 5 conversation audits the phase
-exits vs this roadmap and records the signed verdict here; the tags push only after it lands._
+**Status:** ✅ **Project Harbor COMPLETE** — H1–H6 on `main`, tagged `harbor-1`…`harbor-6`;
+released as **RPGAtlas 1.2.0** (`v1.2.0`, 2026-07-09).
+**Release-gate verdict (Fable 5):** ✅ **SIGNED — release approved** (2026-07-09, fresh
+conversation). Audited the H6·A/B/C phase exits against this roadmap: the legacy signal
+(mirror is a project AND no `atlas.mirror.meta`) is precise and self-extinguishing, the
+wizard boots through the shared `bootChosen` pipeline with the H4 bridge copying used
+global assets, and `decideRecovery` stays regression-free (`mirrorMeta == null` →
+`use-folder`). The browser build stays byte-identical behind `managerActive()`; the H6·B
+File-menu note is web-only and its two chrome strings ("Where's my game saved?…", "Got
+it") are translated in all 10 locales and rendered through `t()`. Version **1.2.0** in all
+7 sites; cache-busters `patch-notes.js?v=66` + `editor.css?v=62` (`data.js?v=31`
+unchanged); `RPGAtlas-Desktop.exe` rebuilt from the final staged frontend (ProductVersion
+1.2.0, dist staged with `?v=62` before the cargo build). FORMAT_VERSION stays **2**.
+Gates re-run independently at the gate: vitest **977** · node **19** · cargo **23** ·
+Playwright **108/108** · eslint **0** · typecheck **clean**. No defects found.
 **Authored:** 2026-07-09 by Claude Fable 5 (grand designer / orchestrator)
 **Goal:** Make RPGAtlas work the way RPG Maker MZ/MV and Godot do: the engine opens to a
 **Project Manager** (create a new game / open an existing one), every game is a **visible
