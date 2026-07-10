@@ -18,7 +18,9 @@ you need from the sidebar.
 1. **[Installation & Setup](Installation-and-Setup)** — get RPGAtlas running in about two minutes.
 2. **[Make Your First Game](Your-First-Game)** — a guided, 30-minute walkthrough: a map, a talking
    villager, a treasure chest, a battle, and a playable export. This is the best place to begin.
-3. **[The Editor Interface](The-Editor-Interface)** — a tour of every menu, tool, and shortcut.
+3. **[Your Game Is a Folder](Your-Game-Is-a-Folder)** — in the desktop app, each game is a real
+   folder you can see, back up, and double-click to open. This is where your work lives.
+4. **[The Editor Interface](The-Editor-Interface)** — a tour of every menu, tool, and shortcut.
 
 **Already made a game in RPG Maker MV or MZ?** Bring it straight in — see
 **[Coming from RPG Maker](Coming-from-RPG-Maker)**.

@@ -17,7 +17,7 @@ import {
   editorI18n, editorState as S, curMap, editorHooks,
 } from "./editor-state";
 import { $, h } from "./dom";
-import { confirmBox } from "./modals";
+import { confirmBox, modal } from "./modals";
 import {
   touch, saveNow, desktopFlush, exportProject, openStandaloneExport,
 } from "./persistence";
@@ -134,6 +134,33 @@ act("play", { label: "Playtest", icon: "play", key: "F5", tip: "Save and run the
     window.open(playtestUrl(), "rpgatlas_play");
   }
 } });
+// Project Harbor H6·B: a gentle "project folders live in the desktop app" note in the
+// browser build's File menu. Registered ONLY on the pure browser build (never under
+// isTauri or the ?fakehost hook — managerActive() covers both), so desktop users, whose
+// games already live in folders, never see it, and the fakehost e2e menus are unchanged.
+if (!managerActive()) {
+  act("desktop-folders", {
+    label: "Where's my game saved?…",
+    tip: "How your game is saved here, and the folders the desktop app adds",
+    run: showDesktopFoldersNote,
+  });
+}
+function showDesktopFoldersNote() {
+  modal({
+    title: "Where your game lives",
+    content: h(
+      "div",
+      null,
+      h("p", null, "You're making your game in a web browser. Here, your game is kept safely inside this browser — use ",
+        h("b", null, "File ▸ Export Project As File…"), " to save a copy you can keep or move to another computer."),
+      h("p", null, "The ", h("b", null, "RPGAtlas desktop app"),
+        " adds something extra: it keeps each game in its own ", h("b", null, "folder"),
+        " on your computer — one you can see, copy, back up, and drop your own pictures and sounds straight into. You even open a game by double-clicking it."),
+      h("p", { class: "dim" }, "Everything you make here works there too: Export your game to a file, then open that file in the desktop app to move it into a folder. Get the desktop app from the RPGAtlas releases page."),
+    ),
+    buttons: [{ label: "Got it", primary: true }],
+  });
+}
 act("mapprops", { label: "Map Properties…", run: openMapProps });
 act("hdpreview", { label: "HD-2D Viewport", icon: "hd2d", key: "F2", tip: "Show the live HD-2D viewport panel (renders this map with its HD-2D settings; drag light gizmos)", active: () => isViewportVisible(), run: toggleViewport });
 act("worldview", { label: "World View", icon: "map", key: "F3", tip: "Show the World View — a bird's-eye map-connection graph (drag maps to arrange, drag arrows to re-link)", active: () => isWorldVisible(), run: toggleWorld });
@@ -236,8 +263,13 @@ export function refreshToolbar() {
   }
 }
 
+// The browser build gains the "Where's my game saved?" note (H6·B); desktop/fakehost,
+// whose games live in folders, keep the File menu exactly as before.
+const FILE_ITEMS = managerActive()
+  ? ["new", "open", "import-rm", "save", "export", "build", "-", "import-report", "-", "play"]
+  : ["new", "open", "import-rm", "save", "export", "build", "-", "import-report", "-", "desktop-folders", "-", "play"];
 const MENUS = [
-  { label: "File", items: ["new", "open", "import-rm", "save", "export", "build", "-", "import-report", "-", "play"] },
+  { label: "File", items: FILE_ITEMS },
   { label: "Edit", items: ["undo", "redo", "-", "cut", "copy", "paste", "-", "deselect"] },
   { label: "Mode", items: ["mode-map", "mode-event", "mode-pass", "mode-height", "mode-region", "-", "mode-start"] },
   { label: "Draw", items: ["tool-pen", "tool-erase", "tool-rect", "tool-circle", "tool-fill", "tool-shadow"] },

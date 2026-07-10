@@ -41,10 +41,18 @@ Some drops open a wizard step instead of importing directly:
 In **Database ▸ Animations**, a Flipbook item's **Sheet** field lists your
 imported sheets; picking a **Frame tag** fills From/To/FPS in one click.
 
-Imports are stored in a **per-device library** — IndexedDB in the browser,
-the app-data folder in the desktop app — so they don't count against the
-browser's project-size limit and are shared by every project you edit on
-this device.
+Where your imports are kept depends on which RPGAtlas you're using:
+
+- **Desktop app:** imports go straight into your game's own **`assets/`** folder
+  (`assets/characters`, `assets/tilesets`, `assets/audio`, …), so everything a game
+  needs lives in one folder you can see and copy. Even easier: just **drop a picture or
+  sound into the matching `assets/` folder** with your file manager and it appears in the
+  editor — see **[Adding Your Own Art and Music](Adding-Your-Own-Art-and-Music)**.
+- **Web version:** imports are kept in a **per-device library** inside your browser
+  (IndexedDB), so they don't count against the project-size limit and are shared by every
+  project you edit in that browser.
+
+Either way your files are content-deduped, so importing the same file twice is a no-op.
 
 ## Where assets travel
 

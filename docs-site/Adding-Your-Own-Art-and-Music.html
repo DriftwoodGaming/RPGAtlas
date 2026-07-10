@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Adding Your Own Art and Music — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="Your-Game-Is-a-Folder.html">Your Game Is a Folder</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li><li><a href="Coming-from-RPG-Maker.html">Coming from RPG Maker</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Advanced-Map-Editor.html">Advanced Map Editor</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a class="active" href="Adding-Your-Own-Art-and-Music.html">Adding Your Own Art and Music</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="adding-your-own-art-and-music">Adding Your Own Art and Music</h1>
+<p>RPGAtlas makes all of its tiles, sprites, monsters, and music for you — you can build a whole game without importing anything. But when you want to add <strong>your own</strong> pictures and sounds, it's as easy as copying a file.</p>
+<p><em>This page is about the <strong>desktop app</strong>, where each game is a folder (see <a href="Your-Game-Is-a-Folder.html">Your Game Is a Folder</a>). In the web version you add art and music through the Asset Browser instead — see <a href="#using-the-web-version-instead">the note at the bottom</a>.</em></p>
+<h2 id="just-drop-it-in-the-folder">Just drop it in the folder</h2>
+<p>Inside your game's folder is an <strong><code>assets/</code></strong> folder with a place for each kind of file:</p>
+<table><thead><tr><th>Put this kind of file…</th><th>…into this folder</th></tr></thead><tbody><tr><td>Walking character sprites (PNG)</td><td><code>assets/characters/</code></td></tr><tr><td>Message-box faces (PNG)</td><td><code>assets/facesets/</code></td></tr><tr><td>Battlers / enemies (PNG)</td><td><code>assets/enemies/</code></td></tr><tr><td>Map tiles and tile sheets (PNG)</td><td><code>assets/tilesets/</code></td></tr><tr><td>Music and sound effects (OGG, MP3, WAV, M4A, FLAC)</td><td><code>assets/audio/</code></td></tr></tbody></table>
+<p><strong>Copy a file into the matching folder with your file manager, switch back to the editor, and it's there</strong> — no importing, no dialogs. RPGAtlas checks the <code>assets/</code> folders each time you return to the editor window, and you can also check right away with <strong>Scan for New Files</strong> in the Asset Browser (<strong>Tools ▸ Asset Browser</strong>).</p>
+<h2 id="big-tile-sheets-open-the-slicer">Big tile sheets open the slicer</h2>
+<p>If the picture you drop into <code>assets/tilesets/</code> is bigger than a single tile, RPGAtlas opens the friendly <strong>tileset slicer</strong> so you can cut it into tiles: pick the grid size (48px is the normal choice), click the cells you want, choose whether they're walkable, and each one becomes a tile in your palette. The slicer shows a gentle "that's a lot of tiles!" warning if a sheet would make an enormous number of tiles, so you never accidentally flood your game.</p>
+<h2 id="your-files-stay-exactly-where-you-put-them">Your files stay exactly where you put them</h2>
+<p>RPGAtlas <strong>references</strong> your files where they sit — it never moves, renames, or deletes them:</p>
+<ul><li><strong>Renaming</strong> an asset in the editor only changes its name <em>in the editor</em>. The real file on disk keeps its own name.</li><li>If a file <strong>goes missing</strong> (you moved or deleted it outside the editor), the Asset Browser shows a friendly <strong>"missing"</strong> card instead of breaking. Put the file back and it heals itself on the next scan.</li><li>Because every picture and sound lives inside the game's folder, you can <strong>zip the folder, move it to another computer, and open it</strong> — all your art and music come along.</li></ul>
+<h2 id="managing-what-youve-added">Managing what you've added</h2>
+<p><strong>Tools ▸ Asset Browser</strong> is where your imported art and audio live alongside the built-in art. From there you can search and tag assets, see which ones your game actually uses, find unused ones, and <strong>Open Project Folder</strong> to jump straight to the files on disk. See <strong><a href="The-Asset-Browser.html">The Asset Browser</a></strong> for the full tour.</p>
+<h2 id="using-the-web-version-instead">Using the web version instead</h2>
+<p>In the <strong>web version</strong> (the one that runs in a browser tab) there are no folders, so you add your own art and music through <strong>Tools ▸ Asset Browser ▸ Import Files…</strong> (or by dragging files onto the browser). Your imports are kept in a per-device library inside your browser and travel with your game when you Export it. Everything else — the slicer, naming, and the pickers — works the same. See <strong><a href="The-Asset-Browser.html">The Asset Browser</a></strong> and <strong><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></strong>.</p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

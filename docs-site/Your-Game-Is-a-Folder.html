@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your Game Is a Folder — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a class="active" href="Your-Game-Is-a-Folder.html">Your Game Is a Folder</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li><li><a href="Coming-from-RPG-Maker.html">Coming from RPG Maker</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Advanced-Map-Editor.html">Advanced Map Editor</a></li><li><a href="Events.html">Events</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="Adding-Your-Own-Art-and-Music.html">Adding Your Own Art and Music</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="your-game-is-a-folder">Your Game Is a Folder</h1>
+<p><em>This page is about the <strong>desktop app</strong> (RPGAtlas-Desktop). In the web version your game lives inside your browser instead — see <a href="#using-the-web-version-instead">the note at the bottom</a>.</em></p>
+<p>In the RPGAtlas desktop app, <strong>every game you make is a real folder on your computer</strong> — one you can see in your file manager, open, copy, back up to a USB stick, zip up to send to a friend, and drop your own pictures and sounds straight into. This is exactly how the big game-making tools work, and it means <strong>your game is never trapped inside the program</strong>.</p>
+<h2 id="starting-the-app-the-project-manager">Starting the app: the Project Manager</h2>
+<p>When you open the desktop app, it greets you with the <strong>Project Manager</strong> instead of jumping straight into the editor:</p>
+<ul><li><strong>➕ New Project</strong> — give your game a name, pick a folder to keep it in, choose a starter template (<strong>Blank</strong>, <strong>Starter</strong>, or the <strong>Atlas Quest</strong> sample), and RPGAtlas makes the folder for you and opens the editor on it.</li><li><strong>📂 Open Project</strong> — reopen a game you already made. Your recent games are listed for one-click opening, and <strong>Browse…</strong> lets you pick any game folder on your computer.</li></ul>
+<p>Inside the editor you can always come back here with <strong>File ▸ New Project</strong> or <strong>File ▸ Open Project</strong> — RPGAtlas saves the game you have open first, so nothing is lost.</p>
+<h2 id="whats-inside-a-game-folder">What's inside a game folder</h2>
+<p>Open your game's folder in your file manager and you'll see something like this:</p>
+<pre><code>My Awesome Game/
+├─ game.rpgatlas      ← your game itself (double-click it to open the game)
+├─ assets/            ← drop your own pictures and sounds here (see below)
+│  ├─ characters/         walking sprites
+│  ├─ facesets/           message-box faces
+│  ├─ enemies/            battlers
+│  ├─ tilesets/           map tiles
+│  └─ audio/              music and sound effects
+├─ .atlas/            ← RPGAtlas's own helper files (safe to ignore)
+└─ saves/             ← playtest save slots</code></pre>
+<ul><li><strong><code>game.rpgatlas</code></strong> is your whole game in one file — maps, events, database, everything. It's the file you double-click to open the game.</li><li><strong><code>assets/</code></strong> is where your own art and music go. See <strong><a href="Adding-Your-Own-Art-and-Music.html">Adding Your Own Art and Music</a></strong>.</li><li><strong><code>.atlas/</code></strong> is where RPGAtlas keeps helper files (a list of your assets, sliced tiles, and a few recent backups of <code>game.rpgatlas</code>). You never need to touch it, and it's safe to leave out of a backup.</li></ul>
+<h2 id="your-game-saves-itself">Your game saves itself</h2>
+<p>While you work, RPGAtlas <strong>autosaves straight into your game's folder</strong> — there's no "save to a file" step to remember. Your folder <em>is</em> your game.</p>
+<ul><li>Every save is written safely, so a crash in the middle of saving can never scramble your game.</li><li>RPGAtlas keeps the <strong>last few versions</strong> in <code>.atlas/backup/</code> in case you ever want to step back.</li><li><strong>Ctrl+S</strong> (or <strong>File ▸ Save Project</strong>) saves right now instead of waiting.</li><li>If your computer shuts down before a save finishes, RPGAtlas notices next time and offers to <strong>bring your unsaved changes back</strong>.</li><li>If the game's file changes outside the editor (say another program edits it), RPGAtlas spots it when you come back and offers to load the newer version.</li></ul>
+<p><strong>Export is different from saving.</strong> <strong>File ▸ Export Project As File…</strong> makes a single shareable <code>.json</code> copy with all its pictures and sounds baked in — handy for sending your game to someone who will open it somewhere else. Your everyday work is already saved in the folder; Export is only for making a portable copy.</p>
+<h2 id="opening-a-game-by-double-clicking-it">Opening a game by double-clicking it</h2>
+<p>Because your game is a real file, you can <strong>double-click <code>game.rpgatlas</code></strong> (or drop your game's folder onto the app) and RPGAtlas opens straight into that game, skipping the Project Manager. If RPGAtlas is already open, double-clicking another game brings the window to the front and switches to it — after saving the game you were working on first — instead of opening a second copy.</p>
+<p>On Windows you tell the app to open <code>.rpgatlas</code> files once — right-click a <code>game.rpgatlas</code> ▸ <strong>Open with</strong> ▸ choose RPGAtlas ▸ <strong>Always use this app</strong> — and from then on every game is one double-click away.</p>
+<h2 id="copying-backing-up-and-sharing">Copying, backing up, and sharing</h2>
+<p>Everything a game needs is inside its folder, so you can treat the folder as <em>the game</em>:</p>
+<ul><li><strong>Back it up</strong> by copying the folder to another drive or a USB stick.</li><li><strong>Move it</strong> to another computer — copy the folder over, open it there, and every map, picture, and sound comes along.</li><li><strong>Zip it</strong> to email or upload it. Whoever unzips it can open it in their own RPGAtlas.</li></ul>
+<h2 id="bringing-an-older-game-into-a-folder">Bringing an older game into a folder</h2>
+<p>If you made a game in an older version of the desktop app (before games were folders), RPGAtlas greets you with a friendly <strong>"let's put your game in a folder"</strong> button the next time you open it. One click — pick a name and a place — and your old game becomes a proper folder, with its pictures and sounds tidied in for you. Nothing is left behind.</p>
+<h2 id="using-the-web-version-instead">Using the web version instead</h2>
+<p>The <strong>web version</strong> of RPGAtlas (the one that runs in a browser tab) keeps your game inside your browser rather than in a folder, and you back it up with <strong>File ▸ Export Project As File…</strong>. It's perfect for trying things out with nothing to install. When you're ready for folders, double-clicking, and dropping in your own files, use the <strong>desktop app</strong> — your exported game file opens there and can be moved into a folder in one click.</p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

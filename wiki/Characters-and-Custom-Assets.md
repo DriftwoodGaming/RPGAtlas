@@ -29,6 +29,12 @@ or editing a sprite in an external tool and bringing it back as a custom asset.
 
 ## Adding your own art
 
+> **Making a game in the desktop app?** The easiest way to add art and music is to drop files
+> straight into your game's own **`assets/`** folder — see
+> **[Adding Your Own Art and Music](Adding-Your-Own-Art-and-Music)**. The shared `img/` folders
+> below are the engine's built-in library (handy when you're running RPGAtlas from its source
+> folder or want art shared across every project).
+
 Custom images live **once** in the engine's shared `img` folder, so several projects can reuse the
 same library without duplicating files. The folders:
 
