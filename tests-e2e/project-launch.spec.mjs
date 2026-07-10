@@ -25,7 +25,9 @@ function docTitled(title) {
 /** Seed the fake host's localStorage (docs + recents + a launch path), then navigate to
  *  ?fakehost so start() installs the fake host and launchManager() reads the seed. */
 async function gotoWithLaunch(page, { docs = {}, recents = [], launch = null } = {}) {
-  await page.goto("/index.html");
+  // Prime under ?fakehost so the manager mounts (as on desktop) instead of the browser
+  // editor booting and writing a meta-less mirror the H6·A migration offer would read.
+  await page.goto("/index.html?fakehost");
   await page.evaluate(
     ({ d, r, l }) => {
       localStorage.setItem("atlas.fakehost.docs", d);
@@ -70,7 +72,7 @@ test.describe("Launch from a project — argv / double-click (H5·A)", () => {
     await expect(page.locator("#save-ind")).toBeHidden();
 
     // A folder that exists but has no game.rpgatlas → the not-a-project copy instead.
-    await page.goto("/index.html");
+    await page.goto("/index.html?fakehost"); // prime under ?fakehost (no browser-editor boot)
     await page.evaluate(() => {
       localStorage.setItem("atlas.fakehost.empty", JSON.stringify(["/Games/Empty"]));
       localStorage.setItem("atlas.fakehost.launch", "/Games/Empty");

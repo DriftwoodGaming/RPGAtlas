@@ -18,7 +18,10 @@ const SEED_ROOT = "/Games/Seed Game";
  *  origin, write storage, then load ?fakehost so start() installs the fake host
  *  and reads the seed. */
 async function gotoManagerWithSeed(page, { recents = [], docs = {} } = {}) {
-  await page.goto("/index.html");
+  // Prime the origin under ?fakehost so the manager mounts (as on desktop) instead of the
+  // browser editor booting and writing a meta-less rpgatlas_project mirror — which the
+  // H6·A migration offer would then read as a "legacy game" (see H6·A §1.1).
+  await page.goto("/index.html?fakehost");
   await page.evaluate(
     ({ r, d }) => {
       localStorage.setItem("atlas.fakehost.recents", r);
@@ -297,7 +300,7 @@ test.describe("Crash recovery (H3·B)", () => {
   /** Seed a folder game plus a crash signature: a mirror (rpgatlas_project) newer than
    *  the folder file, with meta.folderConfirmed flag as given. */
   async function seedCrash(page, { folderTitle, mirrorTitle, folderConfirmed }) {
-    await page.goto("/index.html");
+    await page.goto("/index.html?fakehost"); // prime under ?fakehost (no browser-editor boot)
     await page.evaluate(
       ({ root, folderDoc, mirrorDoc, meta }) => {
         localStorage.setItem(
@@ -513,5 +516,106 @@ test.describe("Project Manager — fake-host coverage (H2·D)", () => {
     await page.locator(".pm-bigbtn", { hasText: "Open Project" }).click();
     await expect(page.locator(".pm-toast")).toContainText("isn't an RPGAtlas game");
     await expect(page.locator("#save-ind")).toBeHidden(); // nothing booted
+  });
+});
+
+test.describe("Legacy → folder migration (H6·A)", () => {
+  // A 1×1 transparent PNG (decodes in a real browser) — a global-library asset to copy in.
+  const PNG_B64 =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
+
+  /** Seed a pre-Harbor game: the localStorage mirror (`rpgatlas_project`) with NO folder
+   *  bookkeeping (`atlas.mirror.meta`) — a game that lived only in the browser store and
+   *  never got a folder. Optionally seed the legacy global library the bridge copies from. */
+  async function seedLegacy(page, { docJson, globalLib } = {}) {
+    // Prime under ?fakehost so no browser-editor boot pollutes the mirror; then seed the
+    // pre-Harbor mirror ourselves (race-free — the prior load booted no editor).
+    await page.goto("/index.html?fakehost");
+    await page.evaluate(
+      ({ doc, gl }) => {
+        localStorage.setItem("rpgatlas_project", doc);
+        localStorage.removeItem("atlas.mirror.meta"); // the "no folder yet" signal
+        if (gl) localStorage.setItem("atlas.fakehost.global", gl);
+      },
+      { doc: docJson, gl: globalLib ? JSON.stringify(globalLib) : null },
+    );
+    await page.goto("/index.html?fakehost");
+  }
+
+  test("a pre-Harbor localStorage game is met by the migration wizard, name prefilled", async ({ page }) => {
+    await seedLegacy(page, { docJson: atlasQuestJson() });
+
+    // The wizard — not the plain launcher — greets the child, with the game's own title.
+    await expect(page.locator(".pm-intro")).toContainText("We found a game you were making");
+    await expect(page.locator(".pm-form .pm-input")).toHaveValue("Atlas Quest");
+    await expect(page.locator(".pm-btn", { hasText: "Put my game in a folder" })).toBeVisible();
+    // The editor hasn't booted yet — the gate stays closed (trap 1).
+    await expect(page.locator("#save-ind")).toBeHidden();
+  });
+
+  test("Put my game in a folder scaffolds the folder from the stored game, copies assets, and boots", async ({ page }) => {
+    const doc = JSON.parse(atlasQuestJson());
+    doc.actors[0].charset = "asset:characters/hero"; // references a global-library asset
+    await seedLegacy(page, {
+      docJson: JSON.stringify(doc),
+      globalLib: {
+        metas: [{ key: "asset:characters/hero", type: "characters", name: "hero", hash: "h", mime: "image/png" }],
+        blobs: { "asset:characters/hero": PNG_B64 },
+      },
+    });
+
+    await page.evaluate(() => window.__ATLAS_TEST_HOST__.setNextDirectory("/Games"));
+    await page.locator(".pm-btn", { hasText: "Choose folder…" }).click();
+    await expect(page.locator(".pm-folder-path")).toHaveText("/Games");
+    await page.locator(".pm-btn", { hasText: "Put my game in a folder" }).click();
+
+    // The editor boots on the freshly scaffolded folder game (title tracks it, gate opens).
+    await expect(page.locator("#save-ind")).toBeVisible({ timeout: 20_000 });
+    await expect(page).toHaveTitle("Atlas Quest — RPGAtlas");
+    // The H4 bridge copied the used global-library asset into the new folder (self-contained).
+    await expect(page.locator(".modal-title", { hasText: "We tidied up your game" })).toBeVisible({
+      timeout: 20_000,
+    });
+    const state = await page.evaluate(() => ({
+      docs: Object.keys(JSON.parse(localStorage.getItem("atlas.fakehost.docs") || "{}")),
+      keys: window.__ATLAS_TEST_HOST__.readAssetIndex("/Games/Atlas Quest").map((m) => m.key),
+    }));
+    expect(state.docs).toContain("/Games/Atlas Quest");
+    expect(state.keys).toContain("asset:characters/hero");
+  });
+
+  test('"Not now" drops to the normal launcher, which keeps the offer as a banner', async ({ page }) => {
+    await seedLegacy(page, { docJson: atlasQuestJson() });
+    await page.locator(".pm-btn", { hasText: "Not now" }).click();
+
+    // The plain launcher, plus a banner to migrate later — never a dead end.
+    await expect(page.locator(".pm-bigbtn", { hasText: "New Project" })).toBeVisible();
+    await expect(page.locator(".pm-migrate")).toContainText("Put your old game in a folder");
+    await expect(page.locator("#save-ind")).toBeHidden();
+
+    // The banner re-opens the wizard.
+    await page.locator(".pm-migrate").click();
+    await expect(page.locator(".pm-btn", { hasText: "Put my game in a folder" })).toBeVisible();
+  });
+
+  test("a folder game (mirror WITH bookkeeping) is never offered migration", async ({ page }) => {
+    // A post-Harbor mirror carries meta pointing at its folder; that is not a legacy game.
+    await page.goto("/index.html?fakehost"); // prime under ?fakehost (no browser-editor boot)
+    await page.evaluate(
+      ({ doc }) => {
+        localStorage.setItem("rpgatlas_project", doc);
+        localStorage.setItem(
+          "atlas.mirror.meta",
+          JSON.stringify({ root: "/Games/Already", savedAt: Date.now(), folderConfirmed: true }),
+        );
+      },
+      { doc: atlasQuestJson() },
+    );
+    await page.goto("/index.html?fakehost");
+
+    // The plain launcher, with no migration wizard and no banner.
+    await expect(page.locator(".pm-bigbtn", { hasText: "New Project" })).toBeVisible();
+    await expect(page.locator(".pm-intro")).toHaveCount(0);
+    await expect(page.locator(".pm-migrate")).toHaveCount(0);
   });
 });

@@ -16,7 +16,9 @@ const PNG_B64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 
 async function newGame(page, name) {
-  await page.goto("/index.html");
+  // Prime under ?fakehost so the manager mounts (as on desktop) rather than the browser
+  // editor booting and writing a meta-less mirror the H6·A migration offer would read.
+  await page.goto("/index.html?fakehost");
   await page.goto("/index.html?fakehost");
   await page.evaluate(() => window.__ATLAS_TEST_HOST__.setNextDirectory("/Games"));
   await page.locator(".pm-bigbtn", { hasText: "New Project" }).click();
@@ -76,7 +78,7 @@ test.describe("Per-project assets — legacy bridge (H4·A)", () => {
     const doc = JSON.parse(atlasQuestJson());
     doc.actors[0].charset = "asset:characters/hero";
 
-    await page.goto("/index.html");
+    await page.goto("/index.html?fakehost"); // prime under ?fakehost (no browser-editor boot)
     await page.evaluate(
       ({ r, d }) => {
         localStorage.setItem("atlas.fakehost.docs", JSON.stringify({ [r]: d }));
