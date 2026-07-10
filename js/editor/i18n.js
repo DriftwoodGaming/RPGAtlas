@@ -27,7 +27,7 @@ const SHARED = {
       "File": "Archivo", "Edit": "Editar", "Mode": "Modo", "Draw": "Dibujar", "Layer": "Capa",
       "Scale": "Escala", "View": "Ver", "Tools": "Herramientas", "Game": "Juego", "Help": "Ayuda",
       // File
-      "New Project…": "Nuevo proyecto…", "Open Project (.json)…": "Abrir proyecto (.json)…",
+      "New Project…": "Nuevo proyecto…", "Open Project (.json)…": "Abrir proyecto (.json)…", "Where's my game saved?…": "¿Dónde se guarda mi juego?…", "Got it": "Entendido",
       "Import from RPG Maker…": "Importar de RPG Maker…", "Import Report": "Informe de importación",
       "Save Project": "Guardar proyecto", "Export Project As File…": "Exportar proyecto como archivo…",
       "Export Standalone Game…": "Exportar juego independiente…", "Playtest": "Probar juego",
@@ -111,7 +111,7 @@ const SHARED = {
       "File": "Fichier", "Edit": "Édition", "Mode": "Mode", "Draw": "Dessin", "Layer": "Calque",
       "Scale": "Échelle", "View": "Affichage", "Tools": "Outils", "Game": "Jeu", "Help": "Aide",
       // File
-      "New Project…": "Nouveau projet…", "Open Project (.json)…": "Ouvrir un projet (.json)…",
+      "New Project…": "Nouveau projet…", "Open Project (.json)…": "Ouvrir un projet (.json)…", "Where's my game saved?…": "Où est enregistré mon jeu ?…", "Got it": "Compris",
       "Import from RPG Maker…": "Importer depuis RPG Maker…", "Import Report": "Rapport d'importation",
       "Save Project": "Enregistrer le projet", "Export Project As File…": "Exporter le projet…",
       "Export Standalone Game…": "Exporter le jeu autonome…", "Playtest": "Tester",
@@ -195,7 +195,7 @@ const SHARED = {
       "File": "Datei", "Edit": "Bearbeiten", "Mode": "Modus", "Draw": "Zeichnen", "Layer": "Ebene",
       "Scale": "Maßstab", "View": "Ansicht", "Tools": "Werkzeuge", "Game": "Spiel", "Help": "Hilfe",
       // File
-      "New Project…": "Neues Projekt…", "Open Project (.json)…": "Projekt öffnen (.json)…",
+      "New Project…": "Neues Projekt…", "Open Project (.json)…": "Projekt öffnen (.json)…", "Where's my game saved?…": "Wo wird mein Spiel gespeichert?…", "Got it": "Verstanden",
       "Import from RPG Maker…": "Aus RPG Maker importieren…", "Import Report": "Importbericht",
       "Save Project": "Projekt speichern", "Export Project As File…": "Projekt als Datei exportieren…",
       "Export Standalone Game…": "Eigenständiges Spiel exportieren…", "Playtest": "Testspielen",
@@ -279,7 +279,7 @@ const SHARED = {
       "File": "ファイル", "Edit": "編集", "Mode": "モード", "Draw": "描画", "Layer": "レイヤー",
       "Scale": "表示倍率", "View": "表示", "Tools": "ツール", "Game": "ゲーム", "Help": "ヘルプ",
       // File
-      "New Project…": "新規プロジェクト…", "Open Project (.json)…": "プロジェクトを開く (.json)…",
+      "New Project…": "新規プロジェクト…", "Open Project (.json)…": "プロジェクトを開く (.json)…", "Where's my game saved?…": "ゲームはどこに保存される？…", "Got it": "了解",
       "Import from RPG Maker…": "RPG Maker から読み込む…", "Import Report": "インポートレポート",
       "Save Project": "プロジェクトを保存", "Export Project As File…": "プロジェクトをファイルに書き出す…",
       "Export Standalone Game…": "スタンドアロンゲームを書き出す…", "Playtest": "テストプレイ",
@@ -363,7 +363,7 @@ const SHARED = {
       "File": "檔案", "Edit": "編輯", "Mode": "模式", "Draw": "繪製", "Layer": "圖層",
       "Scale": "縮放比例", "View": "檢視", "Tools": "工具", "Game": "遊戲", "Help": "說明",
       // File
-      "New Project…": "新增專案…", "Open Project (.json)…": "開啟專案 (.json)…",
+      "New Project…": "新增專案…", "Open Project (.json)…": "開啟專案 (.json)…", "Where's my game saved?…": "我的遊戲存在哪裡？…", "Got it": "知道了",
       "Import from RPG Maker…": "從 RPG Maker 匯入…", "Import Report": "匯入報告",
       "Save Project": "儲存專案", "Export Project As File…": "匯出專案為檔案…",
       "Export Standalone Game…": "匯出獨立遊戲…", "Playtest": "試玩",
@@ -447,7 +447,7 @@ const SHARED = {
       "File": "文件", "Edit": "编辑", "Mode": "模式", "Draw": "绘制", "Layer": "图层",
       "Scale": "缩放比例", "View": "视图", "Tools": "工具", "Game": "游戏", "Help": "帮助",
       // File
-      "New Project…": "新建项目…", "Open Project (.json)…": "打开项目 (.json)…",
+      "New Project…": "新建项目…", "Open Project (.json)…": "打开项目 (.json)…", "Where's my game saved?…": "我的游戏保存在哪里？…", "Got it": "知道了",
       "Import from RPG Maker…": "从 RPG Maker 导入…", "Import Report": "导入报告",
       "Save Project": "保存项目", "Export Project As File…": "导出项目为文件…",
       "Export Standalone Game…": "导出独立游戏…", "Playtest": "试玩",
@@ -531,7 +531,7 @@ const SHARED = {
       "File": "Arquivo", "Edit": "Editar", "Mode": "Modo", "Draw": "Desenhar", "Layer": "Camada",
       "Scale": "Escala", "View": "Exibir", "Tools": "Ferramentas", "Game": "Jogo", "Help": "Ajuda",
       // File
-      "New Project…": "Novo projeto…", "Open Project (.json)…": "Abrir projeto (.json)…",
+      "New Project…": "Novo projeto…", "Open Project (.json)…": "Abrir projeto (.json)…", "Where's my game saved?…": "Onde meu jogo fica salvo?…", "Got it": "Entendi",
       "Import from RPG Maker…": "Importar do RPG Maker…", "Import Report": "Relatório de importação",
       "Save Project": "Salvar projeto", "Export Project As File…": "Exportar projeto como arquivo…",
       "Export Standalone Game…": "Exportar jogo independente…", "Playtest": "Testar jogo",
@@ -615,7 +615,7 @@ const SHARED = {
       "File": "파일", "Edit": "편집", "Mode": "모드", "Draw": "그리기", "Layer": "레이어",
       "Scale": "배율", "View": "보기", "Tools": "도구", "Game": "게임", "Help": "도움말",
       // File
-      "New Project…": "새 프로젝트…", "Open Project (.json)…": "프로젝트 열기 (.json)…",
+      "New Project…": "새 프로젝트…", "Open Project (.json)…": "프로젝트 열기 (.json)…", "Where's my game saved?…": "내 게임은 어디에 저장되나요?…", "Got it": "알겠어요",
       "Import from RPG Maker…": "RPG Maker에서 가져오기…", "Import Report": "가져오기 보고서",
       "Save Project": "프로젝트 저장", "Export Project As File…": "프로젝트를 파일로 내보내기…",
       "Export Standalone Game…": "독립 실행형 게임 내보내기…", "Playtest": "테스트 플레이",
@@ -699,7 +699,7 @@ const SHARED = {
       "File": "File", "Edit": "Modifica", "Mode": "Modalità", "Draw": "Disegno", "Layer": "Livello",
       "Scale": "Scala", "View": "Visualizza", "Tools": "Strumenti", "Game": "Gioco", "Help": "Aiuto",
       // File
-      "New Project…": "Nuovo progetto…", "Open Project (.json)…": "Apri progetto (.json)…",
+      "New Project…": "Nuovo progetto…", "Open Project (.json)…": "Apri progetto (.json)…", "Where's my game saved?…": "Dove viene salvato il mio gioco?…", "Got it": "Ho capito",
       "Import from RPG Maker…": "Importa da RPG Maker…", "Import Report": "Rapporto di importazione",
       "Save Project": "Salva progetto", "Export Project As File…": "Esporta progetto come file…",
       "Export Standalone Game…": "Esporta gioco autonomo…", "Playtest": "Prova di gioco",
@@ -783,7 +783,7 @@ const SHARED = {
       "File": "Файл", "Edit": "Правка", "Mode": "Режим", "Draw": "Рисование", "Layer": "Слой",
       "Scale": "Масштаб", "View": "Вид", "Tools": "Инструменты", "Game": "Игра", "Help": "Справка",
       // File
-      "New Project…": "Новый проект…", "Open Project (.json)…": "Открыть проект (.json)…",
+      "New Project…": "Новый проект…", "Open Project (.json)…": "Открыть проект (.json)…", "Where's my game saved?…": "Где сохраняется моя игра?…", "Got it": "Понятно",
       "Import from RPG Maker…": "Импорт из RPG Maker…", "Import Report": "Отчёт об импорте",
       "Save Project": "Сохранить проект", "Export Project As File…": "Экспортировать проект в файл…",
       "Export Standalone Game…": "Экспортировать автономную игру…", "Playtest": "Тестовая игра",

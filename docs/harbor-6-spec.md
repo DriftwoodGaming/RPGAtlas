@@ -177,3 +177,47 @@ self-contained folder game.
   `data.js?v=31`, FORMAT_VERSION 2, version 1.1.0 — unchanged this stage.
 - Git ritual: branch `harbor-6a` → gates green → commit → merge to `main` → delete branch.
   **Next: H6·B (docs & story).**
+
+### H6·B — Docs & story — 2026-07-09
+
+**Shipped:** the project-folders story is written down for players (wiki + docs-site +
+README), the old app-data import inbox is retired from the docs, and the pure browser build
+gains a gentle "your folders live in the desktop app" note in its File menu.
+
+- **New wiki pages:** `wiki/Your-Game-Is-a-Folder.md` (the desktop project-folder model — the
+  Project Manager, the folder layout, autosave-into-the-folder + backups + Ctrl+S, opening by
+  double-click, backing up / zipping / moving, and the H6·A migration) and
+  `wiki/Adding-Your-Own-Art-and-Music.md` (the `assets/` drop-folders, copy-paste + focus
+  scan + the slicer, files-stay-put + the friendly missing state, self-contained folders).
+  Both cross-link and each closes with a "using the web version instead" note.
+- **Wiki wiring:** `_Sidebar.md` links both new pages; `Home.md` adds the folder page to the
+  "new here?" path; `The-Asset-Browser.md` **retires the app-data inbox** — the old
+  "per-device library — IndexedDB in the browser, the app-data folder in the desktop app"
+  line is replaced with the real split (desktop = the game's own `assets/` folder; web = the
+  per-device IndexedDB library) and points at the new pages; `Characters-and-Custom-Assets.md`
+  gains a desktop `assets/` pointer atop its (still-valid, source-checkout) shared-`img/` docs.
+- **docs-site:** rebuilt with `node scripts/build-docs-site.mjs` → **22 pages** (20 + the 2
+  new), sidebar links resolve, internal links verified.
+- **README:** new **"Your game is a folder (desktop app)"** section (Project Manager, the
+  folder tree, autosave, drop-in assets, zip/move/back-up, Export, migration) with the
+  double-click section demoted under it; a desktop `assets/` pointer in "Custom assets"; and a
+  desktop-folder note in "Project format". (README version badge stays 1.1.0 → bumps at H6·C.)
+- **Browser File-menu note (`src/editor/workspace.ts`):** a new `desktop-folders` command
+  (**"Where's my game saved?…"** → a kid-friendly modal naming the desktop app + folders),
+  registered and shown in the File menu **only when `!managerActive()`** — i.e. the pure web
+  build. Desktop (`isTauri`) and the `?fakehost` e2e host, whose games already live in
+  folders, never see it, so the manager menus and the frozen-70 desktop parity are unchanged.
+  `FILE_ITEMS` is computed per build so the item slots in only on the web.
+- **i18n parity (trap: the i18n anti-rot gate scans `workspace.ts` `label:`):** the two new
+  chrome strings the note introduces — **"Where's my game saved?…"** (the command label) and
+  **"Got it"** (its modal button, rendered through `t()`) — are translated in **all 10
+  locales** (`js/editor/i18n.js`), keeping `i18n-parity.test.ts` green (31/31).
+- **e2e (`tests-e2e/desktop-note.spec.mjs`, new, additive, browser build — no `?fakehost`):**
+  opens the File menu, finds the note, opens the modal (names the desktop app + folders),
+  dismisses it. The existing browser specs are untouched (a new file).
+- **Gates:** vitest **977** · node **19** · Playwright **108/108** (107 + 1 note) · eslint
+  **0** · typecheck **clean**. No product-version / cache-buster bump yet (H6·C). Docs and the
+  browser-only note are inert to the desktop exe (rebuilt at H6·C).
+- Git ritual: branch `harbor-6b` → gates green → commit → merge to `main` → delete branch.
+  **Next: H6·C (release — gate sweep, exe rebuild, 1.2.0 bump, patch notes, then STOP for
+  the Fable 5 release gate).**

@@ -66,12 +66,36 @@ Then open the printed **http://localhost:…** address — that's the editor. Ei
 > Building the launcher from source: run `tools/build-engine-launcher.ps1` (uses the .NET Framework C#
 > compiler already present on Windows). This produces `RPGAtlas.exe` in the project root.
 
-## Opening a game by double-clicking it (desktop app)
+## Your game is a folder (desktop app)
 
 The **RPGAtlas desktop app** (`RPGAtlas-Desktop.exe`, its own window — distinct from the browser
-launcher above) treats every game as a folder, and the file inside it named **`game.rpgatlas`** is
-that game's project file. Hand the desktop app one and it opens straight into that game, skipping the
-Project Manager:
+launcher above) works the way RPG Maker and Godot do: **every game is a real folder on your
+computer**. It opens to a **Project Manager** (New Project / Open Project / recent games) instead of
+the editor; creating a game scaffolds a folder, opening one boots the editor on it. A game folder
+looks like:
+
+```text
+My Game/
+  game.rpgatlas   the game itself (double-click to open it)
+  assets/         drop your own art & audio here: characters, facesets, enemies, tilesets, audio
+  .atlas/         RPGAtlas's helper files (asset index, sliced-tile cache, rolling backups)
+  saves/          playtest save slots
+```
+
+Your work **autosaves straight into the folder** (`game.rpgatlas`, written atomically with a rolling
+backup) — no "save to a file" step. Drop a picture or sound into the matching `assets/` subfolder and
+it appears in the editor when you switch back (or click **Scan for New Files**); your files are never
+moved or renamed. Because everything a game needs is in its folder, you can **zip it, move it, or back
+it up** and it just works. **File ▸ Export Project As File…** still makes a shareable single-file copy
+with its assets baked in. Opening a game made in an older desktop build offers a one-click
+**"put your game in a folder"** migration. Full guide:
+[Your Game Is a Folder](wiki/Your-Game-Is-a-Folder.md) ·
+[Adding Your Own Art and Music](wiki/Adding-Your-Own-Art-and-Music.md).
+
+### Opening a game by double-clicking it
+
+The file inside a game folder named **`game.rpgatlas`** is that game's project file. Hand the desktop
+app one and it opens straight into that game, skipping the Project Manager:
 
 - **Double-click a `game.rpgatlas` file** (once the association is set up — see below).
 - **From a shortcut or terminal:** `RPGAtlas-Desktop.exe "C:\Games\My Game"` — pass either the game's
@@ -120,8 +144,11 @@ plus an icon toolbar with everything one click away.
 
 ## Custom assets
 
-Custom images live once in the engine's shared `img` folder, so multiple projects can use the same
-library without duplicating it:
+**Desktop app:** the easiest way to add your own art and audio is to drop files into your game's own
+`assets/` folder (or import through **Tools ▸ Asset Browser**) — see
+[Adding Your Own Art and Music](wiki/Adding-Your-Own-Art-and-Music.md). The shared `img/` folders
+below are the engine's built-in library, used when running RPGAtlas from a source checkout or sharing
+art across projects:
 
 ```text
 img/characters   walking sprite sheets (3 columns x 4 directions)
@@ -244,7 +271,9 @@ a security warning for downloaded builds. Full guide: [Publishing Your Game](wik
 
 ## Project format
 
-Everything lives in one JSON document (also autosaved to your browser):
+Everything lives in one JSON document — autosaved to your browser in the web version, or written
+into your game folder as `game.rpgatlas` in the desktop app (see
+[Your game is a folder](#your-game-is-a-folder-desktop-app)):
 
 ```
 system      – title, start position/transparency, party, gold, currency, switch/variable names,

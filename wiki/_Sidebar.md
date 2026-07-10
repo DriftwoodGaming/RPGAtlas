@@ -4,6 +4,7 @@
 - [Home](Home)
 - [Installation & Setup](Installation-and-Setup)
 - [Make Your First Game](Your-First-Game)
+- [Your Game Is a Folder](Your-Game-Is-a-Folder)
 - [The Editor Interface](The-Editor-Interface)
 - [Coming from RPG Maker](Coming-from-RPG-Maker)
 
@@ -14,6 +15,7 @@
 - [The Database](The-Database)
 - [Battles & States](Battles-and-States)
 - [Characters & Custom Assets](Characters-and-Custom-Assets)
+- [Adding Your Own Art and Music](Adding-Your-Own-Art-and-Music)
 - [The Asset Browser](The-Asset-Browser)
 - [Audio](Audio)
 
