@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<!-- RPGAtlas — desktop playtest parking page.
+     The pre-built (hidden) playtest window idles HERE instead of play.html, so
+     the game engine — and its music — only runs while a playtest is actually
+     open. It loads no scripts on purpose: navigating here unloads the engine.
+     Staged into src-tauri/dist by scripts/stage-frontend.mjs; never part of
+     the web build. GPL-3.0-or-later (see ../LICENSE). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>RPGAtlas — Playtest</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; align-items: center; justify-content: center;
+    background: #10131a; color: #8b93a7;
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+</style>
+</head>
+<body>
+  <p>Press ▶ Play in the editor to start your game.</p>
+</body>
+</html>

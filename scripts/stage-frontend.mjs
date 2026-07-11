@@ -41,6 +41,13 @@ rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
 cpSync(webDist, dist, { recursive: true });
 
+// Desktop-only playtest parking page: the pre-built (hidden) playtest window
+// idles here instead of play.html so the game engine — and its music — only
+// runs while a playtest is actually open (see open_playtest in
+// src-tauri/src/lib.rs). Like assets.json below, it exists only in the staged
+// copy, never in the web build.
+cpSync(join(root, "src-tauri", "playtest-idle.html"), join(dist, "playtest-idle.html"));
+
 // Asset manifest — mirrors the img/assets.json path that js/assets.js already
 // prefers over directory-listing discovery. Lists any custom art the user has
 // dropped into the img/<kind>/ folders (currently the engine is fully

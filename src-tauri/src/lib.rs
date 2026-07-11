@@ -79,22 +79,57 @@ fn open_project(app: tauri::AppHandle) -> Result<Option<String>, String> {
     }
 }
 
+/// Where the playtest webview parks when no playtest is running: a bundled
+/// page with NO scripts, so parking there unloads the game engine — which is
+/// what actually stops the music and game loop. The window is declared with
+/// this URL in tauri.conf.json, so nothing runs at app startup either.
+const PLAYTEST_IDLE_PATH: &str = "/playtest-idle.html";
+/// The bundled player page an actual playtest runs.
+const PLAYTEST_PLAY_PATH: &str = "/play.html";
+
+/// `current` rewritten to `path` on the same origin (query/fragment dropped).
+/// Pure, so the playtest navigation targets are cargo-testable.
+fn same_origin(mut current: tauri::Url, path: &str) -> tauri::Url {
+    current.set_path(path);
+    current.set_query(None);
+    current.set_fragment(None);
+    current
+}
+
+/// The URL `open_playtest` must navigate the playtest webview to, or `None`
+/// when it is already on the player page and a plain reload is right (a reload
+/// reboots the game into the project the editor just autosaved).
+fn playtest_boot_target(current: tauri::Url) -> Option<tauri::Url> {
+    if current.path() == PLAYTEST_PLAY_PATH {
+        None
+    } else {
+        Some(same_origin(current, PLAYTEST_PLAY_PATH))
+    }
+}
+
 /// Open (or focus) the play-test window, pointed at the bundled play.html.
 /// localStorage is shared across windows of the same origin, so the player
 /// reads the project the editor just autosaved.
 #[tauri::command]
 fn open_playtest(app: tauri::AppHandle) -> Result<(), String> {
     // The play-test window is declared in tauri.conf.json and created at startup
-    // (hidden). Building a window on demand from inside a command instead causes
-    // a blank/frozen webview, so we reuse the pre-built one: reload it to re-read
-    // the project the editor just autosaved, then show and focus it. Closing it
-    // only hides it (see the window-event handler in `run`), so it is always
-    // here to reuse, no matter how many times the user plays and closes.
+    // (hidden), parked on the script-free idle page so no game boots — and no
+    // music plays — until asked. Building a window on demand from inside a
+    // command instead causes a blank/frozen webview, so we reuse the pre-built
+    // one: navigate it to play.html (or reload it if it is already there) so it
+    // boots the project the editor just autosaved, then show and focus it.
+    // Closing it parks it back on the idle page and hides it (see the
+    // window-event handler in `run`), so it is always here to reuse, no matter
+    // how many times the user plays and closes.
     let playtest = app
         .get_webview_window("playtest")
         .ok_or_else(|| "Play-test window was not initialized.".to_string())?;
 
-    playtest.reload().map_err(|e| e.to_string())?;
+    let current = playtest.url().map_err(|e| e.to_string())?;
+    match playtest_boot_target(current) {
+        Some(play) => playtest.navigate(play).map_err(|e| e.to_string())?,
+        None => playtest.reload().map_err(|e| e.to_string())?,
+    }
     playtest.show().map_err(|e| e.to_string())?;
     playtest.set_focus().map_err(|e| e.to_string())?;
     Ok(())
@@ -465,15 +500,32 @@ pub fn run() {
         .manage(launch::LaunchState::new(initial_launch))
         .plugin(tauri_plugin_dialog::init())
         .on_window_event(|window, event| {
-            // Hide the play-test window on close rather than destroying it, so it
-            // can be reused for every subsequent play-test. Destroying it would
-            // free its "playtest" label and leave nothing for open_playtest to
-            // reopen. The main window keeps the default behavior (quits the app).
-            if window.label() == "playtest" {
-                if let WindowEvent::CloseRequested { api, .. } = event {
+            match (window.label(), event) {
+                // Closing the play-test window hides it rather than destroying it,
+                // so it can be reused for every subsequent play-test (destroying it
+                // would free its "playtest" label and leave nothing for
+                // open_playtest to reopen) — then parks its webview on the
+                // script-free idle page, which unloads the engine and stops the
+                // game loop and its music. Best-effort: a failed park still hides
+                // the window, and open_playtest navigates/reloads it regardless.
+                ("playtest", WindowEvent::CloseRequested { api, .. }) => {
                     api.prevent_close();
                     let _ = window.hide();
+                    if let Some(webview) = window.app_handle().get_webview_window("playtest") {
+                        if let Ok(url) = webview.url() {
+                            let _ = webview.navigate(same_origin(url, PLAYTEST_IDLE_PATH));
+                        }
+                    }
                 }
+                // The hidden play-test window outlives the editor window, so
+                // Tauri's exit-when-the-last-window-closes never fires on its own
+                // — without this, closing the editor left the process (and its
+                // WebView2 children) running in the background forever. Closing
+                // the editor IS quitting the app: exit once main is gone.
+                ("main", WindowEvent::Destroyed) => {
+                    window.app_handle().exit(0);
+                }
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -508,4 +560,44 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running RPGAtlas");
+}
+
+#[cfg(test)]
+mod playtest_nav_tests {
+    use super::*;
+
+    fn url(s: &str) -> tauri::Url {
+        tauri::Url::parse(s).expect("test URL parses")
+    }
+
+    #[test]
+    fn idle_page_navigates_to_the_player_on_the_same_origin() {
+        // Windows app origin (useHttpsScheme): the parked window must be sent
+        // to play.html without leaving the origin (localStorage sharing).
+        let got = playtest_boot_target(url("https://tauri.localhost/playtest-idle.html"));
+        assert_eq!(got, Some(url("https://tauri.localhost/play.html")));
+        // Non-Windows app origin keeps its scheme/host too.
+        let got = playtest_boot_target(url("tauri://localhost/playtest-idle.html"));
+        assert_eq!(got, Some(url("tauri://localhost/play.html")));
+    }
+
+    #[test]
+    fn player_page_reloads_instead_of_navigating() {
+        // Play pressed while a playtest is already up: reload (None) so the
+        // game reboots into the freshest autosave.
+        assert_eq!(
+            playtest_boot_target(url("https://tauri.localhost/play.html")),
+            None
+        );
+    }
+
+    #[test]
+    fn same_origin_drops_query_and_fragment() {
+        // A page that navigated itself (e.g. with ?flags) still parks clean.
+        let got = same_origin(
+            url("https://tauri.localhost/play.html?fakehost=1#s"),
+            PLAYTEST_IDLE_PATH,
+        );
+        assert_eq!(got, url("https://tauri.localhost/playtest-idle.html"));
+    }
 }

@@ -24,7 +24,7 @@
       {
         "label": "playtest",
         "title": "RPGAtlas — Playtest",
-        "url": "play.html",
+        "url": "playtest-idle.html",
         "width": 816,
         "height": 624,
         "visible": false,
