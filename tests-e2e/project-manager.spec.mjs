@@ -219,6 +219,51 @@ test.describe("Project Manager — Open flow & rewiring (H2·C)", () => {
     await expect(page).toHaveTitle("Game Beta — RPGAtlas");
     await expect(page.locator(".pm-overlay")).toHaveCount(0);
   });
+
+  test("switching games flushes a still-pending edit into the old game's folder first", async ({ page }) => {
+    const A = "/Games/Flush A";
+    const B = "/Games/Flush B";
+    const bDoc = (() => {
+      const p = JSON.parse(atlasQuestJson());
+      p.system.title = "Game Beta";
+      return JSON.stringify(p);
+    })();
+    await gotoManagerWithSeed(page, {
+      recents: [
+        { name: "Game B", path: B, lastOpened: 2 },
+        { name: "Game A", path: A, lastOpened: 1 },
+      ],
+      docs: { [A]: atlasQuestJson(), [B]: bDoc },
+    });
+    await page.locator(".pm-recent", { hasText: "Game A" }).click();
+    await expect(page).toHaveTitle("Atlas Quest — RPGAtlas");
+    await expect(page.locator("#save-ind")).toHaveText(/^✓ /);
+
+    // Paint a tile so Game A has an edit whose debounced autosave has NOT fired yet.
+    const seedA = await page.evaluate(
+      (r) => JSON.parse(localStorage.getItem("atlas.fakehost.docs"))[r],
+      A,
+    );
+    const pBox = await page.locator("#palette").boundingBox();
+    await page.mouse.click(pBox.x + pBox.width * 0.5, pBox.y + 8);
+    const mBox = await page.locator("#mapcanvas").boundingBox();
+    await page.mouse.click(mBox.x + 10, mBox.y + 10);
+    await expect(page.locator("#save-ind")).toHaveText(/^● /); // dirty, autosave pending
+
+    // File ▸ Open → pick Game B: the reload must flush A's paint into A's folder
+    // first (the same unsaved-work guard the H5·B second-launch path has).
+    await page.locator("#menus .menu-label", { hasText: "File" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "Open Project" }).click();
+    await page.locator(".modal-btns button", { hasText: "OK" }).click();
+    await page.locator(".pm-recent", { hasText: "Game B" }).click();
+    await expect(page).toHaveTitle("Game Beta — RPGAtlas");
+
+    const after = await page.evaluate(
+      (r) => JSON.parse(localStorage.getItem("atlas.fakehost.docs"))[r],
+      A,
+    );
+    expect(after).not.toBe(seedA);
+  });
 });
 
 test.describe("Project-scoped saving (H3·A)", () => {
@@ -428,6 +473,37 @@ test.describe("External changes on focus (H3·B)", () => {
     const after = await folderDocOf(page);
     expect(titleOf(after)).toBe("Mine Base");
     expect(after).not.toBe(painted); // the painted layer change is in the folder file
+  });
+
+  test("Load the newer version with unsaved edits DISCARDS them — nothing flushes them back", async ({ page }) => {
+    await bootGame(page, "Mine Base");
+
+    // An unsaved local edit (paint), still ● when the file changes on disk. The
+    // leaving-the-page flush must stand down for this deliberate discard-reload —
+    // flushing here would clobber the newer disk version the child just chose.
+    const pBox = await page.locator("#palette").boundingBox();
+    await page.mouse.click(pBox.x + pBox.width * 0.5, pBox.y + 8);
+    const mBox = await page.locator("#mapcanvas").boundingBox();
+    await page.mouse.click(mBox.x + 10, mBox.y + 10);
+    await expect(page.locator("#save-ind")).toHaveText(/^● /);
+
+    await page.evaluate(
+      ({ root, doc }) => {
+        window.__ATLAS_TEST_HOST__.seedDoc(root, doc);
+        window.dispatchEvent(new Event("focus"));
+      },
+      { root: ROOT, doc: docTitled("Theirs") },
+    );
+
+    await expect(page.locator(".modal-body", { hasText: "aren't saved yet" })).toBeVisible();
+    await page.locator(".modal-btns button", { hasText: "Load the newer version" }).click();
+
+    // Boots straight into the disk version — no crash-recovery prompt trying to
+    // resurrect the discarded edits, and the folder still holds the disk version.
+    await expect(page.locator("#save-ind")).toBeVisible();
+    await expect(page).toHaveTitle("Theirs — RPGAtlas");
+    await expect(page.locator(".modal-title", { hasText: "Bring your changes back?" })).toHaveCount(0);
+    expect(titleOf(await folderDocOf(page))).toBe("Theirs");
   });
 });
 

@@ -639,6 +639,14 @@ async function bootChosen(bundle: ProjectBundle, host: ManagerHost): Promise<voi
   // editor (which would double-bind its one-time listeners). The folder already
   // exists (create/open just succeeded), so the fresh load re-opens it.
   if (isEditorBooted()) {
+    // Guard unsaved work exactly like the H5·B second-launch path: a debounced
+    // autosave may still be pending, and the reload below would kill it — flush the
+    // current game's edits into ITS folder before switching away.
+    try {
+      await flushFolderNow();
+    } catch {
+      /* best-effort: a flush failure still shouldn't strand the switch */
+    }
     setPendingOpen(bundle.root);
     location.reload();
     return;

@@ -52,6 +52,10 @@ const projectRepo = new BrowserProjectRepository(
 );
 
   let saveTimer: any = null;
+  // Set while a deliberate discard-and-reload is in flight (H3·B "Load the newer
+  // version"): the page is being replaced by the disk version ON PURPOSE, so the
+  // leaving-the-page flush below must NOT write the discarded project back.
+  let discardReloadInFlight = false;
 
   // Project Harbor H3·A: with a project folder open, autosave writes
   // <root>/game.rpgatlas via the active host's project_save (atomic + rolling backup)
@@ -140,6 +144,11 @@ const projectRepo = new BrowserProjectRepository(
   }
 
   export function saveNow() {
+    // A direct save supersedes any pending debounced one (touch() reschedules on the
+    // next edit). Nulling the handle also tells the leaving-the-page flush that
+    // there is nothing left to rescue.
+    clearTimeout(saveTimer);
+    saveTimer = null;
     // The localStorage mirror is always written first — synchronously, on every build.
     // It is the crash-recovery copy AND the same-origin playtest bridge (play.html reads
     // rpgatlas_project), so it must be current before anything opens the player.
@@ -281,16 +290,30 @@ const projectRepo = new BrowserProjectRepository(
   // (the child chose to discard the in-memory version), queue this game, and reload —
   // the fresh load's launchManager re-opens the folder and boots it (no double-bind).
   function reloadFolder(root: string): void {
+    discardReloadInFlight = true; // the child chose the disk version — don't flush ours back
     writeMirrorMeta(root, true);
     setPendingOpen(root);
     location.reload();
   }
 
+  // Flush a still-pending debounced autosave when the page is going away (window or
+  // tab close, reload, navigation) or being backgrounded — otherwise the child's last
+  // ≤700ms of edits silently die with the timer. The mirror write inside saveNow() is
+  // synchronous, so it always lands; with a folder game open the folder write is
+  // kicked too, and if the process dies before it finishes, the unconfirmed mirror
+  // meta turns it into crash evidence the next boot offers to restore (H3·B).
+  function flushPendingOnLeave(): void {
+    if (discardReloadInFlight || saveTimer == null) return;
+    saveNow();
+  }
+
   if (typeof window !== "undefined") {
     window.addEventListener("focus", () => { void checkExternalChange(); });
     document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) void checkExternalChange();
+      if (document.hidden) flushPendingOnLeave();
+      else void checkExternalChange();
     });
+    window.addEventListener("pagehide", flushPendingOnLeave);
   }
 
   export function loadStored() {
