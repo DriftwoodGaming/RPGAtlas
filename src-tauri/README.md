@@ -38,7 +38,15 @@ Run from the repository root:
 npm install          # one-time: fetches @tauri-apps/cli
 npm run dev          # live desktop app (stages frontend, then tauri dev)
 npm run build        # produces an installer in src-tauri/target/release/bundle
+npm run package:exe  # rebuilds the standalone RPGAtlas-Desktop.exe at the repo root
 ```
+
+To refresh the desktop app after adding features, run `npm run package:exe`
+(vite build → `cargo build --release` → copy the exe to the project root). On
+Windows you can instead double-click **`Rebuild-Desktop-App.bat`** in the repo
+root — a beginner-friendly wrapper that checks the build tools are installed,
+keeps npm dependencies current, runs the same `package:exe` build, and reports
+whether `RPGAtlas-Desktop.exe` was rebuilt.
 
 ## Icons
 
