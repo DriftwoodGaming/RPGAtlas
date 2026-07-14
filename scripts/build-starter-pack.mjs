@@ -246,17 +246,17 @@ for (const [name, kind, samples] of audio) {
   files.push({ type: "audio", name, kind, url: "driftwood-starter/audio." + name + ".wav" });
 }
 
-const index = {
-  packs: [
-    {
-      id: "driftwood-starter",
-      name: "Driftwood Starter",
-      desc: "HD-2D-ready terrain recolors, four generated villagers, three battlers, and a small chiptune soundtrack (two loops, rain ambience, a victory fanfare, and a chime). Generated from RPGAtlas's own procedural art — CC0, no attribution needed.",
-      license: "CC0",
-      version: 1,
-      files,
-    },
-  ],
+const registryPath = join(root, "img", "packs", "index.json");
+let index = { packs: [] };
+try { index = JSON.parse(readFileSync(registryPath, "utf8")); } catch { /* first build */ }
+const pack = {
+  id: "driftwood-starter",
+  name: "Driftwood Starter",
+  desc: "HD-2D-ready terrain recolors, four generated villagers, three battlers, and a small chiptune soundtrack (two loops, rain ambience, a victory fanfare, and a chime). Generated from RPGAtlas's own procedural art — CC0, no attribution needed.",
+  license: "CC0",
+  version: 1,
+  files,
 };
-writeFileSync(join(root, "img", "packs", "index.json"), JSON.stringify(index, null, 1));
+index.packs = [pack, ...(Array.isArray(index.packs) ? index.packs : []).filter((item) => item.id !== pack.id)];
+writeFileSync(registryPath, JSON.stringify(index, null, 1));
 console.log("Driftwood Starter: " + files.length + " files → img/packs/driftwood-starter/");

@@ -4,6 +4,18 @@
 
 export const PATCH_NOTES = [
   {
+    date: "July 14, 2026",
+    title: "World Map Essentials tileset",
+    summary:
+      "Build overworld maps faster with a new installable set of matching pixel-art biomes, roads, barriers, settlements, and landmarks.",
+    items: [
+      "New Asset Browser pack: World Map Essentials installs 34 matching 48×48 map tiles in one click.",
+      "Paint nine overworld biomes, including plains, forests, deserts, tundra, swamps, highlands, volcanic ground, ocean, and shallows.",
+      "Connect regions with a complete 13-piece road-and-bridge kit, then place mountains, cliffs, a volcano, villages, towns, a castle, a port, a tower, ruins, a cave, and a shrine.",
+      "Terrain, routes, water, and barriers carry sensible walkability defaults and work in the existing tile palette immediately after installation.",
+    ],
+  },
+  {
     date: "July 9, 2026",
     title: "Turn your older game into a folder (RPGAtlas 1.2.0)",
     summary:

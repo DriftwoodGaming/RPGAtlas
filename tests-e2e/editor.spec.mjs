@@ -714,6 +714,45 @@ test.describe("import wizard (phase 6)", () => {
 });
 
 test.describe("starter packs (phase 6)", () => {
+  test("the bundled World Map Essentials tileset installs into the live palette", async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.goto("/index.html");
+    const saveIndicator = page.locator("#save-ind");
+    await expect(saveIndicator).toBeVisible();
+    await page.evaluate(() => new Promise((done) => {
+      const req = indexedDB.deleteDatabase("rpgatlas_library");
+      req.onsuccess = req.onerror = req.onblocked = () => done(null);
+    }));
+    await page.reload();
+    await expect(saveIndicator).toBeVisible();
+
+    await page.keyboard.press("Control+p");
+    await page.locator(".cmdpal-input").fill("Asset Browser");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".assetbrowser")).toBeVisible();
+
+    await page.locator(".ab-railbtn", { hasText: "Packs" }).click();
+    const card = page.locator(".ab-pack", { hasText: "World Map Essentials" });
+    await expect(card).toBeVisible();
+    await expect(card.locator(".ab-meta")).toContainText("installed 0/34");
+
+    await card.locator("button", { hasText: "Install" }).click();
+    await expect(card.locator(".ab-meta")).toContainText("installed 34/34", { timeout: 60_000 });
+
+    await page.locator(".ab-railbtn", { hasText: "Tiles" }).click();
+    await expect(page.locator(".ab-grid .ab-card")).toHaveCount(34);
+    await expect(page.locator(".ab-grid .ab-name", { hasText: "world-plains.terrain" })).toBeVisible();
+    await expect(page.locator(".ab-grid .ab-name", { hasText: "world-castle" })).toBeVisible();
+    await expect(page.locator(".ab-cardtags").first()).toContainText("pack:world-map-essentials");
+    expect(await page.evaluate(() => window.Assets.tiles.some((tile) => tile && tile.name === "World Plains"))).toBe(true);
+
+    // Leave the shared browser library clean for later specs and local runs.
+    await page.locator(".ab-railbtn", { hasText: "Packs" }).click();
+    await card.locator("button", { hasText: "Uninstall" }).click();
+    await page.locator(".overlay").last().locator("button", { hasText: "OK" }).click();
+    await expect(card.locator(".ab-meta")).toContainText("installed 0/34");
+  });
+
   test("the bundled Driftwood Starter pack installs, tags its assets, and uninstalls", async ({ page }) => {
     test.setTimeout(90_000);
     await page.goto("/index.html");
