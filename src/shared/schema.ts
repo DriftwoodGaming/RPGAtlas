@@ -106,6 +106,70 @@ export interface InputBindings {
   stickDeadzone?: number;
 }
 
+/** Live value sources exposed by the visual HUD designer. */
+export type HudBindingKind =
+  | "none"
+  | "variable"
+  | "switch"
+  | "gold"
+  | "actorHp"
+  | "actorMp"
+  | "actorTp"
+  | "actorLevel"
+  | "steps"
+  | "mapName";
+
+export interface HudMenuItem {
+  label: string;
+  action: "menu" | "commonEvent";
+  commonEventId?: number;
+}
+
+/** A screen-relative HUD rectangle. x/y/w/h are percentages of the game area. */
+export interface HudWidget {
+  id: string;
+  type: "minimap" | "quests" | "text" | "gauge" | "menu";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  visible: boolean;
+  label?: string;
+  text?: string;
+  binding?: HudBindingKind;
+  bindingId?: number;
+  max?: number;
+  color?: string;
+  questLimit?: number;
+  menuItems?: HudMenuItem[];
+}
+
+export interface HudTheme {
+  preset: "atlas" | "parchment" | "neon" | "custom" | string;
+  panel: string;
+  border: string;
+  text: string;
+  accent: string;
+  muted: string;
+}
+
+export interface MessageWindowLayout {
+  enabled: boolean;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  padding: number;
+  textAlign: "left" | "center" | "right" | string;
+}
+
+export interface HudDesign {
+  enabled: boolean;
+  widgets: HudWidget[];
+  messageWindow: MessageWindowLayout;
+  theme: HudTheme;
+}
+
 /** Database ▸ System tab: presentation, party start, audio, input.
  *
  *  Fields below the party block are all backfilled by RA._migrateV0toV1 and
@@ -153,6 +217,9 @@ export interface SystemData {
   followers?: boolean;
   /** Corner minimap in play (Stage D). */
   minimap?: boolean;
+  /** Visual UI/HUD Designer layout. Additive; absent projects use the classic
+   *  corner minimap + three-quest arrangement until opened in the editor. */
+  hudDesign?: HudDesign;
   /** Vehicle definitions (Stage C); an absent entry = vehicle unused. */
   vehicles?: {
     boat?: VehicleDef;

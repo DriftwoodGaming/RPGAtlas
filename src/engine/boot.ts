@@ -237,6 +237,11 @@ function applyScreenSettings(): void {
   ctx.stage.style.setProperty("--win-bottom-rgb", windowPalette.bottom);
   ctx.stage.style.setProperty("--win-name-top-rgb", windowPalette.nameTop);
   ctx.stage.style.setProperty("--win-name-bottom-rgb", windowPalette.nameBottom);
+  const hud = RA.normalizeHudDesign(s.hudDesign);
+  ctx.stage.style.setProperty("--ui-border", hud.theme.border);
+  ctx.stage.style.setProperty("--ui-text", hud.theme.text);
+  ctx.stage.style.setProperty("--ui-accent", hud.theme.accent);
+  ctx.stage.style.setProperty("--ui-muted", hud.theme.muted);
 }
 
 async function boot(): Promise<void> {

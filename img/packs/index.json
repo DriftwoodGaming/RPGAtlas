@@ -613,6 +613,1434 @@
      ]
     }
    ]
+  },
+  {
+   "id": "village-countryside-deluxe",
+   "name": "Village & Countryside Deluxe",
+   "desc": "Eighty richly layered 48px tiles for complete outdoor maps: seamless village grounds, modular paths and bridges, sixteen buildings, trees and props, plus a full fence, wall, and gate kit. Original RPGAtlas art - CC0, no attribution needed.",
+   "license": "CC0",
+   "version": 1,
+   "preview": "village-countryside-deluxe/preview.png",
+   "files": [
+    {
+     "type": "tilesets",
+     "name": "village-summer-grass.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-summer-grass.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-clover.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-clover.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-dry-grass.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-dry-grass.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-dirt.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-dirt.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-mud.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-mud.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-cobblestone.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-cobblestone.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-flagstone.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-flagstone.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-mossy-stone.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-mossy-stone.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-wood-deck.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-wood-deck.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-tilled-soil.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-tilled-soil.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-flower-meadow.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-flower-meadow.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-leaf-litter.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-leaf-litter.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-snow.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-snow.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-river-sand.terrain",
+     "url": "village-countryside-deluxe/tilesets.village-river-sand.terrain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-shallow-water",
+     "url": "village-countryside-deluxe/tilesets.village-shallow-water.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-deep-water",
+     "url": "village-countryside-deluxe/tilesets.village-deep-water.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "grounds",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-path-ns.pass",
+     "url": "village-countryside-deluxe/tilesets.village-path-ns.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-path-ew.pass",
+     "url": "village-countryside-deluxe/tilesets.village-path-ew.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-path-ne.pass",
+     "url": "village-countryside-deluxe/tilesets.village-path-ne.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-path-es.pass",
+     "url": "village-countryside-deluxe/tilesets.village-path-es.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-path-sw.pass",
+     "url": "village-countryside-deluxe/tilesets.village-path-sw.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-path-wn.pass",
+     "url": "village-countryside-deluxe/tilesets.village-path-wn.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-path-nes.pass",
+     "url": "village-countryside-deluxe/tilesets.village-path-nes.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-path-esw.pass",
+     "url": "village-countryside-deluxe/tilesets.village-path-esw.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-path-nsw.pass",
+     "url": "village-countryside-deluxe/tilesets.village-path-nsw.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-path-new.pass",
+     "url": "village-countryside-deluxe/tilesets.village-path-new.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-path-cross.pass",
+     "url": "village-countryside-deluxe/tilesets.village-path-cross.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-cobble-lane-ns.pass",
+     "url": "village-countryside-deluxe/tilesets.village-cobble-lane-ns.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-cobble-lane-ew.pass",
+     "url": "village-countryside-deluxe/tilesets.village-cobble-lane-ew.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-timber-bridge-ns.pass",
+     "url": "village-countryside-deluxe/tilesets.village-timber-bridge-ns.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-timber-bridge-ew.pass",
+     "url": "village-countryside-deluxe/tilesets.village-timber-bridge-ew.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-market-square.pass",
+     "url": "village-countryside-deluxe/tilesets.village-market-square.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "routes",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-cottage-red",
+     "url": "village-countryside-deluxe/tilesets.village-cottage-red.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-cottage-blue",
+     "url": "village-countryside-deluxe/tilesets.village-cottage-blue.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-thatched-cottage",
+     "url": "village-countryside-deluxe/tilesets.village-thatched-cottage.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-timber-cottage",
+     "url": "village-countryside-deluxe/tilesets.village-timber-cottage.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-inn",
+     "url": "village-countryside-deluxe/tilesets.village-inn.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-blacksmith",
+     "url": "village-countryside-deluxe/tilesets.village-blacksmith.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-bakery",
+     "url": "village-countryside-deluxe/tilesets.village-bakery.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-apothecary",
+     "url": "village-countryside-deluxe/tilesets.village-apothecary.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-chapel",
+     "url": "village-countryside-deluxe/tilesets.village-chapel.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-town-hall",
+     "url": "village-countryside-deluxe/tilesets.village-town-hall.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-barn",
+     "url": "village-countryside-deluxe/tilesets.village-barn.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-windmill",
+     "url": "village-countryside-deluxe/tilesets.village-windmill.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-market-stall",
+     "url": "village-countryside-deluxe/tilesets.village-market-stall.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-stone-well",
+     "url": "village-countryside-deluxe/tilesets.village-stone-well.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fountain",
+     "url": "village-countryside-deluxe/tilesets.village-fountain.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-gatehouse",
+     "url": "village-countryside-deluxe/tilesets.village-gatehouse.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "buildings",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-old-oak",
+     "url": "village-countryside-deluxe/tilesets.village-old-oak.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-pine",
+     "url": "village-countryside-deluxe/tilesets.village-pine.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-birch",
+     "url": "village-countryside-deluxe/tilesets.village-birch.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-apple-tree",
+     "url": "village-countryside-deluxe/tilesets.village-apple-tree.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-autumn-tree",
+     "url": "village-countryside-deluxe/tilesets.village-autumn-tree.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-evergreen-cluster",
+     "url": "village-countryside-deluxe/tilesets.village-evergreen-cluster.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-flowering-hedge",
+     "url": "village-countryside-deluxe/tilesets.village-flowering-hedge.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-round-shrub",
+     "url": "village-countryside-deluxe/tilesets.village-round-shrub.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-wildflowers.pass",
+     "url": "village-countryside-deluxe/tilesets.village-wildflowers.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-grass-tuft.pass",
+     "url": "village-countryside-deluxe/tilesets.village-grass-tuft.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fallen-leaves.pass",
+     "url": "village-countryside-deluxe/tilesets.village-fallen-leaves.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-mossy-boulder",
+     "url": "village-countryside-deluxe/tilesets.village-mossy-boulder.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-tree-stump",
+     "url": "village-countryside-deluxe/tilesets.village-tree-stump.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-firewood-stack",
+     "url": "village-countryside-deluxe/tilesets.village-firewood-stack.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-scarecrow",
+     "url": "village-countryside-deluxe/tilesets.village-scarecrow.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-signpost",
+     "url": "village-countryside-deluxe/tilesets.village-signpost.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "nature",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fence-ns",
+     "url": "village-countryside-deluxe/tilesets.village-fence-ns.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fence-ew",
+     "url": "village-countryside-deluxe/tilesets.village-fence-ew.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fence-ne",
+     "url": "village-countryside-deluxe/tilesets.village-fence-ne.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fence-es",
+     "url": "village-countryside-deluxe/tilesets.village-fence-es.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fence-sw",
+     "url": "village-countryside-deluxe/tilesets.village-fence-sw.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fence-wn",
+     "url": "village-countryside-deluxe/tilesets.village-fence-wn.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fence-nes",
+     "url": "village-countryside-deluxe/tilesets.village-fence-nes.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fence-esw",
+     "url": "village-countryside-deluxe/tilesets.village-fence-esw.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fence-nsw",
+     "url": "village-countryside-deluxe/tilesets.village-fence-nsw.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fence-new",
+     "url": "village-countryside-deluxe/tilesets.village-fence-new.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-fence-cross",
+     "url": "village-countryside-deluxe/tilesets.village-fence-cross.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-gate-ns.pass",
+     "url": "village-countryside-deluxe/tilesets.village-gate-ns.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-gate-ew.pass",
+     "url": "village-countryside-deluxe/tilesets.village-gate-ew.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-stone-wall-ns",
+     "url": "village-countryside-deluxe/tilesets.village-stone-wall-ns.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-stone-wall-ew",
+     "url": "village-countryside-deluxe/tilesets.village-stone-wall-ew.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "village-hedge-arch.pass",
+     "url": "village-countryside-deluxe/tilesets.village-hedge-arch.pass.png",
+     "tags": [
+      "village",
+      "outdoors",
+      "boundaries",
+      "deluxe"
+     ]
+    }
+   ]
+  },
+  {
+   "id": "dungeon-depths-deluxe",
+   "name": "Dungeon Depths Deluxe",
+   "desc": "Forty-eight high-fidelity indoor dungeon tiles: eight floors, eight colored waters, a full modular wall kit, and sixteen ceiling and overhang pieces. Original RPGAtlas art - CC0, no attribution needed.",
+   "license": "CC0",
+   "version": 1,
+   "preview": "dungeon-depths-deluxe/preview.png",
+   "files": [
+    {
+     "type": "tilesets",
+     "name": "dungeon-ancient-flagstone.terrain",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ancient-flagstone.terrain.png",
+     "tags": [
+      "dungeon",
+      "floors",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-dark-basalt.terrain",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-dark-basalt.terrain.png",
+     "tags": [
+      "dungeon",
+      "floors",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-mossy-stone.terrain",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-mossy-stone.terrain.png",
+     "tags": [
+      "dungeon",
+      "floors",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-temple-marble.terrain",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-temple-marble.terrain.png",
+     "tags": [
+      "dungeon",
+      "floors",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-rune-floor.terrain",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-rune-floor.terrain.png",
+     "tags": [
+      "dungeon",
+      "floors",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-worn-brick.terrain",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-worn-brick.terrain.png",
+     "tags": [
+      "dungeon",
+      "floors",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-iron-grate.terrain",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-iron-grate.terrain.png",
+     "tags": [
+      "dungeon",
+      "floors",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-timber-floor.terrain",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-timber-floor.terrain.png",
+     "tags": [
+      "dungeon",
+      "floors",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-blue-water",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-blue-water.png",
+     "tags": [
+      "dungeon",
+      "water",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-toxic-water",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-toxic-water.png",
+     "tags": [
+      "dungeon",
+      "water",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-blood-water",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-blood-water.png",
+     "tags": [
+      "dungeon",
+      "water",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-arcane-water",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-arcane-water.png",
+     "tags": [
+      "dungeon",
+      "water",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-shallow-water",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-shallow-water.png",
+     "tags": [
+      "dungeon",
+      "water",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-abyss-water",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-abyss-water.png",
+     "tags": [
+      "dungeon",
+      "water",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-ice-water",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ice-water.png",
+     "tags": [
+      "dungeon",
+      "water",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-molten-water",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-molten-water.png",
+     "tags": [
+      "dungeon",
+      "water",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-ns-a",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-ns-a.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-ew-a",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-ew-a.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-ns-b",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-ns-b.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-ew-b",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-ew-b.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-ne-inner",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-ne-inner.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-es-inner",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-es-inner.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-sw-inner",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-sw-inner.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-wn-inner",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-wn-inner.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-ne-outer",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-ne-outer.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-es-outer",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-es-outer.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-sw-outer",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-sw-outer.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-wn-outer",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-wn-outer.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-t-junction",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-t-junction.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-cross",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-cross.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-wall-cracked",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-wall-cracked.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-barred-arch",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-barred-arch.png",
+     "tags": [
+      "dungeon",
+      "walls",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-ceiling-stone",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ceiling-stone.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-ceiling-cracked",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ceiling-cracked.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-ceiling-mossy",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ceiling-mossy.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-ceiling-rune",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ceiling-rune.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-ceiling-ribbed-vault",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ceiling-ribbed-vault.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-ceiling-crossed-vault",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ceiling-crossed-vault.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-ceiling-timber-ns",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ceiling-timber-ns.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-ceiling-timber-ew",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ceiling-timber-ew.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-ceiling-iron",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ceiling-iron.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-ceiling-collapse",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-ceiling-collapse.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-hanging-chains.pass",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-hanging-chains.pass.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-chandelier.pass",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-chandelier.pass.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-arch-ns.pass",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-arch-ns.pass.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-arch-ew.pass",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-arch-ew.pass.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-stalactites",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-stalactites.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    },
+    {
+     "type": "tilesets",
+     "name": "dungeon-crystal-ceiling",
+     "url": "dungeon-depths-deluxe/tilesets.dungeon-crystal-ceiling.png",
+     "tags": [
+      "dungeon",
+      "ceilings",
+      "indoors",
+      "deluxe"
+     ]
+    }
+   ]
   }
  ]
 }

@@ -13,6 +13,7 @@
 function createMessageSystem(deps) {
   const {
     Assets,
+    RA,
     el,
     esc,
     getPlugins,
@@ -185,6 +186,26 @@ function createMessageSystem(deps) {
       const posv = opts.position == null ? 2 : Number(opts.position);
       if (posv === 0) win.classList.add("msg-top");
       else if (posv === 1) win.classList.add("msg-mid");
+
+      // Visual UI/HUD Designer: an enabled authored rectangle replaces the
+      // classic top/middle/bottom geometry. Normalize at this runtime boundary
+      // too, so exported and already-current legacy projects stay tolerant.
+      const project = getProject();
+      const rawHud = project && project.system && project.system.hudDesign;
+      const hud = RA && RA.normalizeHudDesign ? RA.normalizeHudDesign(rawHud) : rawHud;
+      const layout = hud && hud.messageWindow;
+      if (layout && layout.enabled) {
+        win.classList.add("msg-custom-layout");
+        win.style.left = layout.x + "%";
+        win.style.top = layout.y + "%";
+        win.style.right = "auto";
+        win.style.bottom = "auto";
+        win.style.width = layout.w + "%";
+        win.style.height = layout.h + "%";
+        win.style.padding = layout.padding + "px";
+        win.style.textAlign = layout.textAlign || "left";
+        win.style.transform = "none";
+      }
 
       if (name) {
         const nameBox = el("div", "msg-name");

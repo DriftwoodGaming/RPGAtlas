@@ -162,6 +162,67 @@ const RA = {
       nameBottom: scaled(0.78),
     };
   },
+  HUD_THEMES: {
+    atlas: { preset: "atlas", panel: "#101426", border: "#c8d4f0", text: "#eef1fa", accent: "#ffd86a", muted: "#9adcff" },
+    parchment: { preset: "parchment", panel: "#3b2b1f", border: "#d7b77a", text: "#fff2cf", accent: "#f0c96a", muted: "#cbb995" },
+    neon: { preset: "neon", panel: "#071522", border: "#39e7ff", text: "#e8fbff", accent: "#ff4fd8", muted: "#72f1b8" },
+  },
+  defaultHudDesign() {
+    return {
+      enabled: true,
+      widgets: [
+        { id: "minimap", type: "minimap", x: 78, y: 2, w: 20, h: 26, visible: true, label: "" },
+        { id: "quests", type: "quests", x: 69, y: 30, w: 29, h: 32, visible: true, label: "", questLimit: 3 },
+      ],
+      messageWindow: { enabled: false, x: 4, y: 70, w: 92, h: 25, padding: 14, textAlign: "left" },
+      theme: Object.assign({}, RA.HUD_THEMES.atlas),
+    };
+  },
+  normalizeHudDesign(value) {
+    const base = RA.defaultHudDesign();
+    const src = value && typeof value === "object" ? value : {};
+    const clampNum = (n, lo, hi, fallback) => {
+      n = Number(n);
+      return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : fallback;
+    };
+    const validTypes = ["minimap", "quests", "text", "gauge", "menu"];
+    const validBindings = ["none", "variable", "switch", "gold", "actorHp", "actorMp", "actorTp", "actorLevel", "steps", "mapName"];
+    const widgets = Array.isArray(src.widgets) ? src.widgets : base.widgets;
+    base.enabled = src.enabled !== false;
+    base.widgets = widgets.filter((w) => w && validTypes.includes(w.type)).slice(0, 32).map((w, i) => ({
+      id: String(w.id || (w.type + "-" + (i + 1))).replace(/[^a-z0-9_-]/gi, "-").slice(0, 48),
+      type: w.type,
+      x: clampNum(w.x, 0, 98, 2), y: clampNum(w.y, 0, 98, 2),
+      w: clampNum(w.w, 4, 100, w.type === "minimap" ? 20 : 28),
+      h: clampNum(w.h, 4, 100, w.type === "minimap" ? 26 : 18),
+      visible: w.visible !== false,
+      label: String(w.label || "").slice(0, 80),
+      text: String(w.text || "").slice(0, 500),
+      binding: validBindings.includes(w.binding) ? w.binding : "none",
+      bindingId: Math.max(0, Math.floor(Number(w.bindingId) || 0)),
+      max: Math.max(1, Number(w.max) || 100),
+      color: /^#[0-9a-f]{6}$/i.test(w.color || "") ? String(w.color).toLowerCase() : "#6aa6ff",
+      questLimit: Math.max(1, Math.min(10, Math.floor(Number(w.questLimit) || 3))),
+      menuItems: Array.isArray(w.menuItems) ? w.menuItems.slice(0, 12).filter((item) => item && item.label).map((item) => ({
+        label: String(item.label).slice(0, 80),
+        action: item.action === "commonEvent" ? "commonEvent" : "menu",
+        commonEventId: Math.max(0, Math.floor(Number(item.commonEventId) || 0)),
+      })) : [],
+    }));
+    const msg = src.messageWindow && typeof src.messageWindow === "object" ? src.messageWindow : {};
+    base.messageWindow = {
+      enabled: msg.enabled === true,
+      x: clampNum(msg.x, 0, 98, 4), y: clampNum(msg.y, 0, 98, 70),
+      w: clampNum(msg.w, 20, 100, 92), h: clampNum(msg.h, 10, 100, 25),
+      padding: clampNum(msg.padding, 0, 48, 14),
+      textAlign: ["left", "center", "right"].includes(msg.textAlign) ? msg.textAlign : "left",
+    };
+    const theme = src.theme && typeof src.theme === "object" ? src.theme : {};
+    const named = RA.HUD_THEMES[theme.preset] || RA.HUD_THEMES.atlas;
+    const color = (key) => /^#[0-9a-f]{6}$/i.test(theme[key] || "") ? String(theme[key]).toLowerCase() : named[key];
+    base.theme = { preset: String(theme.preset || named.preset), panel: color("panel"), border: color("border"), text: color("text"), accent: color("accent"), muted: color("muted") };
+    return base;
+  },
   // logical UI sounds the engine plays; each maps to any procedural SE name
   SYSTEM_SOUNDS: [
     { key: "cursor", label: "Cursor move", def: "cursor" },
@@ -487,6 +548,7 @@ const RA = {
     if (!sys.fontSize) sys.fontSize = 15;
     if (sys.windowOpacity == null) sys.windowOpacity = 93;
     sys.windowColor = RA.normalizeWindowColor(sys.windowColor);
+    sys.hudDesign = RA.normalizeHudDesign(sys.hudDesign);
     sys.sounds = Object.assign(RA.defaultSounds(), sys.sounds || {});
     sys.music = Object.assign(RA.defaultMusic(), sys.music || {});
     // v3 input bindings (keyboard + gamepad, remappable). Backfill per action so a partial
@@ -658,6 +720,7 @@ const RA = {
     if (sys.atbWait == null) sys.atbWait = true;
     if (sys.followers == null) sys.followers = false;
     if (sys.minimap == null) sys.minimap = false;
+    if (!sys.hudDesign) sys.hudDesign = RA.defaultHudDesign();
     if (!sys.vehicles || typeof sys.vehicles !== "object") sys.vehicles = {};
     for (const m of p.maps || []) {
       const n = m.width * m.height;
@@ -1191,6 +1254,7 @@ const DataDefaults = (() => {
         input: RA.defaultInput(),
         battleSystem: "turn", atbWait: true,       // Phase 5 battle mode
         followers: false, minimap: false,          // Phase 5 map systems
+        hudDesign: RA.defaultHudDesign(),           // visual HUD + message layout
         vehicles: {},                              // Phase 5 vehicles (boat/ship/airship)
       },
       // Battle animations (Phase 5): keyframed timelines over the battle-fx

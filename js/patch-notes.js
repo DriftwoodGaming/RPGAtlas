@@ -4,6 +4,48 @@
 
 export const PATCH_NOTES = [
   {
+    date: "July 15, 2026",
+    title: "Visual UI and HUD Designer",
+    summary:
+      "Design the in-game HUD and dialogue layout visually instead of relying on a fixed minimap and quest tracker.",
+    items: [
+      "New Database ▸ System ▸ Visual UI / HUD designer supports drag-to-position and corner-resize editing on the project's real game-screen ratio.",
+      "Add minimaps, quest trackers, bound text, gauges, and clickable custom-menu widgets anywhere on the map HUD.",
+      "Bind widgets to variables, switches, gold, party-leader HP/MP/TP/level, step count, or the current map name.",
+      "Custom menu commands can open the pause menu or run a selected Common Event through the normal blocking event flow.",
+      "An optional draggable message-window rectangle controls dialogue position, size, padding, and text alignment.",
+      "Atlas, Parchment, and Neon theme presets coordinate HUD colors with shared menu and message-window styling.",
+    ],
+  },
+  {
+    date: "July 15, 2026",
+    title: "Dungeon Depths Deluxe tileset",
+    summary:
+      "Build richly detailed indoor dungeons with a cohesive new collection of floors, colored waters, modular walls, and ceiling pieces.",
+    items: [
+      "New Asset Browser pack: Dungeon Depths Deluxe installs 48 matching native 48×48 indoor tiles in one click.",
+      "Eight seamless floors cover ancient flagstone, basalt, mossy stone, temple marble, rune stone, worn brick, iron grating, and timber.",
+      "Eight distinct liquid tiles add blue, toxic green, blood red, arcane violet, shallow turquoise, abyssal black, icy cyan, and molten amber water.",
+      "A complete sixteen-piece wall family adds straight variants, inner and outer corners, junctions, a cracked section, and a barred arch at room scale.",
+      "Sixteen ceiling and upper-layer pieces add vaults, beams, reinforced stone, a collapse, chains, chandelier, arches, stalactites, and glowing crystals.",
+      "Walkable floors and overhead pass-through pieces carry sensible defaults; walls, hazardous waters, and solid ceilings remain blocked.",
+    ],
+  },
+  {
+    date: "July 15, 2026",
+    title: "Village & Countryside Deluxe tileset",
+    summary:
+      "Build beautiful outdoor villages with a complete new collection of richly layered terrain, paths, buildings, foliage, props, and boundaries.",
+    items: [
+      "New Asset Browser pack: Village & Countryside Deluxe installs 80 matching native 48×48 tiles in one click.",
+      "Sixteen seamless grounds cover summer and dry grass, clover, dirt, mud, cobblestone, flagstone, mossy stone, timber decking, tilled soil, meadows, snow, sand, and water.",
+      "A complete modular path kit adds every straight, corner, junction, and crossroads shape, plus cobbled lanes, timber bridges, and a market square.",
+      "Sixteen detailed structures add cottages, an inn, blacksmith, bakery, apothecary, chapel, town hall, barn, windmill, market stall, well, fountain, and gatehouse.",
+      "Trees, flowers, shrubs, farm props, fences, walls, gates, and a hedge arch turn the collection into a full outdoor map-building kit instead of a scenery sampler.",
+      "Terrain, overlays, gates, water, buildings, and boundaries carry sensible walkability defaults and bind to the live tile palette immediately after installation.",
+    ],
+  },
+  {
     date: "July 14, 2026",
     title: "Add your own project icons",
     summary:

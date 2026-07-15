@@ -90,6 +90,16 @@ retrying a failed download) is always safe.
   48×48 tiles: sixteen seamless terrains, a complete sixteen-piece road, bridge,
   causeway, and plaza kit, plus detailed settlements, barriers, ruins, an oasis,
   a logging camp, and crystalline locations. Its pack card includes a full art preview.
+- **Village & Countryside Deluxe** is a CC0 outdoor-map tileset with 80 matching
+  48×48 tiles: sixteen seamless grounds, a complete modular path and bridge kit,
+  sixteen village buildings, sixteen trees and outdoor props, and a sixteen-piece
+  fence, wall, gate, and hedge kit. The pack includes a full art preview and
+  sensible walkability defaults for terrain, water, structures, and overlays.
+- **Dungeon Depths Deluxe** is a CC0 indoor-map tileset with 48 matching 48×48
+  tiles: eight seamless dungeon floors, eight differently colored waters, a
+  complete sixteen-piece modular stone-wall kit, and sixteen ceiling, vault,
+  beam, arch, chain, chandelier, stalactite, and crystal pieces. It is designed
+  at room scale for dungeon interiors rather than zoomed-out world-map scenes.
 - **Add registry URL…** points the tab at any hosted `index.json` (same
   format as `img/packs/index.json`) to install third-party packs. Mind the
   license shown on each pack — exports embed the assets your game uses.

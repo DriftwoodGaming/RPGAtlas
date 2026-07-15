@@ -115,6 +115,15 @@ async function runCommonEventBlocking(commonEvent: any): Promise<void> {
   }
 }
 
+/** HUD custom-menu seam: run an authored common event under the same blocking
+ * guard and page-refresh lifecycle as autorun and map-triggered events. */
+export async function runHudCommonEvent(commonEventId: any): Promise<void> {
+  const commonEvent = RA.byId(ctx.proj.commonEvents || [], Number(commonEventId));
+  if (!commonEvent || !commonEvent.commands || !commonEvent.commands.length) return;
+  await runCommonEventBlocking(commonEvent);
+}
+fns.runHudCommonEvent = runHudCommonEvent;
+
 export function updateCommonEvents(): void {
   const commonEvents = ctx.proj.commonEvents || [];
   if (!ctx.blockingRun) {

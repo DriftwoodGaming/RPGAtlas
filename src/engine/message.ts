@@ -10,7 +10,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Assets, createMessageSystem } from "../shared/deps.js";
+import { Assets, RA, createMessageSystem } from "../shared/deps.js";
 import { el, esc, sleep } from "./util.js";
 import { pushUI, removeUI } from "./ui-stack.js";
 import { ctx, fns } from "./state/engine-context.js";
@@ -28,6 +28,7 @@ export async function fadeTo(opacity: any, ms: any): Promise<void> {
 export function initMessageSystem(): void {
   const { richText, showMessage, setTextSpeed } = createMessageSystem({
     Assets,
+    RA,
     el,
     esc,
     getPlugins: () => fns.Plugins,

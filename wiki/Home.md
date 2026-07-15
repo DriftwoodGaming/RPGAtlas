@@ -21,6 +21,7 @@ you need from the sidebar.
 3. **[Your Game Is a Folder](Your-Game-Is-a-Folder)** — in the desktop app, each game is a real
    folder you can see, back up, and double-click to open. This is where your work lives.
 4. **[The Editor Interface](The-Editor-Interface)** — a tour of every menu, tool, and shortcut.
+5. **[Visual UI and HUD Designer](Visual-UI-and-HUD-Designer)** — arrange HUD widgets, bind gauges and variables, build custom menus, and lay out message windows.
 
 **Already made a game in RPG Maker MV or MZ?** Bring it straight in — see
 **[Coming from RPG Maker](Coming-from-RPG-Maker)**.

@@ -11,6 +11,7 @@ import { h, tIn, nIn, sel, chk, rangeIn, field, row, dbOpts, charsetOpts, DIR_OP
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 import { subTabs } from "./shared";
+import { openHudDesigner } from "./hud-designer";
 
 export function systemTab() {
   // Dynamic form editor over the system blob: indexes s.input[device][action]
@@ -25,6 +26,7 @@ export function systemTab() {
     { label: "General", build: buildGeneral },
     { label: "Map systems", build: buildMapSystems },
     { label: "Screen", build: buildScreen },
+    { label: "Visual UI / HUD", build: buildVisualHud },
     { label: "Windows & fonts", build: buildWindowsFonts },
     { label: "Audio", build: buildAudio },
   ]));
@@ -139,6 +141,26 @@ export function systemTab() {
     p.appendChild(row(field("UI area width (0 = full)", nIn(s, "uiWidth", 0, 3840)),
       field("UI area height (0 = full)", nIn(s, "uiHeight", 0, 2160))));
     p.appendChild(h("div", { class: "dim" }, "The UI area centres message windows and menus inside the game screen — useful on very wide screens. Changes apply on the next playtest."));
+    return p;
+  }
+
+  function buildVisualHud() {
+    const p = h("div");
+    s.hudDesign = RA.normalizeHudDesign(s.hudDesign);
+    const design: any = s.hudDesign;
+    const visible = design.widgets.filter((widget: any) => widget.visible !== false);
+    p.appendChild(h("div", { class: "subhead", style: "margin-top:0" }, "Visual UI / HUD Designer"));
+    p.appendChild(h("div", { class: "dim" }, "Arrange on-map widgets on a live screen preview, bind gauges and labels to game values, create clickable common-event menus, place the dialogue window, and apply coordinated theme presets."));
+    p.appendChild(h("div", { class: "hud-design-summary" },
+      h("div", null, h("strong", null, String(visible.length)), h("span", null, " visible widgets")),
+      h("div", null, h("strong", null, design.theme.preset || "custom"), h("span", null, " theme")),
+      h("div", null, h("strong", null, design.messageWindow.enabled ? "Custom" : "Classic"), h("span", null, " message layout")),
+    ));
+    p.appendChild(row(
+      field("Show authored HUD", chk(design, "enabled")),
+      h("button", { class: "primary hud-open-designer", onclick: openHudDesigner }, "Open Visual UI / HUD Designer…"),
+    ));
+    p.appendChild(h("div", { class: "dim" }, "The player's HUD toggle still hides or restores the entire authored layout. Minimap widgets also respect each map's Show on the minimap setting."));
     return p;
   }
 
