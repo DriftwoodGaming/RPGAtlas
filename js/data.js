@@ -268,6 +268,79 @@ const RA = {
       commands: [],
     };
   },
+  defaultDialogue() {
+    return {
+      id: 0,
+      name: "New Dialogue",
+      description: "",
+      startNodeId: 1,
+      speakers: [],
+      nodes: [{
+        id: 1,
+        kind: "line",
+        speakerId: 0,
+        portrait: "",
+        voice: "",
+        text: "New dialogue line.",
+        key: "",
+        nextId: 0,
+      }],
+    };
+  },
+  normalizeDialogue(dialogue, index) {
+    const src = dialogue && typeof dialogue === "object" ? dialogue : {};
+    const next = Object.assign(RA.defaultDialogue(), src);
+    next.id = Number(next.id) || (Number(index) || 0) + 1;
+    next.name = String(next.name || "Dialogue");
+    next.description = String(next.description || "");
+    next.speakers = Array.isArray(next.speakers)
+      ? next.speakers.filter((speaker) => speaker && typeof speaker === "object").map((speaker, speakerIndex) => ({
+          id: Number(speaker.id) || speakerIndex + 1,
+          name: String(speaker.name || "Speaker"),
+          portrait: String(speaker.portrait || ""),
+        }))
+      : [];
+    next.nodes = Array.isArray(next.nodes)
+      ? next.nodes.filter((node) => node && typeof node === "object").map((node, nodeIndex) => {
+          const kind = ["line", "choice", "cutscene"].includes(node.kind) ? node.kind : "line";
+          const normalized = Object.assign({
+            id: nodeIndex + 1,
+            kind,
+            speakerId: 0,
+            portrait: "",
+            voice: "",
+            text: "",
+            key: "",
+            nextId: 0,
+          }, node, { kind });
+          normalized.id = Number(normalized.id) || nodeIndex + 1;
+          normalized.speakerId = Math.max(0, Number(normalized.speakerId) || 0);
+          normalized.nextId = Math.max(0, Number(normalized.nextId) || 0);
+          normalized.portrait = String(normalized.portrait || "");
+          normalized.voice = String(normalized.voice || "");
+          normalized.text = String(normalized.text || "");
+          normalized.key = String(normalized.key || "");
+          if (!normalized.condition || typeof normalized.condition !== "object") delete normalized.condition;
+          if (kind === "choice") {
+            normalized.options = Array.isArray(normalized.options)
+              ? normalized.options.filter((option) => option && typeof option === "object").map((option) => ({
+                  text: String(option.text || "Choice"),
+                  key: String(option.key || ""),
+                  nextId: Math.max(0, Number(option.nextId) || 0),
+                }))
+              : [];
+          } else if (kind === "cutscene") {
+            normalized.label = String(normalized.label || "Cutscene commands");
+            normalized.commands = Array.isArray(normalized.commands) ? normalized.commands : [];
+          }
+          return normalized;
+        })
+      : [];
+    if (!next.nodes.length) next.nodes = RA.defaultDialogue().nodes;
+    const ids = new Set(next.nodes.map((node) => node.id));
+    next.startNodeId = ids.has(Number(next.startNodeId)) ? Number(next.startNodeId) : next.nodes[0].id;
+    return next;
+  },
   commonEventEnabled(commonEvent, switches) {
     if (!commonEvent) return false;
     return !commonEvent.switchId || !!(switches && switches[commonEvent.switchId]);
@@ -775,6 +848,12 @@ const RA = {
     p.assets.icons = Array.isArray(p.assets.icons)
       ? p.assets.icons.filter((src) => typeof src === "string" && /^data:image\//.test(src))
       : [];
+    // Reusable conversation/cutscene assets. This normalization intentionally
+    // runs for already-current v2 projects too: the feature is additive and
+    // older documents simply gain an empty collection.
+    p.dialogues = Array.isArray(p.dialogues)
+      ? p.dialogues.map((dialogue, index) => RA.normalizeDialogue(dialogue, index))
+      : [];
     p.meta.formatVersion = RA.FORMAT_VERSION;
     return p;
   },
@@ -1232,6 +1311,7 @@ const DataDefaults = (() => {
       customChars: [],
       commandPresets: [],
       commonEvents: [],
+      dialogues: [],
       tilesets: [{ id: 1, name: "Default", tileProps: {} }],
       assets: { tiles: {}, icons: [] },
       system: {

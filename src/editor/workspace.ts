@@ -33,6 +33,7 @@ import { ICONS } from "./icons";
 import { openDatabase } from "./database";
 import { openPluginManager } from "./tools/plugin-manager";
 import { openAudioManager } from "./tools/audio-manager";
+import { openDialogueWorkspace } from "./tools/dialogue-workspace";
 import { openEventSearcher } from "./tools/event-searcher";
 import { openResourceManager } from "./tools/resource-manager";
 import { openAssetBrowser } from "./tools/asset-browser";
@@ -45,6 +46,10 @@ import { openCommandPalette } from "./command-palette";
 import { managerActive } from "./project-manager/manager-host";
 
 const t = editorI18n.t;
+// The dialogue workspace's dense authoring body is English-first like the
+// Database forms; keep its command label together with the tool until that
+// workspace receives a full chrome-localization pass.
+const DIALOGUE_WORKSPACE_LABEL = "Dialogue & Cutscenes…";
 
 function playtestUrl() { return "play.html?playtest=" + Date.now(); }
 
@@ -212,6 +217,7 @@ act("zoom1", { label: "Zoom 1:1", icon: "zoom1", key: "0", tip: "Set zoom to 100
 act("zoomfit", { label: "Fit Map In View", run: () => zoomFit() });
 
 act("db", { label: "Database…", icon: "db", key: "F1", tip: "Database — actors, items, enemies, switches…", run: openDatabase });
+act("dialogue", { label: DIALOGUE_WORKSPACE_LABEL, icon: "event", tip: "Dialogue workspace — conversation trees, speakers, voice, conditions, and cutscene commands", run: openDialogueWorkspace });
 act("plugins", { label: "Plugin Manager…", icon: "plugins", tip: "Plugin Manager — project JavaScript run at game boot", run: openPluginManager });
 act("audio", { label: "Audio Manager…", icon: "audio", tip: "Audio Manager — preview sounds and music", run: openAudioManager });
 act("search", { label: "Event Searcher…", icon: "search", tip: "Event Searcher — find text / switches / variables across maps", run: openEventSearcher });
@@ -234,7 +240,7 @@ const TOOLBAR = [
   ["layer-auto", "layer-ground", "layer-decor", "layer-decor2", "layer-over"],
   ["tool-pen", "tool-erase", "tool-rect", "tool-circle", "tool-fill", "tool-shadow"],
   ["zoomin", "zoomout", "zoom1"],
-  ["db", "plugins", "audio", "search", "resources", "chargen"],
+  ["db", "dialogue", "plugins", "audio", "search", "resources", "chargen"],
   ["hdpreview", "play"],
 ];
 export function buildToolbar() {
@@ -280,7 +286,7 @@ const MENUS = [
   { label: "Advanced", items: ["panel-advanced", "terrain-studio", "-", "adv-automap", "adv-automap-preview", "adv-automap-apply", "-", "adv-flip-h", "adv-flip-v", "adv-rotate", "-", "adv-capture-stamp", "adv-stamp-random"] },
   { label: "Scale", items: ["zoomin", "zoomout", "zoom1", "zoomfit"] },
   { label: "View", items: ["panel-maps", "panel-tiles", "panel-map", "panel-advanced", "panel-console", "hdpreview", "worldview", "-", "focus-next-panel", "-", "dock-reset", "dock-save", "dock-load"] },
-  { label: "Tools", items: ["db", "plugins", "audio", "search", "resources", "assetbrowser", "chargen", "-", "autotile-import", "-", "cmdpal"] },
+  { label: "Tools", items: ["db", "dialogue", "plugins", "audio", "search", "resources", "assetbrowser", "chargen", "-", "autotile-import", "-", "cmdpal"] },
   { label: "Game", items: ["play", "build", "-", "mapprops", "hdpreview", "mode-start"] },
   { label: "Help", items: ["language", "-", "shortcuts", "patchnotes", "help", "about"] },
 ];

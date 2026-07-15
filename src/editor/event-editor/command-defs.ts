@@ -79,6 +79,7 @@ import { openLocationPicker } from "./location-picker";
     const dbName = (arr: any, id: any) => { const e = RA.byId(arr, id); return e ? e.name : "#" + id; };
     const questName = (id: any) => dbName(S.proj.quests || [], id);
     const commonEventName = (id: any) => dbName(S.proj.commonEvents || [], id);
+    const dialogueName = (id: any) => dbName(S.proj.dialogues || [], id);
     const questObjName = (questId: any, objIndex: any) => {
       const q = RA.byId(S.proj.quests || [], questId);
       const obj = q && Array.isArray(q.objectives) ? q.objectives[objIndex] : null;
@@ -111,6 +112,7 @@ import { openLocationPicker } from "./location-picker";
       case "questComplete": return "Complete Quest: " + questName(c.questId);
       case "questFail": return "Fail Quest: " + questName(c.questId);
       case "commonEvent": return "Call Common Event: " + commonEventName(c.commonEventId);
+      case "dialogue": return "Play Dialogue: " + dialogueName(c.dialogueId);
       case "transfer": { const m = RA.byId(S.proj.maps, c.mapId); return "Transfer → " + (m ? m.name : "?") + " (" + c.x + "," + c.y + ")"; }
       case "gold": return (c.op === "sub" ? "Lose" : "Gain") + " " + c.val + " " + S.proj.system.currency;
       case "item": return (c.op === "sub" ? "Lose" : "Gain") + " " + dbName(c.kind === "weapon" ? S.proj.weapons : c.kind === "armor" ? S.proj.armors : S.proj.items, c.id) + " ×" + c.val;
@@ -408,6 +410,13 @@ import { openLocationPicker } from "./location-picker";
         const w = { commonEventId: c.commonEventId || (S.proj.commonEvents[0] ? S.proj.commonEvents[0].id : 0) };
         box.appendChild(field("Common event", sel(w, "commonEventId", dbOpts(S.proj.commonEvents, "(none)"))));
         return () => { c.commonEventId = w.commonEventId; };
+      } },
+    { t: "dialogue", label: "Play Dialogue", make: () => ({ t: "dialogue", dialogueId: S.proj.dialogues[0] ? S.proj.dialogues[0].id : 0 }),
+      form(c: any, box: any) {
+        const w = { dialogueId: c.dialogueId || (S.proj.dialogues[0] ? S.proj.dialogues[0].id : 0) };
+        box.appendChild(field("Dialogue asset", sel(w, "dialogueId", dbOpts(S.proj.dialogues || [], "(none)"))));
+        box.appendChild(h("div", { class: "dim" }, "Create reusable conversations in Tools ▸ Dialogue & Cutscenes. This command is available in event lists and Atlas Graph."));
+        return () => { c.dialogueId = w.dialogueId; };
       } },
     { t: "switch", label: "Control Switch", make: () => ({ t: "switch", id: 1, val: true }),
       form(c: any, box: any) {

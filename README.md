@@ -132,6 +132,7 @@ plus an icon toolbar with everything one click away.
 | **Cut / Copy / Paste** | Shift+drag selects a tile region (all layers + shadows + heights); events copy/paste too |
 | **Undo / Redo** | Full-map history for tiles, shadows, heights, passability and events |
 | **Database** | Actors, Classes, Skills, Items, Weapons, Armors, Enemies, Troops, Common Events, States, Switches, Variables, System |
+| **Dialogue & Cutscenes** | Build reusable conversation trees with speakers, portraits, voice cues, conditions, player choices, localization keys, embedded event commands, and preview |
 | **System tab** | Game screen width/height, UI area size, screen scale, message & menu fonts, font size, window color and opacity, remappable system sounds & music themes, side-view or front-view battles, start-transparent player |
 | **States** | Poison / stun / regen-style battle effects with per-turn HP %, act restriction, duration and battle-end removal; skills can inflict or cure them |
 | **Plugin Manager** | Project-embedded JavaScript with boot, map-load and per-frame hooks |
@@ -189,7 +190,7 @@ The Shadow Pen paints half-tile shadow quadrants, just like the classics.
 Events have **pages** with conditions (switch, variable, self-switch); the last matching page is active.
 Triggers: Action button, Player touch, Autorun, Parallel. Commands include:
 
-Show Text · Show Choices · Conditional Branch · Control Switch / Self-Switch / Variable ·
+Show Text · Show Choices · Play Dialogue · Conditional Branch · Control Switch / Self-Switch / Variable ·
 Transfer Player · Change Gold / Items / Party · Heal · Start Battle · Open Shop · Set Move Route ·
 Camera Zoom · Change Transparency · Wait · Play Sound · Change Music · Erase Event · Save Screen · Game Over ·
 Return to Title · Script (JS)

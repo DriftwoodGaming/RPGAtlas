@@ -17,6 +17,7 @@ import { rebuildMapList } from "../map-editor/map-list";
 import { walkCommands } from "../event-editor/command-list";
 import { openEventEditor } from "../event-editor/event-editor";
 import { setMode, refreshToolbar } from "../workspace";
+import { openDialogueWorkspace } from "./dialogue-workspace";
 
 export function openEventSearcher() {
   const results = h("div", { class: "search-results" });
@@ -39,6 +40,28 @@ export function openEventSearcher() {
     }
     const ql = query.toLowerCase();
     const matches: any[] = [];
+    for (const dialogue of S.proj.dialogues || []) {
+      for (const node of dialogue.nodes || []) {
+        let hit: any = null;
+        if (kind === "text") {
+          const optionText = (node.options || []).map((option: any) => option.text).join(" ");
+          if (((node.text || "") + " " + optionText).toLowerCase().includes(ql)) hit = "Dialogue node: “" + String(node.text || optionText).split("\n")[0].slice(0, 50) + "”";
+        } else if (kind === "switch") {
+          if (node.condition && node.condition.kind === "switch" && node.condition.id === idQ) hit = "Dialogue node condition";
+          walkCommands(node.commands, (c: any) => {
+            if (!hit && c.t === "switch" && c.id === idQ) hit = "Dialogue cutscene command";
+            else if (!hit && c.t === "if" && c.cond && c.cond.kind === "switch" && c.cond.id === idQ) hit = "Dialogue cutscene branch";
+          });
+        } else if (kind === "var") {
+          if (node.condition && node.condition.kind === "var" && node.condition.id === idQ) hit = "Dialogue node condition";
+          walkCommands(node.commands, (c: any) => {
+            if (!hit && c.t === "var" && c.id === idQ) hit = "Dialogue cutscene command";
+            else if (!hit && c.t === "if" && c.cond && c.cond.kind === "var" && c.cond.id === idQ) hit = "Dialogue cutscene branch";
+          });
+        }
+        if (hit != null) matches.push({ dialogue, node, hit });
+      }
+    }
     for (const m of S.proj.maps) {
       for (const ev of m.events) {
         ev.pages.forEach((pg: any, pi: any) => {
@@ -77,6 +100,10 @@ export function openEventSearcher() {
     for (const r of matches) {
       results.appendChild(h("div", { class: "search-row", onclick() {
         dlg.close();
+        if (r.dialogue) {
+          openDialogueWorkspace(r.dialogue.id, r.node.id);
+          return;
+        }
         S.curMapId = r.m.id;
         setMode("event");
         S.selectedEvent = r.ev;
@@ -86,8 +113,8 @@ export function openEventSearcher() {
         sc.scrollTop = r.ev.y * TILE * S.zoom - sc.clientHeight / 2;
         openEventEditor(r.ev);
       } },
-        h("b", null, r.m.name + " — " + r.ev.name),
-        " (" + r.ev.x + "," + r.ev.y + ") page " + (r.pi + 1),
+        h("b", null, r.dialogue ? "Dialogue — " + r.dialogue.name : r.m.name + " — " + r.ev.name),
+        r.dialogue ? " node " + r.node.id : " (" + r.ev.x + "," + r.ev.y + ") page " + (r.pi + 1),
         h("span", { class: "dim" }, r.hit)));
     }
   }

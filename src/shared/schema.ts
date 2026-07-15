@@ -800,6 +800,10 @@ export interface CmdCommonEvent {
   t: "commonEvent";
   commonEventId: number;
 }
+export interface CmdDialogue {
+  t: "dialogue";
+  dialogueId: number;
+}
 export interface CmdSwitch {
   t: "switch";
   id: number;
@@ -1304,6 +1308,7 @@ export type AnyCommand =
   | CmdQuestComplete
   | CmdQuestFail
   | CmdCommonEvent
+  | CmdDialogue
   | CmdSwitch
   | CmdSelfSw
   | CmdVar
@@ -1732,6 +1737,47 @@ export interface CommonEvent {
   commands: AnyCommand[];
 }
 
+/** A named participant available to every line in one reusable dialogue. */
+export interface DialogueSpeaker {
+  id: number;
+  name: string;
+  /** Default face/character key; a line may override it. */
+  portrait: string;
+}
+
+export interface DialogueChoiceOption {
+  text: string;
+  /** Stable author-owned localization key; runtime currently uses `text`. */
+  key: string;
+  nextId: number;
+}
+
+/** One node in a reusable conversation tree. Cutscene nodes embed the same
+ * ordinary event-command lists used by event pages and Atlas Graph. */
+export interface DialogueNode {
+  id: number;
+  kind: "line" | "choice" | "cutscene";
+  speakerId: number;
+  portrait: string;
+  voice: string;
+  text: string;
+  key: string;
+  nextId: number;
+  condition?: Condition;
+  options?: DialogueChoiceOption[];
+  label?: string;
+  commands?: AnyCommand[];
+}
+
+export interface DialogueAsset {
+  id: number;
+  name: string;
+  description: string;
+  startNodeId: number;
+  speakers: DialogueSpeaker[];
+  nodes: DialogueNode[];
+}
+
 export interface Tileset {
   id: number;
   name: string;
@@ -1922,6 +1968,8 @@ export interface Project {
   customChars: CustomChar[];
   commandPresets: CommandPreset[];
   commonEvents: CommonEvent[];
+  /** Reusable conversations and cutscenes, normalized at every load boundary. */
+  dialogues: DialogueAsset[];
   /** Always present after migration (RA._migrateV0toV1 seeds a Default). */
   tilesets: Tileset[];
   /** 47-blob autotile groups (Phase 3 Stage D). Optional; absent = none. */
@@ -2004,6 +2052,7 @@ export function validateProject(value: unknown, where = "load"): Project {
     "customChars",
     "commandPresets",
     "commonEvents",
+    "dialogues",
     "animations",
     "actors",
     "classes",

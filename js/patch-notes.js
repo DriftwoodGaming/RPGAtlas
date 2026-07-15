@@ -5,6 +5,21 @@
 export const PATCH_NOTES = [
   {
     date: "July 15, 2026",
+    title: "Dialogue & Cutscenes workspace",
+    summary:
+      "Author reusable branching conversations and command-driven cutscenes in a dedicated production workspace instead of rebuilding them inside generic event pages.",
+    items: [
+      "New Tools ▸ Dialogue & Cutscenes workspace organizes reusable conversation assets as readable trees of Line, Choice, and Cutscene nodes.",
+      "Define shared speakers and portraits, then give individual lines portrait overrides, imported voice cues, runtime conditions, and stable localization keys.",
+      "Choice nodes route every player response to another node; unlinked drafts stay visible, and Generate keys fills missing line and choice localization identifiers without overwriting authored keys.",
+      "Cutscene nodes embed the full event-command editor, including movement, camera, pictures, screen effects, audio, waits, switches, battles, and plugin commands.",
+      "A built-in interactive Preview walks the conversation tree before playtest and summarizes cutscene commands while keeping the real runtime path unchanged.",
+      "New Play Dialogue event command runs a reusable asset from event lists or Atlas Graph; scripts can await game.callDialogue(id).",
+      "Dialogue portraits, voice clips, and assets referenced by embedded cutscene commands are tracked for project files, renames, and standalone exports.",
+    ],
+  },
+  {
+    date: "July 15, 2026",
     title: "Visual UI and HUD Designer",
     summary:
       "Design the in-game HUD and dialogue layout visually instead of relying on a fixed minimap and quest tracker.",

@@ -187,6 +187,14 @@ export function usedAssetKeys(project: any, catalog: CatalogEntry[] = []): Set<s
   const sounds = (project.system && project.system.sounds) || {};
   for (const k of Object.keys(sounds)) hit(sounds[k]);
   for (const ce of project.commonEvents || []) scanCommands(ce.commands, hit);
+  for (const dialogue of project.dialogues || []) {
+    for (const speaker of dialogue.speakers || []) hit(speaker.portrait);
+    for (const node of dialogue.nodes || []) {
+      hit(node.portrait);
+      hit(node.voice);
+      scanCommands(node.commands, hit);
+    }
+  }
   for (const troop of project.troops || []) {
     for (const page of troop.pages || []) scanCommands(page.commands, hit);
   }
@@ -255,6 +263,14 @@ export function rewriteAssetKey(project: any, oldKey: string, newKey: string): n
     }
   }
   for (const ce of project.commonEvents || []) swapCommands(ce.commands);
+  for (const dialogue of project.dialogues || []) {
+    for (const speaker of dialogue.speakers || []) swap(speaker, "portrait");
+    for (const node of dialogue.nodes || []) {
+      swap(node, "portrait");
+      swap(node, "voice");
+      swapCommands(node.commands);
+    }
+  }
   for (const troop of project.troops || []) for (const page of troop.pages || []) swapCommands(page.commands);
   for (const map of project.maps || []) {
     swap(map, "music");

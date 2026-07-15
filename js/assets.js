@@ -1807,6 +1807,13 @@ const Assets = (() => {
     // Command lists outside map events (pre-Phase-6 gap): common events and
     // troop battle-event pages can show faces too.
     for (const ce of project.commonEvents || []) scanCommands(ce.commands);
+    for (const dialogue of project.dialogues || []) {
+      for (const speaker of dialogue.speakers || []) useCharacterWithFace(speaker.portrait);
+      for (const node of dialogue.nodes || []) {
+        useCharacterWithFace(node.portrait);
+        scanCommands(node.commands);
+      }
+    }
     for (const troop of project.troops || []) {
       for (const page of troop.pages || []) scanCommands(page.commands);
     }

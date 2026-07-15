@@ -129,6 +129,18 @@ switch, or it will continue to restart and hold player control.
 
 ---
 
+## Dialogue & cutscene assets
+
+**Tools ▸ Dialogue & Cutscenes** is the dedicated conversation workspace. Build reusable trees from
+speaker lines, player choices, and Cutscene nodes containing ordinary event commands. Each line can
+carry a portrait override, voice cue, condition, and localization key; the built-in preview lets you
+read through branches before starting a map playtest.
+
+Use **Play Dialogue** in an event list or Atlas Graph to run the asset. See the full
+[Dialogue & Cutscenes guide](Dialogue-and-Cutscenes).
+
+---
+
 ## Command reference
 
 Add commands with **+** inside a page. Each picker page holds up to 24 command buttons; use the
@@ -143,6 +155,7 @@ the button to edit or delete it.
 |---|---|
 | **Show Text** | Display a message window. Optional speaker **name** and **face** portrait. Supports [text codes](Message-Text-Codes). |
 | **Call Common Event** | Run a reusable command sequence from Database ▸ Common Events. |
+| **Play Dialogue** | Run a reusable conversation or cutscene from Tools ▸ Dialogue & Cutscenes. |
 | **Show Choices** | Offer the player options, each branching to its own sub-list of commands. |
 | **Conditional Branch** | Run commands only **if** a condition is true (switch, self-switch, variable, quest, item, gold, actor, [player region](Maps-and-Tiles#regions--numbered-zone-tags), time-of-day clock window…), with an optional **else**. |
 | **Loop** | Repeat its body until a **Break Loop** command runs inside it. |

@@ -62,6 +62,9 @@ Reusable event-command sequences that can be called from map events or scripts. 
 automatically as **Autorun** or **Parallel** processes, optionally gated by a switch. See
 [Common events](Events#common-events).
 
+For reusable conversations, branching dialogue, and command-driven cutscenes, use the separate
+**Tools ▸ Dialogue & Cutscenes** workspace. See [Dialogue & Cutscenes](Dialogue-and-Cutscenes).
+
 ### States
 Status effects: poison, stun, regen, and the like. Each state has a **per-turn HP change (%)**, an
 **action restriction**, a **duration**, whether it's **removed after battle**, and colors/icons.

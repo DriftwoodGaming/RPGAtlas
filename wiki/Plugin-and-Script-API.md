@@ -61,6 +61,9 @@ pre-rebrand plugins. The Script event command receives `atlas` and `game` as glo
 
 Available to plugins (second argument) and to every **Script** event command.
 
+Reusable conversations can be awaited with `game.callDialogue(id)`, just like
+`game.callCommonEvent(id)`. It returns a Promise that resolves when the dialogue tree ends.
+
 ### Switches, variables & gold
 
 | Call | Notes |

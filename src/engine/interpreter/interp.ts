@@ -28,6 +28,7 @@ export function initInterpServices(services: any): void {
 export class Interp {
   evRT: any;
   commonStack: any[];
+  dialogueStack: any[];
   /** Set by the breakLoop command (Phase 4); runList unwinds while it is
    *  true and the innermost loop handler consumes it. Never set unless a
    *  loop/breakLoop command exists, so pre-Phase-4 behavior is untouched. */
@@ -40,9 +41,10 @@ export class Interp {
    *  command); mirrors the `loop` handler's spin valve. */
   jumpSpins = 0;
 
-  constructor(evRT: any, commonStack?: any[]) {
+  constructor(evRT: any, commonStack?: any[], dialogueStack?: any[]) {
     this.evRT = evRT;
     this.commonStack = commonStack || [];
+    this.dialogueStack = dialogueStack || [];
   }
   selfKey(key: any): string {
     return G.mapId + ":" + (this.evRT ? this.evRT.ev.id : 0) + ":" + key;
@@ -92,6 +94,68 @@ export class Interp {
       // A jump is scoped to its own command list: an unresolved one never
       // leaks across the common-event boundary into the caller's list.
       this.jumpLabel = null;
+    }
+    return true;
+  }
+  async callDialogue(id: any): Promise<boolean> {
+    const dialogue = RA.byId(ctx.proj.dialogues || [], Number(id));
+    if (!dialogue || !Array.isArray(dialogue.nodes) || !dialogue.nodes.length) return false;
+    if (this.dialogueStack.includes(dialogue.id)) {
+      console.warn("Skipped recursive dialogue call:", dialogue.id);
+      return false;
+    }
+    const nodes = new Map(dialogue.nodes.map((node: any) => [Number(node.id), node]));
+    const speakers = new Map((dialogue.speakers || []).map((speaker: any) => [Number(speaker.id), speaker]));
+    let nodeId = Number(dialogue.startNodeId) || Number(dialogue.nodes[0].id) || 0;
+    let steps = 0;
+    this.dialogueStack.push(dialogue.id);
+    try {
+      while (nodeId && steps++ < 1000) {
+        const node: any = nodes.get(nodeId);
+        if (!node) break;
+        if (node.condition && !this.testCond(node.condition)) {
+          nodeId = Number(node.nextId) || 0;
+          continue;
+        }
+        if (node.kind === "choice") {
+          const speaker: any = speakers.get(Number(node.speakerId));
+          if (node.voice) await this.exec({ t: "se", name: node.voice });
+          if (node.text) {
+            await EngineServices.showMessage(
+              speaker ? speaker.name : "",
+              node.text,
+              node.portrait || (speaker && speaker.portrait) || "",
+              {},
+            );
+          }
+          const options = Array.isArray(node.options) ? node.options : [];
+          if (!options.length) {
+            nodeId = Number(node.nextId) || 0;
+            continue;
+          }
+          const picked = await EngineServices.showList(
+            options.map((option: any) => ({ html: EngineServices.richText(option.text || "Choice") })),
+            { className: "choicewin", cancellable: false },
+          );
+          nodeId = Number((options[picked] || {}).nextId) || Number(node.nextId) || 0;
+        } else if (node.kind === "cutscene") {
+          await this.runList(Array.isArray(node.commands) ? node.commands : []);
+          nodeId = Number(node.nextId) || 0;
+        } else {
+          const speaker: any = speakers.get(Number(node.speakerId));
+          if (node.voice) await this.exec({ t: "se", name: node.voice });
+          await EngineServices.showMessage(
+            speaker ? speaker.name : "",
+            node.text || "",
+            node.portrait || (speaker && speaker.portrait) || "",
+            {},
+          );
+          nodeId = Number(node.nextId) || 0;
+        }
+      }
+      if (steps >= 1000) console.warn("Stopped dialogue after 1000 nodes:", dialogue.id);
+    } finally {
+      this.dialogueStack.pop();
     }
     return true;
   }

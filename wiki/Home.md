@@ -31,6 +31,7 @@ you need from the sidebar.
 - **[Maps & Tiles](Maps-and-Tiles)** — painting terrain, layers, passability, shadows, and HD-2D heights.
 - **[Advanced Map Editor](Advanced-Map-Editor)** — unlimited layers, terrain brushes, stamps, gameplay zones, and Automap rules.
 - **[Events](Events)** — the heart of your game: dialogue, doors, chests, switches, cutscenes.
+- **[Dialogue & Cutscenes](Dialogue-and-Cutscenes)** — reusable conversation trees with speakers, portraits, voice, conditions, localization keys, and preview.
 - **[The Database](The-Database)** — actors, classes, skills, items, and everything that defines your world.
 - **[Battles & States](Battles-and-States)** — enemies, troops, side-view vs. front-view, and status effects.
 - **[Characters & Custom Assets](Characters-and-Custom-Assets)** — the Character Generator and adding your own art.

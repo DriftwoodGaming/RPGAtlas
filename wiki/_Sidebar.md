@@ -12,6 +12,7 @@
 - [Maps & Tiles](Maps-and-Tiles)
 - [Advanced Map Editor](Advanced-Map-Editor)
 - [Events](Events)
+- [Dialogue & Cutscenes](Dialogue-and-Cutscenes)
 - [The Database](The-Database)
 - [Battles & States](Battles-and-States)
 - [Characters & Custom Assets](Characters-and-Custom-Assets)

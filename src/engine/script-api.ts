@@ -62,6 +62,9 @@ export const scriptApi: any = {
   callCommonEvent(id: any) {
     return new Interp(null).callCommonEvent(id);
   },
+  callDialogue(id: any) {
+    return new Interp(null).callDialogue(id);
+  },
   state() {
     return G;
   },

@@ -88,6 +88,10 @@ export function registerFlowCommands(): void {
     await interp.callCommonEvent(c.commonEventId);
   });
 
+  registerCommand("dialogue", async (c: any, { interp }: InterpContext) => {
+    await interp.callDialogue(c.dialogueId);
+  });
+
   registerCommand("wait", async (c: any, { services }: InterpContext) => {
     await services.waitFrames(c.frames || 30);
   });
@@ -96,6 +100,7 @@ export function registerFlowCommands(): void {
     try {
       const api = Object.create(services.scriptApi);
       api.callCommonEvent = (id: any) => interp.callCommonEvent(id);
+      api.callDialogue = (id: any) => interp.callDialogue(id);
       const result = new Function("game", c.code)(api);
       if (result && typeof result.then === "function") await result;
     } catch (e) {

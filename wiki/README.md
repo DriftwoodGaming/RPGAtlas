@@ -16,6 +16,7 @@ can publish it as the project's **GitHub Wiki** (or any Markdown site).
 | `The-Editor-Interface.md` | Menus, tools, modes, shortcuts |
 | `Maps-and-Tiles.md` | Layers, passability, shadows, HD-2D |
 | `Events.md` | Pages, triggers, full command reference, recipes |
+| `Dialogue-and-Cutscenes.md` | Reusable conversation trees, voice cues, conditions, localization, preview |
 | `The-Database.md` | Every database tab explained |
 | `Battles-and-States.md` | Combat, enemies, troops, states |
 | `Characters-and-Custom-Assets.md` | Character Generator, custom art |
