@@ -714,7 +714,7 @@ test.describe("import wizard (phase 6)", () => {
 });
 
 test.describe("starter packs (phase 6)", () => {
-  test("the bundled World Map Essentials tileset installs into the live palette", async ({ page }) => {
+  test("the bundled World Map Deluxe tileset previews and installs into the live palette", async ({ page }) => {
     test.setTimeout(90_000);
     await page.goto("/index.html");
     const saveIndicator = page.locator("#save-ind");
@@ -732,17 +732,19 @@ test.describe("starter packs (phase 6)", () => {
     await expect(page.locator(".assetbrowser")).toBeVisible();
 
     await page.locator(".ab-railbtn", { hasText: "Packs" }).click();
-    const card = page.locator(".ab-pack", { hasText: "World Map Essentials" });
+    const card = page.locator(".ab-pack", { hasText: "World Map Deluxe" });
     await expect(card).toBeVisible();
-    await expect(card.locator(".ab-meta")).toContainText("installed 0/34");
+    await expect(card.locator(".ab-packpreview")).toBeVisible();
+    await expect(card.locator(".ab-meta")).toContainText("installed 0/48");
 
     await card.locator("button", { hasText: "Install" }).click();
-    await expect(card.locator(".ab-meta")).toContainText("installed 34/34", { timeout: 60_000 });
+    await expect(card.locator(".ab-meta")).toContainText("installed 48/48", { timeout: 60_000 });
 
     await page.locator(".ab-railbtn", { hasText: "Tiles" }).click();
-    await expect(page.locator(".ab-grid .ab-card")).toHaveCount(34);
+    await expect(page.locator(".ab-grid .ab-card")).toHaveCount(48);
     await expect(page.locator(".ab-grid .ab-name", { hasText: "world-plains.terrain" })).toBeVisible();
     await expect(page.locator(".ab-grid .ab-name", { hasText: "world-castle" })).toBeVisible();
+    await expect(page.locator(".ab-grid .ab-name", { hasText: "world-crystal-cavern.terrain" })).toBeVisible();
     await expect(page.locator(".ab-cardtags").first()).toContainText("pack:world-map-essentials");
     expect(await page.evaluate(() => window.Assets.tiles.some((tile) => tile && tile.name === "World Plains"))).toBe(true);
 
@@ -750,7 +752,7 @@ test.describe("starter packs (phase 6)", () => {
     await page.locator(".ab-railbtn", { hasText: "Packs" }).click();
     await card.locator("button", { hasText: "Uninstall" }).click();
     await page.locator(".overlay").last().locator("button", { hasText: "OK" }).click();
-    await expect(card.locator(".ab-meta")).toContainText("installed 0/34");
+    await expect(card.locator(".ab-meta")).toContainText("installed 0/48");
   });
 
   test("the bundled Driftwood Starter pack installs, tags its assets, and uninstalls", async ({ page }) => {

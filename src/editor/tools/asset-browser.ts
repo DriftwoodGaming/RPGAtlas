@@ -76,6 +76,7 @@ interface PackDef {
   desc?: string;
   license?: string;
   version?: number;
+  preview?: string;
   files: PackFile[];
   /** Which registry it came from (resolves relative file URLs). */
   base: string;
@@ -417,6 +418,11 @@ export function openAssetBrowser() {
       } }, "Uninstall"));
     }
     return h("div", { class: "ab-card ab-pack" },
+      pack.preview ? h("img", {
+        class: "ab-packpreview",
+        src: new URL(pack.preview, new URL(pack.base, location.href)).href,
+        alt: pack.name + " preview",
+      }) : null,
       h("div", { class: "ab-name" }, pack.name),
       h("div", { class: "ab-meta dim" },
         (pack.license || "?") + " · " + pack.files.length + " files · installed " + installed.length + "/" + pack.files.length +

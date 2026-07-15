@@ -16,11 +16,39 @@ import { flashStatus } from "../map-editor/status";
 
 export function openCharGenerator() {
   const SKINS = ["#f0c8a0", "#e8b890", "#d8a070", "#c08858", "#9a6a40", "#f0d0b0"];
+  const HAIR_COLORS = ["#241b18", "#4a2d1c", "#75442b", "#a65e32", "#c49a62", "#d7d0c4", "#7a3048", "#37527a"];
+  const WARDROBE_PALETTES = [
+    { shirt: "#3567a5", pants: "#273b5c", hat: "#d1a84b", accent: "#e2b84e" },
+    { shirt: "#7f3f62", pants: "#392d4f", hat: "#c67a46", accent: "#e6a64f" },
+    { shirt: "#39785b", pants: "#384b35", hat: "#b4934c", accent: "#d2bd67" },
+    { shirt: "#a84a3f", pants: "#49352f", hat: "#d5b968", accent: "#e6c760" },
+    { shirt: "#6a55a0", pants: "#30395e", hat: "#4fb0a0", accent: "#62cbb8" },
+    { shirt: "#c5bda8", pants: "#59606b", hat: "#8b6046", accent: "#b97c4f" },
+  ];
+  const EYE_COLORS = ["#2d3348", "#315d78", "#3f6b42", "#724f2d", "#6a3c73"];
+  const ART_STYLES = Assets.CHARACTER_ART_STYLES || [
+    { id: "classic", name: "Classic Pixel", description: "The original RPGAtlas style." },
+  ];
+  const BODY_TYPES = Assets.CHARACTER_BODY_TYPES || ["balanced"];
+  const OUTFITS = Assets.CHARACTER_OUTFITS || ["tunic"];
+  const ACCESSORIES = Assets.CHARACTER_ACCESSORIES || ["none"];
   const pick = (arr: any) => arr[Math.floor(Math.random() * arr.length)];
-  const randCol = () => "#" + [0, 0, 0].map(() => ("0" + Math.floor(40 + Math.random() * 200).toString(16)).slice(-2)).join("");
-  function randomWork() {
-    return { name: "New Hero", style: pick(Assets.HAIR_STYLES), skin: pick(SKINS),
-      hair: randCol(), shirt: randCol(), pants: randCol(), hat: randCol() };
+  const labelOf = (value: string) => value[0].toUpperCase() + value.slice(1);
+  function randomWork(artStyle?: string) {
+    const palette = pick(WARDROBE_PALETTES);
+    return { name: "New Hero", artStyle: artStyle || pick(ART_STYLES).id,
+      bodyType: pick(BODY_TYPES), outfit: pick(OUTFITS), accessory: pick(ACCESSORIES),
+      style: pick(Assets.HAIR_STYLES), skin: pick(SKINS), hair: pick(HAIR_COLORS), eyes: pick(EYE_COLORS),
+      shirt: palette.shirt, pants: palette.pants, hat: palette.hat, accent: palette.accent };
+  }
+  function normalizeWork(value: any) {
+    const fallback = randomWork("classic");
+    return Object.assign(fallback, value || {}, {
+      artStyle: ART_STYLES.some((style: any) => style.id === value?.artStyle) ? value.artStyle : "classic",
+      bodyType: BODY_TYPES.includes(value?.bodyType) ? value.bodyType : "balanced",
+      outfit: OUTFITS.includes(value?.outfit) ? value.outfit : "tunic",
+      accessory: ACCESSORIES.includes(value?.accessory) ? value.accessory : "none",
+    });
   }
   let editing: any = null; // entry in proj.customChars being edited, or null for a new one
   let work: any = randomWork();
@@ -32,7 +60,9 @@ export function openCharGenerator() {
     c.width = TILE; c.height = TILE;
     return c;
   });
-  function paramsOf(w: any) { return { skin: w.skin, hair: w.hair, style: w.style, shirt: w.shirt, pants: w.pants, hat: w.hat }; }
+  function paramsOf(w: any) { return { artStyle: w.artStyle, bodyType: w.bodyType, outfit: w.outfit,
+    accessory: w.accessory, skin: w.skin, hair: w.hair, eyes: w.eyes, style: w.style,
+    shirt: w.shirt, pants: w.pants, hat: w.hat, accent: w.accent }; }
   function redrawPreview() {
     const idx = Assets.registerHuman(PV_KEY, "preview", paramsOf(work));
     const frame = [0, 1, 2, 1][animF % 4];
@@ -46,22 +76,61 @@ export function openCharGenerator() {
 
   const formBox = h("div", { class: "cg-form" });
   const listEl = h("ul", { class: "dblist" });
+  function redrawStyleThumbnails() {
+    for (const canvas of formBox.querySelectorAll(".cg-style-thumb") as any) {
+      const sample = Assets.humanPreviewCanvas(
+        Object.assign(paramsOf(work), { artStyle: canvas.getAttribute("data-art-style") }), 0, 1,
+      );
+      const g = canvas.getContext("2d");
+      g.clearRect(0, 0, TILE, TILE);
+      g.drawImage(sample, 0, 0);
+    }
+  }
   function colorIn(key: any) {
-    return h("input", { type: "color", value: work[key], oninput(e: any) { work[key] = e.target.value; redrawPreview(); } });
+    return h("input", { type: "color", value: work[key], oninput(e: any) {
+      work[key] = e.target.value; redrawPreview(); redrawStyleThumbnails();
+    } });
+  }
+  function optionIn(key: string, values: string[]) {
+    return h("select", { onchange(e: any) {
+      work[key] = e.target.value; redrawForm(); redrawPreview();
+    } }, ...values.map((value) => h("option", {
+      value, ...(value === work[key] ? { selected: "" } : {}),
+    }, labelOf(value))));
+  }
+  function styleCard(style: any) {
+    const thumb = Assets.humanPreviewCanvas(Object.assign(paramsOf(work), { artStyle: style.id }), 0, 1);
+    thumb.className = "cg-style-thumb";
+    thumb.setAttribute("data-art-style", style.id);
+    return h("button", {
+      type: "button",
+      class: "cg-style-card" + (style.id === work.artStyle ? " sel" : ""),
+      "aria-pressed": style.id === work.artStyle ? "true" : "false",
+      onclick() { work.artStyle = style.id; redrawForm(); redrawPreview(); },
+    }, thumb, h("span", { class: "cg-style-copy" },
+      h("strong", null, style.name), h("span", null, style.description)));
   }
   function redrawForm() {
     formBox.innerHTML = "";
     const nameIn = h("input", { type: "text", value: work.name, oninput(e: any) { work.name = e.target.value; } });
-    const styleSel = h("select", { onchange(e: any) { work.style = e.target.value; redrawPreview(); } },
-      ...Assets.HAIR_STYLES.map((s: any) => h("option", { value: s, ...(s === work.style ? { selected: "" } : {}) }, s)));
-    const skinSel = h("select", { onchange(e: any) { work.skin = e.target.value; redrawPreview(); } },
+    const skinSel = h("select", { onchange(e: any) { work.skin = e.target.value; redrawPreview(); redrawStyleThumbnails(); } },
       ...SKINS.map((s, i) => h("option", { value: s, ...(s === work.skin ? { selected: "" } : {}) }, "skin " + (i + 1))));
-    formBox.appendChild(row(field("Name", nameIn), field("Hair style", styleSel)));
-    formBox.appendChild(row(field("Skin", skinSel), field("Hair", colorIn("hair")),
-      field("Shirt", colorIn("shirt")), field("Pants", colorIn("pants")), field("Hat", colorIn("hat"))));
+    formBox.appendChild(row(field("Name", nameIn), field("Skin tone", skinSel)));
+    formBox.appendChild(field("Sprite art style", h("div", { class: "cg-style-grid" },
+      ...ART_STYLES.map(styleCard),
+    )));
+    formBox.appendChild(h("div", { class: "cg-section-title" }, "Build & wardrobe"));
+    formBox.appendChild(row(field("Body", optionIn("bodyType", BODY_TYPES)),
+      field("Hair", optionIn("style", Assets.HAIR_STYLES)), field("Outfit", optionIn("outfit", OUTFITS)),
+      field("Accessory", optionIn("accessory", ACCESSORIES))));
+    formBox.appendChild(h("div", { class: "cg-section-title" }, "Palette"));
+    formBox.appendChild(row(field("Hair", colorIn("hair")), field("Eyes", colorIn("eyes")),
+      field("Clothes", colorIn("shirt")), field("Pants", colorIn("pants")),
+      field("Accent", colorIn("accent")), field("Hat / hood", colorIn("hat"))));
     formBox.appendChild(h("div", { class: "cg-preview" }, ...previews));
     formBox.appendChild(h("div", { class: "frow", style: "margin-top:8px; gap:6px" },
-      h("button", { onclick() { const n = work.name; work = randomWork(); work.name = n; redrawForm(); redrawPreview(); } }, "🎲 Randomize"),
+      h("button", { onclick() { const n = work.name; work = randomWork(work.artStyle); work.name = n; redrawForm(); redrawPreview(); } }, "🎨 Randomize look"),
+      h("button", { onclick() { const n = work.name; work = randomWork(); work.name = n; redrawForm(); redrawPreview(); } }, "🎲 Surprise me"),
       h("button", { class: "primary", onclick: save }, editing ? "Update “" + editing.name + "”" : "Save as new character"),
       editing ? h("button", { onclick() { editing = null; redrawForm(); } }, "Cancel edit") : null,
     ));
@@ -88,7 +157,7 @@ export function openCharGenerator() {
     for (const c of S.proj.customChars) {
       listEl.appendChild(h("li", { class: c === editing ? "sel" : "", onclick() {
         editing = c;
-        work = Object.assign({ name: c.name }, c.params);
+        work = normalizeWork(Object.assign({ name: c.name }, c.params));
         redrawForm(); redrawPreview();
       } }, c.name));
     }

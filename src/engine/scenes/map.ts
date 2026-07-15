@@ -45,6 +45,7 @@ import {
   regionAt,
   timeBandOf,
   playerStepPassable,
+  developerThroughActive,
   tryVehicleAction,
   syncFollowers,
   updateFollowers,
@@ -234,7 +235,8 @@ export function update(): void {
       const [dx, dy] = DIRD[d];
       const nx = p.x + dx,
         ny = p.y + dy;
-      if (G.vehicle) {
+      const developerThrough = developerThroughActive();
+      if (developerThrough || G.vehicle) {
         // vehicle terrain rules; no touch triggers from the deck
         if (playerStepPassable(nx, ny)) {
           startMove(p, d);

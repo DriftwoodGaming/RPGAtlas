@@ -138,7 +138,7 @@ plus an icon toolbar with everything one click away.
 | **Audio Manager** | Preview every procedural sound effect and music theme |
 | **Event Searcher** | Find message text, event names, or switch/variable usage across all maps |
 | **Resource Manager** | Browse every generated tile/character/battler; export PNGs (incl. full sprite sheets) |
-| **Character Generator** | Compose original walking sprites (skin/hair/outfit/style) usable everywhere |
+| **Character Generator** | Build walking sprites with distinct Classic, Chibi, Heroic, and Storybook bodies, outfits, hair, and accessories |
 | **Map Properties** | Rename/resize maps, set music, configure random encounters, enable HD-2D (camera tilt, bloom, depth of field, fog color, lights, ambient) |
 | **Open / Export** | Back up the project as `.json` or export a self-contained Windows `.exe` / playable `.html` |
 
@@ -175,6 +175,9 @@ Classes, skills, items, weapons, and armors each have a selectable icon. Replace
 
 Shortcuts: `B/E/R/O/F/S` tools · `0` auto layer, `1–4` layers · `+/-` & `Ctrl`+wheel zoom, `Ctrl+0` 1:1 ·
 right-click = pick tile · `Ctrl+Z/Y` undo/redo · `Ctrl+X/C/V` clipboard · `Del` delete selected event.
+
+During an editor-launched Playtest, hold `Ctrl` for developer-only Through movement; deployed games
+never enable this control.
 
 Passability is per-tile: the topmost decoration tile decides, otherwise the Ground tile —
 and Passability mode can override any cell. Overhead tiles draw above the player (treetops, roof edges…).

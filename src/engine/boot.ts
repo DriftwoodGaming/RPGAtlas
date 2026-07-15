@@ -22,6 +22,10 @@ import { el, esc, clamp, rnd, setSysProjectProvider } from "./util.js";
 import { showList, initUiStack } from "./ui-stack.js";
 import { ctx, fns } from "./state/engine-context.js";
 import {
+  isEditorPlaytest,
+  withDeveloperPlaytestBindings,
+} from "./developer-mode.js";
+import {
   initQuestRuntime,
   Quests,
   evaluateQuestFailures,
@@ -276,7 +280,14 @@ async function boot(): Promise<void> {
     delete ctx.playerOptions.music;
     saveOptions();
   }
-  ctx.Input.setBindings(RA.mergeInputBindings(ctx.proj.system.input, ctx.playerOptions.input || null));
+  ctx.playtestMode = isEditorPlaytest(window);
+  const runtimeBindings = RA.mergeInputBindings(
+    ctx.proj.system.input,
+    ctx.playerOptions.input || null,
+  );
+  ctx.Input.setBindings(
+    withDeveloperPlaytestBindings(runtimeBindings, ctx.playtestMode),
+  );
   // Restore saved audio mix + text speed.
   const av = ctx.playerOptions.audio || {};
   Sfx.setMasterVolume(av.master == null ? 1 : av.master);

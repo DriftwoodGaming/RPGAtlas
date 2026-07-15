@@ -86,9 +86,10 @@ retrying a failed download) is always safe.
   engine's own procedural art): terrain recolors, four villagers, three
   battlers, two chiptune loops, rain ambience, a victory fanfare, and a
   chime.
-- **World Map Essentials** is a CC0 overworld-building tileset with 34 matching
-  48×48 tiles: nine biomes, a complete 13-piece road-and-bridge kit, mountains and cliffs,
-  plus settlements and landmarks such as a castle, port, ruins, cave, and shrine.
+- **World Map Deluxe** is a CC0, hand-painted overworld tileset with 48 matching
+  48×48 tiles: sixteen seamless terrains, a complete sixteen-piece road, bridge,
+  causeway, and plaza kit, plus detailed settlements, barriers, ruins, an oasis,
+  a logging camp, and crystalline locations. Its pack card includes a full art preview.
 - **Add registry URL…** points the tab at any hosted `index.json` (same
   format as `img/packs/index.json`) to install third-party packs. Mind the
   license shown on each pack — exports embed the assets your game uses.

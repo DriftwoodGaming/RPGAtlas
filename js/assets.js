@@ -839,32 +839,71 @@ const Assets = (() => {
     ["merchant",   "Merchant",    { skin: "#e8b890", hair: "#5a4a3a", style: "short", shirt: "#8a4a9a", pants: "#4a3a2a" }],
   ];
 
-  function drawHuman(g, p, dir, frame) {
+  const CHARACTER_ART_STYLES = Object.freeze([
+    Object.freeze({
+      id: "classic",
+      name: "Classic Pixel",
+      description: "The clean RPGAtlas look with crisp 3px details.",
+    }),
+    Object.freeze({
+      id: "chibi",
+      name: "Chibi",
+      description: "A big expressive head, large eyes, and tiny adventurer proportions.",
+    }),
+    Object.freeze({
+      id: "heroic",
+      name: "Heroic",
+      description: "Longer legs, a smaller head, and a broad action-RPG silhouette.",
+    }),
+    Object.freeze({
+      id: "storybook",
+      name: "Storybook",
+      description: "A detailed 2px sprite build with shaped edges and expressive features.",
+    }),
+  ]);
+  const CHARACTER_BODY_TYPES = Object.freeze(["balanced", "slim", "broad", "compact"]);
+  const CHARACTER_OUTFITS = Object.freeze(["tunic", "robe", "armor", "coat"]);
+  const CHARACTER_ACCESSORIES = Object.freeze(["none", "cape", "scarf", "glasses", "headband"]);
+  const CHARACTER_ART_STYLE_IDS = new Set(CHARACTER_ART_STYLES.map((style) => style.id));
+
+  function characterArtStyle(params) {
+    return params && CHARACTER_ART_STYLE_IDS.has(params.artStyle) ? params.artStyle : "classic";
+  }
+
+  function drawClassicHuman(g, p, dir, frame) {
     const u = 3; // pixel unit; 16x16 logical grid in 48x48
     function q(x, y, w, h, c) { px(g, x * u, y * u, w * u, h * u, c); }
     const skinD = shade(p.skin, 0.82), shirtD = shade(p.shirt, 0.8), hairD = shade(p.hair, 0.8);
+    const bodyW = p.bodyType === "broad" ? 10 : p.bodyType === "slim" ? 6 : 8;
+    const bodyX = Math.floor((16 - bodyW) / 2);
+    const legH = p.bodyType === "compact" ? 2 : 3;
+    const geo = { head: { x: 4, y: 2, w: 8, h: 6 }, body: { x: bodyX, y: 8, w: bodyW, h: 4 }, legs: { y: 12, h: legH } };
     const step = frame === 1 ? 0 : 1;          // legs apart on frames 0/2
     const swap = frame === 2 ? 1 : 0;          // which leg forward
+    drawBackLayer(q, p, dir, geo);
     if (dir === 0 || dir === 3) {
       // front / back
       // legs
       const lLift = step && !swap ? 1 : 0, rLift = step && swap ? 1 : 0;
-      q(5, 12, 2, 3 - lLift, p.pants); q(9, 12, 2, 3 - rLift, p.pants);
-      q(5, 15 - lLift, 2, 1, "#3a2c1c"); q(9, 15 - rLift, 2, 1, "#3a2c1c");
+      const leftLeg = bodyX + 1, rightLeg = bodyX + bodyW - 3;
+      q(leftLeg, 12, 2, legH - lLift, p.pants); q(rightLeg, 12, 2, legH - rLift, p.pants);
+      q(leftLeg, 12 + legH - lLift, 2, 1, "#3a2c1c"); q(rightLeg, 12 + legH - rLift, 2, 1, "#3a2c1c");
       // body
-      q(4, 8, 8, 4, p.shirt); q(4, 11, 8, 1, shirtD);
+      q(bodyX, 8, bodyW, 4, p.shirt); q(bodyX, 11, bodyW, 1, shirtD);
       // arms
-      q(3, 8, 1, 3, p.shirt); q(12, 8, 1, 3, p.shirt);
-      q(3, 11, 1, 1, p.skin); q(12, 11, 1, 1, p.skin);
+      q(bodyX - 1, 8, 1, 3, p.shirt); q(bodyX + bodyW, 8, 1, 3, p.shirt);
+      q(bodyX - 1, 11, 1, 1, p.skin); q(bodyX + bodyW, 11, 1, 1, p.skin);
       // head
       q(4, 2, 8, 6, p.skin);
       q(4, 7, 8, 1, skinD);
       if (dir === 0) {
-        q(6, 5, 1, 1, "#26201a"); q(9, 5, 1, 1, "#26201a"); // eyes
+        q(6, 5, 1, 1, p.eyes); q(9, 5, 1, 1, p.eyes); // eyes
       }
       // hair
       if (p.style === "bald") {
         q(4, 2, 8, 1, skinD);
+      } else if (p.style === "hood") {
+        q(3, 1, 10, 3, p.accent); q(3, 4, 2, 4, shade(p.accent, 0.78)); q(11, 4, 2, 4, shade(p.accent, 0.78));
       } else if (p.style === "hat") {
         q(3, 1, 10, 2, p.hat); q(2, 3, 12, 1, shade(p.hat, 0.8));
         if (dir === 3) q(4, 4, 8, 2, p.hat);
@@ -872,32 +911,266 @@ const Assets = (() => {
         q(4, 1, 8, 2, p.hair); q(4, 3, 1, 2, p.hair); q(11, 3, 1, 2, p.hair);
         if (p.style === "spiky") { q(5, 0, 2, 1, p.hair); q(9, 0, 2, 1, p.hair); q(7, 1, 2, 1, hairD); }
         if (p.style === "long") { q(3, 3, 1, 6, p.hair); q(12, 3, 1, 6, p.hair); }
+        if (p.style === "bob") { q(3, 3, 1, 4, p.hair); q(12, 3, 1, 4, p.hair); }
+        if (p.style === "ponytail") { q(12, 4, 2, 5, p.hair); q(13, 8, 1, 2, hairD); }
+        if (p.style === "mohawk") { q(7, 0, 2, 2, p.hair); q(8, 2, 1, 2, hairD); }
         if (dir === 3) q(4, 3, 8, 4, p.hair); // back of head covered
       }
     } else {
       // side view; draw facing left, mirror handled by caller for right
       const fwd = step ? (swap ? 1 : -1) : 0;
+      const sideW = p.bodyType === "broad" ? 8 : p.bodyType === "slim" ? 5 : 6;
+      const sideX = Math.floor((16 - sideW) / 2);
       // legs
-      q(6, 12, 2, 3, p.pants); q(8, 12, 2, 3, shade(p.pants, 0.85));
-      if (fwd === 1) { q(5, 13, 2, 2, p.pants); g.clearRect(8 * u, 14 * u, 2 * u, u); }
-      if (fwd === -1) { q(9, 13, 2, 2, shade(p.pants, 0.85)); g.clearRect(6 * u, 14 * u, 2 * u, u); }
-      q(6, 15, 4, 1, "#3a2c1c");
+      q(6, 12, 2, legH, p.pants); q(8, 12, 2, legH, shade(p.pants, 0.85));
+      if (fwd === 1) { q(5, 12 + legH - 2, 2, 2, p.pants); g.clearRect(8 * u, (11 + legH) * u, 2 * u, u); }
+      if (fwd === -1) { q(9, 12 + legH - 2, 2, 2, shade(p.pants, 0.85)); g.clearRect(6 * u, (11 + legH) * u, 2 * u, u); }
+      q(6, 12 + legH, 4, 1, "#3a2c1c");
       // body
-      q(5, 8, 6, 4, p.shirt); q(5, 11, 6, 1, shirtD);
+      q(sideX, 8, sideW, 4, p.shirt); q(sideX, 11, sideW, 1, shirtD);
       // arm
       q(7 + fwd, 9, 2, 3, shirtD); q(7 + fwd, 11, 2, 1, p.skin);
       // head
       q(4, 2, 8, 6, p.skin); q(4, 7, 8, 1, skinD);
-      q(5, 5, 1, 1, "#26201a"); // one eye
+      q(5, 5, 1, 1, p.eyes); // one eye
       // hair
-      if (p.style === "hat") {
+      if (p.style === "hood") {
+        q(3, 1, 10, 3, p.accent); q(9, 4, 4, 4, shade(p.accent, 0.78));
+      } else if (p.style === "hat") {
         q(3, 1, 10, 2, p.hat); q(2, 3, 11, 1, shade(p.hat, 0.8)); q(8, 4, 4, 2, p.hat);
       } else if (p.style !== "bald") {
         q(4, 1, 8, 2, p.hair); q(8, 3, 4, 3, p.hair); q(11, 3, 1, 3, hairD);
         if (p.style === "spiky") { q(5, 0, 2, 1, p.hair); q(9, 0, 2, 1, p.hair); }
         if (p.style === "long") { q(10, 3, 2, 7, p.hair); }
+        if (p.style === "bob") { q(10, 3, 2, 5, p.hair); }
+        if (p.style === "ponytail") { q(11, 4, 2, 5, p.hair); q(12, 8, 2, 2, hairD); }
+        if (p.style === "mohawk") { q(6, 0, 2, 2, p.hair); q(8, 1, 2, 2, hairD); }
       }
     }
+    drawOutfitDetails(q, p, dir, geo);
+    drawFaceAccessory(q, p, dir, geo);
+  }
+
+  function drawBackLayer(q, p, dir, geo) {
+    const body = geo.body, head = geo.head, legs = geo.legs;
+    if (p.accessory === "cape") {
+      const capeD = shade(p.accent, 0.68);
+      if (dir === 1) q(body.x + body.w - 1, body.y + 1, Math.max(2, Math.floor(body.w / 3)), body.h + legs.h, capeD);
+      else q(body.x - 1, body.y + 1, body.w + 2, body.h + Math.max(1, legs.h - 1), capeD);
+    }
+    if (p.style === "ponytail") {
+      const tailX = dir === 1 ? head.x + head.w - 1 : head.x + Math.floor(head.w / 2);
+      q(tailX, head.y + Math.floor(head.h / 2), Math.max(1, Math.floor(head.w / 4)), Math.max(3, Math.floor(head.h * 0.8)), shade(p.hair, 0.78));
+    }
+  }
+
+  function drawOutfitDetails(q, p, dir, geo) {
+    const body = geo.body, legs = geo.legs;
+    const shirtD = shade(p.shirt, 0.72), accentD = shade(p.accent, 0.74);
+    const center = body.x + Math.floor(body.w / 2);
+    if (p.outfit === "robe") {
+      q(body.x, body.y + body.h - 1, body.w, Math.max(2, legs.y + legs.h - body.y - body.h + 1), shirtD);
+      q(center, body.y + body.h, 1, Math.max(1, legs.h - 1), shade(p.shirt, 0.58));
+    } else if (p.outfit === "armor") {
+      q(body.x - 1, body.y, 2, 2, p.accent); q(body.x + body.w - 1, body.y, 2, 2, p.accent);
+      q(body.x + 1, body.y + 1, Math.max(1, body.w - 2), Math.max(1, body.h - 2), shirtD);
+      q(body.x, body.y + body.h - 1, body.w, 1, accentD);
+    } else if (p.outfit === "coat") {
+      q(body.x, body.y + 1, 2, body.h + Math.max(1, legs.h - 1), shirtD);
+      q(body.x + body.w - 2, body.y + 1, 2, body.h + Math.max(1, legs.h - 1), shirtD);
+      q(center, body.y, 1, body.h + 1, p.accent);
+    } else {
+      q(body.x, body.y + body.h - 1, body.w, 1, p.accent);
+    }
+    if (p.accessory === "scarf") {
+      q(body.x, body.y, body.w, 1, p.accent);
+      q(dir === 1 ? body.x + body.w - 1 : body.x, body.y + 1, 1, Math.max(2, body.h), accentD);
+    }
+  }
+
+  function drawFaceAccessory(q, p, dir, geo) {
+    const head = geo.head;
+    if (p.accessory === "headband") {
+      q(head.x, head.y + 1, head.w, 1, p.accent);
+    } else if (p.accessory === "glasses" && dir !== 3) {
+      const y = head.y + Math.floor(head.h * 0.56);
+      if (dir === 0) {
+        q(head.x + 1, y, 2, 1, shade(p.accent, 0.46));
+        q(head.x + head.w - 3, y, 2, 1, shade(p.accent, 0.46));
+        q(head.x + 3, y, Math.max(1, head.w - 6), 1, shade(p.accent, 0.46));
+      } else {
+        q(head.x, y, Math.max(3, Math.floor(head.w / 2)), 1, shade(p.accent, 0.46));
+      }
+    }
+  }
+
+  function drawHairShape(q, p, dir, head, detailed) {
+    const hairD = shade(p.hair, 0.72), x = head.x, y = head.y, w = head.w, h = head.h;
+    if (p.style === "bald") {
+      q(x + 1, y, Math.max(1, w - 2), 1, shade(p.skin, 0.86));
+      return;
+    }
+    if (p.style === "hat") {
+      q(x - 1, y - 1, w + 2, Math.max(2, Math.floor(h / 3)), p.hat);
+      q(x - 2, y + 1, w + 4, 1, shade(p.hat, 0.72));
+      if (dir === 3) q(x, y + 2, w, Math.max(2, Math.floor(h / 2)), p.hat);
+      return;
+    }
+    if (p.style === "hood") {
+      q(x - 1, y - 1, w + 2, Math.max(3, Math.floor(h / 2)), p.accent);
+      q(x - 1, y + Math.floor(h / 2) - 1, 2, Math.max(2, Math.floor(h / 2)), hairD);
+      q(x + w - 1, y + Math.floor(h / 2) - 1, 2, Math.max(2, Math.floor(h / 2)), hairD);
+      return;
+    }
+
+    q(x, y - 1, w, 2, p.hair);
+    if (p.style === "mohawk") {
+      const crestX = x + Math.floor(w / 2) - 1;
+      q(crestX, Math.max(0, y - 2), 2, 3, p.hair);
+      q(crestX + 1, y + 1, 1, Math.max(1, Math.floor(h / 3)), hairD);
+    } else if (p.style === "spiky") {
+      q(x + 1, Math.max(0, y - 2), 2, 1, p.hair);
+      q(x + w - 3, Math.max(0, y - 2), 2, 1, p.hair);
+      if (detailed) q(x + Math.floor(w / 2), Math.max(0, y - 3), 2, 2, hairD);
+    }
+
+    if (dir === 3) {
+      q(x, y + 1, w, Math.max(2, h - 1), p.hair);
+      q(x + Math.floor(w / 2), y + 2, 1, Math.max(2, h - 2), hairD);
+    } else if (dir === 1) {
+      q(x + Math.floor(w / 2), y + 1, Math.ceil(w / 2), Math.max(2, Math.floor(h / 2)), p.hair);
+      q(x + w - 1, y + 2, 1, Math.max(2, Math.floor(h / 2)), hairD);
+    } else {
+      q(x, y + 1, 1, Math.max(2, Math.floor(h / 2)), p.hair);
+      q(x + w - 1, y + 1, 1, Math.max(2, Math.floor(h / 2)), p.hair);
+    }
+
+    if (p.style === "long") {
+      q(x - 1, y + 2, 2, h + 1, p.hair); q(x + w - 1, y + 2, 2, h + 1, hairD);
+    } else if (p.style === "bob") {
+      q(x - 1, y + 2, 2, Math.max(3, h - 1), p.hair); q(x + w - 1, y + 2, 2, Math.max(3, h - 1), hairD);
+    }
+  }
+
+  function drawChibiHuman(g, p, dir, frame) {
+    const u = 3;
+    function q(x, y, w, h, c) { px(g, x * u, y * u, w * u, h * u, c); }
+    const compact = p.bodyType === "compact";
+    const bodyW = p.bodyType === "broad" ? 9 : p.bodyType === "slim" ? 6 : compact ? 7 : 8;
+    const bodyX = Math.floor((16 - bodyW) / 2);
+    const geo = { head: { x: 3, y: 1, w: 10, h: 8 }, body: { x: bodyX, y: 9, w: bodyW, h: compact ? 2 : 3 }, legs: { y: compact ? 11 : 12, h: 3 } };
+    const head = geo.head, body = geo.body;
+    const step = frame === 1 ? 0 : 1, swap = frame === 2;
+    drawBackLayer(q, p, dir, geo);
+
+    const leftLift = step && !swap ? 1 : 0, rightLift = step && swap ? 1 : 0;
+    q(5, geo.legs.y, 2, geo.legs.h - leftLift, p.pants); q(9, geo.legs.y, 2, geo.legs.h - rightLift, shade(p.pants, 0.84));
+    q(5, geo.legs.y + geo.legs.h - leftLift, 2, 1, "#3a2c1c"); q(9, geo.legs.y + geo.legs.h - rightLift, 2, 1, "#3a2c1c");
+    q(body.x, body.y, body.w, body.h, p.shirt);
+    q(body.x - 1, body.y, 1, 2, p.shirt); q(body.x + body.w, body.y, 1, 2, p.shirt);
+    q(body.x - 1, body.y + 2, 1, 1, p.skin); q(body.x + body.w, body.y + 2, 1, 1, p.skin);
+
+    q(head.x + 1, head.y, head.w - 2, head.h, p.skin);
+    q(head.x, head.y + 1, head.w, head.h - 2, p.skin);
+    q(head.x + 1, head.y + head.h - 1, head.w - 2, 1, shade(p.skin, 0.82));
+    if (dir === 0) {
+      const eyeHi = mix(p.eyes, "#ffffff", 0.72);
+      q(head.x + 2, head.y + 4, 1, 2, p.eyes); q(head.x + head.w - 3, head.y + 4, 1, 2, p.eyes);
+      q(head.x + 2, head.y + 4, 1, 1, eyeHi); q(head.x + head.w - 3, head.y + 4, 1, 1, eyeHi);
+      q(head.x + 1, head.y + 6, 1, 1, mix(p.skin, "#d87979", 0.38));
+      q(head.x + head.w - 2, head.y + 6, 1, 1, mix(p.skin, "#d87979", 0.38));
+    } else if (dir === 1) {
+      q(head.x + 1, head.y + 4, 1, 2, p.eyes);
+      q(head.x + 1, head.y + 4, 1, 1, mix(p.eyes, "#ffffff", 0.72));
+    }
+    drawHairShape(q, p, dir, head, false);
+    drawOutfitDetails(q, p, dir, geo);
+    drawFaceAccessory(q, p, dir, geo);
+  }
+
+  function drawHeroicHuman(g, p, dir, frame) {
+    const u = 3;
+    function q(x, y, w, h, c) { px(g, x * u, y * u, w * u, h * u, c); }
+    const compact = p.bodyType === "compact";
+    const bodyW = p.bodyType === "broad" ? 12 : p.bodyType === "slim" ? 8 : compact ? 9 : 10;
+    const bodyX = Math.floor((16 - bodyW) / 2);
+    const geo = { head: compact ? { x: 4, y: 1, w: 8, h: 6 } : { x: 5, y: 1, w: 6, h: 5 },
+      body: { x: bodyX, y: compact ? 7 : 6, w: bodyW, h: compact ? 4 : 5 }, legs: { y: 11, h: compact ? 3 : 4 } };
+    const head = geo.head, body = geo.body;
+    const step = frame === 1 ? 0 : 1, swap = frame === 2;
+    drawBackLayer(q, p, dir, geo);
+
+    const leftX = body.x + 2, rightX = body.x + body.w - 4;
+    const leftLift = step && !swap ? 1 : 0, rightLift = step && swap ? 1 : 0;
+    q(leftX, geo.legs.y, 2, geo.legs.h - leftLift, p.pants); q(rightX, geo.legs.y, 2, geo.legs.h - rightLift, shade(p.pants, 0.82));
+    q(leftX - (step && !swap ? 1 : 0), geo.legs.y + geo.legs.h - leftLift, 3, 1, "#30271f");
+    q(rightX - (step && swap ? 1 : 0), geo.legs.y + geo.legs.h - rightLift, 3, 1, "#30271f");
+    q(body.x, body.y, body.w, body.h, p.shirt); q(body.x, body.y + body.h - 1, body.w, 1, shade(p.shirt, 0.7));
+    q(body.x - 1, body.y + 1, 2, 5, p.shirt); q(body.x + body.w - 1, body.y + 1, 2, 5, shade(p.shirt, 0.82));
+    q(body.x - 1, body.y + 5, 2, 1, p.skin); q(body.x + body.w - 1, body.y + 5, 2, 1, p.skin);
+    q(head.x, head.y, head.w, head.h, p.skin); q(head.x + 1, head.y + head.h, head.w - 2, 1, shade(p.skin, 0.78));
+    if (dir === 0) {
+      q(head.x + 1, head.y + 2, 1, 1, p.eyes); q(head.x + head.w - 2, head.y + 2, 1, 1, p.eyes);
+      q(head.x + 2, head.y + 4, head.w - 4, 1, shade(p.skin, 0.7));
+    } else if (dir === 1) q(head.x, head.y + 2, 1, 1, p.eyes);
+    drawHairShape(q, p, dir, head, false);
+    drawOutfitDetails(q, p, dir, geo);
+    drawFaceAccessory(q, p, dir, geo);
+  }
+
+  function drawStorybookHuman(g, p, dir, frame) {
+    const u = 2;
+    function q(x, y, w, h, c) { px(g, x * u, y * u, w * u, h * u, c); }
+    const compact = p.bodyType === "compact";
+    const bodyW = p.bodyType === "broad" ? 15 : p.bodyType === "slim" ? 10 : compact ? 12 : 13;
+    const bodyX = Math.floor((24 - bodyW) / 2);
+    const geo = { head: compact ? { x: 6, y: 2, w: 12, h: 10 } : { x: 7, y: 2, w: 10, h: 9 },
+      body: { x: bodyX, y: compact ? 12 : 11, w: bodyW, h: compact ? 5 : 6 }, legs: { y: 17, h: compact ? 4 : 5 } };
+    const head = geo.head, body = geo.body, outline = shade(p.pants, 0.42);
+    const step = frame === 1 ? 0 : 1, swap = frame === 2;
+    drawBackLayer(q, p, dir, geo);
+
+    const leftLift = step && !swap ? 1 : 0, rightLift = step && swap ? 1 : 0;
+    q(body.x + 2, geo.legs.y, 5, geo.legs.h + 1 - leftLift, outline); q(body.x + body.w - 7, geo.legs.y, 5, geo.legs.h + 1 - rightLift, outline);
+    q(body.x + 3, geo.legs.y, 3, geo.legs.h - leftLift, p.pants); q(body.x + body.w - 6, geo.legs.y, 3, geo.legs.h - rightLift, shade(p.pants, 0.82));
+    q(body.x + 1, geo.legs.y + geo.legs.h - leftLift, 6, 2, outline); q(body.x + body.w - 7, geo.legs.y + geo.legs.h - rightLift, 6, 2, outline);
+    q(body.x + 2, geo.legs.y + geo.legs.h - leftLift, 5, 1, "#352b24"); q(body.x + body.w - 6, geo.legs.y + geo.legs.h - rightLift, 5, 1, "#352b24");
+    q(body.x - 1, body.y, body.w + 2, body.h + 1, outline);
+    q(body.x, body.y + 1, body.w, body.h - 1, p.shirt);
+    q(body.x - 2, body.y + 1, 3, 6, outline); q(body.x + body.w - 1, body.y + 1, 3, 6, outline);
+    q(body.x - 1, body.y + 2, 2, 4, p.shirt); q(body.x + body.w - 1, body.y + 2, 2, 4, shade(p.shirt, 0.8));
+    q(body.x - 1, body.y + 6, 2, 1, p.skin); q(body.x + body.w - 1, body.y + 6, 2, 1, p.skin);
+
+    q(head.x, head.y - 1, head.w, 1, outline);
+    q(head.x - 1, head.y, head.w + 2, head.h - 1, outline);
+    q(head.x, head.y + head.h - 1, head.w, 1, outline);
+    q(head.x, head.y, head.w, head.h - 1, p.skin);
+    q(head.x + 1, head.y + head.h - 2, head.w - 2, 1, shade(p.skin, 0.8));
+    if (dir === 0) {
+      const eyeHi = mix(p.eyes, "#ffffff", 0.7);
+      q(head.x + 2, head.y + 4, 2, 2, p.eyes); q(head.x + head.w - 4, head.y + 4, 2, 2, p.eyes);
+      q(head.x + 2, head.y + 4, 1, 1, eyeHi); q(head.x + head.w - 4, head.y + 4, 1, 1, eyeHi);
+      q(head.x + 4, head.y + 7, 2, 1, shade(p.skin, 0.66));
+    } else if (dir === 1) {
+      q(head.x + 1, head.y + 4, 2, 2, p.eyes); q(head.x + 1, head.y + 4, 1, 1, mix(p.eyes, "#ffffff", 0.7));
+    }
+    drawHairShape(q, p, dir, head, true);
+    drawOutfitDetails(q, p, dir, geo);
+    drawFaceAccessory(q, p, dir, geo);
+  }
+
+  function drawStyledHuman(g, params, dir, frame) {
+    const p = normalizeHumanParams(params);
+    if (p.artStyle === "chibi") drawChibiHuman(g, p, dir, frame);
+    else if (p.artStyle === "heroic") drawHeroicHuman(g, p, dir, frame);
+    else if (p.artStyle === "storybook") drawStorybookHuman(g, p, dir, frame);
+    else drawClassicHuman(g, p, dir, frame);
+  }
+
+  function humanPreviewCanvas(params, dir, frame) {
+    const canvas = mkCanvas(TILE, TILE), g = canvas.getContext("2d");
+    drawStyledHuman(g, params, dir == null ? 0 : dir, frame == null ? 1 : frame);
+    return canvas;
   }
 
   // object charsets — draw(g, frame) into 48x48, same for all dirs
@@ -1014,10 +1287,10 @@ const Assets = (() => {
       } else if (cs.kind === "human") {
         if (dir === 2) { // mirror left
           g.save(); g.translate(TILE, 0); g.scale(-1, 1);
-          drawHuman(g, cs.params, 1, frame);
+          drawStyledHuman(g, cs.params, 1, frame);
           g.restore();
         } else {
-          drawHuman(g, cs.params, dir, frame);
+          drawStyledHuman(g, cs.params, dir, frame);
         }
       } else {
         cs.draw(g, frame);
@@ -1028,8 +1301,28 @@ const Assets = (() => {
   }
 
   // ---- custom (generated) characters ----
-  const HAIR_STYLES = ["spiky", "long", "short", "hat", "bald"];
+  const HAIR_STYLES = ["spiky", "long", "short", "bob", "ponytail", "mohawk", "hat", "hood", "bald"];
+  function humanColor(value, fallback) {
+    return /^#[0-9a-f]{6}$/i.test(String(value || "")) ? String(value).toLowerCase() : fallback;
+  }
+  function normalizeHumanParams(params) {
+    const normalized = Object.assign({}, params || {});
+    normalized.artStyle = characterArtStyle(normalized);
+    normalized.bodyType = CHARACTER_BODY_TYPES.includes(normalized.bodyType) ? normalized.bodyType : "balanced";
+    normalized.outfit = CHARACTER_OUTFITS.includes(normalized.outfit) ? normalized.outfit : "tunic";
+    normalized.accessory = CHARACTER_ACCESSORIES.includes(normalized.accessory) ? normalized.accessory : "none";
+    normalized.style = HAIR_STYLES.includes(normalized.style) ? normalized.style : "short";
+    normalized.skin = humanColor(normalized.skin, "#f0c8a0");
+    normalized.hair = humanColor(normalized.hair, "#75442b");
+    normalized.shirt = humanColor(normalized.shirt, "#3567a5");
+    normalized.pants = humanColor(normalized.pants, "#273b5c");
+    normalized.hat = humanColor(normalized.hat, "#d1a84b");
+    normalized.accent = humanColor(normalized.accent, normalized.hat);
+    normalized.eyes = humanColor(normalized.eyes, "#2d3348");
+    return normalized;
+  }
   function registerHuman(key, name, params) {
+    params = normalizeHumanParams(params);
     const i = charsets.findIndex((c) => c.key === key);
     if (i >= 0) {
       charsets[i].name = name;
@@ -1536,7 +1829,8 @@ const Assets = (() => {
   return {
     TILE, PALETTE_COLS, paletteCols, tiles, T, drawTile, tileCanvas, tilesetCanvas,
     charsets, charsetIndex, drawChar, charFrameCanvas, faceCanvas, charSheetCanvas,
-    HAIR_STYLES, registerHuman, removeCharset, registerCustomChars,
+    HAIR_STYLES, CHARACTER_ART_STYLES, CHARACTER_BODY_TYPES, CHARACTER_OUTFITS, CHARACTER_ACCESSORIES,
+    humanPreviewCanvas, registerHuman, removeCharset, registerCustomChars,
     ENEMY_TYPES, enemyCanvas, assetLabel, loadExternalAssets, bindExternalAssets, registerExternalAssets, exportUsedExternalAssets,
     ICON_SIZE, ICON_COUNT, loadIconSet, iconSpan, iconHtml, iconCanvas,
     inputGlyphCanvas, inputGlyphDataUrl, inputGlyphHtml,

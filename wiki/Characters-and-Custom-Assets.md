@@ -11,6 +11,16 @@ or drop your own art into the engine's shared image folders.
 Open **Tools ▸ Character Generator** to compose original walking sprites by mixing parts:
 
 - **Skin**, **hair**, **outfit**, and **style** options combine into a unique character.
+- Choose one of four separately drawn sprite builds. **Classic Pixel** keeps the balanced RPGAtlas
+  proportions; **Chibi** has a large expressive head and tiny limbs; **Heroic** uses a smaller head,
+  broad shoulders, and longer legs; **Storybook** uses a higher-detail 2px construction. Each style
+  card shows your current character, and the four-direction animated preview updates immediately.
+- Change the character's **body build**, **hair**, **outfit**, and **accessory**. Builds range from
+  slim to broad or compact; outfits include tunics, robes, armor, and coats; accessories include
+  capes, scarves, glasses, and headbands. Hair includes bobs, ponytails, mohawks, hats, and hoods.
+- Set skin, hair, eye, clothing, pants, accent, and hat/hood colors independently.
+- **Randomize look** keeps the selected art style and creates a coordinated character;
+  **Surprise me** also chooses a new sprite build.
 - The result is a proper walking sprite sheet (3 columns × 4 directions) usable **everywhere** a
   sprite is — actors, NPC events, anything.
 

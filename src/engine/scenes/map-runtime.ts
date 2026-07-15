@@ -22,6 +22,7 @@ import { syncAutotileRegistry } from "../../shared/autotile-load.js";
 import { scanAnimatedCells, redrawAnimatedCells, frameAtTick } from "../../shared/autotile-anim.js";
 import { anyAutotileAnimated, isAutotileId, autotilePassable } from "../../shared/autotile-registry.js";
 import { clamp, rnd, compareVariable, sysSe } from "../util.js";
+import { DEVELOPER_THROUGH_ACTION } from "../developer-mode.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G, Quests, objectiveDone, onEnemyKilled, param } from "../state/game-state.js";
 import { Plugins } from "../plugin-runtime.js";
@@ -766,9 +767,7 @@ export function updateRoute(ent: any): void {
   const s = r.steps[r.idx++];
   const dirs: any = { up: 3, down: 0, left: 1, right: 2 };
   const stepOk = (x: any, y: any) =>
-    ent === G.player
-      ? tilePassable(x, y) && !blockingEventAt(x, y)
-      : canEntityPass(ent, x, y);
+    ent === G.player ? playerStepPassable(x, y) : canEntityPass(ent, x, y);
   if (s in dirs) {
     const d = dirs[s];
     ent.dir = d;
@@ -872,8 +871,19 @@ function vehicleCanPass(type: any, nx: any, ny: any): boolean {
 }
 /** Player step passability, forked on the ridden vehicle (null = on foot). */
 export function playerStepPassable(nx: any, ny: any): boolean {
+  nx = wrapX(nx); ny = wrapY(ny);
+  if (nx < 0 || ny < 0 || nx >= ctx.map.width || ny >= ctx.map.height) return false;
+  if (developerThroughActive()) return true;
   if (G.vehicle) return vehicleCanPass(G.vehicle, nx, ny);
   return tilePassable(nx, ny) && !blockingEventAt(nx, ny);
+}
+/** Ctrl is a temporary Through flag only in an editor-launched playtest. */
+export function developerThroughActive(): boolean {
+  return !!(
+    ctx.playtestMode &&
+    ctx.Input &&
+    ctx.Input.pressed(DEVELOPER_THROUGH_ACTION)
+  );
 }
 function vehicleDef(type: any): any {
   const v = (ctx.proj.system.vehicles || {})[type];

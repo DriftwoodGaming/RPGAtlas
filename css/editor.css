@@ -723,6 +723,20 @@ button.danger:hover { background: #6a3636; }
 .cg-wrap { display: flex; gap: 14px; }
 .cg-side { width: 190px; flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; }
 .cg-form { flex: 1; }
+.cg-style-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 3px; }
+.cg-style-card {
+  min-height: 78px; padding: 7px 9px; text-align: left; display: grid; grid-template-columns: 54px 1fr;
+  align-items: center; gap: 8px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px;
+}
+.cg-style-thumb { width: 48px; height: 48px; image-rendering: pixelated; background: var(--bg); border-radius: 5px; }
+.cg-style-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cg-style-copy strong { color: var(--accent-text); font-size: var(--fs-small); }
+.cg-style-copy > span { color: var(--text-dim); font-size: var(--fs-tiny); line-height: 1.3; }
+.cg-style-card:hover { border-color: var(--accent-edge); background: var(--hover); }
+.cg-style-card.sel { border-color: var(--gold-edge); box-shadow: 0 0 0 1px var(--gold-edge) inset; background: var(--panel-3); }
+.cg-style-card.sel strong { color: var(--gold); }
+.cg-section-title { margin: 8px 0 3px; color: var(--accent-text); font-size: var(--fs-tiny); font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .cg-preview {
   display: flex; gap: 10px; align-items: center; justify-content: center;
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-top: 8px;
@@ -917,6 +931,7 @@ button.danger:hover { background: #6a3636; }
 .imp-preview { image-rendering: pixelated; display: block; max-width: 100%; }
 .imp-tagrow { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
 .ab-pack { grid-column: span 2; }
+.ab-packpreview { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; image-rendering: pixelated; border-radius: 5px; background: var(--bg); }
 .ab-packdesc { white-space: normal; font-size: 11px; line-height: 1.45; }
 .anim-item-row.sel { background: rgba(90,138,216,.22); }
 .anim-item-row span:nth-child(3) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -61,6 +61,13 @@ Passability decides which tiles block movement.
 Use overrides for the little exceptions: a walkable bridge over water, a decorative fence the player
 shouldn't cross, the impassable edge of the world.
 
+### Playtest collision override
+
+While testing from the editor with **▶ Playtest**, hold **Ctrl** to temporarily give the player
+**Through** movement. You can walk across blocked tiles, collision zones, ledges, and solid events
+to inspect a map quickly. Map boundaries still apply. This developer control is disabled in every
+standalone or deployed game, so players cannot use it in a published build.
+
 ---
 
 ## Movement upgrades

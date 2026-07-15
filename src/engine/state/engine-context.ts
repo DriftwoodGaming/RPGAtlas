@@ -26,6 +26,7 @@ export const ctx: any = {
   // scene flags
   scene: "boot", // boot | title | map | battle | gameover
   menuOpen: false,
+  playtestMode: false, // editor-launched ?playtest only; always false in exports
   // camera / shake / flash scalars (written by interpreter command handlers)
   cameraZoom: 1,
   shakePower: 0,

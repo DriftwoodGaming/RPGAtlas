@@ -5,6 +5,45 @@
 export const PATCH_NOTES = [
   {
     date: "July 14, 2026",
+    title: "World Map Deluxe — hand-painted tileset overhaul",
+    summary:
+      "Replace the placeholder overworld art with a cohesive premium tileset built from high-resolution hand-painted pixel artwork.",
+    items: [
+      "World Map Deluxe now installs 48 matching native 48×48 tiles, each rebuilt for crisp in-game readability.",
+      "Sixteen seamless terrains span meadows, forests, deserts, tundra, swamps, ocean, shallows, volcanic earth, ancient stone, dungeons, badlands, and crystal caverns.",
+      "Sixteen detailed landmarks and barriers add villages, towns, castles, ports, ruins, shrines, mountains, cliffs, a volcano, monolith, logging camp, oasis, and crystal cave.",
+      "A complete sixteen-piece route kit adds modular dirt roads, bridges, ancient stone causeways, and a cobblestone plaza with clean edge connections.",
+      "Pack cards can now show a large visual preview, so the entire art collection is visible before installation.",
+    ],
+  },
+  {
+    date: "July 14, 2026",
+    title: "Ctrl Through movement for map playtests",
+    summary:
+      "Inspect maps outside their normal collision rules by holding Ctrl during an editor playtest, without exposing the developer control in deployed games.",
+    items: [
+      "Hold Ctrl while moving in Playtest to walk through blocked tiles, collision zones, ledges, and solid events.",
+      "The override keeps the player inside map boundaries and turns off immediately when Ctrl is released.",
+      "Standalone exports and deployed builds never receive the developer binding, even if a playtest-looking query string is added to their URL.",
+    ],
+  },
+  {
+    date: "July 14, 2026",
+    title: "Character Generator rebuilt with distinct sprite bodies",
+    summary:
+      "Create genuinely different heroes and NPCs with four separately drawn sprite constructions plus expanded body, wardrobe, hair, face, and accessory controls.",
+    items: [
+      "Four real sprite builds replace the old visual filters: Classic Pixel, big-eyed Chibi, long-legged Heroic, and higher-detail Storybook each use different proportions, faces, and silhouettes.",
+      "New Body, Outfit, and Accessory controls add balanced/slim/broad/compact builds, tunics/robes/armor/coats, and capes/scarves/glasses/headbands.",
+      "Expanded hair options add bobs, ponytails, mohawks, and hoods; new Eye and Accent colors control facial and outfit details.",
+      "Every art-style card now shows a live thumbnail of the current character before you choose it.",
+      "New Randomize Look button keeps your chosen art style while generating a coordinated body, hair, wardrobe, and color combination.",
+      "New Surprise Me button randomizes both the character design and art style for faster inspiration.",
+      "Existing generated characters remain compatible and open as Classic Pixel characters with safe defaults for the new controls.",
+    ],
+  },
+  {
+    date: "July 14, 2026",
     title: "World Map Essentials tileset",
     summary:
       "Build overworld maps faster with a new installable set of matching pixel-art biomes, roads, barriers, settlements, and landmarks.",
