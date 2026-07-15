@@ -35,6 +35,7 @@ you need from the sidebar.
 - **[The Database](The-Database)** — actors, classes, skills, items, and everything that defines your world.
 - **[Battles & States](Battles-and-States)** — enemies, troops, side-view vs. front-view, and status effects.
 - **[Characters & Custom Assets](Characters-and-Custom-Assets)** — the Character Generator and adding your own art.
+- **[Generators](Generators)** — 20 name and story-hook generators for worldbuilding, encounters, treasure, and adventures.
 - **[Audio](Audio)** — the procedural music and sound effects, and how to assign them.
 
 ## Polish & ship

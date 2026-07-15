@@ -74,6 +74,7 @@ It has [a whole page of its own](Advanced-Map-Editor).
 | **Advanced** | The [Advanced Map Editor](Advanced-Map-Editor): panel, Terrain Studio, Automap rules, brush flip/rotate, stamps |
 | **Scale** | Zoom level for the canvas |
 | **Tools** | The big managers: Database, Plugin Manager, Audio Manager, Event Searcher, Resource Manager, Character Generator — plus the **Command Palette** |
+| **Generators** | Quick links and the searchable [Generator Hub](Generators) for names, lore hooks, batch copying, and saved favorites |
 | **Game** | Set Start Position, Playtest, and game-wide settings |
 | **Help** | Newest-first Patch Notes, Quick Help, and About RPGAtlas |
 

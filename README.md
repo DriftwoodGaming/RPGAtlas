@@ -119,7 +119,7 @@ opens `.rpgatlas` files this way — the browser launcher `RPGAtlas.exe` just se
 
 ## The editor (`index.html`)
 
-A classic RPG-maker layout: menu bar (File / Edit / Mode / Draw / Layer / Scale / Tools / Game / Help)
+A classic RPG-maker layout: menu bar (File / Edit / Mode / Draw / Layer / Advanced / Scale / View / Tools / Generators / Game / Help)
 plus an icon toolbar with everything one click away.
 
 | Area | What it does |
@@ -140,6 +140,7 @@ plus an icon toolbar with everything one click away.
 | **Event Searcher** | Find message text, event names, or switch/variable usage across all maps |
 | **Resource Manager** | Browse every generated tile/character/battler; export PNGs (incl. full sprite sheets) |
 | **Character Generator** | Build, preview, save, and export 4- or 8-direction walking sprites with distinct Classic, Chibi, Heroic, and Storybook bodies, outfits, hair, and accessories |
+| **Generator Hub** | Create batches of names and story hooks with 20 generators for weapons, armor, spells, currencies, items, enemies, characters, factions, settlements, kingdoms, dungeons, taverns, potions, artifacts, quests, deities, ships, books, plants, and festivals |
 | **Map Properties** | Rename/resize maps, set music, configure random encounters, enable HD-2D (camera tilt, bloom, depth of field, fog color, lights, ambient) |
 | **Open / Export** | Back up the project as `.json` or export a self-contained Windows `.exe` / playable `.html` |
 

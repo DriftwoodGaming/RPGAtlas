@@ -73,6 +73,7 @@ const SHARED = {
       "Audio Manager…": "Gestor de audio…", "Event Searcher…": "Buscador de eventos…",
       "Resource Manager…": "Gestor de recursos…", "Asset Browser…": "Explorador de assets…",
       "Character Generator…": "Generador de personajes…",
+      "Generators": "Generadores", "Generator Hub…": "Centro de generadores…",
       "Import Autotile Sheet…": "Importar hoja de automosaicos…",
       "Command Palette…": "Paleta de comandos…",
       // Help menu
@@ -157,6 +158,7 @@ const SHARED = {
       "Audio Manager…": "Gestionnaire audio…", "Event Searcher…": "Recherche d'événements…",
       "Resource Manager…": "Gestionnaire de ressources…", "Asset Browser…": "Explorateur d'assets…",
       "Character Generator…": "Générateur de personnages…",
+      "Generators": "Générateurs", "Generator Hub…": "Centre de générateurs…",
       "Import Autotile Sheet…": "Importer une planche d'autotuiles…",
       "Command Palette…": "Palette de commandes…",
       // Help menu
@@ -241,6 +243,7 @@ const SHARED = {
       "Audio Manager…": "Audio-Manager…", "Event Searcher…": "Ereignissuche…",
       "Resource Manager…": "Ressourcen-Manager…", "Asset Browser…": "Asset-Browser…",
       "Character Generator…": "Charaktergenerator…",
+      "Generators": "Generatoren", "Generator Hub…": "Generator-Zentrale…",
       "Import Autotile Sheet…": "Autokachel-Bogen importieren…",
       "Command Palette…": "Befehlspalette…",
       // Help menu
@@ -325,6 +328,7 @@ const SHARED = {
       "Audio Manager…": "オーディオ管理…", "Event Searcher…": "イベント検索…",
       "Resource Manager…": "リソース管理…", "Asset Browser…": "アセットブラウザー…",
       "Character Generator…": "キャラクター生成…",
+      "Generators": "ジェネレーター", "Generator Hub…": "ジェネレーターハブ…",
       "Import Autotile Sheet…": "オートタイルシートをインポート…",
       "Command Palette…": "コマンドパレット…",
       // Help menu
@@ -409,6 +413,7 @@ const SHARED = {
       "Audio Manager…": "音訊管理器…", "Event Searcher…": "事件搜尋器…",
       "Resource Manager…": "資源管理器…", "Asset Browser…": "素材瀏覽器…",
       "Character Generator…": "角色產生器…",
+      "Generators": "產生器", "Generator Hub…": "產生器中心…",
       "Import Autotile Sheet…": "匯入自動圖塊表…",
       "Command Palette…": "命令面板…",
       // Help menu
@@ -493,6 +498,7 @@ const SHARED = {
       "Audio Manager…": "音频管理器…", "Event Searcher…": "事件搜索器…",
       "Resource Manager…": "资源管理器…", "Asset Browser…": "素材浏览器…",
       "Character Generator…": "角色生成器…",
+      "Generators": "生成器", "Generator Hub…": "生成器中心…",
       "Import Autotile Sheet…": "导入自动图块表…",
       "Command Palette…": "命令面板…",
       // Help menu
@@ -577,6 +583,7 @@ const SHARED = {
       "Audio Manager…": "Gerenciador de áudio…", "Event Searcher…": "Localizador de eventos…",
       "Resource Manager…": "Gerenciador de recursos…", "Asset Browser…": "Navegador de assets…",
       "Character Generator…": "Gerador de personagens…",
+      "Generators": "Geradores", "Generator Hub…": "Central de geradores…",
       "Import Autotile Sheet…": "Importar folha de autotiles…",
       "Command Palette…": "Paleta de comandos…",
       // Help menu
@@ -661,6 +668,7 @@ const SHARED = {
       "Audio Manager…": "오디오 관리자…", "Event Searcher…": "이벤트 검색…",
       "Resource Manager…": "리소스 관리자…", "Asset Browser…": "애셋 브라우저…",
       "Character Generator…": "캐릭터 생성기…",
+      "Generators": "생성기", "Generator Hub…": "생성기 허브…",
       "Import Autotile Sheet…": "오토타일 시트 가져오기…",
       "Command Palette…": "명령 팔레트…",
       // Help menu
@@ -745,6 +753,7 @@ const SHARED = {
       "Audio Manager…": "Gestore audio…", "Event Searcher…": "Ricerca eventi…",
       "Resource Manager…": "Gestore risorse…", "Asset Browser…": "Browser degli asset…",
       "Character Generator…": "Generatore di personaggi…",
+      "Generators": "Generatori", "Generator Hub…": "Hub dei generatori…",
       "Import Autotile Sheet…": "Importa foglio autotile…",
       "Command Palette…": "Palette dei comandi…",
       // Help menu
@@ -829,6 +838,7 @@ const SHARED = {
       "Audio Manager…": "Менеджер аудио…", "Event Searcher…": "Поиск событий…",
       "Resource Manager…": "Менеджер ресурсов…", "Asset Browser…": "Браузер ассетов…",
       "Character Generator…": "Генератор персонажей…",
+      "Generators": "Генераторы", "Generator Hub…": "Центр генераторов…",
       "Import Autotile Sheet…": "Импорт листа автотайлов…",
       "Command Palette…": "Палитра команд…",
       // Help menu

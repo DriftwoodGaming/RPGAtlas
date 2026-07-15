@@ -38,6 +38,8 @@ import { openEventSearcher } from "./tools/event-searcher";
 import { openResourceManager } from "./tools/resource-manager";
 import { openAssetBrowser } from "./tools/asset-browser";
 import { openCharGenerator } from "./tools/character-generator";
+import { openGeneratorHub } from "./tools/generator-hub";
+import { QUICK_GENERATOR_IDS, definitionById } from "./tools/name-generator-data";
 import { openRmImportWizard, openSavedImportReport, hasImportReport } from "./importers/rm-import-wizard";
 import {
   openLanguageSettings, openPatchNotes, openKeyboardShortcuts, openHelp, openAbout,
@@ -224,6 +226,15 @@ act("search", { label: "Event Searcher…", icon: "search", tip: "Event Searcher
 act("resources", { label: "Resource Manager…", icon: "resources", tip: "Resource Manager — browse and export generated assets", run: openResourceManager });
 act("assetbrowser", { label: "Asset Browser…", tip: "Asset Browser — import and manage image/audio files", run: openAssetBrowser });
 act("chargen", { label: "Character Generator…", icon: "chargen", tip: "Character Generator — build original walking sprites", run: openCharGenerator });
+act("generators", { label: "Generator Hub…", tip: "Generator Hub — create names and story hooks for your world", run: () => openGeneratorHub() });
+for (const generatorId of QUICK_GENERATOR_IDS) {
+  const definition = definitionById(generatorId);
+  act("generator-" + generatorId, {
+    label: definition.name + "…",
+    tip: definition.description,
+    run: () => openGeneratorHub(generatorId),
+  });
+}
 act("autotile-import", { label: "Import Autotile Sheet…", tip: "Import an RPG-Maker A2 autotile sheet as terrain brushes", run: importAutotile });
 act("cmdpal", { label: "Command Palette…", key: "Ctrl+P", tip: "Search and run any editor command", run: openCommandPalette });
 act("language", { label: "Interface Language…", run: openLanguageSettings });
@@ -287,6 +298,7 @@ const MENUS = [
   { label: "Scale", items: ["zoomin", "zoomout", "zoom1", "zoomfit"] },
   { label: "View", items: ["panel-maps", "panel-tiles", "panel-map", "panel-advanced", "panel-console", "hdpreview", "worldview", "-", "focus-next-panel", "-", "dock-reset", "dock-save", "dock-load"] },
   { label: "Tools", items: ["db", "dialogue", "plugins", "audio", "search", "resources", "assetbrowser", "chargen", "-", "autotile-import", "-", "cmdpal"] },
+  { label: "Generators", items: ["generators", "-", ...QUICK_GENERATOR_IDS.map((id) => "generator-" + id)] },
   { label: "Game", items: ["play", "build", "-", "mapprops", "hdpreview", "mode-start"] },
   { label: "Help", items: ["language", "-", "shortcuts", "patchnotes", "help", "about"] },
 ];

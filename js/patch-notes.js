@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 15, 2026",
+    title: "Extensive Generator Hub",
+    summary:
+      "Create large batches of setting-ready names and story prompts from a new top-level Generators workspace.",
+    items: [
+      "The new Generators menu opens quick links and a searchable Generator Hub with 20 original generators spanning gear, magic, people, places, and adventures.",
+      "Weapon, Armor, Spell, Currency, Item, Enemy, Character, Faction, Settlement, Kingdom, Dungeon, Tavern, Potion, Artifact, Quest, Deity, Ship, Book, Plant, and Festival word banks provide thousands to millions of combinations per tool.",
+      "Filter each generator by subtype and tone, then choose Concise, Evocative, or Legendary naming styles and generate batches of 5, 10, or 20 results.",
+      "Optional alliteration, formal 'The' titles, world keywords, and one-line story hooks make results easy to fit into an existing setting.",
+      "Copy individual names or full batches, and star favorites into a browser-local saved-name shelf for later use.",
+    ],
+  },
+  {
+    date: "July 15, 2026",
     title: "Eight-direction Character Generator studio",
     summary:
       "Build, animate, save, and export characters with true diagonal sprite poses from a redesigned compass-based generator.",
