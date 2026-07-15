@@ -318,6 +318,41 @@ test.describe("database list upgrades", () => {
   });
 });
 
+test.describe("custom project icons", () => {
+  test("an icon sheet can be added and selected from the existing picker", async ({ page }) => {
+    await page.goto("/index.html");
+    const saveIndicator = page.locator("#save-ind");
+    await expect(saveIndicator).toBeVisible();
+    await expect(saveIndicator).toHaveText(/^✓ /);
+
+    await page.locator("#menus .menu-label", { hasText: "Tools" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "Database" }).click();
+    await page.locator(".dbtabs-vert button", { hasText: "Items" }).click();
+    await page.locator(".icon-pick-button").first().click();
+
+    const picker = page.locator(".modal", { hasText: "Choose Icon" }).last();
+    await expect(picker.locator(".icon-choice")).toHaveCount(128);
+    await expect(picker.getByRole("button", { name: "Add Icons…" })).toBeVisible();
+    await picker.locator('input[type="file"]').setInputFiles("img/system/icon_set.png");
+
+    await expect(picker.locator(".icon-choice")).toHaveCount(256);
+    await expect(picker.locator('.icon-choice[title="Icon 128"]')).toHaveClass(/sel/);
+    await expect(picker.locator(".icon-picker-note")).toContainText("Added 128 icons");
+    await expect.poll(() => page.evaluate(() => {
+      const saved = JSON.parse(localStorage.getItem("rpgatlas_project"));
+      return saved && saved.assets && saved.assets.icons && saved.assets.icons.length;
+    })).toBe(128);
+    await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
+
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("rpgatlas_project")));
+    expect(saved.assets.icons).toHaveLength(128);
+    expect(saved.items[0].icon).toBe(128);
+
+    await page.goto("/play.html");
+    await expect.poll(() => page.evaluate(() => window.Assets && window.Assets.ICON_COUNT)).toBe(256);
+  });
+});
+
 test.describe("unified undo", () => {
   test("a Database edit commits to the shared history and Ctrl+Z reverts it", async ({ page }) => {
     await page.goto("/index.html");

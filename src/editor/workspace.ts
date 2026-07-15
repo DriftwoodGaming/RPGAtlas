@@ -98,6 +98,7 @@ act("new", { label: "New Project…", icon: "new", tip: "New project (resets to 
   confirmBox("Start a fresh project (the bundled sample game)? Your current project will be replaced — Export first if you want to keep it.", () => {
     S.proj = DataDefaults.newProject();
     Assets.registerCustomChars(S.proj.customChars);
+    void Assets.loadIconSet(S.proj.assets.icons);
     Assets.bindExternalAssets(S.proj);
     S.curMapId = S.proj.maps[0].id;
     S.selectedEvent = null; S.selection = null; S.pasteMode = null;

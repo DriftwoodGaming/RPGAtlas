@@ -440,6 +440,7 @@ const projectRepo = new BrowserProjectRepository(
         // image entries so pickers/tiles see them without a reload.
         await consumeEmbeddedAssets(S.proj);
         Assets.registerCustomChars(S.proj.customChars);
+        await Assets.loadIconSet(S.proj.assets.icons);
         // registerExternalAssets discovers-if-needed, binds the shipped
         // catalog AND any just-consumed library entries in one pass.
         await Assets.registerExternalAssets(libraryImageEntries(), S.proj);

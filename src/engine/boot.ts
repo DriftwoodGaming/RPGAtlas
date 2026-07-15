@@ -315,7 +315,7 @@ async function boot(): Promise<void> {
   if (!(window as any).RPGATLAS_ASSETS) {
     await initAssetLibrary(await createDefaultAssetStore());
   }
-  await Promise.all([Assets.loadIconSet(), Assets.loadExternalAssets(ctx.proj)]);
+  await Promise.all([Assets.loadIconSet(ctx.proj.assets.icons), Assets.loadExternalAssets(ctx.proj)]);
   Plugins.runAll();
   document.title = (ctx.proj.system.title || "RPGAtlas") + " — RPGAtlas Player";
   // Editor-Console playtest link — local player only (standalone exports set

@@ -175,7 +175,7 @@ export async function bootWithProject(project: any) {
     }
   }
   Assets.registerCustomChars(S.proj.customChars);
-  await Assets.loadIconSet();
+  await Assets.loadIconSet(S.proj.assets.icons);
   // External images (shipped img/ + the device library) bind in the background
   // and repaint when ready — the library can hold thousands of sliced tiles,
   // and awaiting every decode here left the whole window dead until it

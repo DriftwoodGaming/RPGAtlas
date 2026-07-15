@@ -705,6 +705,13 @@ const RA = {
     // every entry path runs (editor load/import, engine boot, standalone export),
     // so normalizing here fixes them all at once.
     if (Array.isArray(p.maps)) for (const m of p.maps) RA.normalizeMapPlanes(m);
+    // Project-owned 32×32 icon cells. Normalize at every supported load
+    // boundary, including already-current v2 projects.
+    p.assets = p.assets && typeof p.assets === "object" ? p.assets : {};
+    p.assets.tiles = p.assets.tiles && typeof p.assets.tiles === "object" ? p.assets.tiles : {};
+    p.assets.icons = Array.isArray(p.assets.icons)
+      ? p.assets.icons.filter((src) => typeof src === "string" && /^data:image\//.test(src))
+      : [];
     p.meta.formatVersion = RA.FORMAT_VERSION;
     return p;
   },
@@ -1163,7 +1170,7 @@ const DataDefaults = (() => {
       commandPresets: [],
       commonEvents: [],
       tilesets: [{ id: 1, name: "Default", tileProps: {} }],
-      assets: { tiles: {} },
+      assets: { tiles: {}, icons: [] },
       system: {
         title: "Atlas Quest",
         startMapId: 1, startX: 12, startY: 12, startDir: 3,

@@ -11,7 +11,8 @@ const Assets = (() => {
   const faceByName = new Map();
   const ICON_SIZE = 32;
   const ICON_COLS = 8;
-  const ICON_COUNT = 128;
+  const BASE_ICON_COUNT = 128;
+  let iconCount = BASE_ICON_COUNT;
   let iconSetSrc = "";
   let iconSetImage = null;
 
@@ -60,29 +61,55 @@ const Assets = (() => {
       img.src = src;
     });
   }
-  async function loadIconSet() {
+  async function loadIconSet(customIcons) {
     iconSetSrc = window.RPGATLAS_ICON_SET || ("img/system/icon_set.png?v=" + Date.now());
-    iconSetImage = await loadImage(iconSetSrc);
+    const baseImage = await loadImage(iconSetSrc);
+    const sources = Array.isArray(customIcons) ? customIcons : [];
+    iconCount = BASE_ICON_COUNT + sources.length;
+    if (sources.length) {
+      const images = await Promise.all(sources.map(async (src, index) => {
+        try {
+          return await loadImage(src);
+        } catch (error) {
+          console.warn("Could not load custom icon " + (BASE_ICON_COUNT + index) + ":", error);
+          return null;
+        }
+      }));
+      const atlas = mkCanvas(ICON_COLS * ICON_SIZE, Math.ceil(iconCount / ICON_COLS) * ICON_SIZE);
+      const g = atlas.getContext("2d");
+      g.imageSmoothingEnabled = false;
+      g.drawImage(baseImage, 0, 0);
+      images.forEach((image, index) => {
+        if (!image) return; // blank cell keeps every saved custom icon index stable
+        const id = BASE_ICON_COUNT + index;
+        g.drawImage(image, (id % ICON_COLS) * ICON_SIZE, Math.floor(id / ICON_COLS) * ICON_SIZE,
+          ICON_SIZE, ICON_SIZE);
+      });
+      iconSetImage = atlas;
+      iconSetSrc = atlas.toDataURL("image/png");
+    } else {
+      iconSetImage = baseImage;
+    }
     const cssSrc = iconSetSrc.startsWith("data:") ? iconSetSrc : new URL(iconSetSrc, location.href).href;
     document.documentElement.style.setProperty("--icon-set-url", 'url("' + cssSrc + '")');
   }
   function iconSpan(index, className) {
     const span = document.createElement("span");
     span.className = "icon-sprite" + (className ? " " + className : "");
-    const id = Math.max(0, Math.min(ICON_COUNT - 1, Number(index) || 0));
+    const id = Math.max(0, Math.min(iconCount - 1, Number(index) || 0));
     span.style.setProperty("--icon-x", (-((id % ICON_COLS) * ICON_SIZE)) + "px");
     span.style.setProperty("--icon-y", (-(Math.floor(id / ICON_COLS) * ICON_SIZE)) + "px");
     span.title = "Icon " + id;
     return span;
   }
   function iconHtml(index, className) {
-    const id = Math.max(0, Math.min(ICON_COUNT - 1, Number(index) || 0));
+    const id = Math.max(0, Math.min(iconCount - 1, Number(index) || 0));
     return '<span class="icon-sprite' + (className ? " " + className : "") +
       '" style="--icon-x:-' + ((id % ICON_COLS) * ICON_SIZE) +
       'px;--icon-y:-' + (Math.floor(id / ICON_COLS) * ICON_SIZE) + 'px"></span>';
   }
   function iconCanvas(index) {
-    const id = Math.max(0, Math.min(ICON_COUNT - 1, Number(index) || 0));
+    const id = Math.max(0, Math.min(iconCount - 1, Number(index) || 0));
     const canvas = mkCanvas(ICON_SIZE, ICON_SIZE);
     if (iconSetImage) {
       const g = canvas.getContext("2d");
@@ -1832,7 +1859,7 @@ const Assets = (() => {
     HAIR_STYLES, CHARACTER_ART_STYLES, CHARACTER_BODY_TYPES, CHARACTER_OUTFITS, CHARACTER_ACCESSORIES,
     humanPreviewCanvas, registerHuman, removeCharset, registerCustomChars,
     ENEMY_TYPES, enemyCanvas, assetLabel, loadExternalAssets, bindExternalAssets, registerExternalAssets, exportUsedExternalAssets,
-    ICON_SIZE, ICON_COUNT, loadIconSet, iconSpan, iconHtml, iconCanvas,
+    ICON_SIZE, BASE_ICON_COUNT, get ICON_COUNT() { return iconCount; }, loadIconSet, iconSpan, iconHtml, iconCanvas,
     inputGlyphCanvas, inputGlyphDataUrl, inputGlyphHtml,
   };
 })();

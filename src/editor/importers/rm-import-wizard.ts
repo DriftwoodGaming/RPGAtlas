@@ -72,6 +72,7 @@ async function commit(outcome: RmImportOutcome): Promise<void> {
   S.proj = project;
   await consumeEmbeddedAssets(S.proj);
   Assets.registerCustomChars(S.proj.customChars);
+  await Assets.loadIconSet(S.proj.assets.icons);
   await Assets.registerExternalAssets(libraryImageEntries(), S.proj);
   S.curMapId = S.proj.maps[0].id;
   S.selectedEvent = null;

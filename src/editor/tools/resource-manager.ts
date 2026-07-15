@@ -73,9 +73,11 @@ export function openResourceManager() {
         grid.appendChild(resCell(copyCanvas(Assets.iconCanvas(i), 1.5),
           "Icon " + i, "icon-" + String(i).padStart(2, "0"), Assets.iconCanvas(i)));
       }
+      const added = Assets.ICON_COUNT - Assets.BASE_ICON_COUNT;
       return h("div", null,
         h("div", { class: "dim", style: "margin-bottom:8px" },
-          Assets.ICON_COUNT + " icons from img/system/icon_set.png. Assign them in the Classes, Skills, Items, Weapons, and Armors tabs."),
+          Assets.BASE_ICON_COUNT + " built-in icons" + (added ? " plus " + added + " added to this project" : "") +
+          ". Assign them anywhere the Database shows Choose Icon."),
         grid);
     } },
   ];

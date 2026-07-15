@@ -495,6 +495,8 @@ button.danger:hover { background: #6a3636; }
 .db-entry-icon { transform: scale(0.72); margin: -4px; }
 .icon-pick-button { display: inline-flex; align-items: center; gap: 7px; padding: 2px 9px 2px 4px; }
 .icon-preview { transform: scale(0.82); margin: -3px; }
+.icon-picker-tools { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.icon-picker-note { flex: 1; }
 .icon-picker-grid { display: grid; grid-template-columns: repeat(8, 44px); gap: 5px; justify-content: center; }
 .icon-choice { width: 44px; height: 44px; padding: 5px; display: flex; align-items: center; justify-content: center; }
 .icon-choice.sel { outline: 2px solid #ffd86a; background: var(--accent); }

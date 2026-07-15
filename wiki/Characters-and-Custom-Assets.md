@@ -85,9 +85,13 @@ You can always override any individual cell later in **Passability mode** — se
 
 ## Reskinning the database icons
 
-Items, skills, weapons, armors, and classes each pick an icon from a shared **8×16 icon sheet** (128
-icons). To reskin all 128 at once, replace `img/system/icon_set.png` with your own transparent
-**256×512** sheet laid out 8×16.
+Items, skills, weapons, armors, classes, enemies, and states each pick an icon from a shared set. To
+add your own, open any **Choose Icon** dialog and click **Add Icons…**. You can select multiple 32×32
+PNG, WebP, or JPEG images, or import a sheet whose width and height are multiples of 32; RPGAtlas
+splits sheets into 32×32 cells and saves the new icons with the project.
+
+The original 128 icons still come from the bundled **8×16 icon sheet**. To reskin those built-ins all
+at once, replace `img/system/icon_set.png` with your own transparent **256×512** sheet laid out 8×16.
 
 ---
 

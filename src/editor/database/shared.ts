@@ -11,6 +11,7 @@ import { h, tIn, sel, nIn, field, dbOpts, elementSelOpts } from "../dom";
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 import { flashStatus } from "../map-editor/status";
+import { addProjectIcons } from "../icon-import";
 import {
   sharedNumericFields, applyBulk, cloneEntries, writeDbClip, readDbClip, type BulkOp,
 } from "./bulk";
@@ -422,22 +423,56 @@ export function iconPickerField(entry: any, redrawList: any) {
   const button = h("button", { class: "icon-pick-button", onclick(ev: any) {
     ev.preventDefault();
     const grid = h("div", { class: "icon-picker-grid" });
-    let picker: any = null;
-    for (let i = 0; i < Assets.ICON_COUNT; i++) {
-      grid.appendChild(h("button", {
-        class: "icon-choice" + (i === entry.icon ? " sel" : ""),
-        title: "Icon " + i,
-        onclick() {
-          entry.icon = i;
+    const note = h("span", { class: "dim icon-picker-note" }, "Add 32×32 images or sheets arranged in 32×32 cells.");
+    const input = h("input", {
+      type: "file", accept: "image/png,image/webp,image/jpeg", multiple: "", hidden: "",
+      async onchange(ev: any) {
+        const files = Array.from(ev.target.files || []) as File[];
+        ev.target.value = "";
+        if (!files.length) return;
+        try {
+          const result = await addProjectIcons(S.proj, files, Assets);
+          entry.icon = result.firstIndex;
           touch();
           redrawList();
           preview.innerHTML = "";
-          preview.appendChild(Assets.iconSpan(i, "icon-preview"));
-          picker.close();
-        },
-      }, Assets.iconSpan(i)));
+          preview.appendChild(Assets.iconSpan(entry.icon, "icon-preview"));
+          renderGrid();
+          note.textContent = "Added " + result.added + " icon" + (result.added === 1 ? "" : "s") + " and selected Icon " + result.firstIndex + ".";
+          flashStatus("Added " + result.added + " custom icon" + (result.added === 1 ? "" : "s"));
+        } catch (error: any) {
+          alert("Icons could not be added: " + error.message);
+        }
+      },
+    });
+    let picker: any = null;
+    function renderGrid() {
+      grid.innerHTML = "";
+      for (let i = 0; i < Assets.ICON_COUNT; i++) {
+        grid.appendChild(h("button", {
+          class: "icon-choice" + (i === entry.icon ? " sel" : ""),
+          title: "Icon " + i,
+          onclick() {
+            entry.icon = i;
+            touch();
+            redrawList();
+            preview.innerHTML = "";
+            preview.appendChild(Assets.iconSpan(i, "icon-preview"));
+            picker.close();
+          },
+        }, Assets.iconSpan(i)));
+      }
     }
-    picker = modal({ title: "Choose Icon", content: grid, wide: true, buttons: [{ label: "Cancel" }] });
+    renderGrid();
+    picker = modal({
+      title: "Choose Icon",
+      content: h("div", null,
+        h("div", { class: "icon-picker-tools" },
+          h("button", { class: "primary", onclick() { input.click(); } }, "Add Icons…"), note, input),
+        grid),
+      wide: true,
+      buttons: [{ label: "Cancel" }],
+    });
   } }, preview, h("span", null, "Choose Icon"));
   return h("div", { class: "fld icon-field" }, h("span", null, "Icon"), button);
 }

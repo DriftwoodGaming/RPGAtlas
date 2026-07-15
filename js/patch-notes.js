@@ -5,6 +5,17 @@
 export const PATCH_NOTES = [
   {
     date: "July 14, 2026",
+    title: "Add your own project icons",
+    summary:
+      "Extend the built-in icon set from any icon picker and keep those additions with the game project.",
+    items: [
+      "New Add Icons… button in Choose Icon imports individual 32×32 PNG, WebP, or JPEG images.",
+      "Larger sheets whose dimensions are multiples of 32 are split into ready-to-pick icon cells automatically.",
+      "Imported icons appear immediately in every icon picker and travel with project saves, playtests, and standalone game exports.",
+    ],
+  },
+  {
+    date: "July 14, 2026",
     title: "World Map Deluxe — hand-painted tileset overhaul",
     summary:
       "Replace the placeholder overworld art with a cohesive premium tileset built from high-resolution hand-painted pixel artwork.",

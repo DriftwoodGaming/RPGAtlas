@@ -1753,6 +1753,8 @@ export interface EmbeddedAsset {
  *  src/shared/asset-library.ts (external). */
 export interface ProjectAssets {
   tiles: Record<string, any>;
+  /** Project-owned 32×32 PNG data URLs appended after the 128 built-in icons. */
+  icons: string[];
   /** File-save embedding only — see EmbeddedAsset. */
   external?: EmbeddedAsset[];
   [k: string]: any;
