@@ -1,10 +1,7 @@
-/* RPGAtlas — src/editor/tools/character-generator.ts
-   The Character Generator modal: build original walking sprites (hair/skin/
-   colours), preview them animated, and save them into proj.customChars so they
-   appear in every sprite picker.
-   Verbatim move from the editor monolith (Phase 1 Stage C, Package 3):
-   logic unchanged, closure vars routed through editor-state.ts.
-   Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
+/* RPGAtlas - Character Generator
+   Builds original four- or eight-direction walking sprites, previews every
+   facing, exports PNG sheets, and saves generated characters into the project.
+   Copyright (C) 2026 RPGAtlas contributors - GPL-3.0-or-later (see LICENSE). */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, RA, TILE, editorState as S } from "../editor-state";
@@ -13,6 +10,28 @@ import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 import { renderMap } from "../map-editor/map-render";
 import { flashStatus } from "../map-editor/status";
+
+const DIRECTIONS = [
+  { id: 0, short: "S", name: "Down", area: "south" },
+  { id: 1, short: "W", name: "Left", area: "west" },
+  { id: 2, short: "E", name: "Right", area: "east" },
+  { id: 3, short: "N", name: "Up", area: "north" },
+  { id: 4, short: "SW", name: "Down-left", area: "southwest" },
+  { id: 5, short: "SE", name: "Down-right", area: "southeast" },
+  { id: 6, short: "NW", name: "Up-left", area: "northwest" },
+  { id: 7, short: "NE", name: "Up-right", area: "northeast" },
+];
+
+function downloadCanvas(canvas: HTMLCanvasElement, name: string): void {
+  const anchor = document.createElement("a");
+  anchor.href = canvas.toDataURL("image/png");
+  anchor.download = name + ".png";
+  anchor.click();
+}
+
+function fileSafeName(value: string): string {
+  return String(value || "character").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "character";
+}
 
 export function openCharGenerator() {
   const SKINS = ["#f0c8a0", "#e8b890", "#d8a070", "#c08858", "#9a6a40", "#f0d0b0"];
@@ -34,48 +53,68 @@ export function openCharGenerator() {
   const ACCESSORIES = Assets.CHARACTER_ACCESSORIES || ["none"];
   const pick = (arr: any) => arr[Math.floor(Math.random() * arr.length)];
   const labelOf = (value: string) => value[0].toUpperCase() + value.slice(1);
+
   function randomWork(artStyle?: string) {
     const palette = pick(WARDROBE_PALETTES);
-    return { name: "New Hero", artStyle: artStyle || pick(ART_STYLES).id,
+    return {
+      name: "New Hero", directions: 8, artStyle: artStyle || pick(ART_STYLES).id,
       bodyType: pick(BODY_TYPES), outfit: pick(OUTFITS), accessory: pick(ACCESSORIES),
       style: pick(Assets.HAIR_STYLES), skin: pick(SKINS), hair: pick(HAIR_COLORS), eyes: pick(EYE_COLORS),
-      shirt: palette.shirt, pants: palette.pants, hat: palette.hat, accent: palette.accent };
+      shirt: palette.shirt, pants: palette.pants, hat: palette.hat, accent: palette.accent,
+    };
   }
+
   function normalizeWork(value: any) {
     const fallback = randomWork("classic");
     return Object.assign(fallback, value || {}, {
+      directions: value?.directions === 8 ? 8 : 4,
       artStyle: ART_STYLES.some((style: any) => style.id === value?.artStyle) ? value.artStyle : "classic",
       bodyType: BODY_TYPES.includes(value?.bodyType) ? value.bodyType : "balanced",
       outfit: OUTFITS.includes(value?.outfit) ? value.outfit : "tunic",
       accessory: ACCESSORIES.includes(value?.accessory) ? value.accessory : "none",
     });
   }
-  let editing: any = null; // entry in proj.customChars being edited, or null for a new one
-  let work: any = randomWork();
-  const PV_KEY = "cg_preview";
-  let animF = 0;
 
-  const previews = [0, 1, 2, 3].map(() => {
-    const c = document.createElement("canvas");
-    c.width = TILE; c.height = TILE;
-    return c;
+  let editing: any = null;
+  let work: any = randomWork();
+  let selectedDir = 0;
+  let animF = 0;
+  const PV_KEY = "cg_preview";
+  const directionCanvases = DIRECTIONS.map(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = TILE; canvas.height = TILE;
+    return canvas;
   });
-  function paramsOf(w: any) { return { artStyle: w.artStyle, bodyType: w.bodyType, outfit: w.outfit,
-    accessory: w.accessory, skin: w.skin, hair: w.hair, eyes: w.eyes, style: w.style,
-    shirt: w.shirt, pants: w.pants, hat: w.hat, accent: w.accent }; }
+  const stageCanvas = document.createElement("canvas");
+  stageCanvas.width = TILE; stageCanvas.height = TILE;
+
+  function paramsOf(value: any) {
+    return {
+      directions: value.directions, artStyle: value.artStyle, bodyType: value.bodyType,
+      outfit: value.outfit, accessory: value.accessory, skin: value.skin, hair: value.hair,
+      eyes: value.eyes, style: value.style, shirt: value.shirt, pants: value.pants,
+      hat: value.hat, accent: value.accent,
+    };
+  }
+
   function redrawPreview() {
     const idx = Assets.registerHuman(PV_KEY, "preview", paramsOf(work));
     const frame = [0, 1, 2, 1][animF % 4];
-    previews.forEach((c, dir) => {
-      const g = c.getContext("2d")!;
+    directionCanvases.forEach((canvas, dir) => {
+      const g = canvas.getContext("2d")!;
       g.clearRect(0, 0, TILE, TILE);
-      g.drawImage(Assets.charFrameCanvas(idx, dir, frame), 0, 0);
+      // Show the potential diagonal art even while four-direction save mode is selected.
+      g.drawImage(Assets.charFrameCanvas(idx, dir, frame, true), 0, 0);
     });
+    const stageG = stageCanvas.getContext("2d")!;
+    stageG.clearRect(0, 0, TILE, TILE);
+    stageG.drawImage(Assets.charFrameCanvas(idx, selectedDir, frame, true), 0, 0);
   }
-  const animTimer = setInterval(() => { animF++; redrawPreview(); }, 170);
 
+  const animTimer = setInterval(() => { animF++; redrawPreview(); }, 170);
   const formBox = h("div", { class: "cg-form" });
-  const listEl = h("ul", { class: "dblist" });
+  const listEl = h("ul", { class: "dblist cg-saved-list" });
+
   function redrawStyleThumbnails() {
     for (const canvas of formBox.querySelectorAll(".cg-style-thumb") as any) {
       const sample = Assets.humanPreviewCanvas(
@@ -86,11 +125,13 @@ export function openCharGenerator() {
       g.drawImage(sample, 0, 0);
     }
   }
+
   function colorIn(key: any) {
     return h("input", { type: "color", value: work[key], oninput(e: any) {
       work[key] = e.target.value; redrawPreview(); redrawStyleThumbnails();
     } });
   }
+
   function optionIn(key: string, values: string[]) {
     return h("select", { onchange(e: any) {
       work[key] = e.target.value; redrawForm(); redrawPreview();
@@ -98,6 +139,7 @@ export function openCharGenerator() {
       value, ...(value === work[key] ? { selected: "" } : {}),
     }, labelOf(value))));
   }
+
   function styleCard(style: any) {
     const thumb = Assets.humanPreviewCanvas(Object.assign(paramsOf(work), { artStyle: style.id }), 0, 1);
     thumb.className = "cg-style-thumb";
@@ -110,31 +152,109 @@ export function openCharGenerator() {
     }, thumb, h("span", { class: "cg-style-copy" },
       h("strong", null, style.name), h("span", null, style.description)));
   }
+
+  function directionModeCard(count: number, title: string, description: string) {
+    return h("button", {
+      type: "button",
+      class: "cg-direction-mode" + (work.directions === count ? " sel" : ""),
+      "aria-label": count + " directions",
+      "aria-pressed": work.directions === count ? "true" : "false",
+      onclick() {
+        work.directions = count;
+        if (count === 4 && selectedDir >= 4) selectedDir = 0;
+        redrawForm(); redrawPreview();
+      },
+    }, h("strong", null, title), h("span", null, description));
+  }
+
+  function directionGrid() {
+    const grid = h("div", { class: "cg-direction-grid" });
+    for (const direction of DIRECTIONS) {
+      const diagonal = direction.id >= 4;
+      grid.appendChild(h("button", {
+        type: "button",
+        class: "cg-direction-cell" + (selectedDir === direction.id ? " sel" : "") +
+          (diagonal && work.directions !== 8 ? " disabled-preview" : ""),
+        style: "grid-area:" + direction.area,
+        title: direction.name + (diagonal && work.directions !== 8 ? " - select 8 directions to save this facing" : ""),
+        onclick() {
+          selectedDir = direction.id;
+          if (diagonal && work.directions !== 8) work.directions = 8;
+          redrawForm(); redrawPreview();
+        },
+      }, directionCanvases[direction.id], h("span", null, direction.short)));
+    }
+    grid.appendChild(h("div", { class: "cg-direction-center", style: "grid-area:center" },
+      h("strong", null, work.directions + " DIR"), h("span", null, "3 frames each")));
+    return grid;
+  }
+
+  function exportSheet(directions: 4 | 8) {
+    const idx = Assets.registerHuman(PV_KEY, "preview", paramsOf(work));
+    downloadCanvas(Assets.charSheetCanvas(idx, directions), fileSafeName(work.name) + "-" + directions + "dir");
+    flashStatus("Exported " + directions + "-direction sprite sheet (3 x " + directions + " frames)");
+  }
+
   function redrawForm() {
     formBox.innerHTML = "";
     const nameIn = h("input", { type: "text", value: work.name, oninput(e: any) { work.name = e.target.value; } });
-    const skinSel = h("select", { onchange(e: any) { work.skin = e.target.value; redrawPreview(); redrawStyleThumbnails(); } },
-      ...SKINS.map((s, i) => h("option", { value: s, ...(s === work.skin ? { selected: "" } : {}) }, "skin " + (i + 1))));
-    formBox.appendChild(row(field("Name", nameIn), field("Skin tone", skinSel)));
-    formBox.appendChild(field("Sprite art style", h("div", { class: "cg-style-grid" },
+    const skinSel = h("select", { onchange(e: any) {
+      work.skin = e.target.value; redrawPreview(); redrawStyleThumbnails();
+    } }, ...SKINS.map((skin, i) => h("option", {
+      value: skin, ...(skin === work.skin ? { selected: "" } : {}),
+    }, "Skin " + (i + 1))));
+
+    const controls = h("div", { class: "cg-controls" });
+    controls.appendChild(row(field("Character name", nameIn), field("Skin tone", skinSel)));
+    controls.appendChild(field("Sprite directions", h("div", { class: "cg-direction-modes" },
+      directionModeCard(4, "4 directions", "Classic D / L / R / U sheet"),
+      directionModeCard(8, "8 directions", "Adds four true diagonal rows"),
+    )));
+    controls.appendChild(field("Sprite art style", h("div", { class: "cg-style-grid" },
       ...ART_STYLES.map(styleCard),
     )));
-    formBox.appendChild(h("div", { class: "cg-section-title" }, "Build & wardrobe"));
-    formBox.appendChild(row(field("Body", optionIn("bodyType", BODY_TYPES)),
+    controls.appendChild(h("div", { class: "cg-section-title" }, "Build & wardrobe"));
+    controls.appendChild(row(field("Body", optionIn("bodyType", BODY_TYPES)),
       field("Hair", optionIn("style", Assets.HAIR_STYLES)), field("Outfit", optionIn("outfit", OUTFITS)),
       field("Accessory", optionIn("accessory", ACCESSORIES))));
-    formBox.appendChild(h("div", { class: "cg-section-title" }, "Palette"));
-    formBox.appendChild(row(field("Hair", colorIn("hair")), field("Eyes", colorIn("eyes")),
+    controls.appendChild(h("div", { class: "cg-section-title" }, "Palette"));
+    controls.appendChild(row(field("Hair", colorIn("hair")), field("Eyes", colorIn("eyes")),
       field("Clothes", colorIn("shirt")), field("Pants", colorIn("pants")),
       field("Accent", colorIn("accent")), field("Hat / hood", colorIn("hat"))));
-    formBox.appendChild(h("div", { class: "cg-preview" }, ...previews));
-    formBox.appendChild(h("div", { class: "frow", style: "margin-top:8px; gap:6px" },
-      h("button", { onclick() { const n = work.name; work = randomWork(work.artStyle); work.name = n; redrawForm(); redrawPreview(); } }, "🎨 Randomize look"),
-      h("button", { onclick() { const n = work.name; work = randomWork(); work.name = n; redrawForm(); redrawPreview(); } }, "🎲 Surprise me"),
-      h("button", { class: "primary", onclick: save }, editing ? "Update “" + editing.name + "”" : "Save as new character"),
-      editing ? h("button", { onclick() { editing = null; redrawForm(); } }, "Cancel edit") : null,
+
+    const selected = DIRECTIONS[selectedDir];
+    const previewPanel = h("div", { class: "cg-preview-panel" },
+      h("div", { class: "cg-preview-heading" },
+        h("div", null, h("strong", null, selected.name), h("span", null, "Animated walking preview")),
+        h("span", { class: "cg-sheet-size" }, "144 x " + (work.directions * TILE) + " PNG")),
+      h("div", { class: "cg-preview-stage" }, stageCanvas),
+      directionGrid(),
+      h("div", { class: "cg-export-box" },
+        h("div", null, h("strong", null, "Export sprite sheet"),
+          h("span", null, "Rows: D, L, R, U, DL, DR, UL, UR")),
+        h("div", { class: "cg-export-actions" },
+          h("button", { type: "button", onclick() { exportSheet(4); } }, "Export 4-dir PNG"),
+          h("button", { type: "button", class: "primary", onclick() { exportSheet(8); } }, "Export 8-dir PNG"))),
+    );
+
+    formBox.appendChild(h("div", { class: "cg-studio" }, controls, previewPanel));
+    formBox.appendChild(h("div", { class: "frow cg-actions" },
+      h("button", { onclick() {
+        const name = work.name, directions = work.directions;
+        work = randomWork(work.artStyle); work.name = name; work.directions = directions;
+        redrawForm(); redrawPreview();
+      } }, "Randomize look"),
+      h("button", { onclick() {
+        const name = work.name, directions = work.directions;
+        work = randomWork(); work.name = name; work.directions = directions;
+        redrawForm(); redrawPreview();
+      } }, "Surprise me"),
+      h("span", { class: "cg-action-spacer" }),
+      h("button", { class: "primary", onclick: save }, editing ? "Update " + editing.name : "Save as new character"),
+      editing ? h("button", { onclick() { editing = null; work = randomWork(); redrawForm(); redrawPreview(); } }, "Cancel edit") : null,
     ));
   }
+
   function save() {
     if (!work.name.trim()) work.name = "Hero";
     if (editing) {
@@ -148,21 +268,27 @@ export function openCharGenerator() {
       Assets.registerHuman(entry.key, entry.name, entry.params);
       editing = entry;
     }
-    touch();
-    redrawList(); redrawForm();
-    flashStatus("Character saved — pick it as a sprite for actors and events");
+    touch(); redrawList(); redrawForm(); redrawPreview();
+    flashStatus(work.directions + "-direction character saved - available in every sprite picker");
   }
+
   function redrawList() {
     listEl.innerHTML = "";
-    for (const c of S.proj.customChars) {
-      listEl.appendChild(h("li", { class: c === editing ? "sel" : "", onclick() {
-        editing = c;
-        work = normalizeWork(Object.assign({ name: c.name }, c.params));
-        redrawForm(); redrawPreview();
-      } }, c.name));
+    for (const character of S.proj.customChars) {
+      const directions = character.params?.directions === 8 ? 8 : 4;
+      listEl.appendChild(h("li", {
+        class: character === editing ? "sel" : "",
+        onclick() {
+          editing = character;
+          work = normalizeWork(Object.assign({ name: character.name }, character.params));
+          selectedDir = 0;
+          redrawForm(); redrawPreview();
+        },
+      }, h("span", null, character.name), h("small", null, directions + "-dir")));
     }
     if (!S.proj.customChars.length) listEl.appendChild(h("li", { class: "dim" }, "(none yet)"));
   }
+
   const side = h("div", { class: "cg-side" },
     h("div", { class: "subhead", style: "margin:0" }, "Saved characters"),
     listEl,
@@ -171,17 +297,19 @@ export function openCharGenerator() {
       confirmBox('Delete "' + editing.name + '"? Actors/events using it will show no sprite.', () => {
         Assets.removeCharset(editing.key);
         S.proj.customChars.splice(S.proj.customChars.indexOf(editing), 1);
-        editing = null;
-        touch(); redrawList(); redrawForm(); renderMap();
+        editing = null; work = randomWork();
+        touch(); redrawList(); redrawForm(); redrawPreview(); renderMap();
       });
     } }, "Delete selected"),
-    h("div", { class: "dim" }, "Saved characters appear in every sprite picker (marked ★ in the Resource Manager)."),
+    h("div", { class: "dim" }, "Saved characters appear in every sprite picker and are marked with a star in the Resource Manager."),
   );
+
   redrawList(); redrawForm(); redrawPreview();
   modal({
     title: "Character Generator",
     wide: true,
     dismissable: false,
+    class: "character-generator-modal",
     content: h("div", { class: "cg-wrap" }, side, formBox),
     buttons: [{ label: "Close", primary: true }],
     onClose() {

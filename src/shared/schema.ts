@@ -33,8 +33,10 @@
 // Primitives / shared shapes
 // ============================================================================
 
-/** Facing direction: 0=down, 1=left, 2=right, 3=up (engine convention). */
-export type Dir = 0 | 1 | 2 | 3;
+/** Grid/facing direction: 0=down, 1=left, 2=right, 3=up,
+ *  4=down-left, 5=down-right, 6=up-left, 7=up-right. Four-row character
+ *  sheets render diagonal facings with their matching left/right row. */
+export type Dir = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 /** Item bucket kind used across inventory, shop goods, change-items, etc. */
 export type ItemKind = "item" | "weapon" | "armor";
@@ -208,6 +210,9 @@ export interface SystemData {
   music: Record<string, string>;
   types: SystemTypes;
   input: InputBindings;
+  /** Allow simultaneous horizontal + vertical input to take one diagonal
+   *  grid step. Off by default so existing projects keep four-way movement. */
+  eightDirectionMovement?: boolean;
   // ---- Phase 5 (all backfilled by the v2 migration) ----
   /** Battle scheduling mode. "turn" = the classic Phase 1 round loop. */
   battleSystem?: "turn" | "atb" | "ctb";

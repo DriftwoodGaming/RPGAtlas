@@ -96,6 +96,7 @@ Game-wide presentation and rules. This tab is worth a careful look:
 | **System sounds & music themes** | Remappable cursor/confirm/cancel sounds and default music |
 | **Battle view** | **Side view** (animated party sprites) or classic **front view** |
 | **Battle system** | **Turn-based**, **ATB** (active-time gauges), or **CTB** (turn-order timeline) — see [Battles & States](Battles-and-States#the-three-battle-systems) |
+| **Eight-direction movement** | Optionally combine horizontal + vertical input into diagonal tile steps without allowing corner-cutting |
 | **Party followers** | Party members trail the leader on the map |
 | **Minimap** | Corner minimap + quest-tracker HUD in play (M / gamepad Select toggles; per-map opt-out in Map Properties) |
 | **Vehicles** | Boat / ship / airship sprites and starting docks — see [Maps & Tiles](Maps-and-Tiles#movement-upgrades) |

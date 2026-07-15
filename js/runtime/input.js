@@ -443,17 +443,28 @@ function createInputSystem(deps) {
     }
     return false;
   }
-  // Same priority order as the original held.down?0:held.left?1:held.right?2:held.up?3:-1.
-  function dir() {
-    return pressed("down")
-      ? 0
-      : pressed("left")
-        ? 1
-        : pressed("right")
-          ? 2
-          : pressed("up")
-            ? 3
-            : -1;
+  // Four-way mode preserves the original priority exactly. Eight-way mode resolves
+  // one vertical + one horizontal action into the diagonal direction ids shared by
+  // the map runtime: 4=down-left, 5=down-right, 6=up-left, 7=up-right.
+  function dir(eightWay) {
+    if (!eightWay) {
+      return pressed("down")
+        ? 0
+        : pressed("left")
+          ? 1
+          : pressed("right")
+            ? 2
+            : pressed("up")
+              ? 3
+              : -1;
+    }
+    const vertical = pressed("down") ? 0 : pressed("up") ? 3 : -1;
+    const horizontal = pressed("left") ? 1 : pressed("right") ? 2 : -1;
+    if (vertical === 0 && horizontal === 1) return 4;
+    if (vertical === 0 && horizontal === 2) return 5;
+    if (vertical === 3 && horizontal === 1) return 6;
+    if (vertical === 3 && horizontal === 2) return 7;
+    return vertical >= 0 ? vertical : horizontal;
   }
   function activeDevice() {
     return lastDevice;

@@ -114,9 +114,12 @@ export function systemTab() {
     const p = h("div");
     if (s.followers == null) s.followers = false;
     if (s.minimap == null) s.minimap = false;
+    if (s.eightDirectionMovement == null) s.eightDirectionMovement = false;
     p.appendChild(row(
       field("Party followers (members trail the player)", chk(s, "followers")),
-      field("Minimap (corner map + quest tracker HUD; M toggles)", chk(s, "minimap"))));
+      field("Minimap (corner map + quest tracker HUD; M toggles)", chk(s, "minimap")),
+      field("Eight-direction movement (allow diagonal grid steps)", chk(s, "eightDirectionMovement"))));
+    p.appendChild(h("div", { class: "dim" }, "Diagonal movement combines held horizontal and vertical controls. Both neighboring tiles must be open, so players cannot cut through blocked corners."));
     s.vehicles = s.vehicles && typeof s.vehicles === "object" ? s.vehicles : {};
     const vehicleRows = h("div");
     for (const [type, label] of [["boat", "Boat (shallow water)"], ["ship", "Ship (all water)"], ["airship", "Airship (flies anywhere)"]] as any[]) {

@@ -1188,6 +1188,21 @@ const Assets = (() => {
 
   function drawStyledHuman(g, params, dir, frame) {
     const p = normalizeHumanParams(params);
+    if (dir >= 4 && dir <= 7) {
+      // Generated diagonal poses keep each art style's authored front/back
+      // construction, then turn the silhouette toward the requested corner in
+      // three crisp pixel bands. This gives every style distinct NW/NE/SW/SE
+      // frames without blurring its pixel grid or duplicating four renderers.
+      const baseDir = dir === 4 || dir === 5 ? 0 : 3;
+      const turn = dir === 4 || dir === 6 ? -1 : 1;
+      const source = mkCanvas(TILE, TILE), sourceG = source.getContext("2d");
+      drawStyledHuman(sourceG, p, baseDir, frame);
+      g.imageSmoothingEnabled = false;
+      g.drawImage(source, 0, 0, TILE, 28, turn * 3, 0, TILE, 28);
+      g.drawImage(source, 0, 28, TILE, 11, turn, 28, TILE, 11);
+      g.drawImage(source, 0, 39, TILE, 9, 0, 39, TILE, 9);
+      return;
+    }
     if (p.artStyle === "chibi") drawChibiHuman(g, p, dir, frame);
     else if (p.artStyle === "heroic") drawHeroicHuman(g, p, dir, frame);
     else if (p.artStyle === "storybook") drawStorybookHuman(g, p, dir, frame);
@@ -1301,8 +1316,17 @@ const Assets = (() => {
   OBJECTS.forEach(([key, name, draw]) => charsets.push({ key, name, kind: "object", draw }));
 
   let charCache = {};
-  function charFrameCanvas(idx, dir, frame) {
+  function charFrameCanvas(idx, dir, frame, forceEightDirections) {
     const cs = charsets[idx];
+    const hasEightDirections = !!(
+      cs && cs.kind === "human" && (forceEightDirections || (cs.params && cs.params.directions === 8))
+    );
+    // Four-row sheets preserve diagonal gameplay facings with their matching
+    // side pose. Generated eight-direction characters keep the authored corner.
+    if (!hasEightDirections) {
+      dir = dir === 4 || dir === 6 ? 1 : dir === 5 || dir === 7 ? 2 : dir;
+    }
+    if (dir < 0 || dir > (hasEightDirections ? 7 : 3)) dir = 0;
     if (!cs) return mkCanvas(TILE, TILE);
     const k = idx + "_" + dir + "_" + frame;
     if (!charCache[k]) {
@@ -1338,6 +1362,7 @@ const Assets = (() => {
     normalized.bodyType = CHARACTER_BODY_TYPES.includes(normalized.bodyType) ? normalized.bodyType : "balanced";
     normalized.outfit = CHARACTER_OUTFITS.includes(normalized.outfit) ? normalized.outfit : "tunic";
     normalized.accessory = CHARACTER_ACCESSORIES.includes(normalized.accessory) ? normalized.accessory : "none";
+    normalized.directions = normalized.directions === 8 ? 8 : 4;
     normalized.style = HAIR_STYLES.includes(normalized.style) ? normalized.style : "short";
     normalized.skin = humanColor(normalized.skin, "#f0c8a0");
     normalized.hair = humanColor(normalized.hair, "#75442b");
@@ -1372,11 +1397,18 @@ const Assets = (() => {
   function registerCustomChars(list) {
     (list || []).forEach((c) => registerHuman(c.key, c.name, c.params));
   }
-  // full 3-frames × 4-dirs sprite sheet (for the resource manager / export)
-  function charSheetCanvas(idx) {
-    const c = mkCanvas(TILE * 3, TILE * 4), g = c.getContext("2d");
-    for (let dir = 0; dir < 4; dir++) {
-      for (let f = 0; f < 3; f++) g.drawImage(charFrameCanvas(idx, dir, f), f * TILE, dir * TILE);
+  // Full walking sheet: standard 3x4, or extended 3x8 for generated characters.
+  // The row order matches the runtime: D, L, R, U, DL, DR, UL, UR.
+  function charSheetCanvas(idx, requestedDirections) {
+    const cs = charsets[idx];
+    const directions = requestedDirections === 8 || (
+      requestedDirections == null && cs && cs.kind === "human" && cs.params && cs.params.directions === 8
+    ) ? 8 : 4;
+    const c = mkCanvas(TILE * 3, TILE * directions), g = c.getContext("2d");
+    for (let dir = 0; dir < directions; dir++) {
+      for (let f = 0; f < 3; f++) {
+        g.drawImage(charFrameCanvas(idx, dir, f, directions === 8), f * TILE, dir * TILE);
+      }
     }
     return c;
   }

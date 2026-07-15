@@ -14,15 +14,21 @@ Open **Tools ▸ Character Generator** to compose original walking sprites by mi
 - Choose one of four separately drawn sprite builds. **Classic Pixel** keeps the balanced RPGAtlas
   proportions; **Chibi** has a large expressive head and tiny limbs; **Heroic** uses a smaller head,
   broad shoulders, and longer legs; **Storybook** uses a higher-detail 2px construction. Each style
-  card shows your current character, and the four-direction animated preview updates immediately.
+  card shows your current character, and the animated compass preview updates immediately.
 - Change the character's **body build**, **hair**, **outfit**, and **accessory**. Builds range from
   slim to broad or compact; outfits include tunics, robes, armor, and coats; accessories include
   capes, scarves, glasses, and headbands. Hair includes bobs, ponytails, mohawks, hats, and hoods.
 - Set skin, hair, eye, clothing, pants, accent, and hat/hood colors independently.
 - **Randomize look** keeps the selected art style and creates a coordinated character;
   **Surprise me** also chooses a new sprite build.
-- The result is a proper walking sprite sheet (3 columns × 4 directions) usable **everywhere** a
-  sprite is — actors, NPC events, anything.
+- Choose **4 directions** for the classic down/left/right/up format, or **8 directions** to add
+  individually rendered down-left, down-right, up-left, and up-right poses. Clicking a compass
+  direction focuses its full-size animated preview.
+- **Export 4-dir PNG** creates a 144×192 sheet. **Export 8-dir PNG** creates a 144×384 sheet whose
+  rows are D, L, R, U, DL, DR, UL, UR. You can export either format before or after saving.
+- Saved eight-direction characters use their diagonal art during play. Legacy four-row sheets and
+  four-direction generator characters keep the compatible left/right pose when moving diagonally.
+- The result is usable **everywhere** a sprite is — actors, NPC events, anything.
 
 Generated characters are saved with your project (as `customChars`), so they travel with your `.json`
 and your exports. No external files to manage.
@@ -50,7 +56,7 @@ same library without duplicating files. The folders:
 
 | Folder | What goes there |
 |---|---|
-| `img/characters` | Walking sprite sheets (3 columns × 4 directions) |
+| `img/characters` | Walking sprite sheets (3 columns × 4 directions; the generator can also export 3 × 8) |
 | `img/facesets` | Actor portraits, matched to actors by filename |
 | `img/enemies` | Enemy battle images |
 | `img/tilesets` | Individual map tiles |

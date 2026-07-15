@@ -54,7 +54,7 @@ export function openResourceManager() {
           cs.name + (cs.custom ? " ★" : ""), "char-" + cs.key, Assets.charSheetCanvas(i)));
       });
       return h("div", null,
-        h("div", { class: "dim", style: "margin-bottom:8px" }, "PNG exports the full 3-frame × 4-direction walking sheet. ★ = made in the Character Generator."),
+        h("div", { class: "dim", style: "margin-bottom:8px" }, "PNG exports the full walking sheet: 3 × 8 for generated eight-direction characters, otherwise 3 × 4. ★ = made in the Character Generator."),
         grid);
     } },
     { label: "Enemies", build() {

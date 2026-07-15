@@ -5,6 +5,30 @@
 export const PATCH_NOTES = [
   {
     date: "July 15, 2026",
+    title: "Eight-direction Character Generator studio",
+    summary:
+      "Build, animate, save, and export characters with true diagonal sprite poses from a redesigned compass-based generator.",
+    items: [
+      "The Character Generator now offers 4 Directions and 8 Directions modes, with a large animated stage and clickable compass preview for every facing.",
+      "Generated eight-direction characters save four dedicated diagonal rows and use those poses during diagonal movement in playtests and exported games.",
+      "Export 4-dir PNG creates the standard 144 x 192 sheet, while Export 8-dir PNG creates a 144 x 384 sheet ordered D, L, R, U, DL, DR, UL, UR.",
+      "Classic Pixel, Chibi, Heroic, and Storybook builds all generate crisp diagonal silhouettes; legacy four-direction characters retain their compatible side-pose fallback.",
+    ],
+  },
+  {
+    date: "July 15, 2026",
+    title: "Optional eight-direction movement",
+    summary:
+      "Let players move and face diagonally on the tile grid without changing the collision model or existing games' four-direction controls.",
+    items: [
+      "New Database > System > Map systems option: Eight-direction movement combines held horizontal and vertical controls into diagonal steps.",
+      "Diagonal movement works with keyboard, D-Pad, and analog-stick input while four-direction movement remains the default for existing and new projects.",
+      "Blocked neighboring tiles prevent corner-cutting, including while riding vehicles, and diagonal facings carry through interactions, followers, saves, and action combat.",
+      "Existing four-row character sheets automatically use their matching left or right pose while moving diagonally.",
+    ],
+  },
+  {
+    date: "July 15, 2026",
     title: "Dialogue & Cutscenes workspace",
     summary:
       "Author reusable branching conversations and command-driven cutscenes in a dedicated production workspace instead of rebuilding them inside generic event pages.",

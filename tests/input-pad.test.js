@@ -77,6 +77,13 @@ function makeInput() {
   t.setPads([pad([], [0, -1])]); // stick up
   t.Input.poll();
   assert.equal(t.Input.dir(), 3, "dir() == up (3)");
+  t.setPads([pad([], [-1, -1])]); // diagonal stick up-left
+  t.Input.poll();
+  assert.equal(t.Input.dir(), 1, "four-way dir() retains cardinal priority for a diagonal stick");
+  assert.equal(t.Input.dir(true), 6, "eight-way dir(true) resolves a diagonal stick (up-left = 6)");
+  t.setPads([pad(["dpad_up", "dpad_right"])]);
+  t.Input.poll();
+  assert.equal(t.Input.dir(true), 7, "two held D-Pad buttons resolve diagonally (up-right = 7)");
   // dpad button maps the same way.
   t.setPads([pad(["dpad_right"])]);
   t.Input.poll();

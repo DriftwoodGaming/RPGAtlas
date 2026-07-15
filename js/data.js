@@ -634,6 +634,7 @@ const RA = {
       sys.input.keyboard.attack = defInput.keyboard.attack.slice();
     }
     if (sys.input.stickDeadzone == null) sys.input.stickDeadzone = defInput.stickDeadzone;
+    if (sys.eightDirectionMovement == null) sys.eightDirectionMovement = false;
     // v3 element/skill/weapon/armor/equipment type lists (Database ▸ Types)
     const defTypes = RA.defaultTypes();
     sys.types = sys.types || {};
@@ -793,6 +794,7 @@ const RA = {
     if (sys.atbWait == null) sys.atbWait = true;
     if (sys.followers == null) sys.followers = false;
     if (sys.minimap == null) sys.minimap = false;
+    if (sys.eightDirectionMovement == null) sys.eightDirectionMovement = false;
     if (!sys.hudDesign) sys.hudDesign = RA.defaultHudDesign();
     if (!sys.vehicles || typeof sys.vehicles !== "object") sys.vehicles = {};
     for (const m of p.maps || []) {
@@ -854,6 +856,10 @@ const RA = {
     p.dialogues = Array.isArray(p.dialogues)
       ? p.dialogues.map((dialogue, index) => RA.normalizeDialogue(dialogue, index))
       : [];
+    // Optional eight-direction grid movement. Normalize at every load boundary
+    // because already-current v2 projects skip the version-gated migrations.
+    p.system = p.system && typeof p.system === "object" ? p.system : {};
+    p.system.eightDirectionMovement = p.system.eightDirectionMovement === true;
     p.meta.formatVersion = RA.FORMAT_VERSION;
     return p;
   },
@@ -1334,6 +1340,7 @@ const DataDefaults = (() => {
         input: RA.defaultInput(),
         battleSystem: "turn", atbWait: true,       // Phase 5 battle mode
         followers: false, minimap: false,          // Phase 5 map systems
+        eightDirectionMovement: false,             // optional diagonal grid steps
         hudDesign: RA.defaultHudDesign(),           // visual HUD + message layout
         vehicles: {},                              // Phase 5 vehicles (boat/ship/airship)
       },

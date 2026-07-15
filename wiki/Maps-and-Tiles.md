@@ -72,6 +72,10 @@ standalone or deployed game, so players cannot use it in a published build.
 
 ## Movement upgrades
 
+- **Eight-direction movement** (Database > System > Map systems): optionally combine a held
+  horizontal and vertical direction into one diagonal grid step. Keyboard, D-Pad, and analog-stick
+  input all work; both neighboring cardinal tiles must be open, so the player cannot cut through
+  blocked corners. Existing projects and new games keep four-direction movement until you enable it.
 - **Click / tap to move:** players can click anywhere on the map and the engine **pathfinds**
   there, walking around obstacles. Clicking a talkable NPC walks up to it and starts the
   conversation. Any arrow press cancels the walk.

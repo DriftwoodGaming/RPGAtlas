@@ -424,8 +424,7 @@ export function startMove(ent: any, dir: any): void {
   // followers trail the tile the player just left (Phase 5 Stage C)
   if (ent === G.player) noteFollowerCrumb(ent.x, ent.y, dir);
   ent.dir = dir;
-  const dx = dir === 1 ? -1 : dir === 2 ? 1 : 0;
-  const dy = dir === 0 ? 1 : dir === 3 ? -1 : 0;
+  const [dx, dy] = DIRD[dir] || [0, 0];
   ent.tx = ent.x + dx;
   ent.ty = ent.y + dy;
   ent.moving = true;
@@ -436,7 +435,18 @@ export function dirTo(fx: any, fy: any, tx: any, ty: any): number {
   if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 2 : 1;
   return dy > 0 ? 0 : 3;
 }
-export const DIRD: any = { 0: [0, 1], 1: [-1, 0], 2: [1, 0], 3: [0, -1] };
+export const DIRD: any = {
+  0: [0, 1], 1: [-1, 0], 2: [1, 0], 3: [0, -1],
+  4: [-1, 1], 5: [1, 1], 6: [-1, -1], 7: [1, -1],
+};
+/** Diagonal grid steps may not squeeze between two blocked cardinal neighbors.
+ *  Cardinal directions always pass this corner-only check. */
+export function diagonalStepClear(x: any, y: any, dir: any, passable: any): boolean {
+  const [dx, dy] = DIRD[dir] || [0, 0];
+  return dx === 0 || dy === 0 || (
+    passable(x + dx, y) && passable(x, y + dy)
+  );
+}
 const mapFloatTexts: any[] = [];
 
 function combatConfig(page: any): any {
@@ -482,6 +492,10 @@ export function entityHurtbox(ent: any): any {
   return { x: ent.rx + 0.12, y: ent.ry + 0.10, w: 0.76, h: 0.86 };
 }
 export function swordHitboxAt(x: any, y: any, dir: any): any {
+  if (dir === 6) return { x: x - 0.34, y: y - 0.34, w: 0.82, h: 0.82 };
+  if (dir === 7) return { x: x + 0.52, y: y - 0.34, w: 0.82, h: 0.82 };
+  if (dir === 4) return { x: x - 0.34, y: y + 0.52, w: 0.82, h: 0.82 };
+  if (dir === 5) return { x: x + 0.52, y: y + 0.52, w: 0.82, h: 0.82 };
   if (dir === 3) return { x: x + 0.10, y: y - 0.48, w: 0.80, h: 0.62 };
   if (dir === 1) return { x: x - 0.48, y: y + 0.14, w: 0.62, h: 0.78 };
   if (dir === 2) return { x: x + 0.86, y: y + 0.14, w: 0.62, h: 0.78 };
@@ -534,6 +548,7 @@ function applyEnemyKnockback(rt: any, dir: any, tiles: any): void {
   const [dx, dy] = DIRD[dir] || [0, 0];
   const nx = rt.x + dx;
   const ny = rt.y + dy;
+  if (!diagonalStepClear(rt.x, rt.y, dir, (x: any, y: any) => canEntityPass(rt, x, y))) return;
   if (!canEntityPass(rt, nx, ny)) return;
   rt.combat.knockback = true;
   rt.combat.stagger = Math.max(rt.combat.stagger || 0, 14);
@@ -655,7 +670,11 @@ function drawSwordSlash(g: any, hitbox: any, dir: any): void {
   g.lineWidth = 5;
   g.lineCap = "round";
   g.beginPath();
-  if (dir === 3) {
+  if (dir >= 4) {
+    const rising = dir === 4 || dir === 7;
+    g.moveTo(rising ? x : x + w, y + h);
+    g.quadraticCurveTo(x + w / 2, y - h * 0.1, rising ? x + w : x, y);
+  } else if (dir === 3) {
     g.arc(x + w / 2, y + h, w * 0.55, Math.PI * 1.12, Math.PI * 1.88);
   } else if (dir === 0) {
     g.arc(x + w / 2, y, w * 0.55, Math.PI * 0.12, Math.PI * 0.88);
@@ -782,7 +801,19 @@ export function updateRoute(ent: any): void {
     else if (stepOk(ent.x + dx, ent.y + dy)) startJump(ent, ent.dir, 1);
     else startJump(ent, ent.dir, 0);
   } else if (s === "forward") {
-    r.steps.splice(r.idx, 0, ["down", "left", "right", "up"][ent.dir]);
+    const cardinal = ["down", "left", "right", "up"][ent.dir];
+    if (cardinal) {
+      r.steps.splice(r.idx, 0, cardinal);
+    } else {
+      // A player can finish normal input facing diagonally before an event move
+      // route says "forward". Move on that diagonal directly instead of
+      // inserting an undefined route step (which would fail on the next tick).
+      const [dx, dy] = DIRD[ent.dir] || [0, 0];
+      if (
+        diagonalStepClear(ent.x, ent.y, ent.dir, stepOk) &&
+        stepOk(ent.x + dx, ent.y + dy)
+      ) startMove(ent, ent.dir);
+    }
   } else if (s.startsWith("turn_")) {
     ent.dir = dirs[s.slice(5)];
   } else if (s === "wait15") {

@@ -95,15 +95,17 @@ test("legacy and malformed custom characters fall back to Classic Pixel", () => 
   assert.equal(Assets.charsets[legacyIndex].params.outfit, "tunic");
   assert.equal(Assets.charsets[legacyIndex].params.accessory, "none");
   assert.equal(Assets.charsets[legacyIndex].params.eyes, "#2d3348");
+  assert.equal(Assets.charsets[legacyIndex].params.directions, 4);
 });
 
-test("each art style builds distinct geometry across every direction and walk frame", () => {
+test("each art style builds distinct geometry across all eight directions and walk frames", () => {
   const Assets = loadAssets();
   const signatures = [];
   for (const style of Assets.CHARACTER_ART_STYLES) {
     const index = Assets.registerHuman("style-" + style.id, style.name, {
       ...baseParams,
       artStyle: style.id,
+      directions: 8,
     });
     const preview = Assets.humanPreviewCanvas({ ...baseParams, artStyle: style.id }, 0, 1);
     const blocks = preview.context.operations.filter(([op]) => op === "fillRect");
@@ -112,7 +114,7 @@ test("each art style builds distinct geometry across every direction and walk fr
       style.id + " is geometry, not a post-processing filter");
     signatures.push(JSON.stringify(blocks));
 
-    for (let dir = 0; dir < 4; dir++) {
+    for (let dir = 0; dir < 8; dir++) {
       for (let frame = 0; frame < 3; frame++) {
         assert.ok(Assets.charFrameCanvas(index, dir, frame).context.operations.length > 0,
           `${style.id} direction ${dir} frame ${frame}`);
@@ -120,9 +122,23 @@ test("each art style builds distinct geometry across every direction and walk fr
     }
     const sheet = Assets.charSheetCanvas(index);
     assert.equal(sheet.width, 144, style.id + " sheet width");
-    assert.equal(sheet.height, 192, style.id + " sheet height");
+    assert.equal(sheet.height, 384, style.id + " sheet height");
   }
   assert.equal(new Set(signatures).size, 4, "all four styles use different pixel constructions");
+});
+
+test("four-direction characters keep side fallback while eight-direction exports add dedicated rows", () => {
+  const Assets = loadAssets();
+  const fourIndex = Assets.registerHuman("four-dir", "Four", { ...baseParams, directions: 4 });
+  assert.equal(Assets.charFrameCanvas(fourIndex, 4, 1), Assets.charFrameCanvas(fourIndex, 1, 1));
+  assert.equal(Assets.charSheetCanvas(fourIndex).height, 192);
+  assert.equal(Assets.charSheetCanvas(fourIndex, 8).height, 384);
+
+  const eightIndex = Assets.registerHuman("eight-dir", "Eight", { ...baseParams, directions: 8 });
+  const diagonal = Assets.charFrameCanvas(eightIndex, 4, 1);
+  assert.notEqual(diagonal, Assets.charFrameCanvas(eightIndex, 1, 1));
+  assert.ok(diagonal.context.operations.some(([op]) => op === "drawImage"));
+  assert.equal(Assets.charSheetCanvas(eightIndex).height, 384);
 });
 
 test("the editor exposes thumbnails, build controls, palette controls, and coordinated randomizers", () => {
@@ -138,6 +154,12 @@ test("the editor exposes thumbnails, build controls, palette controls, and coord
   assert.match(source, /colorIn\("accent"\)/);
   assert.match(source, /Randomize look/);
   assert.match(source, /Surprise me/);
+  assert.match(source, /directionModeCard\(8/);
+  assert.match(source, /Export 4-dir PNG/);
+  assert.match(source, /Export 8-dir PNG/);
+  assert.match(source, /cg-direction-grid/);
   assert.match(css, /\.cg-style-grid/);
   assert.match(css, /\.cg-style-card\.sel/);
+  assert.match(css, /\.cg-direction-grid/);
+  assert.match(css, /\.cg-preview-stage/);
 });

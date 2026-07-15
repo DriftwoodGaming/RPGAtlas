@@ -37,6 +37,7 @@ import {
   DIRD,
   updateRoute,
   updateEntityMotion,
+  diagonalStepClear,
   updateMapCombat,
   combatChaseDir,
   combatStaggered,
@@ -236,7 +237,7 @@ export function update(): void {
   if (!p.moving && !p.jumping && p.route) {
     updateRoute(p);
   } else if (!p.moving && !p.jumping && activePlayerControl()) {
-    const d = ctx.Input.dir();
+    const d = ctx.Input.dir(!!ctx.proj.system.eightDirectionMovement);
     if (ctx.Input.consume("attack")) {
       if (!G.vehicle) startPlayerAttack();
     } else if (d >= 0) {
@@ -244,30 +245,34 @@ export function update(): void {
       const [dx, dy] = DIRD[d];
       const nx = p.x + dx,
         ny = p.y + dy;
+      const cornerClear = diagonalStepClear(p.x, p.y, d, playerStepPassable);
       const developerThrough = developerThroughActive();
-      if (developerThrough || G.vehicle) {
-        // vehicle terrain rules; no touch triggers from the deck
-        if (playerStepPassable(nx, ny)) {
-          startMove(p, d);
-          p.animT = p.animT || 0;
-        }
-      } else if (
-        ledgeAt(nx, ny) &&
-        tilePassable(p.x + dx * 2, p.y + dy * 2) &&
-        !blockingEventAt(p.x + dx * 2, p.y + dy * 2)
-      ) {
-        startJump(p, d, 2); // one-way ledge hop
-      } else {
-        const blocker = blockingEventAt(nx, ny);
-        if (
-          blocker &&
-          blocker.page.trigger === "touch" &&
-          blocker.page.commands.length
+      if (cornerClear) {
+        if (developerThrough || G.vehicle) {
+          // vehicle terrain rules; no touch triggers from the deck
+          if (playerStepPassable(nx, ny)) {
+            startMove(p, d);
+            p.animT = p.animT || 0;
+          }
+        } else if (
+          (dx === 0 || dy === 0) &&
+          ledgeAt(nx, ny) &&
+          tilePassable(p.x + dx * 2, p.y + dy * 2) &&
+          !blockingEventAt(p.x + dx * 2, p.y + dy * 2)
         ) {
-          runEventBlocking(blocker);
-        } else if (tilePassable(nx, ny) && !blocker) {
-          startMove(p, d);
-          p.animT = p.animT || 0;
+          startJump(p, d, 2); // one-way ledge hop (cardinal only)
+        } else {
+          const blocker = blockingEventAt(nx, ny);
+          if (
+            blocker &&
+            blocker.page.trigger === "touch" &&
+            blocker.page.commands.length
+          ) {
+            runEventBlocking(blocker);
+          } else if (tilePassable(nx, ny) && !blocker) {
+            startMove(p, d);
+            p.animT = p.animT || 0;
+          }
         }
       }
     }

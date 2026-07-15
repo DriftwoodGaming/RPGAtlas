@@ -139,7 +139,7 @@ plus an icon toolbar with everything one click away.
 | **Audio Manager** | Preview every procedural sound effect and music theme |
 | **Event Searcher** | Find message text, event names, or switch/variable usage across all maps |
 | **Resource Manager** | Browse every generated tile/character/battler; export PNGs (incl. full sprite sheets) |
-| **Character Generator** | Build walking sprites with distinct Classic, Chibi, Heroic, and Storybook bodies, outfits, hair, and accessories |
+| **Character Generator** | Build, preview, save, and export 4- or 8-direction walking sprites with distinct Classic, Chibi, Heroic, and Storybook bodies, outfits, hair, and accessories |
 | **Map Properties** | Rename/resize maps, set music, configure random encounters, enable HD-2D (camera tilt, bloom, depth of field, fog color, lights, ambient) |
 | **Open / Export** | Back up the project as `.json` or export a self-contained Windows `.exe` / playable `.html` |
 
@@ -152,7 +152,7 @@ below are the engine's built-in library, used when running RPGAtlas from a sourc
 art across projects:
 
 ```text
-img/characters   walking sprite sheets (3 columns x 4 directions)
+img/characters   walking sprite sheets (3 columns x 4 directions; generator exports can also use 8 rows)
 img/facesets     actor portraits matched by filename
 img/enemies      enemy battle images
 img/tilesets     individual map tiles
@@ -197,7 +197,8 @@ Return to Title · Script (JS)
 
 ## The player (`play.html`)
 
-- Grid movement with smooth scrolling camera (Arrows/WASD, **Shift** to dash)
+- Grid movement with smooth scrolling camera (Arrows/WASD, **Shift** to dash), with optional
+  eight-direction diagonal steps enabled from Database > System > Map systems
 - **Z/Enter** confirm/interact · **X/Esc** menu/cancel — mouse works everywhere too
 - Message windows with typewriter text, optional speaker faces, inline `\i[n]` icons, and choices
 - Full pause menu: Items, Skills, Equip, Status, Save/Load (3 slots), Return to Title

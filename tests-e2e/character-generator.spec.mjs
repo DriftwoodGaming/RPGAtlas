@@ -15,7 +15,11 @@ test("builds visibly distinct characters with intact eyes and saves every genera
   await expect(modal).toBeVisible();
   await expect(modal.locator(".cg-style-card")).toHaveCount(4);
   await expect(modal.locator(".cg-style-thumb")).toHaveCount(4);
-  await expect(modal.locator(".cg-preview canvas")).toHaveCount(4);
+  await expect(modal.locator(".cg-direction-cell canvas")).toHaveCount(8);
+  await expect(modal.locator(".cg-preview-stage canvas")).toHaveCount(1);
+  await expect(modal.getByRole("button", { name: "8 directions", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(modal.getByRole("button", { name: "Export 4-dir PNG" })).toBeVisible();
+  await expect(modal.getByRole("button", { name: "Export 8-dir PNG" })).toBeVisible();
   await expect(modal.getByLabel("Body")).toBeVisible();
   await expect(modal.getByLabel("Outfit")).toBeVisible();
   await expect(modal.getByLabel("Accessory")).toBeVisible();
@@ -42,7 +46,7 @@ test("builds visibly distinct characters with intact eyes and saves every genera
   });
   expect(eyePixelCounts.every(({ eyes }) => eyes > 0)).toBe(true);
 
-  const firstPreview = modal.locator(".cg-preview canvas").first();
+  const firstPreview = modal.locator(".cg-preview-stage canvas");
   await modal.locator(".cg-style-card", { hasText: "Classic Pixel" }).click();
   const classicPixels = await firstPreview.evaluate((canvas) => canvas.toDataURL());
   const heroic = modal.locator(".cg-style-card", { hasText: "Heroic" });
@@ -68,7 +72,13 @@ test("builds visibly distinct characters with intact eyes and saves every genera
   await expect.poll(() => page.evaluate(() => {
     const project = JSON.parse(localStorage.getItem("rpgatlas_project"));
     return project.customChars.find((entry) => entry.name === "Heroic Test Hero")?.params;
-  })).toMatchObject({ artStyle: "heroic", bodyType: "broad", outfit: "armor", accessory: "cape" });
+  })).toMatchObject({ artStyle: "heroic", bodyType: "broad", outfit: "armor", accessory: "cape", directions: 8 });
+
+  const savedSheetHeight = await page.evaluate(() => {
+    const entry = window.Assets.charsets.find((character) => character.name === "Heroic Test Hero");
+    return window.Assets.charSheetCanvas(window.Assets.charsets.indexOf(entry)).height;
+  });
+  expect(savedSheetHeight).toBe(384);
 
   expect(errors, `page errors:\n${errors.join("\n")}`).toEqual([]);
 });
