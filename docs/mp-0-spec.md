@@ -375,3 +375,27 @@ work order.
 
 - None beyond the amendments above. The audit produced no scope-changing
   surprise: every surprise (B1, B2) made a later phase smaller.
+
+---
+
+## MP0 gate verdict — Fable self-gate, 2026-07-19: ✅ PASS
+
+Full template gate re-run on the final tree (d48d365):
+
+| Gate | Result |
+|---|---|
+| vitest | **1013 passed** (64 files; 983 baseline + 30 new net suites) |
+| node --test | **44 passed** |
+| cargo | **26 passed** |
+| Playwright | **123/123 passed** (2.8m) — single-player goldens UNTOUCHED (zero engine files changed; `git diff d5fdf9d..HEAD` = the 6 MP0 files only) |
+| eslint | **0** |
+| tsc --noEmit | **0** |
+| i18n parity | green (inside vitest; no player-facing strings added — protocol error copy is deliberately codes-only until MP5·C/MP7) |
+| FORMAT_VERSION | **2** (schema untouched) |
+| versions | **1.2.0** consistent across all sites (unchanged this phase) |
+| cache-busts | none needed — editor.css / patch-notes.js / data.js untouched |
+| coupling | no module outside `src/shared/net/` + its tests imports the new code — pure addition ✓ |
+
+Phase-specific gates: protocol vitest suite added (30 tests, every union arm
+round-tripped) ✓ · zero engine behavior change ✓. Verdict recorded in the
+roadmap status table; tag `beacon-0`.

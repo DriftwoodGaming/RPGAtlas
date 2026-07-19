@@ -7,7 +7,7 @@ the most-requested feature RPG Maker never had, and we can deliver it because we
 own the engine: the required fundamentals get designed **into** the core, not
 bolted on. Target release: **RPGAtlas 2.0.0**.
 
-**Status:** ROADMAP APPROVED 2026-07-19 · Phase MP0 in progress (baseline recorded 2026-07-19) · Tags: `beacon-0` … `beacon-9` + `v2.0.0`
+**Status:** ROADMAP APPROVED 2026-07-19 · **Phase MP0 COMPLETE** (Fable self-gate PASS 2026-07-19, tag `beacon-0`) · next: MP1 · Tags: `beacon-0` … `beacon-9` + `v2.0.0`
 
 ---
 
@@ -142,7 +142,7 @@ Re-verify at every gate; never trust written numbers.
 
 | Phase | Name | Build | Gate | Tag | Status |
 |-------|------|-------|------|-----|--------|
-| MP0 | Protocol, singleton audit & sim-boundary spec | Fable | Fable (self) | beacon-0 | — |
+| MP0 | Protocol, singleton audit & sim-boundary spec | Fable | Fable (self) | beacon-0 | ✅ PASS 2026-07-19 — vitest 1013 · node 44 · cargo 26 · Playwright 123/123 (goldens untouched) · eslint 0 · tsc 0 · FV 2 · v1.2.0 consistent · no cache-busts needed (no ?v= files touched) |
 | MP1 | Instanced headless world core | Fable A · Opus B/C | Fable | beacon-1 | — |
 | MP2 | Loopback client/server | Opus | Fable | beacon-2 | — |
 | MP3 | Interpreter presentation directives | Fable A · Opus B | Fable | beacon-3 | — |
