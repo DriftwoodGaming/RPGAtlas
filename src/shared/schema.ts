@@ -882,6 +882,10 @@ export interface CmdItem {
   id: number;
   op: "add" | "sub";
   val: number;
+  /** Amount-from-variable: ids ≥ 1 read the amount from that game variable at
+   *  run time and `val` is ignored. Absent/0 = the constant `val` (the exact
+   *  pre-upgrade shape, so untouched projects stay byte-identical). */
+  valVarId?: number;
 }
 export interface CmdParty {
   t: "party";

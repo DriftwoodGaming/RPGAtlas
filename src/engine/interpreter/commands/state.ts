@@ -74,8 +74,12 @@ export function registerStateCommands(): void {
     state.gold = services.clamp(state.gold + delta, 0, 9999999);
   });
 
-  registerCommand("item", (c: any, { services }: InterpContext) => {
-    services.addInv(c.kind || "item", c.id, c.op === "sub" ? -c.val : c.val);
+  registerCommand("item", (c: any, { state, services }: InterpContext) => {
+    // valVarId ≥ 1 reads the amount from that game variable at run time
+    // (unset/non-numeric variables read 0); absent/0 = the constant `val`.
+    const amount =
+      Number(c.valVarId) >= 1 ? Number(state.vars[c.valVarId]) || 0 : c.val;
+    services.addInv(c.kind || "item", c.id, c.op === "sub" ? -amount : amount);
   });
 
   registerCommand("party", (c: any, { state, services }: InterpContext) => {

@@ -175,7 +175,7 @@ the button to edit or delete it.
 ### Party, items & money
 | Command | What it does |
 |---|---|
-| **Gain/Lose Item** | Give or take an item, weapon, or armor (with a quantity). |
+| **Gain/Lose Item** | Give or take an item, weapon, or armor — a fixed quantity, or a quantity read from a [variable](#switches-vs-variables-vs-self-switches) when the command runs. |
 | **Change Gold** | Give or take currency — a fixed amount, or an amount read from a [variable](#switches-vs-variables-vs-self-switches) when the command runs. |
 | **Change Party** | Add or remove an actor from the party. |
 | **Heal / Recover** | Restore HP/MP by an amount, or fully recover the party. |

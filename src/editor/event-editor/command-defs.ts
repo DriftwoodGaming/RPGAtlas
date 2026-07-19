@@ -128,7 +128,7 @@ import { openLocationPicker } from "./location-picker";
       case "dialogue": return "Play Dialogue: " + dialogueName(c.dialogueId);
       case "transfer": { const m = RA.byId(S.proj.maps, c.mapId); return "Transfer → " + (m ? m.name : "?") + " (" + c.x + "," + c.y + ")"; }
       case "gold": return (c.op === "sub" ? "Lose" : "Gain") + " " + (c.valVarId ? "Var " + varName(c.valVarId) : c.val) + " " + (c.currencyId > 1 ? currencyLabel(c.currencyId) : S.proj.system.currency);
-      case "item": return (c.op === "sub" ? "Lose" : "Gain") + " " + dbName(c.kind === "weapon" ? S.proj.weapons : c.kind === "armor" ? S.proj.armors : S.proj.items, c.id) + " ×" + c.val;
+      case "item": return (c.op === "sub" ? "Lose" : "Gain") + " " + dbName(c.kind === "weapon" ? S.proj.weapons : c.kind === "armor" ? S.proj.armors : S.proj.items, c.id) + " ×" + (c.valVarId ? "Var " + varName(c.valVarId) : c.val);
       case "party": return (c.op === "add" ? "Add" : "Remove") + " party member: " + dbName(S.proj.actors, c.actorId);
       case "heal": return c.full ? "Recover All" : "Heal " + (c.hp || 0) + " HP / " + (c.mp || 0) + " MP";
       case "battle": return "Battle: " + dbName(S.proj.troops, c.troopId) + (c.escape === false ? " (no escape)" : "") + (c.lose ? " (lose allowed)" : "");
@@ -496,18 +496,32 @@ import { openLocationPicker } from "./location-picker";
       } },
     { t: "item", label: "Change Items", make: () => ({ t: "item", kind: "item", id: 1, op: "add", val: 1 }),
       form(c: any, box: any) {
-        const w = { kind: c.kind || "item", id: c.id, op: c.op, val: c.val };
+        const w = { kind: c.kind || "item", id: c.id, op: c.op, val: c.val, valVarId: c.valVarId || 0, src: c.valVarId ? "var" : "const" };
         const entryWrap = h("span");
         function redraw() {
           const arr = w.kind === "weapon" ? S.proj.weapons : w.kind === "armor" ? S.proj.armors : S.proj.items;
           entryWrap.innerHTML = "";
           entryWrap.appendChild(sel(w, "id", dbOpts(arr)));
         }
+        const amtSpan = h("span", { id: "itemamt" });
+        const redrawAmt = () => {
+          amtSpan.innerHTML = "";
+          amtSpan.appendChild(w.src === "var" ? sel(w, "valVarId", varOpts()) : nIn(w, "val", 1, 99));
+        };
         box.appendChild(row(field("Kind", sel(w, "kind", [{ v: "item", l: "Item" }, { v: "weapon", l: "Weapon" }, { v: "armor", l: "Armor" }], redraw)),
           field("Entry", entryWrap),
-          field("Op", sel(w, "op", [{ v: "add", l: "Gain" }, { v: "sub", l: "Lose" }])), field("Count", nIn(w, "val", 1, 99))));
+          field("Op", sel(w, "op", [{ v: "add", l: "Gain" }, { v: "sub", l: "Lose" }])),
+          field("Amount from", sel(w, "src", [{ v: "const", l: "Constant" }, { v: "var", l: "Variable" }], redrawAmt)),
+          field("Count", amtSpan)));
         redraw();
-        return () => Object.assign(c, w);
+        redrawAmt();
+        return () => {
+          c.kind = w.kind; c.id = w.id; c.op = w.op; c.val = w.val;
+          // Keep valVarId only when a real variable is picked — constant-amount
+          // commands stay in their pre-upgrade shape.
+          if (w.src === "var" && Number(w.valVarId) >= 1) c.valVarId = Number(w.valVarId);
+          else delete c.valVarId;
+        };
       } },
     { t: "party", label: "Change Party", make: () => ({ t: "party", op: "add", actorId: 1 }),
       form(c: any, box: any) {

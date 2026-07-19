@@ -233,6 +233,15 @@ describe("real translations carry their fields (matrix §8)", () => {
     const { report } = tr([c(125, [0, 1, 7])]);
     expect(report.lines.some((l) => l.kind === "todo")).toBe(false);
   });
+  it("126/127/128 Change Items/Weapons/Armors translate variable operands", () => {
+    // Operand type (p[2]) 1 = count read from a variable at run time → real
+    // valVarId translation (no longer an mzTodo).
+    expect(t0([c(126, [4, 0, 1, 7])])).toEqual({ t: "item", kind: "item", id: 4, op: "add", val: 0, valVarId: 7 });
+    expect(t0([c(127, [2, 0, 1, 7, false])])).toEqual({ t: "item", kind: "weapon", id: 2, op: "add", val: 0, valVarId: 7 });
+    expect(t0([c(128, [3, 1, 1, 9, true])])).toEqual({ t: "item", kind: "armor", id: 3, op: "sub", val: 0, valVarId: 9 });
+    const { report } = tr([c(126, [4, 0, 1, 7])]);
+    expect(report.lines.some((l) => l.kind === "todo")).toBe(false);
+  });
   it("111 with then + else + 411/412 nests both blocks", () => {
     const cmd = t0([
       c(111, [0, 1, 0]),

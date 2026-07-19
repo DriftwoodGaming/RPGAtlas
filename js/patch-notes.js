@@ -5,6 +5,17 @@
 export const PATCH_NOTES = [
   {
     date: "July 19, 2026",
+    title: "Change Items can read its count from a variable",
+    summary:
+      "Give or take however many a variable holds - items, weapons and armors join Change Gold.",
+    items: [
+      "The Change Items command gains an 'Amount from' picker: choose Constant for a fixed count (exactly as before) or Variable to read the count from a game variable when the command runs.",
+      "Works for items, weapons and armors alike, and the event list shows which variable it reads.",
+      "RPG Maker imports improve too: Change Items/Weapons/Armors events that use a variable count now import as the real thing instead of a to-do note.",
+    ],
+  },
+  {
+    date: "July 19, 2026",
     title: "Change Gold can read its amount from a variable",
     summary:
       "Pay out however much a variable holds - perfect for scaling rewards, bets, and counters.",

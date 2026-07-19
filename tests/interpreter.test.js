@@ -244,6 +244,27 @@ async function loadRegistry() {
     assert.equal(vstate.gold, 140, "valVarId 0 is the classic constant path");
   }
 
+  // ---- Change Items amount from a variable (valVarId) ----
+  // Same contract as Change Gold: valVarId ≥ 1 reads that variable at run
+  // time and the stored constant `val` is ignored; absent/0 = the
+  // byte-identical constant path.
+  {
+    const istate = { vars: { 3: 25, 4: -10 } };
+    const invCalls = [];
+    const isvc = { addInv: (kind, id, delta) => invCalls.push([kind, id, delta]) };
+    const irun = (cmd) => getCommand("item")(cmd, { interp: {}, state: istate, services: isvc });
+    await irun({ t: "item", kind: "item", id: 2, op: "add", val: 999, valVarId: 3 });
+    assert.deepEqual(invCalls.pop(), ["item", 2, 25], "valVarId reads the variable and ignores val");
+    await irun({ t: "item", kind: "weapon", id: 1, op: "sub", val: 0, valVarId: 3 });
+    assert.deepEqual(invCalls.pop(), ["weapon", 1, -25], "sub with valVarId takes the variable's amount");
+    await irun({ t: "item", kind: "armor", id: 1, op: "add", val: 0, valVarId: 7 });
+    assert.deepEqual(invCalls.pop(), ["armor", 1, 0], "an unset variable reads 0 — nothing gained");
+    await irun({ t: "item", kind: "item", id: 2, op: "add", val: 0, valVarId: 4 });
+    assert.deepEqual(invCalls.pop(), ["item", 2, -10], "a negative variable amount removes items (RM semantics)");
+    await irun({ t: "item", kind: "item", id: 2, op: "add", val: 5, valVarId: 0 });
+    assert.deepEqual(invCalls.pop(), ["item", 2, 5], "valVarId 0 is the classic constant path");
+  }
+
   // ---- Jump labels (M2·C): the runList contract seeks the target label ----
   {
     const jstate = { vars: {} };

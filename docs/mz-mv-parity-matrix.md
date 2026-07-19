@@ -17,8 +17,9 @@ state/debuff rolls), **trait 55 dual wield** → `special/dualWield` + a second 
 (`Item.keyItem`, itypeId 2). Rows below carry a *(post-1.1)* note where amended.
 **Post-1.1 amendment (2026-07-19):** the **125 Change Gold variable operand** graduated from
 honest todo to a real translation — `CmdGold.valVarId` reads the amount from a game variable at
-run time (engine + editor + importer). The 126–128/122-game-data/201/301 variable-operand forms
-remain honest todos.
+run time (engine + editor + importer). Same day, the **126–128 Change Items/Weapons/Armors
+variable operands** followed with the identical contract (`CmdItem.valVarId`, all three layers).
+The 122-game-data/201/301 variable-operand forms remain honest todos.
 **Contract:** this file is the signed scope for Project Compass. Every `+` row below names
 the phase (M2/M3/M4/M5) that ships the feature AND flips the corresponding
 `translate-commands.ts` / DB-converter entry from `mzTodo` to a real translation. Phases
@@ -416,9 +417,9 @@ Mn ships.
 | 123 | Control Self Switch | `CmdSelfSw` | `=` | M1·C |
 | 124 | Control Timer | — | `+` | **M2·A** |
 | 125 | Change Gold | `CmdGold` | `=` | M1·C. *(post-1.1, 2026-07-19)* the **variable operand** is now a real translation too — `CmdGold.valVarId` reads the amount from that variable at run time; 125 no longer emits an mzTodo. |
-| 126 | Change Items | `CmdItem` (kind item) | `=` | M1·C |
-| 127 | Change Weapons | `CmdItem` (kind weapon) | `=` | M1·C |
-| 128 | Change Armors | `CmdItem` (kind armor) | `=` | M1·C |
+| 126 | Change Items | `CmdItem` (kind item) | `=` | M1·C. *(post-1.1, 2026-07-19)* the **variable operand** is now a real translation too — `CmdItem.valVarId` reads the count from that variable at run time; 126 no longer emits an mzTodo. |
+| 127 | Change Weapons | `CmdItem` (kind weapon) | `=` | M1·C. *(post-1.1, 2026-07-19)* variable operand → `CmdItem.valVarId`, same as 126; no more mzTodo. |
+| 128 | Change Armors | `CmdItem` (kind armor) | `=` | M1·C. *(post-1.1, 2026-07-19)* variable operand → `CmdItem.valVarId`, same as 126; no more mzTodo. |
 | 129 | Change Party Member | `CmdParty` | `=` | M1·C |
 
 ### 8.4 System settings

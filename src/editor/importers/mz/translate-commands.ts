@@ -429,7 +429,9 @@ class Translator {
   }
   private changeItem(c: RmCommand, kind: "item" | "weapon" | "armor", out: AnyCommand[]): void {
     const p = (c.parameters as any[]) || [];
-    if (num(p[2]) !== 0) { this.bump("cmd-item-var-" + kind, "todo", "changing " + kind + "s by a variable", "item counts read from a variable arrive in a later update (M2·C)", c.code); out.push({ t: "mzTodo", code: c.code, params: p, label: "Change " + kind + "s by a variable — coming in a later update" }); return; }
+    // p[2] operand type: 0 = constant p[3]; 1 = variable p[3], now a real
+    // translation via CmdItem.valVarId (read at run time, like RM).
+    if (num(p[2]) !== 0) { out.push({ t: "item", kind, id: num(p[0]), op: num(p[1]) === 0 ? "add" : "sub", val: 0, valVarId: num(p[3]) }); return; }
     out.push({ t: "item", kind, id: num(p[0]), op: num(p[1]) === 0 ? "add" : "sub", val: num(p[3]) });
   }
 
