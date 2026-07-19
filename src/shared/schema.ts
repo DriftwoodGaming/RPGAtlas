@@ -99,6 +99,12 @@ export interface SystemTypes {
   weaponTypes: IdType[];
   armorTypes: IdType[];
   equipTypes: IdType[];
+  /** Organisational planning lists (currencies / enemy families / loot tiers).
+   *  Optional because importers and older saves may omit them —
+   *  RA.migrateProject backfills the defaults at every load boundary. */
+  currencyTypes?: IdType[];
+  enemyCategories?: IdType[];
+  itemRarities?: IdType[];
 }
 
 /** Per-action binding arrays (KeyboardEvent.code / PAD_BUTTONS names). */

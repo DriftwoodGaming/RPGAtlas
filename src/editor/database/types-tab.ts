@@ -1,7 +1,7 @@
 /* RPGAtlas — src/editor/database/types-tab.ts
-   The Database "Types" tab (elements / skill / weapon / armor / equipment
-   type columns) plus the generic name-list tabs used for Switches and
-   Variables.
+   The Database "Types" tab (element / skill / weapon / armor / equipment /
+   currency / enemy-category / item-rarity columns) plus the generic
+   name-list tabs used for Switches and Variables.
    Verbatim move from the editor monolith (Phase 1 Stage C, Package 3):
    logic unchanged, closure vars routed through editor-state.ts.
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
@@ -53,7 +53,9 @@ export function typesTab() {
   box.appendChild(h("div", { class: "dim", style: "margin-bottom:10px" },
     "Define the categories your game uses. Elements drive resistances (set them on Classes ▸ Traits and pick one per skill). " +
     "Skill types label the three combat classes — only Physical, Magical and Heal affect the damage formula. " +
-    "Weapon, armor and equipment types tag equipment for organisation. Renaming or reordering is always safe."));
+    "Weapon, armor and equipment types tag equipment for organisation. " +
+    "Currency types, enemy categories and item rarities are planning labels for your game's money, monster families and loot tiers. " +
+    "Renaming or reordering is always safe."));
   const cols = h("div", { class: "types-cols" });
   cols.appendChild(typeColumn(t.elements, "Elements",
     () => ({ key: uniqueTypeKey("elem", t.elements), name: "New Element" })));
@@ -66,6 +68,12 @@ export function typesTab() {
     () => ({ id: RA.nextId(t.armorTypes), name: "New Armor Type" })));
   cols.appendChild(typeColumn(t.equipTypes, "Equipment Types",
     () => ({ id: RA.nextId(t.equipTypes), name: "New Slot" })));
+  cols.appendChild(typeColumn(t.currencyTypes, "Currency Types",
+    () => ({ id: RA.nextId(t.currencyTypes), name: "New Currency" })));
+  cols.appendChild(typeColumn(t.enemyCategories, "Enemy Categories",
+    () => ({ id: RA.nextId(t.enemyCategories), name: "New Category" })));
+  cols.appendChild(typeColumn(t.itemRarities, "Item Rarities",
+    () => ({ id: RA.nextId(t.itemRarities), name: "New Rarity" })));
   box.appendChild(cols);
   return box;
 }

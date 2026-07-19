@@ -69,9 +69,13 @@ const RA = {
   WEAPON_TYPE_NAMES: ["Dagger", "Sword", "Axe", "Spear", "Bow", "Staff", "Wand", "Claw"],
   ARMOR_TYPE_NAMES: ["General Armor", "Magic Armor", "Light Armor", "Heavy Armor", "Shield"],
   EQUIP_TYPE_NAMES: ["Weapon", "Shield", "Head", "Body", "Accessory"],
+  CURRENCY_TYPE_NAMES: ["Gold", "Gems", "Tokens"],
+  ENEMY_CATEGORY_NAMES: ["Beast", "Undead", "Humanoid", "Dragon", "Elemental"],
+  ITEM_RARITY_NAMES: ["Common", "Uncommon", "Rare", "Epic", "Legendary"],
   // Elements and skill types keep a stable string key (referenced by skills,
   // class traits and the combat engine) plus an editable display name. Weapon,
-  // armor and equipment types are referenced by numeric id like the other lists.
+  // armor and equipment types are referenced by numeric id like the other lists,
+  // as are the planning lists (currencies, enemy categories, item rarities).
   defaultTypes() {
     return {
       elements: this.TRAIT_ELEMENTS.map((e) => ({ key: e.v, name: e.l })),
@@ -83,6 +87,9 @@ const RA = {
       weaponTypes: this.WEAPON_TYPE_NAMES.map((n, i) => ({ id: i + 1, name: n })),
       armorTypes: this.ARMOR_TYPE_NAMES.map((n, i) => ({ id: i + 1, name: n })),
       equipTypes: this.EQUIP_TYPE_NAMES.map((n, i) => ({ id: i + 1, name: n })),
+      currencyTypes: this.CURRENCY_TYPE_NAMES.map((n, i) => ({ id: i + 1, name: n })),
+      enemyCategories: this.ENEMY_CATEGORY_NAMES.map((n, i) => ({ id: i + 1, name: n })),
+      itemRarities: this.ITEM_RARITY_NAMES.map((n, i) => ({ id: i + 1, name: n })),
     };
   },
   // Read one type list from a project, falling back to the defaults so older
@@ -860,6 +867,15 @@ const RA = {
     // because already-current v2 projects skip the version-gated migrations.
     p.system = p.system && typeof p.system === "object" ? p.system : {};
     p.system.eightDirectionMovement = p.system.eightDirectionMovement === true;
+    // Database ▸ Types lists. Backfill any missing/empty list at every load
+    // boundary too, so already-current v2 projects and MZ/MV imports gain
+    // lists added after they were saved (currency types, enemy categories and
+    // item rarities shipped this way). Existing/customized lists are kept.
+    const defTypes = RA.defaultTypes();
+    p.system.types = p.system.types && typeof p.system.types === "object" ? p.system.types : {};
+    for (const k of Object.keys(defTypes)) {
+      if (!Array.isArray(p.system.types[k]) || !p.system.types[k].length) p.system.types[k] = defTypes[k];
+    }
     p.meta.formatVersion = RA.FORMAT_VERSION;
     return p;
   },

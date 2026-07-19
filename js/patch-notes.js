@@ -4,6 +4,18 @@
 
 export const PATCH_NOTES = [
   {
+    date: "July 19, 2026",
+    title: "More category lists in the Types tab",
+    summary:
+      "Name your game's currencies, enemy families and item rarities from Database > Types.",
+    items: [
+      "Three new columns join the Types tab: Currency Types (Gold, Gems, Tokens), Enemy Categories (Beast, Undead, Humanoid, Dragon, Elemental) and Item Rarities (Common, Uncommon, Rare, Epic, Legendary).",
+      "They work like the other lists - rename, add or delete entries freely; they are planning labels for organising your world, so nothing in combat changes.",
+      "Existing projects and RPG Maker imports gain the default lists automatically the next time they are opened.",
+      "Pair them with the Generator Hub's Currency and Enemy generators to fill the lists with original names.",
+    ],
+  },
+  {
     date: "July 15, 2026",
     title: "Extensive Generator Hub",
     summary:
