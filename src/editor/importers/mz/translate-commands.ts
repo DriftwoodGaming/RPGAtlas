@@ -422,7 +422,9 @@ class Translator {
   }
   private changeGold(c: RmCommand, out: AnyCommand[]): void {
     const p = (c.parameters as any[]) || [];
-    if (num(p[1]) !== 0) { this.bump("cmd-gold-var", "todo", "changing gold by a variable", "gold amounts read from a variable arrive in a later update (M2·C)", 125); out.push({ t: "mzTodo", code: 125, params: p, label: "Change gold by a variable — coming in a later update" }); return; }
+    // p[1] operand type: 0 = constant p[2]; 1 = variable p[2], now a real
+    // translation via CmdGold.valVarId (read at run time, like RM).
+    if (num(p[1]) !== 0) { out.push({ t: "gold", op: num(p[0]) === 0 ? "add" : "sub", val: 0, valVarId: num(p[2]) }); return; }
     out.push({ t: "gold", op: num(p[0]) === 0 ? "add" : "sub", val: num(p[2]) });
   }
   private changeItem(c: RmCommand, kind: "item" | "weapon" | "armor", out: AnyCommand[]): void {

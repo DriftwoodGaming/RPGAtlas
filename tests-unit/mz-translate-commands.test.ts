@@ -224,6 +224,15 @@ describe("real translations carry their fields (matrix §8)", () => {
     expect((t0([c(111, [8, 4])]) as any).cond).toEqual({ kind: "item", itemKind: "item", id: 4 });
     expect((t0([c(111, [7, 500, 0])]) as any).cond).toEqual({ kind: "gold", cmp: ">=", val: 500 });
   });
+  it("125 Change Gold translates both operand types", () => {
+    expect(t0([c(125, [0, 0, 100])])).toEqual({ t: "gold", op: "add", val: 100 });
+    // Operand type 1 = amount read from a variable at run time → real
+    // valVarId translation (no longer an mzTodo).
+    expect(t0([c(125, [0, 1, 7])])).toEqual({ t: "gold", op: "add", val: 0, valVarId: 7 });
+    expect(t0([c(125, [1, 1, 7])])).toEqual({ t: "gold", op: "sub", val: 0, valVarId: 7 });
+    const { report } = tr([c(125, [0, 1, 7])]);
+    expect(report.lines.some((l) => l.kind === "todo")).toBe(false);
+  });
   it("111 with then + else + 411/412 nests both blocks", () => {
     const cmd = t0([
       c(111, [0, 1, 0]),

@@ -222,6 +222,28 @@ async function loadRegistry() {
     assert.equal(wstate.wallet[2], 0, "wallet balances clamp at zero like gold");
   }
 
+  // ---- Change Gold amount from a variable (valVarId) ----
+  // valVarId ≥ 1 reads the amount from that variable at run time; the stored
+  // constant `val` is ignored. Absent/0 = the byte-identical constant path.
+  {
+    const vstate = { gold: 100, vars: { 3: 25, 4: -10 } };
+    const vsvc = { clamp: (v, lo, hi) => Math.min(hi, Math.max(lo, v)) };
+    const vrun = (cmd) => getCommand("gold")(cmd, { interp: {}, state: vstate, services: vsvc });
+    await vrun({ t: "gold", op: "add", val: 999, valVarId: 3 });
+    assert.equal(vstate.gold, 125, "valVarId reads the variable and ignores val");
+    await vrun({ t: "gold", op: "sub", val: 0, valVarId: 3 });
+    assert.equal(vstate.gold, 100, "sub with valVarId takes the variable's amount");
+    await vrun({ t: "gold", op: "add", val: 0, valVarId: 7 });
+    assert.equal(vstate.gold, 100, "an unset variable reads 0 — gold unchanged");
+    await vrun({ t: "gold", op: "add", val: 0, valVarId: 4 });
+    assert.equal(vstate.gold, 90, "a negative variable amount subtracts (RM semantics)");
+    await vrun({ t: "gold", op: "add", val: 0, valVarId: 3, currencyId: 2 });
+    assert.equal(vstate.wallet[2], 25, "valVarId works for wallet currencies too");
+    assert.equal(vstate.gold, 90, "wallet + valVarId never touches classic gold");
+    await vrun({ t: "gold", op: "add", val: 50, valVarId: 0 });
+    assert.equal(vstate.gold, 140, "valVarId 0 is the classic constant path");
+  }
+
   // ---- Jump labels (M2·C): the runList contract seeks the target label ----
   {
     const jstate = { vars: {} };

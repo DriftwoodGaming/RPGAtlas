@@ -5,6 +5,17 @@
 export const PATCH_NOTES = [
   {
     date: "July 19, 2026",
+    title: "Change Gold can read its amount from a variable",
+    summary:
+      "Pay out however much a variable holds - perfect for scaling rewards, bets, and counters.",
+    items: [
+      "The Change Gold command gains an 'Amount from' picker: choose Constant for a fixed number (exactly as before) or Variable to read the amount from a game variable when the command runs.",
+      "Works with every currency, so 'Gain Var 3 Gems' is one command - the event list shows which variable it reads.",
+      "RPG Maker imports improve too: Change Gold events that use a variable amount now import as the real thing instead of a to-do note.",
+    ],
+  },
+  {
+    date: "July 19, 2026",
     title: "Enemies can drop any currency",
     summary:
       "Give every enemy its own currency rewards - a dragon that always leaves Gems behind.",

@@ -868,6 +868,10 @@ export interface CmdGold {
   t: "gold";
   op: "add" | "sub";
   val: number;
+  /** Amount-from-variable: ids ≥ 1 read the amount from that game variable at
+   *  run time and `val` is ignored. Absent/0 = the constant `val` (the exact
+   *  pre-upgrade shape, so untouched projects stay byte-identical). */
+  valVarId?: number;
   /** Currency Types list id (system.types.currencyTypes). Absent/0/1 = the
    *  classic gold purse (G.gold); ids ≥ 2 change that wallet balance. */
   currencyId?: number;

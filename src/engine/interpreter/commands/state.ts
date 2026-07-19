@@ -58,7 +58,11 @@ export function registerStateCommands(): void {
   });
 
   registerCommand("gold", (c: any, { state, services }: InterpContext) => {
-    const delta = c.op === "sub" ? -c.val : c.val;
+    // valVarId ≥ 1 reads the amount from that game variable at run time
+    // (unset/non-numeric variables read 0); absent/0 = the constant `val`.
+    const amount =
+      Number(c.valVarId) >= 1 ? Number(state.vars[c.valVarId]) || 0 : c.val;
+    const delta = c.op === "sub" ? -amount : amount;
     const cid = Number(c.currencyId) || 0;
     // Currency ids ≥ 2 change a wallet balance; anything else is the exact
     // pre-wallet classic-gold path (see game-state.ts currency helpers).

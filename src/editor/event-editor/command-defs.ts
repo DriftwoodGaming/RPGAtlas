@@ -127,7 +127,7 @@ import { openLocationPicker } from "./location-picker";
       case "commonEvent": return "Call Common Event: " + commonEventName(c.commonEventId);
       case "dialogue": return "Play Dialogue: " + dialogueName(c.dialogueId);
       case "transfer": { const m = RA.byId(S.proj.maps, c.mapId); return "Transfer → " + (m ? m.name : "?") + " (" + c.x + "," + c.y + ")"; }
-      case "gold": return (c.op === "sub" ? "Lose" : "Gain") + " " + c.val + " " + (c.currencyId > 1 ? currencyLabel(c.currencyId) : S.proj.system.currency);
+      case "gold": return (c.op === "sub" ? "Lose" : "Gain") + " " + (c.valVarId ? "Var " + varName(c.valVarId) : c.val) + " " + (c.currencyId > 1 ? currencyLabel(c.currencyId) : S.proj.system.currency);
       case "item": return (c.op === "sub" ? "Lose" : "Gain") + " " + dbName(c.kind === "weapon" ? S.proj.weapons : c.kind === "armor" ? S.proj.armors : S.proj.items, c.id) + " ×" + c.val;
       case "party": return (c.op === "add" ? "Add" : "Remove") + " party member: " + dbName(S.proj.actors, c.actorId);
       case "heal": return c.full ? "Recover All" : "Heal " + (c.hp || 0) + " HP / " + (c.mp || 0) + " MP";
@@ -474,10 +474,25 @@ import { openLocationPicker } from "./location-picker";
       } },
     { t: "gold", label: "Change Gold", make: () => ({ t: "gold", op: "add", val: 100 }),
       form(c: any, box: any) {
-        const w = { op: c.op, val: c.val, currencyId: c.currencyId || 1 };
-        box.appendChild(row(field("Op", sel(w, "op", [{ v: "add", l: "Gain" }, { v: "sub", l: "Lose" }])), field("Amount", nIn(w, "val", 0)),
+        const w = { op: c.op, val: c.val, valVarId: c.valVarId || 0, src: c.valVarId ? "var" : "const", currencyId: c.currencyId || 1 };
+        const amtSpan = h("span", { id: "goldamt" });
+        const redraw = () => {
+          amtSpan.innerHTML = "";
+          amtSpan.appendChild(w.src === "var" ? sel(w, "valVarId", varOpts()) : nIn(w, "val", 0));
+        };
+        box.appendChild(row(field("Op", sel(w, "op", [{ v: "add", l: "Gain" }, { v: "sub", l: "Lose" }])),
+          field("Amount from", sel(w, "src", [{ v: "const", l: "Constant" }, { v: "var", l: "Variable" }], redraw)),
+          field("Amount", amtSpan),
           field("Currency", sel(w, "currencyId", currencyOpts()))));
-        return () => { c.op = w.op; c.val = w.val; setCurrency(c, w.currencyId); };
+        redraw();
+        return () => {
+          c.op = w.op; c.val = w.val;
+          // Keep valVarId only when a real variable is picked — constant-amount
+          // commands stay in their pre-upgrade shape.
+          if (w.src === "var" && Number(w.valVarId) >= 1) c.valVarId = Number(w.valVarId);
+          else delete c.valVarId;
+          setCurrency(c, w.currencyId);
+        };
       } },
     { t: "item", label: "Change Items", make: () => ({ t: "item", kind: "item", id: 1, op: "add", val: 1 }),
       form(c: any, box: any) {
