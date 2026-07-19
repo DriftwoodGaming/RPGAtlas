@@ -283,18 +283,42 @@ loopback path for hidden direct world access from presentation code (grep the
 renderer/UI for sim imports that bypass the mirror). Verdict recorded here +
 roadmap status table; tag `beacon-2`.
 
-### Gate verdict — ⏳ PENDING (Fable)
+### Gate verdict — ✅ PASS (Fable, 2026-07-19)
 
-Build (Opus) hand-off numbers, to be independently re-verified by the Fable gate:
+Every gate independently re-run by the Fable gate conversation (not trusting
+the build numbers); all green. Tag `beacon-2`.
 
-| Gate | Build result (re-verify) |
+| Gate | Independent re-run result |
 |---|---|
-| vitest | **1037** (66 files) |
-| node --test | **46** |
-| cargo | **26** |
-| Playwright | **123/123** — pixel goldens byte-identical to beacon-1 (the MP2 diff touches zero golden PNGs; player is stationary in every golden so no-input → no-intent → identical world advancement). Perf 240.73 ms/frame (budget 300). |
-| eslint / tsc | **0 / 0** |
-| FV / version / cache-busts | 2 · 1.2.0 · none (no `?v=` file touched) |
+| vitest | **1037** passed (66 files) — matches build; includes net-transport (+7) and net-protocol (+2) suites and `tests-unit/i18n-parity.test.ts` (i18n template gate) |
+| node --test | **46** pass, 0 fail (MP1 headless-boot + determinism canary included) |
+| cargo | **26** passed (Rust untouched by MP2) |
+| Playwright | **123/123** (2.9m) — pixel goldens **byte-identical vs beacon-1**: `git diff beacon-1..HEAD` touches zero golden PNGs and every pixel-golden spec passes against the committed goldens |
+| Perf (MP2·C ±10% budget) | **175.18 ms/frame** standalone / **246.10** under full-suite concurrency (budget 300; beacon-1 recorded 250.92) — within ±10%, standalone well under; no regression from the seam |
+| eslint / tsc | **0 / 0** — and the sim lint wall re-proven to FIRE on a fresh probe (`src/shared/sim/` importing `engine/scenes/map` → `no-restricted-imports` error; probe deleted) |
+| FV / version / cache-busts | FORMAT_VERSION **2** (`js/data.js`) · **1.2.0** consistent at all 7 sites (package.json, Cargo.toml, Cargo.lock, tauri.conf.json, README badge, help.ts, patch-notes.js) · no cache-busts needed (no `?v=` file in the MP2 diff) |
+
+**Loopback-path audit (hidden direct world access from presentation) — CLEAN:**
+
+- `src/shared/sim/` is imported by exactly three modules: `engine/net/client-session.ts`,
+  `engine/net/world-host.ts` (the transport seam itself) and
+  `engine/state/default-world.ts` (the MP1 compat-shim binding). No renderer,
+  UI, HUD, menu, or editor module imports the sim directly.
+- `soloHost`/`soloClient` are referenced only by the three sanctioned files:
+  `boot.ts` (tick-fn injection), `loop.ts` (`soloHost.tick()` ownership), and
+  `scenes/map.ts` (the capture→send / drain→apply seam). `render-glue.ts`,
+  `src/engine/ui/`, and `src/editor/` have zero references to
+  `soloHost`/`soloClient`/`shared/sim`/`drainIntents`/`applyPlayerIntent`.
+- Mirror identity is asserted **by reference** in the transport suite
+  (`session.view === world`, net-transport.test.ts) — presentation reads via
+  the ctx/G shim → `defaultWorld`, which IS `soloClient.view` in loopback (A4).
+- `WorldHost` verified to buffer intents on arrival and apply only at
+  drain-time (A2 holds — delivery never re-enters the tick); idle drain returns
+  the shared `EMPTY` (no allocation, D-B2 holds).
+- The documented intentional direct-input exceptions were confirmed in source
+  and are exactly the §B5 list: the route-cancel `ctx.Input.dir()` peek
+  (map.ts, non-consuming), `cancel` → `fns.openMenu()` (client concern),
+  tap-to-move, §C5 menu verbs (defined-not-routed), battle input (MP6).
 
 **Loopback-path audit pointers for the gate** (per the GATE kickoff — "grep the
 renderer/UI for sim imports that bypass the mirror"):

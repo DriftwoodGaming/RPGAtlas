@@ -7,7 +7,7 @@ the most-requested feature RPG Maker never had, and we can deliver it because we
 own the engine: the required fundamentals get designed **into** the core, not
 bolted on. Target release: **RPGAtlas 2.0.0**.
 
-**Status:** ROADMAP APPROVED 2026-07-19 · **Phase MP1 COMPLETE** (Fable gate PASS 2026-07-19, tag `beacon-1`; MP0 `beacon-0`) · next: MP2 · Tags: `beacon-0` … `beacon-9` + `v2.0.0`
+**Status:** ROADMAP APPROVED 2026-07-19 · **Phase MP2 COMPLETE** (Fable gate PASS 2026-07-19, tag `beacon-2`; MP1 `beacon-1`; MP0 `beacon-0`) · next: MP3 · Tags: `beacon-0` … `beacon-9` + `v2.0.0`
 
 ---
 
@@ -144,7 +144,7 @@ Re-verify at every gate; never trust written numbers.
 |-------|------|-------|------|-----|--------|
 | MP0 | Protocol, singleton audit & sim-boundary spec | Fable | Fable (self) | beacon-0 | ✅ PASS 2026-07-19 — vitest 1013 · node 44 · cargo 26 · Playwright 123/123 (goldens untouched) · eslint 0 · tsc 0 · FV 2 · v1.2.0 consistent · no cache-busts needed (no ?v= files touched) |
 | MP1 | Instanced headless world core | Fable A · Opus B/C | Fable | beacon-1 | ✅ PASS 2026-07-19 — vitest 1028 · node 46 · cargo 26 · Playwright 123/123 (goldens byte-identical, perf 250.92/300 ms) · eslint 0 + sim lint wall proven to FIRE on a probe · tsc 0 · determinism golden 46633057 independently re-computed (same-seed identical across two realms, different-seed divergent) · headless boot green · compat-shim drift audit clean (6 engine modules diffed vs 0f9ae0a) · sim purity verified (world.ts imports only shared/rng) · FV 2 · v1.2.0 · no cache-busts needed |
-| MP2 | Loopback client/server | Opus | Fable | beacon-2 | — |
+| MP2 | Loopback client/server | Opus | Fable | beacon-2 | ✅ PASS 2026-07-19 — vitest 1037 · node 46 · cargo 26 · Playwright 123/123 (goldens byte-identical vs beacon-1; perf 175.18 standalone / 246.10 full-suite vs budget 300, beacon-1 250.92 → within ±10%) · eslint 0 + sim wall fires on probe · tsc 0 · FV 2 · v1.2.0 ×7 · no cache-busts · loopback audit CLEAN (sim imported only by net seam + shim binding; soloHost/soloClient only in boot/loop/map; renderer/UI/editor read solely via ctx/G shim → defaultWorld === soloClient.view, asserted by reference) |
 | MP3 | Interpreter presentation directives | Fable A · Opus B | Fable | beacon-3 | — |
 | MP4 | Local multi-client co-op | Opus | Fable | beacon-4 | — |
 | MP5 | Beacon server, rooms & transport | Opus | **Fable security gate** | beacon-5 | — |
