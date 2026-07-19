@@ -281,6 +281,24 @@ export function currencyName(id: any): string {
   const t = RA.typeList(ctx.proj, "currencyTypes").find((c: any) => c.id === cid);
   return t ? t.name : "?";
 }
+/** Sum the `currencyRewards` rows of the given enemy DEFINITIONS into one
+ *  total per currency, ordered by first appearance. Malformed rows (missing
+ *  id, zero/negative amount) pay nothing — rewards only ever add. Pure, so
+ *  the battle scene's victory payout is unit-testable without a DOM. */
+export function currencyRewardTotals(
+  enemyDefs: any[],
+): { currencyId: number; amount: number }[] {
+  const totals = new Map<number, number>();
+  for (const d of enemyDefs || []) {
+    for (const r of (d && d.currencyRewards) || []) {
+      const cid = Number(r && r.currencyId) || 0;
+      const amt = Math.floor(Number(r && r.amount) || 0);
+      if (cid < 1 || amt <= 0) continue;
+      totals.set(cid, (totals.get(cid) || 0) + amt);
+    }
+  }
+  return [...totals.entries()].map(([currencyId, amount]) => ({ currencyId, amount }));
+}
 
 // Quest runtime (js/quests.js): created by the engine body at the same point
 // the monolith created it, so timing is identical. The destructured pieces are

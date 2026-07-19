@@ -34,6 +34,9 @@ import {
   dbFor,
   onEnemyKilled,
   noteBattleFailure,
+  currencyRewardTotals,
+  addCurrency,
+  currencyName,
 } from "../state/game-state.js";
 import { getFormula, mzDamageValue, mzHitRoll } from "../../shared/formula.js";
 import { useItemOn, iconEntryHtml, bar } from "./menus.js";
@@ -2305,6 +2308,11 @@ export const Battle: any = {
         const gold =
           defeated.reduce((s: any, e: any) => s + (e.d.gold || 0), 0) *
           (partyAbility("goldDouble") ? 2 : 1);
+        // Per-enemy wallet payouts (multi-currency wallet): one total per
+        // currency across the defeated. Gold Double never scales these —
+        // it doubles only the classic gold field above. Empty = the exact
+        // pre-wallet victory line and payout.
+        const currencyRewards = currencyRewardTotals(defeated.map((e: any) => e.d));
         Music.stop();
         // Victory jingle (M4·B): the 133-command override wins over the
         // imported System ME; "" silences it; none configured = the classic
@@ -2314,10 +2322,14 @@ export const Battle: any = {
         else if (victoryJingle == null) sysSe("levelup");
         const lines: any[] = [];
         await say(
-          "Victory!  +" + exp + " EXP, +" + gold + " " + proj.system.currency,
+          "Victory!  +" + exp + " EXP, +" + gold + " " + proj.system.currency +
+            currencyRewards
+              .map((r: any) => ", +" + r.amount + " " + currencyName(r.currencyId))
+              .join(""),
           900,
         );
         G.gold = clamp(G.gold + gold, 0, 9999999);
+        for (const r of currencyRewards) addCurrency(r.currencyId, r.amount);
         // M3·B: the EXP Rate trait (exr) scales each member's share (×1 natively).
         for (const a of livingP())
           gainExp(a, Math.floor(exp * effRate(a, "special", "expRate", 1)), (m: any) =>

@@ -544,6 +544,14 @@ export interface EnemyDrop {
   denominator: number;
 }
 
+/** One per-victory currency reward row (multi-currency wallet): the defeated
+ *  enemy pays `amount` of Currency Types id `currencyId`, always (no roll).
+ *  Id 1 pays classic gold on top of the enemy's `gold` field. */
+export interface CurrencyReward {
+  currencyId: number;
+  amount: number;
+}
+
 export interface Enemy {
   id: number;
   name: string;
@@ -562,6 +570,10 @@ export interface Enemy {
   /** Enemy category tag (system.types.enemyCategories id). Organisational
    *  only — nothing in the engine reads it. Absent/0 = no category. */
   categoryId?: number;
+  /** Per-victory wallet payouts on top of `gold`. The Gold Double party
+   *  ability doubles only the classic `gold` field, never these rows.
+   *  Absent/empty = the exact pre-wallet rewards. */
+  currencyRewards?: CurrencyReward[];
 }
 
 /** A troop battle-event page condition (Phase 5). An empty cond never fires. */

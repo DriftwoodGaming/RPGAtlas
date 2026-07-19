@@ -26,7 +26,7 @@ vm.runInContext(
 );
 
 const entry = `
-  export { G, currencyBalance, addCurrency, currencyName } from ${JSON.stringify(
+  export { G, currencyBalance, addCurrency, currencyName, currencyRewardTotals } from ${JSON.stringify(
     path.join(root, "src/engine/state/game-state.ts").replace(/\\/g, "/"),
   )};
   export { ctx } from ${JSON.stringify(
@@ -51,7 +51,7 @@ vm.runInContext(
 );
 const api = vm.runInContext("module.exports", context);
 
-const { G, ctx, currencyBalance, addCurrency, currencyName } = api;
+const { G, ctx, currencyBalance, addCurrency, currencyName, currencyRewardTotals } = api;
 ctx.proj = {
   system: {
     currency: "G",
@@ -101,5 +101,30 @@ assert.equal(G.wallet[2], 5, "addCurrency recreates a missing wallet");
 assert.equal(currencyName(1), "G", "currency 1 shows the system.currency unit");
 assert.equal(currencyName(2), "Gems", "wallet currencies show their list name");
 assert.equal(currencyName(99), "?", "unknown currency ids degrade to ?");
+
+// Per-enemy currency rewards: totals merge per currency across the defeated,
+// ordered by first appearance; malformed rows pay nothing.
+const toHost = (v) => JSON.parse(JSON.stringify(v));
+const slime = { currencyRewards: [{ currencyId: 2, amount: 2 }, { currencyId: 3, amount: 1 }] };
+const bat = { currencyRewards: [{ currencyId: 2, amount: 3 }] };
+const plain = {}; // pre-wallet enemy: no rows at all
+assert.deepEqual(
+  toHost(currencyRewardTotals([slime, bat, plain, slime])),
+  [{ currencyId: 2, amount: 7 }, { currencyId: 3, amount: 2 }],
+  "reward rows merge per currency across every defeated enemy",
+);
+assert.deepEqual(toHost(currencyRewardTotals([plain])), [],
+  "enemies without rows pay nothing (the classic victory)");
+assert.deepEqual(toHost(currencyRewardTotals([])), [], "no defeated enemies, no rewards");
+assert.deepEqual(
+  toHost(currencyRewardTotals([{ currencyRewards: [
+    { currencyId: 0, amount: 5 },   // missing/invalid currency
+    { currencyId: 2, amount: 0 },   // zero pays nothing
+    { currencyId: 3, amount: -4 },  // rewards never subtract
+    { currencyId: 1, amount: 5 },   // classic gold IS allowed as a row
+  ] }])),
+  [{ currencyId: 1, amount: 5 }],
+  "malformed rows are skipped; classic-gold rows are honored",
+);
 
 console.log("Currency wallet tests passed");

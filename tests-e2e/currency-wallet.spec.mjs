@@ -83,4 +83,60 @@ test.describe("multi-currency wallet", () => {
 
     expect(errors, `console/page errors:\n${errors.join("\n")}`).toEqual([]);
   });
+
+  test("defeated enemies pay their per-enemy currency rewards", async ({ page }) => {
+    test.setTimeout(90_000); // a real battle at player pacing + boot
+    let troopSize = 0;
+    function addCurrencyRewards(project) {
+      // Every enemy def used by troop 1 pays 2 Gems + 1 Token per defeat and
+      // dies to one hit so the battle stays short. Totals scale with the
+      // troop size, whatever the fixture ships.
+      const troop = project.troops.find((t) => t.id === 1);
+      troopSize = troop.enemies.length;
+      for (const id of new Set(troop.enemies.map(Number))) {
+        const def = project.enemies.find((en) => en.id === id);
+        def.stats.mhp = 1;
+        def.currencyRewards = [
+          { currencyId: 2, amount: 2 },
+          { currencyId: 3, amount: 1 },
+        ];
+      }
+      return project;
+    }
+
+    await gotoWithAtlasQuest(page, "/play.html", { transformProject: addCurrencyRewards });
+    await page.getByText("New Game", { exact: true }).click();
+    await expect(page.locator(".titlewin")).toHaveCount(0);
+    await expect
+      .poll(() => page.evaluate(() => window.Atlas && window.Atlas.atlas.scene), { timeout: 10_000 })
+      .toBe("map");
+
+    // Start troop 1 through the plugin API (the player.spec.mjs battle
+    // harness) and Enter-spam Attack/first-target until it resolves.
+    await page.evaluate(() => {
+      window.__battleResult = null;
+      window.Atlas.atlas.startBattle(1, true).then((r) => { window.__battleResult = r; });
+    });
+    await expect(page.locator(".battlewin")).toBeVisible();
+    await expect
+      .poll(
+        async () => {
+          const done = await page.evaluate(() => window.__battleResult);
+          if (done) return done;
+          if (await page.locator(".cmdwin, .targetwin").count()) {
+            await page.keyboard.press("Enter");
+          }
+          return null;
+        },
+        { timeout: 60_000, intervals: [250] },
+      )
+      .toBe("win");
+    await expect(page.locator(".battlewin")).toHaveCount(0);
+
+    // Every defeated troop member paid its rows: the pause menu wallet line
+    // shows the summed Gems and Tokens.
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".menu-gold")).toContainText(2 * troopSize + " Gems");
+    await expect(page.locator(".menu-gold")).toContainText(troopSize + " Tokens");
+  });
 });

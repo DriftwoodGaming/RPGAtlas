@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 19, 2026",
+    title: "Enemies can drop any currency",
+    summary:
+      "Give every enemy its own currency rewards - a dragon that always leaves Gems behind.",
+    items: [
+      "Database > Enemies > Stats & rewards gains a Currency rewards list: pick a currency and an amount, and add as many rows as you like per enemy.",
+      "Every defeated enemy pays its rows on victory, the totals join the Victory! message ('+4 Gems, +2 Tokens'), and the wallet updates instantly.",
+      "Rewards stack across the troop and across duplicate enemies, and always pay in full - no drop roll.",
+      "The Gold Double party ability still doubles only classic gold, so currency rewards stay predictable.",
+    ],
+  },
+  {
+    date: "July 19, 2026",
     title: "Multiple currencies: wallet, shops, and events",
     summary:
       "Your Currency Types are now real money - earn them, spend them in shops, and gate events on them.",

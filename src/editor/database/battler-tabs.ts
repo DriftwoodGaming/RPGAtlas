@@ -359,6 +359,35 @@ export const enemiesTab = () => listFormTab({
       for (const k of ["mhp", "atk", "def", "mat", "mdf", "agi", "luk"]) st.appendChild(field(k.toUpperCase(), nIn(e.stats, k, 0, 99999)));
       p.appendChild(st);
       p.appendChild(row(field("EXP reward", nIn(e, "exp", 0)), field("Gold reward", nIn(e, "gold", 0))));
+      // Multi-currency wallet: flat per-victory payouts on top of the gold
+      // above. No roll — every defeat pays every row.
+      p.appendChild(h("div", { class: "subhead" }, "Currency rewards"));
+      const cbox = h("div", { class: "minilist" });
+      function redrawC() {
+        cbox.innerHTML = "";
+        (e.currencyRewards || []).forEach((r: any, i: any) => {
+          cbox.appendChild(h("div", { class: "minirow" },
+            sel(r, "currencyId", typeSelOpts("currencyTypes")),
+            h("span", null, "×"), nIn(r, "amount", 1, 9999999),
+            h("button", { class: "mini", onclick() {
+              e.currencyRewards.splice(i, 1);
+              if (!e.currencyRewards.length) delete e.currencyRewards;
+              touch(); redrawC();
+            } }, "✕")));
+        });
+        cbox.appendChild(h("button", { class: "mini", onclick() {
+          // Default a new row to the first wallet currency (Gems in a fresh
+          // project) — the classic gold field above already covers id 1.
+          const list = RA.typeList(S.proj, "currencyTypes");
+          const first = list.find((t: any) => t.id > 1) || list[0];
+          (e.currencyRewards || (e.currencyRewards = [])).push({ currencyId: first ? first.id : 1, amount: 1 });
+          touch(); redrawC();
+        } }, "+ add currency"));
+      }
+      redrawC();
+      p.appendChild(cbox);
+      p.appendChild(h("div", { class: "dim" },
+        "Paid every time this enemy is defeated, on top of the gold above — e.g. a dragon that always leaves 2 Gems."));
       // M3·C: victory drops — each row is one "1 in N" roll on defeat.
       p.appendChild(h("div", { class: "subhead" }, "Drops"));
       const dbox = h("div", { class: "minilist" });
