@@ -251,7 +251,13 @@ export function applyPlayerStates(
     seen.add(s.id);
     let e = world.roster.players.get(s.id);
     if (!e) {
+      // Fresh join: snap render coords onto the spawn (no interpolation streak).
       e = addPlayer(world, s.id, s.name, { mapId: s.mapId, x: s.x, y: s.y, dir: s.dir, charset: s.charset });
+    } else {
+      // Existing peer: the OLD render coords become this tick's "previous", so
+      // the renderer interpolates from where they were to the host's new rx/ry.
+      e.prx = e.rx;
+      e.pry = e.ry;
     }
     e.name = s.name;
     e.charset = s.charset;

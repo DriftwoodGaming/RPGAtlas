@@ -36,6 +36,9 @@
 
 import { ctx } from "./state/engine-context.js";
 import { soloHost } from "./net/solo-session.js";
+import { session } from "./net/session.js";
+import { active } from "./net/active.js";
+import { clientTick } from "./scenes/map.js";
 import { render } from "./render-glue.js";
 import { perfActive, perfSample } from "./perf-hud.js";
 
@@ -54,7 +57,17 @@ export async function loop(now: number): Promise<void> {
   // Perf overlay (Phase 7): time the update+render work only while visible.
   const perfT0 = perfActive() ? performance.now() : 0;
   while (ctx.loopAcc >= TICK_MS) {
-    soloHost.tick();
+    // Project Beacon MP4·B: a JOINED client mirrors the host — it runs the thin
+    // clientTick (capture input → send intents; positions arrive as deltas)
+    // instead of the authoritative world tick. A HOST ticks authoritatively as
+    // in solo, then broadcasts the tick's positions. Solo takes the exact old
+    // path (mode "solo", active.host null) → byte-identical.
+    if (session.mode === "client") {
+      clientTick();
+    } else {
+      soloHost.tick();
+      if (active.host) active.host.afterTick();
+    }
     ctx.loopAcc -= TICK_MS;
   }
   await render();

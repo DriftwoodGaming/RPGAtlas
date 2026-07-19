@@ -17,6 +17,7 @@ import { ctx, fns } from "../state/engine-context.js";
 import { G, actorEffCarrier, param } from "../state/game-state.js";
 import { defaultWorld } from "../state/default-world.js";
 import { soloClient, soloHost } from "../net/solo-session.js";
+import { active } from "../net/active.js";
 import type { Dir, GridDir, InputIntent } from "../../shared/net/protocol.js";
 import { waitTicks, tickTweenTicks, pumpTickTimers } from "../../shared/sim/timers.js";
 import {
@@ -242,6 +243,10 @@ export function update(): void {
   // snapshot start-of-tick positions so render() can interpolate between ticks
   p.prx = p.rx; p.pry = p.ry;
   for (const rt of ctx.evRTs) { rt.prx = rt.rx; rt.pry = rt.ry; }
+  // MP4·B (host): remote players are world entities the host advances — snapshot
+  // their previous-tick coords too. Empty roster (solo) → no-op → byte-identical.
+  if (defaultWorld.roster.players.size)
+    for (const rp of defaultWorld.roster.players.values()) { rp.prx = rp.rx; rp.pry = rp.ry; }
   // player motion — advance the current step, then (if it finished this tick) start the
   // next one immediately, so there's no dead frame at each tile. activePlayerControl()
   // stays false during events/battles, so chaining can't spawn a spurious move.
@@ -276,8 +281,14 @@ export function update(): void {
     else if (d >= 0)
       soloClient.sendInput({ k: "move", dir: CARDINAL_OF[d], dir8: d as GridDir, run: wantsDash() });
     if (ok) soloClient.sendInput({ k: "act" });
-    // world host: drain the tick's intents and apply them in send order
-    for (const pending of soloHost.drainIntents()) applyPlayerIntent(pending.intent);
+    // world host: drain the tick's intents and apply them in send order. Player
+    // 0 is the local player (applyPlayerIntent, unchanged); MP4·B remote peers
+    // (playerId > 0) move their own roster entity. Solo drains only player-0
+    // intents, so this dispatch is byte-identical there.
+    for (const pending of soloHost.drainIntents()) {
+      if (pending.playerId === 0) applyPlayerIntent(pending.intent);
+      else applyRemoteIntent(pending.playerId, pending.intent);
+    }
     // Client prediction seam (MP4): with real latency the local player predicts
     // the step here and reconciles on the server's delta.ack — zero-latency
     // loopback needs none, so the seam is marked and empty.
@@ -286,6 +297,8 @@ export function update(): void {
   if (p.moving) p.animT = (p.animT || 0) + 0; // animT advanced in motion fn
   updateFollowers(playerSpeed);
   updateMapCombat();
+  // MP4·B (host): advance remote players' in-progress steps. No-op in solo.
+  if (defaultWorld.roster.players.size) advanceRemotePlayers();
 
   // events
   for (const rt of ctx.evRTs) {
@@ -404,6 +417,60 @@ function applyPlayerIntent(intent: InputIntent): void {
   if (intent.k === "act") {
     if (!tryVehicleAction()) checkActionTrigger();
   }
+}
+
+/** MP4·B (host): apply one remote player's input to THEIR roster entity. MP4
+ *  supports movement + facing; a remote's attack/act (which would trigger the
+ *  host's events) is a later slice — it rides the participants-only structure. */
+function applyRemoteIntent(pid: number, intent: InputIntent): void {
+  const e = defaultWorld.roster.players.get(pid) as any;
+  if (!e) return;
+  if (intent.k === "face") {
+    e.dir = NUM_OF_CARDINAL[intent.dir];
+    return;
+  }
+  if (intent.k !== "move") return; // attack/act by peers: later slice
+  if (e.moving || e.jumping) return;
+  const d = intent.dir8 != null ? intent.dir8 : NUM_OF_CARDINAL[intent.dir];
+  e.dir = d;
+  const [dx, dy] = DIRD[d];
+  const nx = e.x + dx, ny = e.y + dy;
+  // Collision only against the host's currently-loaded map (same-map co-op). A
+  // peer on another map free-roams (D-0: headless per-zone collision is MP8).
+  if (e.mapId === G.mapId) {
+    if (!diagonalStepClear(e.x, e.y, d, tilePassable)) return;
+    if (!tilePassable(nx, ny) || blockingEventAt(nx, ny)) return;
+    if (G.player && G.player.x === nx && G.player.y === ny) return; // don't stack on the host
+  }
+  startMove(e, d);
+}
+
+/** MP4·B (host): advance every remote player's in-progress step one tick. */
+function advanceRemotePlayers(): void {
+  for (const e of defaultWorld.roster.players.values()) {
+    if ((e as any).moving) updateEntityMotion(e, 0.085);
+  }
+}
+
+/** MP4·B (client): the thin per-tick step a JOINED tab runs instead of the
+ *  authoritative update(). It captures local input and sends it to the host as
+ *  intents (the host is the one authority, D1); the host's deltas drive every
+ *  position, so nothing is simulated here. Animated terrain still advances off
+ *  the host-synced world clock for parity. The loop calls this in client mode
+ *  only — solo/host never reach it, so update() is untouched. */
+export function clientTick(): void {
+  if (ctx.scene === "map") tickMapAnim(ctx.globalT);
+  ctx.Input.poll();
+  const client = active.client;
+  if (!client || ctx.scene !== "map" || ctx.menuOpen) return;
+  const d = ctx.Input.dir(!!ctx.proj.system.eightDirectionMovement);
+  const attack = ctx.Input.consume("attack");
+  const ok = ctx.Input.consume("ok");
+  const cancel = ctx.Input.consume("cancel");
+  if (attack) client.sendInput({ k: "attack" });
+  else if (d >= 0) client.sendInput({ k: "move", dir: CARDINAL_OF[d], dir8: d as GridDir, run: wantsDash() });
+  if (ok) client.sendInput({ k: "act" });
+  if (cancel) fns.openMenu();
 }
 
 function onPlayerStep(): void {

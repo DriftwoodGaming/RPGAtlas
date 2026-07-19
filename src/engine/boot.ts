@@ -70,6 +70,9 @@ import {
 } from "./scenes/map.js";
 import { soloClient, soloHost } from "./net/solo-session.js";
 import { addPlayer, removePlayer } from "../shared/sim/players.js";
+import { session } from "./net/session.js";
+import { active } from "./net/active.js";
+import { createRoom, joinRoom } from "./co-op.js";
 import { createPresentationPort } from "../shared/sim/directives.js";
 import { renderDirective } from "./scenes/directive-renderer.js";
 import { startLoop } from "./loop.js";
@@ -374,6 +377,23 @@ async function boot(): Promise<void> {
     addPlayer: (id: number, name: string, spawn?: any) => addPlayer(soloHost.world, id, name, spawn),
     removePlayer: (id: number) => removePlayer(soloHost.world, id),
     roster: () => soloHost.world.roster,
+    // MP4·B "Play Together (local test)" dev entry (the polished title-screen
+    // flow is MP5·C). Create hosts from a running game (starting one if needed);
+    // Join by code turns this tab into a client that mirrors the host.
+    createRoom: async (name: string) => {
+      if (ctx.scene !== "map") {
+        await newGame();
+        ctx.scene = "map";
+      }
+      return createRoom(name);
+    },
+    joinRoom: (code: string, name: string) => !!joinRoom(code, name),
+    session: () => session,
+    // Diagnostic reads for the two-context e2e (and manual dev): the local
+    // player entity (G.player) and a way to inject a client input intent.
+    localPlayer: () => soloHost.world.g.player,
+    sendInput: (intent: any) => active.client && active.client.sendInput(intent),
+    sendEmote: (emote: string) => active.client && active.client.sendEmote(emote),
   };
 
   // unlock audio on first interaction

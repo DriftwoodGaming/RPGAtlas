@@ -253,26 +253,36 @@ export async function render(): Promise<void> {
 /** Shared empty list so the solo render path allocates nothing per frame. */
 const EMPTY_REMOTES: any[] = [];
 
-/** Draw remote players' name tags on the 2D overlay, in the same
- *  shake+zoom+camera space the combat overlay uses (so it works in both the HD
- *  and Canvas-2D paths). The display name is the ONLY personal fact rendered
- *  (D6). MP4·C extends this pass with transient emote / say bubbles. Called
- *  only when at least one remote player stands on this map — never in solo. */
+/** How long an emote / say bubble stays up (world ticks; ~2.5s at 60 Hz). */
+const PRESENCE_BUBBLE_TICKS = 150;
+
+/** Draw remote players' name tags — and their transient emote / say bubbles
+ *  (MP4·C) — on the 2D overlay, in the same shake+zoom+camera space the combat
+ *  overlay uses (so it works in both the HD and Canvas-2D paths). The display
+ *  name is the only PERSISTENT personal fact rendered (D6); bubbles are the
+ *  always-on social layer (D4). Called only when at least one remote player
+ *  stands on this map — never in solo. */
 function drawRemotePresence(
   g: any, remotes: any[], camX: any, camY: any, zoom: any, shakeX: any, shakeY: any, alpha: any,
 ): void {
   const ipc = (pv: any, cv: any) => (pv == null ? cv : pv + (cv - pv) * alpha);
+  const now = ctx.globalT;
   g.save();
   g.translate(Math.round(shakeX), Math.round(shakeY));
   g.scale(zoom, zoom);
   g.translate(-camX, -camY);
-  g.font = "700 11px " + ((ctx.proj && ctx.proj.system.fontMenu) || "sans-serif");
   g.textAlign = "center";
   g.textBaseline = "alphabetic";
   for (const rp of remotes) {
     const cx = (ipc(rp.prx, rp.rx) + 0.5) * TILE;
     const headY = ipc(rp.pry, rp.ry) * TILE - 6; // just above the sprite's head
+    // Social bubble (emote / free-text say) — the most recent, if still fresh.
+    const emote = rp.emote && now - rp.emote.t < PRESENCE_BUBBLE_TICKS ? rp.emote.id : null;
+    const say = rp.say && now - rp.say.t < PRESENCE_BUBBLE_TICKS ? rp.say.text : null;
+    const bubble = say || emote; // free text (say) wins over an emote token
+    if (bubble) drawPresenceBubble(g, cx, headY - 16, String(bubble));
     if (rp.name) {
+      g.font = "700 11px " + ((ctx.proj && ctx.proj.system.fontMenu) || "sans-serif");
       const w = g.measureText(rp.name).width;
       g.fillStyle = "rgba(0,0,0,0.55)";
       g.fillRect(cx - w / 2 - 3, headY - 12, w + 6, 14);
@@ -282,6 +292,35 @@ function drawRemotePresence(
   }
   g.restore();
   g.globalAlpha = 1;
+}
+
+/** A rounded speech bubble centered at (cx) with its tail bottom at (baseY). */
+function drawPresenceBubble(g: any, cx: number, baseY: number, text: string): void {
+  g.font = "600 12px " + ((ctx.proj && ctx.proj.system.fontMenu) || "sans-serif");
+  const w = Math.min(180, g.measureText(text).width) + 14;
+  const h = 18;
+  const x = cx - w / 2, y = baseY - h;
+  const r = 7;
+  g.fillStyle = "rgba(255,255,255,0.95)";
+  g.strokeStyle = "rgba(0,0,0,0.35)";
+  g.lineWidth = 1;
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y, x + w, y + h, r);
+  g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r);
+  g.arcTo(x, y, x + w, y, r);
+  g.closePath();
+  g.fill();
+  g.stroke();
+  // little tail
+  g.beginPath();
+  g.moveTo(cx - 4, y + h);
+  g.lineTo(cx, y + h + 5);
+  g.lineTo(cx + 4, y + h);
+  g.fill();
+  g.fillStyle = "#101018";
+  g.fillText(text, cx, y + 13);
 }
 
 // ---- bush rendering helpers (Project Compass M4·A) ----
