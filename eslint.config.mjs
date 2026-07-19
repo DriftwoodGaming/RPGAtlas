@@ -35,4 +35,47 @@ export default [
       globals: { ...globals.browser, ...globals.node },
     },
   },
+  {
+    // Project Beacon MP1·C — the headless-world lint wall. Everything under
+    // src/shared/sim/ is the DOM-free, instanced world core: a Beacon server
+    // runs it with no browser, no engine singletons, no audio deck. Seal it off
+    // from DOM globals and from the client/engine/renderer/audio module layers
+    // so a future edit can't quietly reach back into the presentation half and
+    // break instancing (or crash the server). Only pure shared modules and
+    // other sim modules may be imported here.
+    files: ["src/shared/sim/**/*.{ts,js}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "**/engine/**", // engine (client/composition) modules
+                "**/deps", // the window-bridge facade (window at eval)
+                "**/deps.js",
+                "**/audio-deck", // audio output
+                "**/audio-deck.js",
+                "**/renderer/**", // rendering
+                "**/render-glue*",
+                "**/platform/**", // per-device storage / host façades
+                "three", // the WebGL renderer
+              ],
+              message:
+                "src/shared/sim/ is the headless world core (Beacon MP1): it must not import DOM/engine/renderer/audio/platform modules. Keep it pure — only shared pure modules and other sim modules.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-globals": [
+        "error",
+        { name: "window", message: "sim core is headless — no window (MP1·C lint wall)." },
+        { name: "document", message: "sim core is headless — no document (MP1·C lint wall)." },
+        { name: "location", message: "sim core is headless — no location (MP1·C lint wall)." },
+        { name: "localStorage", message: "sim core is headless — no localStorage (MP1·C lint wall)." },
+        { name: "navigator", message: "sim core is headless — no navigator (MP1·C lint wall)." },
+        { name: "Image", message: "sim core is headless — no Image (MP1·C lint wall)." },
+      ],
+    },
+  },
 ];

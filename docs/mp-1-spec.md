@@ -1,6 +1,7 @@
 # Phase MP1 Spec — Instanced Headless World Core ("Project Beacon")
 
-**Status:** stage A landed 2026-07-19 (Fable); stages B–C pending (Opus).
+**Status:** stages A (Fable), B, C (Opus) all landed 2026-07-19; awaiting the
+Fable phase gate (`beacon-1`).
 **Authored:** 2026-07-19 by Claude Fable 5, from the MP1 section of
 `docs/MULTIPLAYER_ROADMAP.md`; the work order is the MP0·B singleton audit
 table in `docs/mp-0-spec.md`, the scope fence is `docs/mp-0-spec.md` §C7.
@@ -219,12 +220,81 @@ behavior change** — every existing suite green, goldens byte-identical.
 | eslint / tsc | **0 / 0** |
 | versions / FORMAT_VERSION / cache-busts | 1.2.0 · 2 · none needed (no ?v= file touched) |
 
-## Stage C — Headless boot + determinism (Opus, pending)
+## Stage C — Headless boot + determinism (Opus, landed 2026-07-19)
 
-Node test: create a world from the Atlas_Quest fixture, tick 600, assert
-invariants; same seed ⇒ identical state hash (the determinism canary).
-Lint wall: `no-restricted-imports` sealing `src/shared/sim/` off from
-DOM/engine modules.
+### What landed
+
+- **`tests/sim-headless-boot.test.js`** (NEW, node --test → **46**) — the
+  headless-boot + determinism canary:
+  - **Boot:** `createWorld(Atlas_Quest.json, {seed})` under esbuild+vm with the
+    classic-script window stub — the world boots seeded, project bound by
+    reference, fresh `g`, tick 0; a second world from the same fixture shares no
+    state (the server-hosting isolation the whole extraction exists for).
+  - **Tick 600 + determinism:** a fixed driver ticks the world 600× through its
+    OWN surface — the seeded RNG stream (NPC random-walk + step/encounter rolls,
+    consuming the stream exactly where `update()`/`onPlayerStep()` do) plus the
+    REAL migrated world subsystem `scenes/presentation-runtime` (tint/picture/
+    scroll ops with RNG-drawn params, its per-tick tweens + timer advanced by
+    `updatePresentation()`/`tickTimer()`). A stable FNV-1a hash over the
+    resulting world state (`tick/steps/encSteps/vars/rngSeed/tint/scroll/
+    serializePresentation()`) is asserted: **same seed ⇒ identical hash** (two
+    independent realms), **different seed ⇒ different hash** (RNG truly drives
+    it), and the SEED_A hash is **pinned** (`46633057`) so a change to
+    `mulberry32` or the world RNG draw order is caught. Invariants: exactly 600
+    ticks, 75 steps, encounter counter in `[0, rate)`, non-negative integer
+    battle count.
+- **`eslint.config.mjs`** — the **headless-world lint wall**: a config block
+  scoped to `src/shared/sim/**` with `no-restricted-imports` (blocks
+  `**/engine/**`, `deps`, `audio-deck`, `**/renderer/**`, `render-glue`,
+  `**/platform/**`, `three`) + `no-restricted-globals` (window, document,
+  location, localStorage, navigator, Image). Verified it FIRES on a probe file
+  (engine + audio-deck imports and a `window` reference all error) and is CLEAN
+  on the real tree (`world.ts` imports only `../rng.js`).
+
+### Design decisions (stage C)
+
+- **C1 — The canary tests the world *instance's* determinism, by necessity.**
+  MP1's scope fence (mp-0-spec §C7) keeps the engine's real per-tick driver
+  (`update()`/`onPlayerStep()`, which are render/input/DOM-bound) OUT of the
+  world until MP2 moves tick ownership in. So "tick 600" at MP1 is a test-side
+  driver over the world's own surface — the RNG stream + the migrated world
+  subsystems — mirroring the engine's per-tick world RNG consumption. It runs
+  REAL migrated code (`presentation-runtime`) and REAL world state, so it
+  catches genuine nondeterminism (a stray `Math.random`/`Date.now()` in world
+  logic, an RNG algorithm drift). **MP2's gate re-runs determinism through the
+  real loopback tick** — this canary is the guard that lets it.
+- **C2 — Golden decoupled from the fixture.** The pinned hash depends only on
+  `seed` + `mulberry32` + the fixed driver, NOT on fixture contents, so a future
+  Atlas_Quest regeneration doesn't spuriously break it. The fixture is still
+  genuinely exercised — the world is *created from it* and its `proj`/`maps`/
+  `system` are asserted at boot.
+- **C3 — Two realms, not reset-in-place.** Same-seed determinism is proven by
+  two independent vm realms (fresh default world each), a true two-instance
+  compare — the isolation guarantee, not just repeatability.
+- **C4 — Lint wall = imports AND globals.** `no-restricted-imports` alone can't
+  catch `document`/`window` *usage* (those are globals, not imports), so the
+  wall pairs it with `no-restricted-globals` — the sim can't reach the DOM by
+  either door.
+
+### Deviations / discoveries (stage C)
+
+- **D-C1 (the vm-realm `deepEqual` trap, as warned):** `assert.deepEqual(w.g.party,
+  [])` failed with `actual: [], expected: []` — the sandbox realm's `Array`
+  prototype differs from the test realm's, and strict deepEqual is prototype-
+  sensitive across realms. Fixed with a structural check
+  (`Array.isArray(...) && .length === 0`), the same workaround
+  `presentation-runtime.test.js` uses (`jsonEq`).
+
+### Stage C gate snapshot (all green, 2026-07-19)
+
+| Gate | Result |
+|---|---|
+| vitest | **1028** (unchanged — stage C adds a node test + lint config, no vitest) |
+| node --test | **46** (+1 sim-headless-boot) |
+| cargo | **26** |
+| Playwright | **123/123** — goldens byte-identical (stage C changed no runtime source; only eslint config + a new node test) |
+| eslint / tsc | **0 / 0** (the new sim lint wall is clean and proven to fire) |
+| versions / FORMAT_VERSION / cache-busts | 1.2.0 · 2 · none needed |
 
 ## Phase gate (Fable, after C)
 
