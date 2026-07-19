@@ -1,8 +1,9 @@
 # Phase MP4 Spec — Local Multi-Client Co-op ("Project Beacon")
 
-**Status:** stages A–D landed 2026-07-19 (Opus) — local co-op works: two tabs
-share a world over BroadcastChannel (join, mirror, host-authoritative movement,
-emote/say bubbles, late-join). **Phase gate pending (Fable).**
+**Status:** ✅ **PHASE COMPLETE — Fable gate PASS 2026-07-19, tag `beacon-4`**
+(verdict at the bottom of this file). Stages A–D landed 2026-07-19 (Opus) —
+local co-op works: two tabs share a world over BroadcastChannel (join, mirror,
+host-authoritative movement, emote/say bubbles, late-join).
 **Authored:** 2026-07-19 by Claude Opus 4.8 (stage A build), from the MP4 section
 of `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-3-spec.md` + the MP0·B singleton
 audit / §C6 origins.
@@ -339,3 +340,97 @@ Project Beacon — MP4 GATE (Fable). Read docs/MULTIPLAYER_ROADMAP.md (MP4) + do
 Re-run template gates; run the new two-context e2e (tests-e2e/mp-coop.spec.mjs) 3× consecutively; goldens untouched; audit presence messages carry no data beyond name+entity state (D6). Also spot-check the solo-inert gating (session.mode/roster/active.host guards) that keeps the goldens byte-identical, and confirm the D-0/D-B2..B5 scope deferrals (headless NPC ticking, leave detection, remote attack/act, per-map spawns) are the intended MP5/MP6/MP7/MP8 boundaries.
 Record verdict, tag beacon-4, push, end with the MP5 BUILD hand-off block.
 ```
+
+---
+
+## Fable gate verdict — PASS (2026-07-19, Claude Fable 5)
+
+Every gate independently re-run on a clean tree at `7cc6f8d`; every audit done
+by reading the landed source, not the spec's claims.
+
+### Template gates (all re-verified)
+
+| Gate | Re-run result |
+|---|---|
+| vitest | **1075 / 1075** (71 files) — matches the build's count |
+| node --test | **46 / 46** |
+| cargo | **26 / 26** (Rust untouched by MP4) |
+| Playwright (full) | **125 / 125** (2.8 m) — all 123 single-player goldens green; `git diff beacon-3..HEAD -- '*.png'` is **empty** (zero baseline images changed = goldens untouched at the byte level) |
+| renderer-perf | **234.62 ms/frame** (budget 300; beacon-3 gate 252.03, build 237.40 → within band, marginally faster) |
+| mp-coop flake bar | **3× consecutively green with `--workers=1`** (strictly serial), plus 3× green on the default 2-worker run — 6/6 total |
+| eslint / tsc | **0 / 0** — and the sim wall **fires on a probe** (a temporary `engine/assets.js` import in `players.ts` errors with the Beacon MP1 restriction message; file restored, `git diff` clean) |
+| versions / FORMAT_VERSION / cache-busts | **1.2.0 at all 7 sites** (package.json, tauri.conf.json, Cargo.toml, Cargo.lock, README badge, help.ts, patch-notes.js) · **FORMAT_VERSION 2** (js/data.js) · **no `?v=` file in the beacon-3..HEAD diff** → no cache-busts needed, as claimed |
+| i18n | no locale strings added (toast/bubble text is player-supplied names + inline styling; localized Play Together UI is MP5·C/MP7) — parity unchanged |
+
+### D6 presence audit — CLEAN
+
+Both wire directions read from source:
+
+- **Host outbound:** `welcome` (proto/playerId/roomCode/resumeToken/tick),
+  `snapshot`/`delta` (the `PlayerState` list: id + name + charset key + mapId +
+  motion — exactly "name + entity state"), `presence` (join carries name; emote
+  carries the emote id; say carries text/preset — the D4 social layer the
+  protocol marks as the D6 audit surface), per-player `directive` frames.
+- **Client outbound:** `hello` (proto + name), `input` (seq + intent), `reply`,
+  `emote`, `chat`. Nothing else exists.
+- No IP (structurally impossible over BroadcastChannel, and nothing synthesizes
+  one), no input history rebroadcast to peers (input flows client→host only),
+  no device data, no PII. Names truncated to 24 chars on both ends, matching
+  the protocol validator. The resume token is random filler in MP4 (local bus)
+  and correctly flagged as not-a-secret until MP5 issues real ones.
+
+### Solo-inert audit — CLEAN (the goldens' guarantee, verified in source)
+
+- `session.ts` defaults `mode = "solo"`; only `RoomHost`/`RoomClient`
+  constructors ever change it.
+- `loop.ts`: solo takes the exact pre-MP4 path (`soloHost.tick()`);
+  `active.host` is null in solo so `afterTick()` never runs — and even a lone
+  host sends nothing (`!this.clients.size` early-out).
+- `scenes/map.ts`: the roster prx snapshot and `advanceRemotePlayers()` both
+  gate on `roster.players.size` (0 in solo); intent dispatch routes player 0
+  through the unchanged `applyPlayerIntent`; `clientTick()` is reachable only
+  from the loop's client branch, so `update()` is untouched in solo AND client
+  modes.
+- `render-glue.ts`: `playersOnMap` returns the shared EMPTY array in solo →
+  zero remote drawables pushed and `drawRemotePresence` never called.
+- `boot.ts` `RPGATLAS_MP` + `co-op.ts` are pure dev hooks — nothing in normal
+  play reaches them.
+
+### Scope deferrals — CONFIRMED as the intended phase boundaries
+
+- **D-0 / D-B4** (headless NPC ticking on unrendered maps; clients see static
+  host NPCs) → **MP8·A** is exactly "zone-per-map sharding + per-zone runtime"
+  in the roadmap. Correct line: pulling it into a local phase would duplicate
+  MP8 against the golden gate for no local benefit.
+- **D-B2** (leave detection) → **MP5·A** owns resume-token reconnect +
+  empty-room expiry + heartbeats; BroadcastChannel has no disconnect signal.
+  `applyPlayerStates` reconciliation + `removePlayer` already exist for the
+  reaper. The e2e never requires a leave, so the MP4 proof is not weakened.
+- **D-B3** (remote attack/act) → **MP6** (co-op battles) is where remote action
+  against world events gets its real treatment; `applyRemoteIntent` handles
+  move + face with the participants-only structure in place.
+- **D-B5** (all joiners spawn on the start tile) → **MP7·A** explicitly adds
+  per-map spawn points in the Database.
+
+### Gate rulings / notes
+
+1. **Roadmap MP4·D's "trigger a directive event" e2e item — ACCEPTED as
+   satisfied headlessly.** The two-context browser e2e does join/mirror/move/
+   emote/late-join but not a remote-triggered directive — a direct consequence
+   of D-B3 (peers can't act yet). The directive path over the REAL BroadcastChannel
+   bus is proven by `tests-unit/room-session.test.ts` ("a directive routes to
+   the right client and its reply resumes the host"). MP6 owns the live-browser
+   proof when remote action lands.
+2. **Doc nit (non-blocking):** `co-op.ts`'s header mentions a "(title, ?mp=1)"
+   dev entry; no `?mp=1` wiring exists — `window.RPGATLAS_MP` is the only
+   entry. The comment overstates the surface; reality is *more* inert than
+   documented. Tidy the comment whenever the file is next touched (MP5·C
+   replaces this flow anyway).
+3. **D-B1 (no `PROTOCOL_VERSION` bump) — ACCEPTED again.** MP4 adds no message
+   type or field; the snapshot/delta payload rides the already-opaque
+   `JsonValue` channels. Consistent with the MP3 gate ruling (v1 absorbs
+   additive content until 2.0 freezes it) and this time it isn't even additive
+   at the schema level.
+
+**Verdict: PASS.** Tag `beacon-4`. MP5 (Beacon server, rooms & transport —
+Opus build, Fable SECURITY gate) is next.
