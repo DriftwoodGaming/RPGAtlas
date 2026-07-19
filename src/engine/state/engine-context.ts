@@ -12,6 +12,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { defaultWorld } from "./default-world.js";
+
 export const ctx: any = {
   // project + DOM roots (set at boot)
   proj: null,
@@ -61,6 +63,37 @@ export const ctx: any = {
   dashLatch: false,
   dashPrev: false,
 };
+
+// ---- Project Beacon MP1·A compat shim -------------------------------------
+// The world-classed ctx fields (MP0·B singleton audit) now LIVE on the
+// default world instance (src/shared/sim/world.ts); the accessors below keep
+// every existing `ctx.<field>` read/write working unchanged — same values,
+// same object identities, same enumeration order (the literal keys above are
+// redefined in place; their initializers are mirrored by createWorld()).
+// `globalT` is the one rename: it is the world's `tick`, the clock every
+// future snapshot/delta message carries. Client and config fields stay plain
+// data properties on ctx — a browser tab is one client; module scope remains
+// correct for those.
+const WORLD_SLICE = [
+  ["proj", "proj"],
+  ["cameraZoom", "cameraZoom"],
+  ["map", "map"],
+  ["evRTs", "evRTs"],
+  ["blockingRun", "blockingRun"],
+  ["parallels", "parallels"],
+  ["commonParallels", "commonParallels"],
+  ["globalT", "tick"],
+] as const;
+for (const [ctxKey, worldKey] of WORLD_SLICE) {
+  Object.defineProperty(ctx, ctxKey, {
+    enumerable: true,
+    configurable: true,
+    get: () => (defaultWorld as any)[worldKey],
+    set: (v: any) => {
+      (defaultWorld as any)[worldKey] = v;
+    },
+  });
+}
 
 /** Late-bound engine functions (refreshAllPages, openMenu, Battle, Plugins,
  *  gameOver, toTitle). Modules that would need an upward/cyclic import call

@@ -8,7 +8,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Sfx } from "../shared/deps.js";
-import { mulberry32 } from "../shared/rng.js";
+import { defaultWorld } from "./state/default-world.js";
 
 export function el(tag: string, cls?: string, html?: any): HTMLElement {
   const e = document.createElement(tag);
@@ -23,20 +23,21 @@ export function clamp(v: number, a: number, b: number): number {
   return v < a ? a : v > b ? b : v;
 }
 // ------------------------- gameplay random source ---------------------------
-// Every gameplay roll (rnd/rndf below) draws from this module-level source:
-// NPC random walks, encounter timing, battle variance/crits/escape/AI picks.
-// Unseeded (the default players get) it IS Math.random — behavior identical to
-// before this seam existed. Seeded, it becomes a mulberry32 stream
-// (src/shared/rng.ts), so a run's rolls are a pure function of seed + tick
-// count: pixel-comparing e2e specs seed it pre-boot (?rngseed= query param or
-// window.RPGATLAS_RNG_SEED from a Playwright init script) instead of pinning
-// movers, and a playtest bug can be re-rolled exactly via window.AtlasRng.
-let random: () => number = Math.random;
+// Every gameplay roll (rnd/rndf below) draws from the DEFAULT WORLD's RNG
+// stream (Project Beacon MP1·A: per-world in src/shared/sim/world.ts, so a
+// server can host many independent seeded simulations): NPC random walks,
+// encounter timing, battle variance/crits/escape/AI picks. Solo behavior is
+// exactly the old module-level source — unseeded it IS Math.random; seeded it
+// becomes a mulberry32 stream, so a run's rolls are a pure function of seed +
+// tick count: pixel-comparing e2e specs seed it pre-boot (?rngseed= query
+// param or window.RPGATLAS_RNG_SEED from a Playwright init script) instead of
+// pinning movers, and a playtest bug can be re-rolled exactly via
+// window.AtlasRng. All three hooks bind to the default world.
 
-/** Swap the gameplay random source: a number seeds a deterministic mulberry32
- *  stream; null/undefined restores unseeded Math.random. */
+/** Swap the DEFAULT world's random source: a number seeds a deterministic
+ *  mulberry32 stream; null/undefined restores unseeded Math.random. */
 export function seedRnd(seed: number | null | undefined): void {
-  random = seed == null ? Math.random : mulberry32(seed >>> 0);
+  defaultWorld.seedRnd(seed);
 }
 
 // Pre-boot seeding + the runtime hook. Module scope on purpose: this module is
@@ -56,12 +57,12 @@ if (typeof window !== "undefined") {
 }
 
 export function rnd(n: number): number {
-  return Math.floor(random() * n);
+  return defaultWorld.rnd(n);
 }
 /** Uniform float in [0,1) from the same (seedable) stream as rnd() — the
  *  drop-in for gameplay code that used to call Math.random() directly. */
 export function rndf(): number {
-  return random();
+  return defaultWorld.rndf();
 }
 export function compareVariable(a: any, b: any, cmp: any): boolean {
   switch (cmp) {

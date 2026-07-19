@@ -14,28 +14,16 @@
 import { RA, RPGAtlasQuests } from "../../shared/deps.js";
 import { clamp, sysSe } from "../util.js";
 import { ctx, fns } from "./engine-context.js";
+import { defaultWorld } from "./default-world.js";
 
-export const G: any = {
-  switches: {},
-  vars: {},
-  selfSw: {},
-  quests: {},
-  party: [],
-  inv: { item: {}, weapon: {}, armor: {} },
-  gold: 0,
-  // Extra-currency balances keyed by system.types.currencyTypes id (ids ≥ 2
-  // only — id 1, the classic gold, stays in G.gold so every legacy reader
-  // keeps working). Saves round-trip it; old saves load as {}.
-  wallet: {},
-  mapId: 0,
-  steps: 0,
-  encSteps: 0,
-  // In-game clock (hours 0–24) for the HD-2D day/night cycle. Lives in game
-  // state so saves round-trip it; maps can pin it (hd2d.timeOfDay) and
-  // scripts drive it (game.setTimeOfDay) — nothing advances it implicitly.
-  timeOfDay: 12,
-  player: null,
-};
+// Project Beacon MP1·A: the game state now LIVES on the default world
+// instance — the initial shape moved verbatim to createInitialGameState() in
+// src/shared/sim/world.ts. `G` stays the same const object reference for the
+// life of the session, so every stable-identity assumption holds unchanged:
+// the quest runtime closes over it, saves and New Game mutate its fields in
+// place, and no reader can tell the difference. Multiplayer code reaches
+// OTHER worlds' state as `world.g`; this binding is the solo session's.
+export const G: any = defaultWorld.g;
 
 export function expForLevel(lv: any): number {
   let t = 0;
