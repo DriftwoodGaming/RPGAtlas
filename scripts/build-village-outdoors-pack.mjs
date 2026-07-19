@@ -225,7 +225,7 @@ async function renderPack() {
       rect(g, x + 4, 29, 5, 5, "#9fd0cf", "#594b3b", 0.8); rect(g, x + width - 9, 29, 5, 5, "#f0c978", "#594b3b", 0.8);
       line(g, [[x + 6.5, 29], [x + 6.5, 34]], "#e4eee6", 0.45); line(g, [[x + width - 6.5, 29], [x + width - 6.5, 34]], "#f8e5b3", 0.45);
     };
-    const drawBuilding = ([name, kind, roof, wall]) => {
+    const drawBuilding = ([, kind, roof, wall]) => {
       const canvas = makeCanvas(); const g = canvas.getContext("2d");
       if (["well", "fountain", "market", "windmill"].includes(kind)) ellipse(g, 24, 41, 15, 3.5, "#18251d55");
       if (kind === "well") {
@@ -277,7 +277,7 @@ async function renderPack() {
       else if (kind === "sign") { ellipse(g, 24, 41, 7, 2, "#18251d55"); rect(g, 22, 17, 4, 23, dark, "#4a352a", 0.7); polygon(g, [[8, 15], [36, 15], [41, 21], [36, 27], [8, 27]], light, "#4b3428", 1); line(g, [[13, 21], [32, 21]], "#6a452d", 1); }
       return downsample(canvas).toDataURL("image/png");
     };
-    const drawBoundary = ([name, arms, kind]) => {
+    const drawBoundary = ([, arms, kind]) => {
       const canvas = makeCanvas(); const g = canvas.getContext("2d");
       if (kind === "wall") {
         const vertical = arms === "ns";
@@ -326,7 +326,7 @@ async function renderPack() {
       const image = new Image(); image.src = src; await image.decode(); return [name, image];
     })).then(async (loaded) => {
       const meadowImage = new Image(); meadowImage.src = meadow; await meadowImage.decode();
-      loaded.forEach(([name, image], index) => {
+      loaded.forEach(([, image], index) => {
         const x = (index % 10) * tileSize, y = Math.floor(index / 10) * tileSize;
         if (index >= grounds.length) pg.drawImage(meadowImage, x, y);
         pg.drawImage(image, x, y);

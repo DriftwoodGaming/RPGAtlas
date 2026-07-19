@@ -89,7 +89,7 @@ function toggle(label: string, description: string, checked: boolean, onChange: 
 
 export function openGeneratorHub(initialId = "weapon"): void {
   let selected = definitionById(initialId);
-  let favorites = loadFavorites();
+  const favorites = loadFavorites();
   let showFavorites = false;
   const optionsById = new Map<string, HubOptions>();
   const resultsById = new Map<string, GeneratedName[]>();
