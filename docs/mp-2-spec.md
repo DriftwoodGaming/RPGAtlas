@@ -1,7 +1,8 @@
 # Phase MP2 Spec — Loopback Client/Server ("Project Beacon")
 
-**Status:** IN PROGRESS — stage A landed 2026-07-19 (Opus). Build model: Opus;
-Fable gates the phase and tags `beacon-2`.
+**Status:** BUILD COMPLETE — stages A, B, C all landed 2026-07-19 (Opus);
+awaiting the Fable phase gate (verdict below) + tag `beacon-2`. Build model:
+Opus; Fable gates the phase and tags `beacon-2`.
 **Authored:** 2026-07-19 by Claude Opus 4.8, from the MP2 section of
 `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-1-spec.md` + the MP0·C sim-boundary
 spec (`docs/mp-0-spec.md` §C5/§C6/§C7).
@@ -242,3 +243,73 @@ movement decision moved verbatim.
 | Playwright | **123/123** (2.8m) — pixel goldens byte-identical; renderer-perf 240.73 ms/frame (budget 300) |
 | eslint / tsc | **0 / 0** |
 | versions / FORMAT_VERSION / cache-busts | 1.2.0 · 2 · none needed (no `?v=` file touched) |
+
+---
+
+## Stage C — Perf check (Opus, 2026-07-19)
+
+### What landed
+
+No source — stage C is the perf gate + this write-up. The MP2·C requirement is
+the renderer frame budget within **±10% of the pre-MP2 (beacon-1) numbers** on
+the showcase map; the beacon-1 gate recorded **250.92 ms/frame** (budget 300,
+SwiftShader).
+
+- **Measured (renderer-perf e2e, all-features HD-2D @ 1080p):** **172.96
+  ms/frame** standalone; **240.73 ms/frame** under full-suite concurrency. Both
+  are inside the 300 ms budget and within ±10% of 250.92 (the standalone run is
+  well under it). SwiftShader run-to-run variance and concurrent CPU load
+  dominate the spread — there is no measurable regression from the seam.
+- **Why it is effectively free:** the only added per-tick work on an idle frame
+  is a `drainIntents()` that returns a shared empty array (zero allocation) and
+  a `for` over nothing; `dir()`/the three `consume()` calls already ran every
+  tick before MP2. Intents allocate only on a tick where the player is actually
+  pressing a control — never in the stationary goldens.
+
+### Stage C gate snapshot (2026-07-19)
+
+| Gate | Result |
+|---|---|
+| Perf | **within budget** — 172.96 ms/frame (standalone) / 240.73 (full-suite), budget 300, beacon-1 250.92 → within ±10%, no regression |
+| cargo | **26** (Rust untouched) |
+
+---
+
+## Phase gate (Fable, after C)
+
+Template gates + **full Playwright including pixel goldens byte-identical vs
+beacon-1** (THE gate of the whole project) + perf budget held + audit the
+loopback path for hidden direct world access from presentation code (grep the
+renderer/UI for sim imports that bypass the mirror). Verdict recorded here +
+roadmap status table; tag `beacon-2`.
+
+### Gate verdict — ⏳ PENDING (Fable)
+
+Build (Opus) hand-off numbers, to be independently re-verified by the Fable gate:
+
+| Gate | Build result (re-verify) |
+|---|---|
+| vitest | **1037** (66 files) |
+| node --test | **46** |
+| cargo | **26** |
+| Playwright | **123/123** — pixel goldens byte-identical to beacon-1 (the MP2 diff touches zero golden PNGs; player is stationary in every golden so no-input → no-intent → identical world advancement). Perf 240.73 ms/frame (budget 300). |
+| eslint / tsc | **0 / 0** |
+| FV / version / cache-busts | 2 · 1.2.0 · none (no `?v=` file touched) |
+
+**Loopback-path audit pointers for the gate** (per the GATE kickoff — "grep the
+renderer/UI for sim imports that bypass the mirror"):
+
+- The renderer (`render-glue.ts`) and UI still read world state through the
+  existing ctx/G shim → `defaultWorld`, which in loopback **is** the mirror
+  (`soloClient.view === defaultWorld`, by reference — MP2·A A4). No presentation
+  module imports `src/shared/sim/` directly; the mirror-by-reference is the
+  documented loopback posture, and MP4 replaces `ClientSession.view` with a
+  reconstruction (the swap is isolated to `client-session.ts`).
+- Player map-control input no longer writes the world directly from `update()`:
+  it is captured to intents and applied only via `applyPlayerIntent` after the
+  transport round-trip (`soloClient.sendInput` → `soloHost.drainIntents`).
+- Remaining *direct* input→world sources are documented and intentional (§B5):
+  the route-cancel `ctx.Input.dir()` peek (a non-consuming read of the same
+  "direction held" signal the move intent carries), tap-to-move (sets a path
+  route), the §C5 menu verbs (defined on the wire, routed at the verb-API
+  extraction phase), and battle input (its own async scene, MP6).
