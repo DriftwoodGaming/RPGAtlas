@@ -1,7 +1,7 @@
 # Phase MP1 Spec — Instanced Headless World Core ("Project Beacon")
 
-**Status:** stages A (Fable), B, C (Opus) all landed 2026-07-19; awaiting the
-Fable phase gate (`beacon-1`).
+**Status:** ✅ **PHASE COMPLETE** — stages A (Fable), B, C (Opus) landed
+2026-07-19; Fable phase gate **PASS** 2026-07-19, tag `beacon-1`.
 **Authored:** 2026-07-19 by Claude Fable 5, from the MP1 section of
 `docs/MULTIPLAYER_ROADMAP.md`; the work order is the MP0·B singleton audit
 table in `docs/mp-0-spec.md`, the scope fence is `docs/mp-0-spec.md` §C7.
@@ -301,3 +301,61 @@ behavior change** — every existing suite green, goldens byte-identical.
 Template gates + Playwright goldens byte-identical + determinism hash test +
 headless-boot node test + lint wall in place + compat-shim drift spot-audit.
 Verdict recorded here + roadmap status table; tag `beacon-1`.
+
+### Gate verdict — ✅ PASS (Claude Fable 5, 2026-07-19)
+
+Every number below independently re-run at `66790ad`, trusting nothing
+written above:
+
+| Gate | Independent result |
+|---|---|
+| vitest | **1028** passed (65 files) |
+| node --test | **46** passed (incl. `tests/sim-headless-boot.test.js`) |
+| cargo | **26** passed |
+| Playwright | **123/123** (2.9m) — all renderer goldens pass against the pre-MP1 committed PNGs; the MP1 diff (`0f9ae0a..66790ad`) touches **zero** golden files, so passing = byte-identical. Perf spec 250.92 ms/frame (budget 300). |
+| eslint / tsc | **0 / 0** |
+| Lint wall | Probe file in `src/shared/sim/` importing `engine-context` + `deps` + `audio-deck` and using `window`/`document` → **5 wall errors fired** (3× no-restricted-imports, 2× no-restricted-globals); probe deleted; real tree clean. Wall config verified: scoped to `src/shared/sim/**`, blocks engine/deps/audio-deck/renderer/render-glue/platform/three imports AND window/document/location/localStorage/navigator/Image globals. |
+| Determinism canary | Re-run standalone: golden **46633057** re-computed and matched for seed 20260719; same-seed identical across two independent vm realms (true two-instance compare); different-seed divergent; 600 ticks / 75 steps / encSteps ∈ [0,30) invariants held. Canary honestly guards the **world instance's** surface only — the engine tick-driver stays out until MP2, which re-gates determinism through the loopback tick (spec §C1 confirmed accurate). |
+| Headless boot | World created from the real `Atlas_Quest.json` fixture under esbuild+vm, seeded, tick 0, fresh `g`; two worlds from one fixture fully isolated. |
+| Sim purity | `src/shared/sim/` = `world.ts` only; sole import `../rng.js` (pure). No DOM/engine/audio reachable. |
+| FV / version / cache-busts | FORMAT_VERSION **2** (`js/data.js`) · version **1.2.0** · no `?v=` file touched in MP1 → no busts needed. |
+
+**Compat-shim drift spot-audit (all 6 migrated engine modules diffed against
+pre-MP1 `0f9ae0a`) — CLEAN, zero behavior drift found:**
+
+- `state/game-state.ts` — the `G` literal moved **verbatim** into
+  `createInitialGameState()` (field-by-field compare: identical keys, order,
+  comments); `G = defaultWorld.g` is a stable const alias; `initQuestRuntime`
+  builds the identical runtime (same args, same `getProj`/`now` closures),
+  stores it on `defaultWorld.questRuntime` first, then mirrors to the same
+  live exports.
+- `scenes/map.ts` — `waitFrames`/`tickTween`/`pumpTickTimers` reproduce the
+  exact swap-drain algorithm against `defaultWorld.tickTimers` (unfinished
+  timers re-pushed into the fresh array, so a `step` callback scheduling a new
+  wait behaves identically); `lastTimeBand`/`forcedEncounterArmed` initial
+  values match `world.ts` (`""`/`false`); `frameWaiters` correctly stays
+  module-level (client render pacing).
+- `scenes/zone-runtime.ts` — `Z` is a const alias of `defaultWorld.zone`;
+  `resetZoneState`'s in-place `Object.assign(Z, emptyState())` covers **all 7**
+  `ZoneState` fields (interface field-count verified), so no stale state can
+  survive vs the old wholesale reassignment; fresh `Set` for `inside`.
+- `scenes/presentation-runtime.ts` — `pictures`/`scroll` stable aliases;
+  every `tint`/`tintTween`/`timer`/`scrollTween` read/write site lands on
+  `defaultWorld.*`; timer semantics preserved (in-place `frames--` on the live
+  object; wholesale reassign on `startTimer`/`restore` with all readers
+  fetching `defaultWorld.timer` at call time — no staleness);
+  serialize/restore + `__test` hooks route through the world.
+- `state/engine-context.ts` — the 8-field world slice redefined **in place**
+  over the existing literal keys (enumeration order preserved, pinned in
+  vitest); literal initializers match `createWorld()`'s exactly
+  (`null/1/null/[]/false/Map/Map/0`); accessors enumerable + live both ways.
+- `util.ts` — `seedRnd/rnd/rndf` delegate to the default world;
+  capture-at-seed-time semantics preserved to the letter (including capturing
+  the `Math.random` function value on null reseed); `?rngseed=` /
+  `RPGATLAS_RNG_SEED` / `AtlasRng` hooks stay client-side in `util.ts` and
+  bind the default world (proven in `tests/world-shim.test.js`, incl. the
+  pre-boot-seed-drives-first-roll assert).
+
+MP1 diff footprint confirmed tight: 6 engine modules + 2 new seam files
+(`sim/world.ts`, `state/default-world.ts`) + eslint config + spec + 4 test
+files — no renderer/boot/UI source touched.
