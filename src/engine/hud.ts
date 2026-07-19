@@ -182,7 +182,6 @@ function rebuildTracker(node: WidgetNode, active: any[]): void {
     }
     node.el.appendChild(box);
   }
-  node.el.style.display = active.length ? "" : "none";
 }
 
 function boundValue(widget: any): { text: string; current: number; max: number } {
@@ -238,6 +237,10 @@ export function updateHud(): void {
       const active = (ctx.proj.quests || [])
         .filter((quest: any) => quest.visible !== false && Quests.status(quest.id) === "active")
         .slice(0, widget.questLimit || 3);
+      // The tracker owns its visibility every frame (the generic reset above
+      // would otherwise re-show an EMPTY panel one frame after rebuildTracker
+      // hid it — the sig short-circuit skips the rebuild that hides it).
+      node.el.style.display = active.length ? "" : "none";
       const sig = questSignature(active);
       if (sig !== node.lastSig) {
         const isUpdate = node.lastSig != null && active.length > 0;
