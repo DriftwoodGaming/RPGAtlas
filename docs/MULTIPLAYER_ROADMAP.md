@@ -271,6 +271,9 @@ This phase retires the "did the split change the game?" risk permanently.
 - **A** `LoopbackTransport` (passes structured objects by reference — no
   serialization cost in-process; wire-safety is already proven by MP0's
   round-trip tests) + the client-side world-mirror the renderer reads.
+- *MP0·C note:* menu verbs (use item, equip, formation) are world writes and
+  ride the intent channel — additive `input` intents defined at stage B here,
+  per `docs/mp-0-spec.md` §C5.
 - **B** Input intents → world; tick ownership moves into the world instance
   (`loop.ts` drains ticks by driving the world); prediction NOT needed here
   (zero-latency loopback) but the seam for it is left marked.
@@ -303,7 +306,11 @@ The trickiest surgery: modal event commands stop touching UI directly and
 instead emit directives through a presentation port; the client renders them
 with the existing message/ui-stack code and sends replies. Waits become
 world-tick waits. Every command handler stays node-testable (they already are —
-extend that discipline).
+extend that discipline). *MP0·C note (risk shrank):* interpreter waits are
+ALREADY tick-based (`waitFrames`/`tickTimers`; only 5 `sleep()` sites exist,
+all presentation pacing) — stage A is the directive engine + a move of
+`tickTimers` into the world, not a wait rewrite. Lifecycle contract:
+`docs/mp-0-spec.md` §C3.
 
 - **A (Fable)** The directive/reply engine: per-player interpreter contexts
   (who triggered this event; which player a directive targets), the

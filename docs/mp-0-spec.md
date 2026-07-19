@@ -1,7 +1,6 @@
 # Phase MP0 Spec — Protocol, Singleton Audit & Sim-Boundary Spec ("Project Beacon")
 
-**Status:** IN PROGRESS — stages A and B landed; C (sim-boundary spec) follows
-in this document.
+**Status:** stages A, B, C all landed 2026-07-19; phase gate verdict below.
 **Authored:** 2026-07-19 by Claude Fable 5 (build + self-gate per the roadmap
 choreography), from the MP0 section of `docs/MULTIPLAYER_ROADMAP.md`.
 **Workflow:** commit + push each stage directly to `main` (house rule). Phase
@@ -234,3 +233,145 @@ instances are already closure-scoped.
 - **Discovery B4:** `ctx` is not one singleton but three natures interleaved
   (world/client/config, table above) — the MP1·A "split ctx" framing in the
   roadmap is confirmed accurate, and the field-level split is now written down.
+
+---
+
+## Stage C — Sim-boundary + directive spec (landed 2026-07-19)
+
+This section is the contract MP1–MP4 build against. It names three state
+natures (stage B found them), draws the authority line system-by-system,
+specifies the directive lifecycle MP3 implements over the stage-A shapes, and
+pins how time works in a world.
+
+### C1 — Three state natures, named
+
+| Nature | Definition | Examples | Where it lives after MP1 |
+|---|---|---|---|
+| **World state** | one truth per world instance; snapshotted | switches/vars/selfSw, party, inv/gold/wallet, map + evRTs, encounters, quests, RNG stream, tick, timeOfDay, vehicles | `createWorld()` instance |
+| **Player-scoped world state** | world-owned and snapshotted, but one copy per player; rendered by that player's client | cameraZoom, screen tint, pictures, map scroll, game timer, windowTone, sysFlags | world instance, keyed by player (solo = the one default player; the per-player keying is MP4) |
+| **Presentation state** | derived or cosmetic; never snapshotted, never authoritative | render buffers, interpolation, audio playback, HUD DOM, UI stack, float texts, weather/ambience appliers, shake/flash timers | client modules (unchanged) |
+
+The solo engine collapses natures 1+2 today; MP1 moves both into the world
+instance as one block and MP4 splits nature 2 per player. Nothing in nature 3
+ever enters `src/shared/sim/` (MP1·C's lint wall enforces).
+
+### C2 — Authority line, system by system
+
+**World-authoritative** (runs in the sim, clients see results via
+snapshot/delta): movement + collision (incl. followers, vehicles, ledges),
+tile behavior (damage floors, counters, terrain), event triggering + the
+interpreter's world effects, switches/vars/self-switches, encounters (steps,
+zones, forced), battles (state + resolution; MP6 shares them), quests,
+inventory/wallet/equipment, shops (transaction validation), RNG, timeOfDay,
+zone effects (transfer/encounter/damage), the game timer, saves (a save IS a
+world snapshot).
+
+**Presentation** (client-owned): rendering + `prx→rx` interpolation, audio
+(logical audio state stays in world `G.bgs`/`savedBgm`/`jingles`; the deck is
+client), message/choice/shop/name/number UI (directive-driven, MP3), menus
+(reading is free — mutating verbs go to the world, C5), title/gameover/save
+UI, options, screen-effect *animation* (the authoritative values are nature 2),
+HUD, perf overlay, floating text visuals.
+
+### C3 — Directive lifecycle (the MP3 contract)
+
+Shapes are already typed in `src/shared/net/protocol.ts` (stage A). Semantics:
+
+1. **Emit.** A command handler running in a player context (C6) that needs a
+   screen emits a `Directive`, gets a per-world monotonic `id`, and its
+   interpreter suspends. The server sends `directive` to the *target player
+   only*. Multi-target events (shared cutscenes) emit one directive per
+   participant and join on all replies (default semantics; the MP3 ❓
+   branch-point on shared-map pausing stands — ask Driftwood at MP3 kickoff).
+2. **Reply.** The client answers with `reply {id, value}`. The world validates
+   in three layers: (a) decoder shape-check (stage A, done); (b) lifecycle —
+   `id` must be pending for THAT player (stale/duplicate/foreign ids are
+   dropped and counted, hostile-input style); (c) semantics per kind —
+   choice index within options (cancel only if `cancelable`), number within
+   `digits`, name length ≤ `maxLen` (control chars already rejected), shop
+   transcript replayed line-by-line against authoritative goods/stock/wallet/
+   inventory (illegal lines void, legal lines apply — prices are static so an
+   honest client matches solo behavior exactly).
+3. **Resume.** The suspended interpreter receives the validated value and
+   continues on the next world tick.
+4. **Disconnect/AFK.** A pending directive must never hang a shared world.
+   On the target's disconnect (or MP6 battle-command timeout), the directive
+   auto-resolves to its escape value: message → `done`; choices → `canceled`
+   if cancelable else option 0 (RM default-branch behavior); numberInput →
+   `initial ?? 0`; nameInput → `initial ?? current name`; shop → empty
+   transcript. Solo/loopback never auto-resolves (no behavior change).
+5. **Ordering.** One pending directive per player at a time (the interpreter
+   is sequential per context); the world never emits a second directive to a
+   player before the first resolves or auto-resolves.
+
+### C4 — Time: everything is ticks
+
+- The world clock is the tick counter (today `ctx.globalT`, 60 Hz fixed-step —
+  becomes `world.tick`, the number on every snapshot/delta/presence).
+- Event waits are ALREADY tick-based (`waitFrames` → `tickTimers`, discovery
+  B1) — MP1 moves `tickTimers` into the world verbatim; `waitFrames(n)` = n
+  world ticks. Wall-clock `sleep()` (5 sites, all presentation pacing) stays
+  client-side and is BANNED from `src/shared/sim/` (lint wall).
+- Timed presentation commands (fade/shake/flash/scroll/tint/picture-move/
+  weather) follow one pattern: the world applies the target value + duration
+  to nature-2 state and tick-waits the duration; the client animates the
+  transition locally. This is exactly how tickTween works today — the pattern
+  generalizes, it doesn't change.
+- `timeOfDay` is world state in `G` (audit ✓), advanced only by explicit
+  commands/scripts — in shared maps it is world-shared (one sky per map).
+- The ATB/CTB battle scheduler's `sleep(30)` idle poll is solo presentation
+  pacing; MP6·A owns its world-side redesign. Deferred deliberately.
+
+### C5 — Menu verbs (a seam the roadmap didn't name)
+
+Menus READ freely (client mirrors world state) but their mutations — use
+item, equip/unequip, formation swap — are world writes and must ride the
+transport once MP2 puts solo play behind loopback. Decision: these become
+**additive `input` intents** (protocol v1 stays; new `k` values, e.g.
+`useItem`/`equip`/`formation`) defined at MP2·B when the world API they call
+is real. Not typed in stage A on purpose: typing them against the pre-MP1
+helper signatures would prejudge the extraction. Options/save-UI/rebinds are
+client-only (nature 3) and never cross the wire.
+
+### C6 — Event execution contexts
+
+- Every interpreter run carries `{world, playerId | null}`:
+  - **Player context** (`playerId` set): action-button, player-touch,
+    event-touch triggers, and battle/menu/shop flows the player initiated.
+    Directives + nature-2 effects target that player.
+  - **World context** (`playerId = null`): autorun, parallel, tick-driven
+    common events. Their world effects apply normally; their directives and
+    nature-2 effects target the event's map participants (default pending the
+    MP3 ❓ on shared-map cutscene pausing).
+- Switch/var/self-switch writes are world-shared from ANY context (the
+  per-player switch scope selector is an authored, additive MP7·B feature).
+- Encounters trigger in the stepping player's context → that player's battle
+  (solo-instanced until MP6; the MP6 ❓ on walk-in spectate stands).
+- Solo play: every context binds the one default player — byte-identical
+  behavior, which is what keeps the Playwright goldens honest through MP1–MP3.
+
+### C7 — What MP1 must NOT do (scope fence)
+
+No transport, no directive engine, no per-player keying of nature-2 state, no
+protocol integration — MP1 is *instancing only* (world type + factory + compat
+shim + determinism canary), per the roadmap. The compat shim binds today's
+module imports to a default world so the engine, tests, and goldens are
+untouched. MP2 wires the transport; MP3 wires directives; MP4 splits players.
+
+### Roadmap amendments from stage C
+
+Two surgical notes added to `docs/MULTIPLAYER_ROADMAP.md` (neither changes
+scope; both shrink risk):
+
+1. MP3 section: waits are already world-tick-based (discovery B1) — MP3·A is
+   the directive engine + a move, not a wait rewrite.
+2. MP2 section: menu verbs ride the intent channel as additive intents
+   defined at MP2·B (C5 above).
+
+MP1 needs no amendment — its kickoff already names the MP0·B table as the
+work order.
+
+### Deviations / discoveries (stage C)
+
+- None beyond the amendments above. The audit produced no scope-changing
+  surprise: every surprise (B1, B2) made a later phase smaller.
