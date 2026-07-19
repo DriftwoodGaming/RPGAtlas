@@ -124,3 +124,121 @@ construction; stage B flips the live loop onto this seam.
 | eslint / tsc | **0 / 0** |
 | Playwright | byte-identical by construction — no live-path source changed (new modules imported by nothing); full run deferred to stage B where the flip happens |
 | versions / FORMAT_VERSION / cache-busts | 1.2.0 · 2 · none needed |
+
+---
+
+## Stage B — Input intents → world + tick ownership (Opus, landed 2026-07-19)
+
+### What landed
+
+The live flip. Single-player's per-tick player control now flows as protocol
+`InputIntent` frames over the loopback transport, and the world host owns the
+tick — **byte-identical** (full Playwright 123/123, pixel goldens unchanged),
+because in loopback capture and apply are one tick and the applier is the old
+movement decision moved verbatim.
+
+- **`src/shared/net/protocol.ts`** — additive input intents (protocol v1
+  unchanged; new `k` values + one optional field). `move` gains optional
+  `dir8?: GridDir` (the engine's numeric grid direction 0..7, so
+  eight-direction movement survives the wire; a 4-way peer omits it and the
+  world reads cardinal `dir`). New `attack` intent (action-RPG melee, routed
+  live). New §C5 menu-verb intents **defined** now for MP4/MP5 to compile
+  against: `useItem {id, target?}`, `equip {actor, slot, id}` (id 0 = remove),
+  `formation {from, to}`. `checkIntent` validates each (dir8 range, equip slot,
+  operands). `GridDir`/`EquipSlot` exported.
+- **`src/engine/scenes/map.ts`** — the `update()` map-control block:
+  - **Client capture:** reads the device exactly as before (`ctx.Input.dir` peek
+    + `consume("attack"/"ok"/"cancel")` in the same order) and emits
+    `soloClient.sendInput(...)` — `attack` XOR `move {dir, dir8, run}` (matching
+    the old attack-vs-move priority), then `act`. `cancel` opens the pause menu
+    directly (a client concern — the world-mutating menu verbs are the §C5
+    intents, not this).
+  - **World apply:** `applyPlayerIntent(intent)` (NEW) — the movement/ledge/
+    touch-event/attack/interact decisions lifted **verbatim** from the old inline
+    block, now driven by the drained intent (`intent.dir8` authoritative). The
+    loop drains `soloHost.drainIntents()` in send order and applies each.
+  - `CARDINAL_OF` (grid dir → cardinal `Dir` projection) + `NUM_OF_CARDINAL`
+    (the 4-way fallback for a dir8-less peer).
+  - Client-prediction seam marked (empty — zero-latency loopback needs none).
+- **`src/engine/loop.ts`** — drives `soloHost.tick()` per fixed step instead of
+  `update()`; same accumulator, same tick count. Tick ownership now lives in the
+  host (its tick body is the map scene's `update`, injected by boot).
+- **`src/engine/boot.ts`** — composition root binds `soloHost.setTickFn(update)`
+  (injected, not imported by the host, so `src/engine/net/` stays off the DOM
+  graph).
+- **Tests** — `tests-unit/net-protocol.test.ts` (+2 → vitest **1037**):
+  round-trips for `move+dir8` (8-way), `attack`, and the three §C5 verbs; plus
+  strictness rejections (dir8 out of range/non-int, bad equip slot, missing
+  operands). The transport suite (stage A) already covers the host/session flow.
+
+### Design decisions (stage B)
+
+- **B1 — Capture and apply are colocated in loopback, but the data really flows
+  as protocol frames.** The client reads `ctx.Input`, builds `ClientInput`
+  intents, sends them through a real `Transport`; the host buffers and the tick
+  drains and applies them. In one process this is one tick, so it is
+  byte-identical — but the seam is exactly what MP4 (capture on a remote client)
+  and MP5 (apply on the server) split apart, with zero further protocol churn.
+- **B2 — `dir8` keeps eight-direction movement honest on the wire.** The
+  protocol `Dir` is 4-way (used by `face`); rather than lose diagonals, `move`
+  carries the numeric grid direction additively. The world uses `dir8` when
+  present (loopback always sets it) and the cardinal otherwise. So a 4-way
+  network client and the 8-way engine both round-trip correctly.
+- **B3 — Consume order and gating preserved to the letter.** The capture peeks
+  `dir` then consumes attack/ok/cancel in the original order; because those are
+  three independent edges, consuming them up-front is identical to the old
+  interleaved consumes. Apply order (attack/move, then act, then cancel) matches
+  the old block. `applyPlayerIntent` is the old decision verbatim — no logic
+  rewritten. This is why the goldens are byte-identical and why walking,
+  facing, ledges, touch-events, and interaction all behave exactly as before.
+- **B4 — `cancel`/`hud`/`dash` stay client-side.** Opening the pause menu, the
+  HUD toggle, and the dash-latch are presentation/option concerns, not world
+  writes, so they do not ride the intent channel. The menu *verbs* that DO write
+  the world are the §C5 intents (B5).
+- **B5 — §C5 menu verbs are DEFINED, not yet routed (deliberate).** C5 conditions
+  routing on "when the world API they call is real"; the headless world-side
+  verb API is not extracted until a later phase (the menus still call the
+  in-process helpers directly, which in loopback is the same process as the
+  host, so nothing behaves differently). MP2·B lands the wire contract
+  (`useItem`/`equip`/`formation` + round-trip tests) — the same "define the
+  protocol now, wire the behavior later" pattern MP0 used for directives — so
+  MP4/MP5 compile against it. Routing them live is tracked for the verb-API
+  extraction phase. Likewise **tap-to-move** (a pointer that sets a path route)
+  and **battle input** (its own async scene loop, MP6) remain direct input
+  sources; the per-tick keyboard/gamepad control loop — the heart of "runs
+  through the protocol" — is what MP2 routes.
+- **B6 — Tick ownership at the host, injected tick body.** The loop drives
+  `soloHost.tick()`; the host runs the injected `update`. The full headless
+  extraction of the tick body (so the host needs no injection) is a later phase
+  — MP2's job is the transport + intent + tick-ownership seam, and the injection
+  keeps `src/engine/net/` free of the DOM graph today.
+
+### Deviations / discoveries (stage B)
+
+- **D-B1 (verification, not a defect):** the pixel goldens boot to a *stationary*
+  map (player idle; only seeded NPC walk draws RNG), so they do not exercise the
+  move/act/attack intent path — "no input → no intent → identical advancement"
+  is what keeps them byte-identical, but walking itself is uncovered by the
+  committed e2e. Verified separately with a trusted-keyboard throwaway spec
+  (deleted): held ArrowRight/Left/Down walked the player and updated facing
+  through the full `ClientSession → LoopbackTransport → WorldHost.drainIntents →
+  applyPlayerIntent` path. (Synthetic `dispatchEvent` does NOT drive the input
+  system reliably — only trusted CDP keys do — which is why the manual check
+  needed Playwright, not the browser console.)
+- **D-B2 (perf, better not worse):** the idle tick adds only a `dir()` peek +
+  three consumes it already did, plus a `drainIntents()` that returns a shared
+  empty array (no allocation) and a `for` over nothing — so idle frames are
+  effectively free. The all-features renderer-perf e2e measured **240.73
+  ms/frame** (budget 300), inside budget and slightly *better* than the beacon-1
+  gate's 250.92 (SwiftShader run-to-run variance dominates that delta). Stage C
+  records it against the ±10% budget.
+
+### Stage B gate snapshot (all green, 2026-07-19)
+
+| Gate | Result |
+|---|---|
+| vitest | **1037** (66 files; +2 net-protocol) |
+| node --test | **46** (unchanged) |
+| Playwright | **123/123** (2.8m) — pixel goldens byte-identical; renderer-perf 240.73 ms/frame (budget 300) |
+| eslint / tsc | **0 / 0** |
+| versions / FORMAT_VERSION / cache-busts | 1.2.0 · 2 · none needed (no `?v=` file touched) |

@@ -16,6 +16,8 @@ import { findPath } from "../../shared/pathfind.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G, actorEffCarrier, param } from "../state/game-state.js";
 import { defaultWorld } from "../state/default-world.js";
+import { soloClient, soloHost } from "../net/solo-session.js";
+import type { Dir, GridDir, InputIntent } from "../../shared/net/protocol.js";
 import { preemptiveRate, surpriseRate } from "./battle-logic.js";
 import { wantsDash } from "../state/player-options.js";
 import { UIStack } from "../ui-stack.js";
@@ -242,49 +244,31 @@ export function update(): void {
   if (!p.moving && !p.jumping && p.route) {
     updateRoute(p);
   } else if (!p.moving && !p.jumping && activePlayerControl()) {
+    // Project Beacon MP2·B: player map-control input rides the protocol. The
+    // CLIENT reads the device and emits move/attack/act intents; they cross the
+    // in-process LoopbackTransport to the WORLD host, which hands them back for
+    // the world to apply (applyPlayerIntent). In loopback capture and apply are
+    // one tick, so this is byte-identical to the old direct reads — but the data
+    // genuinely flows as `ClientInput` frames over a real Transport, the seam
+    // MP4/MP5 need. The dir peek and the consume order (attack, then ok, then
+    // cancel) are preserved exactly. `cancel` opens the pause menu — a client
+    // concern, not a world write, so it never rides the intent channel (the
+    // world-mutating menu VERBS are the §C5 additive intents).
     const d = ctx.Input.dir(!!ctx.proj.system.eightDirectionMovement);
-    if (ctx.Input.consume("attack")) {
-      if (!G.vehicle) startPlayerAttack();
-    } else if (d >= 0) {
-      p.dir = d;
-      const [dx, dy] = DIRD[d];
-      const nx = p.x + dx,
-        ny = p.y + dy;
-      const cornerClear = diagonalStepClear(p.x, p.y, d, playerStepPassable);
-      const developerThrough = developerThroughActive();
-      if (cornerClear) {
-        if (developerThrough || G.vehicle) {
-          // vehicle terrain rules; no touch triggers from the deck
-          if (playerStepPassable(nx, ny)) {
-            startMove(p, d);
-            p.animT = p.animT || 0;
-          }
-        } else if (
-          (dx === 0 || dy === 0) &&
-          ledgeAt(nx, ny) &&
-          tilePassable(p.x + dx * 2, p.y + dy * 2) &&
-          !blockingEventAt(p.x + dx * 2, p.y + dy * 2)
-        ) {
-          startJump(p, d, 2); // one-way ledge hop (cardinal only)
-        } else {
-          const blocker = blockingEventAt(nx, ny);
-          if (
-            blocker &&
-            blocker.page.trigger === "touch" &&
-            blocker.page.commands.length
-          ) {
-            runEventBlocking(blocker);
-          } else if (tilePassable(nx, ny) && !blocker) {
-            startMove(p, d);
-            p.animT = p.animT || 0;
-          }
-        }
-      }
-    }
-    if (ctx.Input.consume("ok")) {
-      if (!tryVehicleAction()) checkActionTrigger();
-    }
-    if (ctx.Input.consume("cancel")) fns.openMenu();
+    const attack = ctx.Input.consume("attack");
+    const ok = ctx.Input.consume("ok");
+    const cancel = ctx.Input.consume("cancel");
+    // client → transport (attack XOR move, matching the old if/else-if priority)
+    if (attack) soloClient.sendInput({ k: "attack" });
+    else if (d >= 0)
+      soloClient.sendInput({ k: "move", dir: CARDINAL_OF[d], dir8: d as GridDir, run: wantsDash() });
+    if (ok) soloClient.sendInput({ k: "act" });
+    // world host: drain the tick's intents and apply them in send order
+    for (const pending of soloHost.drainIntents()) applyPlayerIntent(pending.intent);
+    // Client prediction seam (MP4): with real latency the local player predicts
+    // the step here and reconciles on the server's delta.ack — zero-latency
+    // loopback needs none, so the seam is marked and empty.
+    if (cancel) fns.openMenu();
   }
   if (p.moving) p.animT = (p.animT || 0) + 0; // animT advanced in motion fn
   updateFollowers(playerSpeed);
@@ -339,6 +323,71 @@ export function update(): void {
     }
   }
   updateCommonEvents();
+}
+
+// Project Beacon MP2·B: the cardinal projection of a numeric grid direction —
+// the network-facing `move.dir`. The authoritative direction is the numeric
+// `dir8` (see protocol GridDir); a diagonal projects to its vertical component
+// (RM movement priority). Index = grid dir id (DIRD keys 0..7).
+const CARDINAL_OF: Dir[] = ["down", "left", "right", "up", "down", "down", "up", "up"];
+const NUM_OF_CARDINAL: Record<Dir, GridDir> = { down: 0, left: 1, right: 2, up: 3 };
+
+/** Apply one player input intent to the world (server-authoritative). This is
+ *  the world side of the map-control seam: the exact movement/attack/interact
+ *  decisions that update() used to make inline from ctx.Input, now driven by the
+ *  intent the client sent over the loopback transport — byte-identical, because
+ *  the intent carries the same direction (dir8) the device produced this tick.
+ *  The §C5 menu-verb intents (useItem/equip/formation) are defined on the wire
+ *  but not emitted by the loopback capture yet, so they are ignored here. */
+function applyPlayerIntent(intent: InputIntent): void {
+  const p = G.player;
+  if (intent.k === "attack") {
+    if (!G.vehicle) startPlayerAttack();
+    return;
+  }
+  if (intent.k === "move") {
+    // dir8 is authoritative (loopback always sets it); fall back to the cardinal
+    // for a future 4-direction network peer that omits it.
+    const d = intent.dir8 != null ? intent.dir8 : NUM_OF_CARDINAL[intent.dir];
+    p.dir = d;
+    const [dx, dy] = DIRD[d];
+    const nx = p.x + dx,
+      ny = p.y + dy;
+    const cornerClear = diagonalStepClear(p.x, p.y, d, playerStepPassable);
+    const developerThrough = developerThroughActive();
+    if (cornerClear) {
+      if (developerThrough || G.vehicle) {
+        // vehicle terrain rules; no touch triggers from the deck
+        if (playerStepPassable(nx, ny)) {
+          startMove(p, d);
+          p.animT = p.animT || 0;
+        }
+      } else if (
+        (dx === 0 || dy === 0) &&
+        ledgeAt(nx, ny) &&
+        tilePassable(p.x + dx * 2, p.y + dy * 2) &&
+        !blockingEventAt(p.x + dx * 2, p.y + dy * 2)
+      ) {
+        startJump(p, d, 2); // one-way ledge hop (cardinal only)
+      } else {
+        const blocker = blockingEventAt(nx, ny);
+        if (
+          blocker &&
+          blocker.page.trigger === "touch" &&
+          blocker.page.commands.length
+        ) {
+          runEventBlocking(blocker);
+        } else if (tilePassable(nx, ny) && !blocker) {
+          startMove(p, d);
+          p.animT = p.animT || 0;
+        }
+      }
+    }
+    return;
+  }
+  if (intent.k === "act") {
+    if (!tryVehicleAction()) checkActionTrigger();
+  }
 }
 
 function onPlayerStep(): void {

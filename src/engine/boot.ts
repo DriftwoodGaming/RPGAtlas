@@ -65,7 +65,9 @@ import {
   tickTween,
   handleMapTap,
   armForcedEncounter,
+  update,
 } from "./scenes/map.js";
+import { soloHost } from "./net/solo-session.js";
 import { startLoop } from "./loop.js";
 import { initJournalView } from "./scenes/menus.js";
 import { numberInputScene, selectItemScene, nameInputScene } from "./scenes/input-scenes.js";
@@ -163,6 +165,11 @@ initInterpServices(EngineServices);
 registerBuiltinCommands();
 
 // The fixed-timestep game loop now lives in ./loop.ts (startLoop below).
+// Project Beacon MP2·B: bind the world host's tick body to the map scene's
+// update() at the composition root (injected, not imported by the host, so the
+// src/engine/net/ tree stays off the DOM graph). The loop then drives
+// soloHost.tick() each fixed step instead of calling update() directly.
+soloHost.setTickFn(update);
 
 // ============================ boot ============================
 function loadProject(): any {

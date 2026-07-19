@@ -51,6 +51,16 @@ export const MAX_SHOP_TRANSACTIONS = 200;
 /** Cardinal facing/step direction, as the sim consumes it. */
 export type Dir = "up" | "down" | "left" | "right";
 
+/** The engine's numeric grid direction id (the map runtime's `DIRD` keys):
+ *  0=down, 1=left, 2=right, 3=up, then the diagonals 4=down-left, 5=down-right,
+ *  6=up-left, 7=up-right. Carried additively on a `move` intent as `dir8` so
+ *  eight-direction movement survives the wire; a 4-direction network peer omits
+ *  it and the world reads the cardinal `dir` instead. */
+export type GridDir = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+/** Equipment slot selector for the `equip` menu-verb intent (§C5). */
+export type EquipSlot = "weapon" | "weapon2" | "armor";
+
 /** Server-assigned per-room player id (small nonneg integer). Never reused
  *  within a room's lifetime. */
 export type PlayerId = number;
@@ -66,12 +76,30 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
  *  Tile-grid movement: one `move` per attempted step (hold-to-walk repeats
  *  it); the client may predict the step locally and reconcile via
  *  {@link ServerDelta.ack} (MP2 leaves the seam, prediction lands with real
- *  latency). */
+ *  latency).
+ *
+ *  MP2·B additive intents (protocol v1 unchanged — new `k` values + one
+ *  optional field): `attack` is the action-RPG melee (a world write, routed
+ *  live over the loopback transport). The menu verbs `useItem`/`equip`/
+ *  `formation` are §C5 world writes; their wire shapes are DEFINED here now so
+ *  MP4/MP5 compile against them, and are routed live once the world-side verb
+ *  API is extracted (see docs/mp-2-spec.md §B — the menus still call the
+ *  in-process helpers directly in loopback, which is the same process as the
+ *  host, so nothing behaves differently yet). */
 export type InputIntent =
-  | { k: "move"; dir: Dir; run?: boolean }
+  | { k: "move"; dir: Dir; run?: boolean; dir8?: GridDir }
   | { k: "face"; dir: Dir }
   /** Interact/confirm at the tile the player faces (action button). */
-  | { k: "act" };
+  | { k: "act" }
+  /** Action-RPG melee swing (the `attack` action button). */
+  | { k: "attack" }
+  /** Field-use a consumable `item` on a party member (`target` = actor id;
+   *  omitted for whole-party / no-target items). §C5, defined at MP2·B. */
+  | { k: "useItem"; id: number; target?: number }
+  /** Equip `id` (0 = remove) into `slot` of party actor `actor`. §C5. */
+  | { k: "equip"; actor: number; slot: EquipSlot; id: number }
+  /** Swap two party positions (formation). §C5. */
+  | { k: "formation"; from: number; to: number };
 
 /* ── Presentation directives (world → one player's UI) and replies ─────────
    The modal-event seam (MP3): a server-side event command that needs a
@@ -258,6 +286,11 @@ const isResumeToken = (v: unknown): v is string =>
 const isItemType = (v: unknown): v is "item" | "weapon" | "armor" =>
   v === "item" || v === "weapon" || v === "armor";
 
+const isGridDir = (v: unknown): v is GridDir =>
+  typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 7;
+const isEquipSlot = (v: unknown): v is EquipSlot =>
+  v === "weapon" || v === "weapon2" || v === "armor";
+
 /** Returns an error string, or null when `v` is a valid intent. */
 function checkIntent(v: unknown): string | null {
   if (!isObj(v)) return "intent must be an object";
@@ -265,10 +298,26 @@ function checkIntent(v: unknown): string | null {
     case "move":
       if (!isDir(v.dir)) return "move: bad dir";
       if (v.run !== undefined && typeof v.run !== "boolean") return "move: bad run flag";
+      if (v.dir8 !== undefined && !isGridDir(v.dir8)) return "move: bad dir8";
       return null;
     case "face":
       return isDir(v.dir) ? null : "face: bad dir";
     case "act":
+      return null;
+    case "attack":
+      return null;
+    case "useItem":
+      if (!isUint(v.id)) return "useItem: bad id";
+      if (v.target !== undefined && !isUint(v.target)) return "useItem: bad target";
+      return null;
+    case "equip":
+      if (!isUint(v.actor)) return "equip: bad actor";
+      if (!isEquipSlot(v.slot)) return "equip: bad slot";
+      if (!isUint(v.id)) return "equip: bad id"; // 0 = remove
+      return null;
+    case "formation":
+      if (!isUint(v.from)) return "formation: bad from";
+      if (!isUint(v.to)) return "formation: bad to";
       return null;
     default:
       return "unknown intent kind";

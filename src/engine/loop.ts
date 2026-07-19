@@ -25,10 +25,17 @@
 
    The loop's mutable state (loopLast, loopAcc, globalT) lives on the shared
    engine context, exactly as before. boot.ts calls startLoop() at the same
-   point it used to call requestAnimationFrame(loop). GPL-3.0-or-later. */
+   point it used to call requestAnimationFrame(loop).
+
+   Project Beacon MP2·B: tick ownership moved into the world host. The loop no
+   longer calls the map scene's update() directly — it drains whole ticks by
+   driving soloHost.tick(), and the host advances its world (its tick body is
+   the map scene update, injected by boot.ts). Same fixed-timestep accumulator,
+   same tick count per frame; render() still runs once per rAF and reads the
+   world mirror (in loopback, the world by reference). GPL-3.0-or-later. */
 
 import { ctx } from "./state/engine-context.js";
-import { update } from "./scenes/map.js";
+import { soloHost } from "./net/solo-session.js";
 import { render } from "./render-glue.js";
 import { perfActive, perfSample } from "./perf-hud.js";
 
@@ -47,7 +54,7 @@ export async function loop(now: number): Promise<void> {
   // Perf overlay (Phase 7): time the update+render work only while visible.
   const perfT0 = perfActive() ? performance.now() : 0;
   while (ctx.loopAcc >= TICK_MS) {
-    update();
+    soloHost.tick();
     ctx.loopAcc -= TICK_MS;
   }
   await render();
