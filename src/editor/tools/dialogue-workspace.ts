@@ -7,7 +7,7 @@
 import { Assets, RA, Sfx, editorState as S } from "../editor-state";
 import {
   h, tIn, nIn, sel, field, row, dbOpts, switchOpts, varOpts, cmpOpts,
-  charsetOpts, SE_OPTS,
+  charsetOpts, typeSelOpts, SE_OPTS,
 } from "../dom";
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
@@ -97,7 +97,11 @@ function conditionEditor(node: any, redraw: () => void): any {
     const list = c.itemKind === "weapon" ? S.proj.weapons : c.itemKind === "armor" ? S.proj.armors : S.proj.items;
     wrap.appendChild(row(field("Kind", sel(c, "itemKind", kinds, redraw)), field("Entry", sel(c, "id", dbOpts(list, "(none)")))));
   } else if (c.kind === "gold") {
-    wrap.appendChild(row(field("Gold", sel(c, "cmp", cmpOpts())), field("Value", nIn(c, "val", 0))));
+    // currencyId is kept only for wallet ids (≥ 2) — picking the classic gold
+    // entry (id 1) restores the condition's pre-wallet shape.
+    wrap.appendChild(row(
+      field("Currency", sel(c, "currencyId", typeSelOpts("currencyTypes"), (v: any) => { if (Number(v) <= 1) delete c.currencyId; })),
+      field("Is", sel(c, "cmp", cmpOpts())), field("Value", nIn(c, "val", 0))));
   } else if (c.kind === "actor") {
     wrap.appendChild(field("Actor", sel(c, "actorId", dbOpts(S.proj.actors, "(none)"))));
   } else if (c.kind === "region") {

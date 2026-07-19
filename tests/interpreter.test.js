@@ -203,6 +203,25 @@ async function loadRegistry() {
     assert.equal(astate.vars[5], 7, "getLocationInfo stores the read value in its variable");
   }
 
+  // ---- Multi-currency wallet: Change Gold with a currencyId ----
+  // Ids ≥ 2 (system.types.currencyTypes) move a wallet balance; absent/0/1 is
+  // the byte-identical classic-gold path.
+  {
+    const wstate = { gold: 100 };
+    const wsvc = { clamp: (v, lo, hi) => Math.min(hi, Math.max(lo, v)) };
+    const wrun = (cmd) => getCommand("gold")(cmd, { interp: {}, state: wstate, services: wsvc });
+    await wrun({ t: "gold", op: "add", val: 50 });
+    assert.equal(wstate.gold, 150, "classic Change Gold (no currencyId) still moves state.gold");
+    assert.equal(wstate.wallet, undefined, "the classic path never creates a wallet");
+    await wrun({ t: "gold", op: "add", val: 50, currencyId: 1 });
+    assert.equal(wstate.gold, 200, "currencyId 1 aliases the classic gold purse");
+    await wrun({ t: "gold", op: "add", val: 30, currencyId: 2 });
+    assert.equal(wstate.wallet[2], 30, "a wallet id creates and fills its balance");
+    assert.equal(wstate.gold, 200, "wallet changes never touch classic gold");
+    await wrun({ t: "gold", op: "sub", val: 100, currencyId: 2 });
+    assert.equal(wstate.wallet[2], 0, "wallet balances clamp at zero like gold");
+  }
+
   // ---- Jump labels (M2·C): the runList contract seeks the target label ----
   {
     const jstate = { vars: {} };

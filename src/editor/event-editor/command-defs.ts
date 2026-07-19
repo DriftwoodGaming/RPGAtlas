@@ -38,6 +38,19 @@ import { openLocationPicker } from "./location-picker";
   const actorOnlyOpts = () => S.proj.actors.map((a: any) => ({ v: a.id, l: a.name }));
   const actorPartyOpts = () => [{ v: 0, l: "Entire Party" }, ...actorOnlyOpts()];
   const actorLabel = (id: any) => (Number(id) === 0 ? "Entire Party" : (RA.byId(S.proj.actors, id) || { name: "#" + id }).name);
+  // Multi-currency wallet (Currency Types list). Id 1 — the list's first
+  // entry — is the classic gold purse; ids ≥ 2 are wallet balances. Commands
+  // store currencyId only when ≥ 2 so untouched projects stay byte-identical.
+  const currencyOpts = () => RA.typeList(S.proj, "currencyTypes").map((t: any) => ({ v: t.id, l: t.name }));
+  const currencyLabel = (id: any) => {
+    const t = RA.typeList(S.proj, "currencyTypes").find((x: any) => x.id === Number(id));
+    return t ? t.name : "?";
+  };
+  /** Commit helper: keep `currencyId` on the command only for wallet ids. */
+  const setCurrency = (c: any, id: any) => {
+    if (Number(id) > 1) c.currencyId = Number(id);
+    else delete c.currencyId;
+  };
   // In-battle enemy commands (M3·C): troop slot pickers. `only` drops the
   // "Entire Troop" entry for commands that need one specific slot.
   const TROOP_SLOT_OPTS = (only?: boolean) =>
@@ -101,7 +114,7 @@ import { openLocationPicker } from "./location-picker";
           : k === "region" ? "Player in region " + (c.cond.id || 0)
           : k === "time" ? "Clock is " + (c.cond.from || 0) + ":00–" + (c.cond.to || 0) + ":00"
           : k === "mzScript" ? "Script: " + (c.cond.code || "").split("\n")[0].slice(0, 38)
-          : "Gold " + (c.cond.cmp || ">=") + " " + c.cond.val;
+          : (c.cond.currencyId > 1 ? currencyLabel(c.cond.currencyId) : "Gold") + " " + (c.cond.cmp || ">=") + " " + c.cond.val;
         return "If " + d;
       }
       case "loop": return "Loop";
@@ -114,12 +127,12 @@ import { openLocationPicker } from "./location-picker";
       case "commonEvent": return "Call Common Event: " + commonEventName(c.commonEventId);
       case "dialogue": return "Play Dialogue: " + dialogueName(c.dialogueId);
       case "transfer": { const m = RA.byId(S.proj.maps, c.mapId); return "Transfer → " + (m ? m.name : "?") + " (" + c.x + "," + c.y + ")"; }
-      case "gold": return (c.op === "sub" ? "Lose" : "Gain") + " " + c.val + " " + S.proj.system.currency;
+      case "gold": return (c.op === "sub" ? "Lose" : "Gain") + " " + c.val + " " + (c.currencyId > 1 ? currencyLabel(c.currencyId) : S.proj.system.currency);
       case "item": return (c.op === "sub" ? "Lose" : "Gain") + " " + dbName(c.kind === "weapon" ? S.proj.weapons : c.kind === "armor" ? S.proj.armors : S.proj.items, c.id) + " ×" + c.val;
       case "party": return (c.op === "add" ? "Add" : "Remove") + " party member: " + dbName(S.proj.actors, c.actorId);
       case "heal": return c.full ? "Recover All" : "Heal " + (c.hp || 0) + " HP / " + (c.mp || 0) + " MP";
       case "battle": return "Battle: " + dbName(S.proj.troops, c.troopId) + (c.escape === false ? " (no escape)" : "") + (c.lose ? " (lose allowed)" : "");
-      case "shop": return "Open Shop (" + (c.goods || []).length + " goods)";
+      case "shop": return "Open Shop (" + (c.goods || []).length + " goods" + (c.currencyId > 1 ? ", " + currencyLabel(c.currencyId) : "") + ")";
       case "wait": return "Wait " + c.frames + " frames";
       case "se": return "Sound: " + c.name + (c.pitch && c.pitch !== 1 ? " (pitch " + Math.round(c.pitch * 100) + "%)" : "");
       case "music": return "Music: " + c.theme;
@@ -328,7 +341,9 @@ import { openLocationPicker } from "./location-picker";
             sub.appendChild(row(field("From hour (0–24)", nIn(w, "from", 0, 24)),
               field("Until hour (wraps past midnight)", nIn(w, "to", 0, 24))));
           } else {
-            sub.appendChild(row(field("Gold", sel(w, "cmp", [{ v: ">=", l: "≥" }, { v: "<=", l: "≤" }])), field("Value", nIn(w, "val"))));
+            if (w.currencyId == null) w.currencyId = 1;
+            sub.appendChild(row(field("Currency", sel(w, "currencyId", currencyOpts())),
+              field("Is", sel(w, "cmp", [{ v: ">=", l: "≥" }, { v: "<=", l: "≤" }])), field("Value", nIn(w, "val"))));
           }
         }
         box.appendChild(field("Condition type", sel(w, "kind", [
@@ -347,6 +362,9 @@ import { openLocationPicker } from "./location-picker";
         return () => {
           if (w.val === "true") w.val = true;
           if (w.val === "false") w.val = false;
+          // Only gold conditions keep a currencyId, and only for wallet ids —
+          // classic-gold conditions stay in their pre-wallet shape.
+          if (w.kind !== "gold" || Number(w.currencyId) <= 1) delete w.currencyId;
           c.cond = w;
           if (!c.then) c.then = [];
           if (!c.else) c.else = [];
@@ -456,9 +474,10 @@ import { openLocationPicker } from "./location-picker";
       } },
     { t: "gold", label: "Change Gold", make: () => ({ t: "gold", op: "add", val: 100 }),
       form(c: any, box: any) {
-        const w = { op: c.op, val: c.val };
-        box.appendChild(row(field("Op", sel(w, "op", [{ v: "add", l: "Gain" }, { v: "sub", l: "Lose" }])), field("Amount", nIn(w, "val", 0))));
-        return () => Object.assign(c, w);
+        const w = { op: c.op, val: c.val, currencyId: c.currencyId || 1 };
+        box.appendChild(row(field("Op", sel(w, "op", [{ v: "add", l: "Gain" }, { v: "sub", l: "Lose" }])), field("Amount", nIn(w, "val", 0)),
+          field("Currency", sel(w, "currencyId", currencyOpts()))));
+        return () => { c.op = w.op; c.val = w.val; setCurrency(c, w.currencyId); };
       } },
     { t: "item", label: "Change Items", make: () => ({ t: "item", kind: "item", id: 1, op: "add", val: 1 }),
       form(c: any, box: any) {
@@ -581,6 +600,8 @@ import { openLocationPicker } from "./location-picker";
     { t: "shop", label: "Open Shop", make: () => ({ t: "shop", goods: [] }),
       form(c: any, box: any) {
         const goods = RA.clone(c.goods || []);
+        const w = { currencyId: c.currencyId || 1 };
+        box.appendChild(row(field("Currency (prices are paid in this)", sel(w, "currencyId", currencyOpts()))));
         const list = h("div", { class: "minilist" });
         function redraw() {
           list.innerHTML = "";
@@ -607,7 +628,7 @@ import { openLocationPicker } from "./location-picker";
         }
         redraw();
         box.appendChild(h("div", { class: "fld" }, h("span", null, "Goods"), list));
-        return () => { c.goods = goods; };
+        return () => { c.goods = goods; setCurrency(c, w.currencyId); };
       } },
     { t: "wait", label: "Wait", make: () => ({ t: "wait", frames: 60 }),
       form(c: any, box: any) {

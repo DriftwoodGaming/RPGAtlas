@@ -38,6 +38,7 @@ import {
   traitDescription,
   Quests,
   questState,
+  currencyBalance,
 } from "../state/game-state.js";
 import { saveLoadMenu } from "../state/save.js";
 import { actionLabel } from "../input.js";
@@ -174,7 +175,13 @@ export async function openMenu(): Promise<void> {
   function refreshPanel() {
     partyBox.innerHTML = G.party.map(actorRowHTML).join("");
     attachFaces(partyBox, G.party);
-    goldBox.textContent = G.gold + " " + ctx.proj.system.currency;
+    // Extra Currency Types balances (ids ≥ 2) join the classic gold line only
+    // while non-zero, so games that never touch the wallet look unchanged.
+    const extras = RA.typeList(ctx.proj, "currencyTypes")
+      .filter((c: any) => c.id > 1 && currencyBalance(c.id) > 0)
+      .map((c: any) => currencyBalance(c.id) + " " + c.name);
+    goldBox.textContent =
+      [G.gold + " " + ctx.proj.system.currency, ...extras].join(" · ");
   }
   try {
     let idx = 0;

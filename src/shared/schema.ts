@@ -768,6 +768,9 @@ export interface Condition {
   /** kind "time": clock window [from, to) in hours, wrap-around ok. */
   from?: number;
   to?: number;
+  /** kind "gold": Currency Types list id to compare. Absent/0/1 = classic
+   *  gold; ids ≥ 2 read that wallet balance. */
+  currencyId?: number;
 }
 
 export interface CmdText {
@@ -853,6 +856,9 @@ export interface CmdGold {
   t: "gold";
   op: "add" | "sub";
   val: number;
+  /** Currency Types list id (system.types.currencyTypes). Absent/0/1 = the
+   *  classic gold purse (G.gold); ids ≥ 2 change that wallet balance. */
+  currencyId?: number;
 }
 export interface CmdItem {
   t: "item";
@@ -891,6 +897,10 @@ export interface ShopGood {
 export interface CmdShop {
   t: "shop";
   goods: ShopGood[];
+  /** Currency Types list id the shop trades in. Absent/0/1 = classic gold
+   *  (the exact pre-wallet shop); ids ≥ 2 price every good in that wallet
+   *  currency, shown with the list entry's name instead of system.currency. */
+  currencyId?: number;
 }
 export interface CmdWait {
   t: "wait";

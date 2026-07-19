@@ -58,11 +58,16 @@ export function registerStateCommands(): void {
   });
 
   registerCommand("gold", (c: any, { state, services }: InterpContext) => {
-    state.gold = services.clamp(
-      state.gold + (c.op === "sub" ? -c.val : c.val),
-      0,
-      9999999,
-    );
+    const delta = c.op === "sub" ? -c.val : c.val;
+    const cid = Number(c.currencyId) || 0;
+    // Currency ids ≥ 2 change a wallet balance; anything else is the exact
+    // pre-wallet classic-gold path (see game-state.ts currency helpers).
+    if (cid > 1) {
+      state.wallet = state.wallet || {};
+      state.wallet[cid] = services.clamp((state.wallet[cid] || 0) + delta, 0, 9999999);
+      return;
+    }
+    state.gold = services.clamp(state.gold + delta, 0, 9999999);
   });
 
   registerCommand("item", (c: any, { services }: InterpContext) => {

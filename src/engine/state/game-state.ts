@@ -23,6 +23,10 @@ export const G: any = {
   party: [],
   inv: { item: {}, weapon: {}, armor: {} },
   gold: 0,
+  // Extra-currency balances keyed by system.types.currencyTypes id (ids ≥ 2
+  // only — id 1, the classic gold, stays in G.gold so every legacy reader
+  // keeps working). Saves round-trip it; old saves load as {}.
+  wallet: {},
   mapId: 0,
   steps: 0,
   encSteps: 0,
@@ -248,6 +252,34 @@ export function dbFor(kind: any): any {
     : kind === "weapon"
       ? ctx.proj.weapons
       : ctx.proj.armors;
+}
+
+// ---- Multi-currency wallet ----
+// Currency ids come from system.types.currencyTypes. Id 1 (the list's first
+// entry, the classic money) is an alias for G.gold — one purse, every legacy
+// reader (battle rewards, HUD, plugins, startGold) untouched. Ids ≥ 2 live in
+// G.wallet with the same 0–9,999,999 clamp as gold.
+export function currencyBalance(id: any): number {
+  const cid = Number(id) || 0;
+  if (cid <= 1) return G.gold;
+  return (G.wallet && G.wallet[cid]) || 0;
+}
+export function addCurrency(id: any, n: any): void {
+  const cid = Number(id) || 0;
+  if (cid <= 1) {
+    G.gold = clamp(G.gold + n, 0, 9999999);
+    return;
+  }
+  if (!G.wallet) G.wallet = {};
+  G.wallet[cid] = clamp((G.wallet[cid] || 0) + n, 0, 9999999);
+}
+/** Display name for a currency: id ≤ 1 = the system.currency unit ("G");
+ *  ids ≥ 2 = the Currency Types list entry's name. */
+export function currencyName(id: any): string {
+  const cid = Number(id) || 0;
+  if (cid <= 1) return ctx.proj.system.currency;
+  const t = RA.typeList(ctx.proj, "currencyTypes").find((c: any) => c.id === cid);
+  return t ? t.name : "?";
 }
 
 // Quest runtime (js/quests.js): created by the engine body at the same point

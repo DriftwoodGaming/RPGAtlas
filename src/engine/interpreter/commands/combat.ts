@@ -30,7 +30,7 @@ export function registerCombatCommands(): void {
   });
 
   registerCommand("shop", async (c: any, { services }: InterpContext) => {
-    await services.Shop.run(c.goods || []);
+    await services.Shop.run(c.goods || [], c.currencyId);
   });
 
   // ---- In-troop enemy commands (RM 331–340, Project Compass M3·C) ----

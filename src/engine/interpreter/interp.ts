@@ -15,7 +15,7 @@
 import { RA } from "../../shared/deps.js";
 import { getCommand } from "./registry.js";
 import { ctx } from "../state/engine-context.js";
-import { G, Quests, invCount } from "../state/game-state.js";
+import { G, Quests, invCount, currencyBalance } from "../state/game-state.js";
 import { compareVariable } from "../util.js";
 import { evalMzScript, mzGlobalsFromState } from "../../shared/mz-script.js";
 
@@ -174,7 +174,8 @@ export class Interp {
       case "item":
         return invCount(cond.itemKind || "item", cond.id) > 0;
       case "gold":
-        return cmp(G.gold, cond.val, cond.cmp || ">=");
+        // currencyId ≥ 2 reads a wallet balance; absent/0/1 is classic gold.
+        return cmp(currencyBalance(cond.currencyId), cond.val, cond.cmp || ">=");
       case "region": {
         // the player's tile region (Phase 5); 0 = untagged
         const m = ctx.map;

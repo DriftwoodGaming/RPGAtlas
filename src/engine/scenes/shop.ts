@@ -7,15 +7,26 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { RA } from "../../shared/deps.js";
-import { clamp, sysSe } from "../util.js";
+import { sysSe } from "../util.js";
 import { showList } from "../ui-stack.js";
 import { ctx } from "../state/engine-context.js";
-import { G, dbFor, invCount, addInv } from "../state/game-state.js";
+import {
+  G, dbFor, invCount, addInv, currencyBalance, addCurrency, currencyName,
+} from "../state/game-state.js";
 import { iconEntryHtml } from "./menus.js";
 
 export const Shop: any = {
-  async run(goods: any) {
-    const goldLine = () => "Gold: " + G.gold + " " + ctx.proj.system.currency;
+  async run(goods: any, currencyId?: any) {
+    // Wallet-currency shops (currencyId ≥ 2) trade in that Currency Types
+    // balance and label amounts with the list entry's name ("50 Gems"). The
+    // classic path (absent/0/1) renders byte-identically to the pre-wallet
+    // shop: "Gold: <n> <system.currency>".
+    const cid = Number(currencyId) || 0;
+    const wallet = cid > 1;
+    const unit = wallet ? currencyName(cid) : ctx.proj.system.currency;
+    const goldLine = () => wallet
+      ? unit + ": " + currencyBalance(cid)
+      : "Gold: " + G.gold + " " + ctx.proj.system.currency;
     while (true) {
       const i = await showList(
         [{ label: "Buy" }, { label: "Sell" }, { label: "Leave" }],
@@ -34,11 +45,11 @@ export const Shop: any = {
                 ' <span class="cnt">' +
                 e.price +
                 " " +
-                ctx.proj.system.currency +
+                unit +
                 " · own ×" +
                 invCount(gd.kind, gd.id) +
                 "</span>",
-              disabled: G.gold < e.price || invCount(gd.kind, gd.id) >= 99,
+              disabled: currencyBalance(cid) < e.price || invCount(gd.kind, gd.id) >= 99,
               help:
                 e.desc ||
                 (e.params
@@ -51,7 +62,7 @@ export const Shop: any = {
           );
           if (bi < 0) break;
           const { gd, e } = entries[bi];
-          G.gold -= e.price;
+          addCurrency(cid, -e.price);
           addInv(gd.kind, gd.id, 1);
           sysSe("equip");
         }
@@ -77,7 +88,7 @@ export const Shop: any = {
                 " · " +
                 Math.floor(e.price / 2) +
                 " " +
-                ctx.proj.system.currency +
+                unit +
                 "</span>",
             })),
             { title: "Sell — " + goldLine(), className: "shopwin" },
@@ -85,7 +96,7 @@ export const Shop: any = {
           if (si < 0) break;
           const { kind, e } = owned[si];
           addInv(kind, e.id, -1);
-          G.gold = clamp(G.gold + Math.floor(e.price / 2), 0, 9999999);
+          addCurrency(cid, Math.floor(e.price / 2));
           sysSe("equip");
         }
       }

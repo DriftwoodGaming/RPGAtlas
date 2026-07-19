@@ -31,6 +31,7 @@ export async function newGame(start?: { mapId: number; x: number; y: number }): 
   G.selfSw = {};
   G.quests = {};
   G.gold = ctx.proj.system.startGold || 0;
+  G.wallet = {}; // extra-currency balances all start at zero
   G.inv = { item: {}, weapon: {}, armor: {} };
   G.party = (ctx.proj.system.party || [])
     .slice(0, 4)

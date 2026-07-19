@@ -5,6 +5,19 @@
 export const PATCH_NOTES = [
   {
     date: "July 19, 2026",
+    title: "Multiple currencies: wallet, shops, and events",
+    summary:
+      "Your Currency Types are now real money - earn them, spend them in shops, and gate events on them.",
+    items: [
+      "The party carries a wallet with a balance for every Currency Types entry; the first entry stays your classic gold, so existing games work unchanged.",
+      "Change Gold gains a Currency picker - grant or take Gems, Tokens, or any currency you define.",
+      "Open Shop gains a Currency picker: a shop priced in Gems shows every price as Gems and pays sell-backs in Gems too.",
+      "If conditions (events and dialogue lines) can compare any currency balance, so a ferryman can demand 3 Tokens.",
+      "The pause menu lists extra balances beside gold once you own any, and saves carry the wallet; older saves simply start the extras at zero.",
+    ],
+  },
+  {
+    date: "July 19, 2026",
     title: "Tag gear with rarities and enemies with categories",
     summary:
       "Items, weapons, armors and enemies can now carry the new Types-tab labels.",

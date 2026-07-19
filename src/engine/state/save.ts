@@ -101,6 +101,7 @@ function buildSavePayload(): any {
       party: G.party,
       inv: G.inv,
       gold: G.gold,
+      wallet: G.wallet,
       steps: G.steps,
       cameraZoom: ctx.cameraZoom,
       timeOfDay: G.timeOfDay,
@@ -151,6 +152,7 @@ async function applySave(d: any): Promise<void> {
     a.mp = Math.min(a.mp, param(a, "mmp"));
   });
   G.gold = d.gold || 0;
+  G.wallet = d.wallet || {}; // old saves lack the wallet — all extras at zero
   G.steps = d.steps || 0;
   // vehicles (Phase 5): old saves lack the fields — start parked at System
   G.vehicles = d.vehicles || {};
