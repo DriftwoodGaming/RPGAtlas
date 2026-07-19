@@ -19,7 +19,10 @@ export const itemsTab = () => listFormTab({
   list: () => S.proj.items,
   blank: () => ({ id: 0, name: "Item", icon: 24, price: 50, hp: 50, mp: 0, desc: "" }),
   form(e: any, box: any, redrawList: any) {
-    box.appendChild(row(field("Name", nameRefresher(e, redrawList)), iconPickerField(e, redrawList), field("Price", nIn(e, "price", 0))));
+    // Rarity tag (Types tab planning list) — organisational only, 0 = none.
+    if (e.rarityId == null) e.rarityId = 0;
+    box.appendChild(row(field("Name", nameRefresher(e, redrawList)), iconPickerField(e, redrawList), field("Price", nIn(e, "price", 0)),
+      field("Rarity", sel(e, "rarityId", typeSelOpts("itemRarities", "(none)")))));
     box.appendChild(row(field("Restores HP", nIn(e, "hp", 0, 9999)), field("Restores MP", nIn(e, "mp", 0, 9999)),
       field("Revives fallen ally", chk(e, "revive")),
       // M3·C: the MZ escape effect — a Smoke Bomb item.
@@ -49,8 +52,10 @@ export const weaponsTab = () => listFormTab({
   blank: () => ({ id: 0, name: "Weapon", icon: 48, price: 100, wtypeId: 1, params: { atk: 5 } }),
   form(e: any, box: any, redrawList: any) {
     e.params = e.params || {};
+    if (e.rarityId == null) e.rarityId = 0;
     box.appendChild(row(field("Name", nameRefresher(e, redrawList)), iconPickerField(e, redrawList),
-      field("Type", sel(e, "wtypeId", typeSelOpts("weaponTypes"))), field("Price", nIn(e, "price", 0))));
+      field("Type", sel(e, "wtypeId", typeSelOpts("weaponTypes"))), field("Price", nIn(e, "price", 0)),
+      field("Rarity", sel(e, "rarityId", typeSelOpts("itemRarities", "(none)")))));
     const pr = h("div", { class: "frow" });
     for (const k of PARAM_KEYS) { if (e.params[k] == null) e.params[k] = 0; pr.appendChild(field(k.toUpperCase() + " +", nIn(e.params, k, -999, 999))); }
     box.appendChild(pr);
@@ -66,9 +71,11 @@ export const armorsTab = () => listFormTab({
   blank: () => ({ id: 0, name: "Armor", icon: 56, price: 80, atypeId: 1, etypeId: 4, params: { def: 4 } }),
   form(e: any, box: any, redrawList: any) {
     e.params = e.params || {};
+    if (e.rarityId == null) e.rarityId = 0;
     box.appendChild(row(field("Name", nameRefresher(e, redrawList)), iconPickerField(e, redrawList), field("Price", nIn(e, "price", 0))));
     box.appendChild(row(field("Type", sel(e, "atypeId", typeSelOpts("armorTypes"))),
-      field("Equip slot", sel(e, "etypeId", typeSelOpts("equipTypes")))));
+      field("Equip slot", sel(e, "etypeId", typeSelOpts("equipTypes"))),
+      field("Rarity", sel(e, "rarityId", typeSelOpts("itemRarities", "(none)")))));
     const pr = h("div", { class: "frow" });
     for (const k of PARAM_KEYS) { if (e.params[k] == null) e.params[k] = 0; pr.appendChild(field(k.toUpperCase() + " +", nIn(e.params, k, -999, 999))); }
     box.appendChild(pr);

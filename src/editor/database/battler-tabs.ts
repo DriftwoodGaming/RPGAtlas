@@ -9,7 +9,7 @@
 import { Assets, RA, editorState as S } from "../editor-state";
 import {
   h, nIn, sel, chk, field, row, dbOpts, charsetOpts,
-  elementSelOpts, skillTypeSelOpts, switchOpts,
+  elementSelOpts, skillTypeSelOpts, switchOpts, typeSelOpts,
 } from "../dom";
 import { touch } from "../persistence";
 import { parseFormula } from "../../shared/formula";
@@ -338,9 +338,12 @@ export const enemiesTab = () => listFormTab({
       preview.appendChild(Assets.enemyCanvas(e.sprite, e.color, 96));
     }
     const colorIn = h("input", { type: "color", value: e.color || "#5aa84f", oninput(ev2: any) { e.color = ev2.target.value; touch(); rp(); } });
+    // Category tag (Types tab planning list) — organisational only, 0 = none.
+    if (e.categoryId == null) e.categoryId = 0;
     box.appendChild(row(field("Name", nameRefresher(e, redrawList)),
       field("Sprite", sel(e, "sprite", Assets.ENEMY_TYPES.map((t: any) => ({ v: t, l: Assets.assetLabel(t) })), rp)),
-      field("Color", colorIn), preview));
+      field("Color", colorIn),
+      field("Category", sel(e, "categoryId", typeSelOpts("enemyCategories", "(none)"))), preview));
     box.appendChild(subTabs("enemies", [
       { label: "Stats & rewards", build: buildStats },
       { label: "Actions (AI)", build: buildActions },

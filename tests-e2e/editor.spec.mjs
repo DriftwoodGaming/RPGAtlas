@@ -318,6 +318,39 @@ test.describe("database list upgrades", () => {
   });
 });
 
+test.describe("rarity & category tags", () => {
+  test("a weapon rarity and an enemy category are picked from the Types lists and saved by id", async ({ page }) => {
+    await page.goto("/index.html");
+    const saveIndicator = page.locator("#save-ind");
+    await expect(saveIndicator).toBeVisible();
+    await expect(saveIndicator).toHaveText(/^✓ /);
+
+    await page.locator("#menus .menu-label", { hasText: "Tools" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "Database" }).click();
+    await expect(page.locator(".db-modal")).toBeVisible();
+
+    // Weapons: the first entry's Rarity select defaults to "(none)" (0) and
+    // choosing "Rare" stores that list entry's numeric id.
+    await page.locator(".dbtabs-vert button", { hasText: "Weapons" }).click();
+    const rarity = page.locator(".db-modal label.fld", { hasText: "Rarity" }).locator("select");
+    await expect(rarity).toHaveValue("0");
+    await rarity.selectOption({ label: "Rare" });
+
+    // Enemies: same flow for the Category tag in the identity row.
+    await page.locator(".dbtabs-vert button", { hasText: "Enemies" }).click();
+    const category = page.locator(".db-modal label.fld", { hasText: "Category" }).locator("select");
+    await expect(category).toHaveValue("0");
+    await category.selectOption({ label: "Undead" });
+
+    // Both tags autosave onto the first entries as numeric ids.
+    await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
+    await expect.poll(() => page.evaluate(() => {
+      const saved = JSON.parse(localStorage.getItem("rpgatlas_project"));
+      return saved && [saved.weapons[0].rarityId, saved.enemies[0].categoryId];
+    })).toEqual([3, 2]);
+  });
+});
+
 test.describe("custom project icons", () => {
   test("an icon sheet can be added and selected from the existing picker", async ({ page }) => {
     await page.goto("/index.html");

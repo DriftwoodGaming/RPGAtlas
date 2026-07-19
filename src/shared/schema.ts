@@ -481,6 +481,9 @@ export interface Item {
   learn?: number[];
   /** MZ effect 41 (escape, M3·C) — using it in battle flees the fight. */
   escapeBattle?: boolean;
+  /** Item rarity tag (system.types.itemRarities id). Organisational only —
+   *  nothing in the engine reads it. Absent/0 = no rarity. */
+  rarityId?: number;
 }
 
 export interface Weapon {
@@ -492,6 +495,8 @@ export interface Weapon {
   params?: Params;
   /** Battle animation played on normal attacks (Phase 5). Absent = legacy FX. */
   animationId?: number;
+  /** Item rarity tag (system.types.itemRarities id). Organisational only. */
+  rarityId?: number;
 }
 
 export interface Armor {
@@ -502,6 +507,8 @@ export interface Armor {
   atypeId?: number;
   etypeId?: number;
   params?: Params;
+  /** Item rarity tag (system.types.itemRarities id). Organisational only. */
+  rarityId?: number;
 }
 
 /** Condition gating one enemy action row (Phase 5; the M3·C kinds are the MZ
@@ -552,6 +559,9 @@ export interface Enemy {
   traits?: Trait[];
   /** Victory loot (M3·C). Absent/empty = no drop rolls at all. */
   drops?: EnemyDrop[];
+  /** Enemy category tag (system.types.enemyCategories id). Organisational
+   *  only — nothing in the engine reads it. Absent/0 = no category. */
+  categoryId?: number;
 }
 
 /** A troop battle-event page condition (Phase 5). An empty cond never fires. */

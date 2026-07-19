@@ -5,6 +5,18 @@
 export const PATCH_NOTES = [
   {
     date: "July 19, 2026",
+    title: "Tag gear with rarities and enemies with categories",
+    summary:
+      "Items, weapons, armors and enemies can now carry the new Types-tab labels.",
+    items: [
+      "Items, weapons and armors gain a Rarity dropdown fed by the Database > Types > Item Rarities list.",
+      "Enemies gain a Category dropdown fed by the Enemy Categories list, right in their identity row.",
+      "Both default to (none), and renaming a rarity or category in the Types tab updates every entry that uses it - references are stored by id.",
+      "These stay organisational labels: drops, damage and shops behave exactly as before.",
+    ],
+  },
+  {
+    date: "July 19, 2026",
     title: "More category lists in the Types tab",
     summary:
       "Name your game's currencies, enemy families and item rarities from Database > Types.",
