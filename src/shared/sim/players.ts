@@ -171,3 +171,103 @@ export function playersOnMap(world: World, mapId: number): PlayerEntity[] {
 }
 
 const EMPTY: PlayerEntity[] = [];
+
+/* ── Snapshot / delta framing (MP4·B) ──────────────────────────────────────
+   The host broadcasts every player's position each tick; a client mirrors it.
+   These are the ONLY per-player facts on the wire (D6): identity (id + name +
+   appearance key) and position. No IP, no input history, nothing else. */
+
+/** One player's wire state in a snapshot or delta. */
+export interface PlayerState {
+  id: PlayerId;
+  name: string;
+  charset: string;
+  mapId: number;
+  x: number;
+  y: number;
+  rx: number;
+  ry: number;
+  dir: number;
+  moving: boolean;
+  animT: number;
+}
+
+/** The current position of the local player (host: player 0, read off
+ *  `world.g.player`). Identity comes from the caller since names/charsets live
+ *  on the client/engine side, not in the headless world state. */
+export function localPlayerState(world: World, name: string, charset: string): PlayerState {
+  const p = (world.g && world.g.player) || {};
+  return {
+    id: world.roster.local,
+    name,
+    charset,
+    mapId: world.g ? world.g.mapId : 0,
+    x: p.x || 0,
+    y: p.y || 0,
+    rx: p.rx == null ? p.x || 0 : p.rx,
+    ry: p.ry == null ? p.y || 0 : p.ry,
+    dir: p.dir || 0,
+    moving: !!p.moving,
+    animT: p.animT || 0,
+  };
+}
+
+/** One roster entity as a wire state. */
+export function entityState(e: PlayerEntity): PlayerState {
+  return {
+    id: e.id, name: e.name, charset: e.charset, mapId: e.mapId,
+    x: e.x, y: e.y, rx: e.rx, ry: e.ry, dir: e.dir, moving: e.moving, animT: e.animT,
+  };
+}
+
+/** Build the full player-state list for a snapshot/delta: the local player plus
+ *  every roster entity. */
+export function buildPlayerStates(world: World, localName: string, localCharset: string): PlayerState[] {
+  const out: PlayerState[] = [localPlayerState(world, localName, localCharset)];
+  for (const e of world.roster.players.values()) out.push(entityState(e));
+  return out;
+}
+
+/** Apply a received player-state list to a client's world: reconcile the roster
+ *  to hold exactly the players whose id ≠ `localId` (upsert present, drop
+ *  absent), and hand the local player's own state to `onLocal` (the engine
+ *  writes `G.player`; a headless test captures it). The client's tick snapshots
+ *  prx/pry BEFORE calling this, so authoritative rx/ry lands cleanly for
+ *  between-tick interpolation. Returns the local state (or null if absent). */
+export function applyPlayerStates(
+  world: World,
+  localId: PlayerId,
+  states: PlayerState[],
+  onLocal?: (s: PlayerState) => void,
+): PlayerState | null {
+  const seen = new Set<PlayerId>();
+  let local: PlayerState | null = null;
+  for (const s of states) {
+    if (s.id === localId) {
+      local = s;
+      if (onLocal) onLocal(s);
+      continue;
+    }
+    seen.add(s.id);
+    let e = world.roster.players.get(s.id);
+    if (!e) {
+      e = addPlayer(world, s.id, s.name, { mapId: s.mapId, x: s.x, y: s.y, dir: s.dir, charset: s.charset });
+    }
+    e.name = s.name;
+    e.charset = s.charset;
+    e.mapId = s.mapId;
+    e.x = s.x;
+    e.y = s.y;
+    e.rx = s.rx;
+    e.ry = s.ry;
+    e.dir = s.dir;
+    e.moving = s.moving;
+    e.animT = s.animT;
+  }
+  // Drop roster entities the host no longer reports (they left / changed map off
+  // this view). The caller's presence handling can toast the leave separately.
+  for (const id of Array.from(world.roster.players.keys())) {
+    if (!seen.has(id)) world.roster.players.delete(id);
+  }
+  return local;
+}

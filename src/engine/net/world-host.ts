@@ -70,11 +70,19 @@ export class WorldHost {
   private onMessage(msg: NetMessage): void {
     if ((msg as any).t === "input") {
       const m = msg as { seq: number; intent: InputIntent };
-      this.inbox.push({ playerId: 0, seq: m.seq, intent: m.intent });
+      this.pushInput(0, m.seq, m.intent);
     } else if ((msg as any).t === "reply") {
       const m = msg as { id: number; value: DirectiveReplyValue };
       deliverReply(this.world, 0, m.id, m.value);
     }
+  }
+
+  /** Buffer one input intent for the tick to drain, tagged with the player it
+   *  came from. Player 0 is the loopback (local) player; MP4·B's room host calls
+   *  this with a remote client's assigned id so the tick applies every player's
+   *  intents in one pass — the same server-authoritative inbox, now multi-player. */
+  pushInput(playerId: number, seq: number, intent: InputIntent): void {
+    this.inbox.push({ playerId, seq, intent });
   }
 
   /** Take and clear the intents buffered since the last drain. The world tick
