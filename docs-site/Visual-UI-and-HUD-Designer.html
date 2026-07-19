@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visual UI and HUD Designer — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="Your-Game-Is-a-Folder.html">Your Game Is a Folder</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li><li><a href="Coming-from-RPG-Maker.html">Coming from RPG Maker</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Advanced-Map-Editor.html">Advanced Map Editor</a></li><li><a href="Events.html">Events</a></li><li><a href="Dialogue-and-Cutscenes.html">Dialogue & Cutscenes</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="Adding-Your-Own-Art-and-Music.html">Adding Your Own Art and Music</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="visual-ui-and-hud-designer">Visual UI and HUD Designer</h1>
+<p>Open <strong>Database ▸ System ▸ Visual UI / HUD</strong>, then choose <strong>Open Visual UI / HUD Designer…</strong>. The designer shows the game screen at the project's real aspect ratio. Drag a widget to move it; drag its lower-right corner to resize it. Positions and sizes are saved as percentages, so the same layout remains aligned when the game resolution changes.</p>
+<h2 id="widgets">Widgets</h2>
+<ul><li><strong>Minimap</strong> shows the live map, event and vehicle markers, and the player. It still respects the System minimap switch and each map's <strong>Show on the minimap</strong> option.</li><li><strong>Quest tracker</strong> shows active visible quests. Set how many quests each tracker can display.</li><li><strong>Bound text</strong> combines a label with a live variable, switch, gold, party-leader stat, step count, or map-name value.</li><li><strong>Gauge</strong> turns those same numeric bindings into a labeled fill bar. Actor HP, MP, and TP use their live maximum automatically; variables and gold use the maximum you enter.</li><li><strong>Custom menu</strong> adds clickable on-map commands. A command can open the regular pause menu or run any authored Common Event through the normal blocking event interpreter.</li></ul>
+<p>Use <strong>HUD visible</strong> to disable the authored layer without deleting its layout. Players can still use the project's named <strong>HUD</strong> input action (M by default) to hide and restore the whole layer.</p>
+<h2 id="message-window-layouts">Message-window layouts</h2>
+<p>Select the dashed <strong>Message window</strong> rectangle in the preview. Turn on <strong>Use custom layout</strong>, then drag or resize it and set its padding and text alignment. When enabled, this authored rectangle is used for dialogue instead of the classic top, middle, and bottom message positions. Turn it off to keep the classic per-message position behavior.</p>
+<h2 id="theme-presets">Theme presets</h2>
+<p><strong>Atlas</strong>, <strong>Parchment</strong>, and <strong>Neon</strong> apply coordinated HUD colors and the matching shared window palette. The chosen border, text, accent, and muted colors flow through HUD widgets, gauges, menus, speaker labels, and message windows in playtests and exported games.</p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>
