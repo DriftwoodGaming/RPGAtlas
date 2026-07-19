@@ -503,6 +503,9 @@ test.describe("region painting (phase 5)", () => {
     const mapBox = await page.locator("#mapcanvas").boundingBox();
     await page.mouse.click(mapBox.x + 30, mapBox.y + 30);
     await page.mouse.click(mapBox.x + 30 + 36, mapBox.y + 30); // second cell
+    // numpad digits set the id the same way
+    await page.keyboard.press("Numpad3");
+    await page.mouse.click(mapBox.x + 30 + 72, mapBox.y + 30); // third cell
 
     await expect(saveIndicator).toHaveText(/^● /);
     await expect(saveIndicator).toHaveText(/^✓ /, { timeout: 5000 });
@@ -512,6 +515,7 @@ test.describe("region painting (phase 5)", () => {
     const m = after.maps.find((mm) => mm.id === mapId);
     expect(Array.isArray(m.regions)).toBe(true);
     expect(m.regions.filter((v) => v === 7).length).toBeGreaterThanOrEqual(2);
+    expect(m.regions.filter((v) => v === 3).length).toBeGreaterThanOrEqual(1);
   });
 });
 

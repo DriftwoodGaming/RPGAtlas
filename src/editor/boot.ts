@@ -96,13 +96,17 @@ const EDITOR_KEYS: KeyBinding[] = [
   { codes: ["KeyY"], ctrl: false, when: () => advFocus.isFocused(), preventDefault: true, run: () => runAct("adv-flip-v") },
   { codes: ["KeyR"], ctrl: false, when: () => advFocus.isFocused(), preventDefault: true, run: () => runAct("adv-rotate") },
   // Height mode consumes ALL digits for the painted elevation (0–9). Must stay above the layer gate.
-  { codes: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"],
+  // Numpad digits count too (matched by physical code, like the Numpad0/NumpadAdd
+  // zoom keys below — NumLock doesn't matter); both code families end in the digit.
+  { codes: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9",
+            "Numpad0", "Numpad1", "Numpad2", "Numpad3", "Numpad4", "Numpad5", "Numpad6", "Numpad7", "Numpad8", "Numpad9"],
     when: () => S.mode === "height",
-    run(e) { S.heightVal = Number(e.code.slice(5)); setStatus(); } },
+    run(e) { S.heightVal = Number(e.code.slice(-1)); setStatus(); } },
   // Region mode (Phase 5): digits set the painted id; -/= step it up to 63.
-  { codes: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9"],
+  { codes: ["Digit0", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9",
+            "Numpad0", "Numpad1", "Numpad2", "Numpad3", "Numpad4", "Numpad5", "Numpad6", "Numpad7", "Numpad8", "Numpad9"],
     when: () => S.mode === "region",
-    run(e) { S.regionVal = Number(e.code.slice(5)); setStatus(); } },
+    run(e) { S.regionVal = Number(e.code.slice(-1)); setStatus(); } },
   { codes: ["Minus"], when: () => S.mode === "region",
     run() { S.regionVal = Math.max(0, S.regionVal - 1); setStatus(); } },
   { codes: ["Equal"], when: () => S.mode === "region",
@@ -123,7 +127,7 @@ const EDITOR_KEYS: KeyBinding[] = [
   // View / selection
   { codes: ["Equal", "NumpadAdd"], run: () => zoomStep(1) },
   { codes: ["Minus", "NumpadSubtract"], run: () => zoomStep(-1) },
-  { codes: ["Digit0", "Numpad0"], run: () => setZoom(1) }, // reset to 100% (height mode consumes Digit0 above)
+  { codes: ["Digit0", "Numpad0"], run: () => setZoom(1) }, // reset to 100% (height/region modes consume both 0 keys above)
   { codes: ["BracketLeft"], when: mapMode, run: () => stepBrush(-1) },
   { codes: ["BracketRight"], when: mapMode, run: () => stepBrush(1) },
   { codes: ["Delete", "Backspace"], when: () => S.mode === "event", run: () => deleteSelectedEvent() },

@@ -186,7 +186,7 @@ export function openKeyboardShortcuts() {
   ]);
   section("Tools  (Map or Height mode)", toolIds.map((id) => line(keys(aKey(id)), aLabel(id))));
   section("Layers  (Map mode)", layerIds.map((id) => line(keys(aKey(id)), aLabel(id))));
-  section("Height mode", [line(keys("0–9"), "set the painted elevation value")]);
+  section("Height mode", [line(keys("0–9", "Numpad 0–9"), "set the painted elevation value")]);
   section("Edit & file", [
     ...["undo", "redo", "cut", "copy", "paste", "save"].map((id) => line(keys(aKey(id)), aLabel(id))),
     h("li", { class: "dim" }, "Undo spans map painting, events, Map Properties, and Database edits — one history. Ctrl+Z / Ctrl+Y also work inside the Database and Map Properties dialogs (text boxes keep the browser's own text undo while typing)."),
