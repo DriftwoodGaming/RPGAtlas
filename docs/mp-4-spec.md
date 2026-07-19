@@ -1,7 +1,8 @@
 # Phase MP4 Spec — Local Multi-Client Co-op ("Project Beacon")
 
-**Status:** stage A landed 2026-07-19 (Opus); stages B–D pending; phase gate
-pending (Fable).
+**Status:** stages A–D landed 2026-07-19 (Opus) — local co-op works: two tabs
+share a world over BroadcastChannel (join, mirror, host-authoritative movement,
+emote/say bubbles, late-join). **Phase gate pending (Fable).**
 **Authored:** 2026-07-19 by Claude Opus 4.8 (stage A build), from the MP4 section
 of `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-3-spec.md` + the MP0·B singleton
 audit / §C6 origins.
@@ -165,31 +166,176 @@ moment a second player walks on screen).
 
 ---
 
-## Stage B — BroadcastChannel transport + late-join (Opus, work order)
+## Stage B — Transport + host/client session (Opus, landed 2026-07-19)
 
-`BroadcastChannelTransport` implementing the `Transport` interface (encode/decode
-via the protocol codec — BroadcastChannel is cross-context, so this exercises the
-real wire path, unlike loopback's by-reference pass); a dev-flag "Play Together
-(local test)" title entry (host election: room creator owns the authoritative
-world + tick); the client-mirror reconstruction fed by snapshot/delta + presence
-(the `ClientSession.view` seam MP2·A marked); snapshot late-join through the
-save-payload path; presence toasts. Free-roam player movement per **D-0**.
+Landed in two commits: the transport (`e46b3a6`), then the room-session core
+(`696f838`); the live wiring rode into `d2e023e` with C/D.
 
-## Stage C — Emotes + preset-phrase say (Opus, work order)
+### What landed
 
-Emote bubbles + preset-phrase say (the D4 baseline layer): `emote`/`chat`
-client→server → `presence` emote/say broadcast → the `drawRemotePresence` pass
-gains transient bubbles keyed on `PlayerEntity.emote`/`say` (the fields stage A
-reserved). The DB authoring UI for custom presets is MP7.
+- **`src/engine/net/broadcast-transport.ts`** (NEW) — a point-to-point
+  `Transport` over the browser's `BroadcastChannel` (same-origin bus): a
+  rendezvous channel `beacon:<room>` carries the join handshake; each accepted
+  connection gets its OWN channel `beacon:<room>:c<cid>` so two endpoints share
+  it like a private socket. Frames cross as JSON strings (encode on send /
+  `JSON.parse` on receive) — this exercises the real wire path, unlike
+  loopback's by-reference pass. Both ends buffer until wired (client buffers
+  outbound until the server's `ready`; either end buffers inbound until
+  `onMessage` attaches), the loopback delivery contract over an async bus. MP5's
+  WebSocket swaps in behind the same interface. This is client/host glue, off
+  the sim graph.
+- **`src/engine/net/session.ts`** (NEW) — the live `session.mode` (`solo` |
+  `host` | `client`), room code + local player id. Solo is the default and the
+  ONLY mode the goldens run in.
+- **`src/engine/net/room-host.ts`** (NEW, headless) — `RoomHost` owns the
+  authoritative world (its `WorldHost` + tick, exactly as solo) and serves peers.
+  On join: assign an id, spawn a roster entity, send `welcome` + `snapshot`,
+  presence-join the others. Routes `input` → `WorldHost.pushInput` tagged by
+  player (the tick applies it); `reply` → `deliverReply`; `emote`/`chat` → roster
+  social overlay + presence broadcast. **Directives route by player** (0 → the
+  loopback the WorldHost installed; else the client's transport). `afterTick()`
+  broadcasts one `delta` of every player's position — **no peers ⇒ nothing sent,
+  so a lone host is byte-identical to solo**.
+- **`src/engine/net/room-client.ts`** (NEW, headless) — `RoomClient` mirrors the
+  host (the MP2·A reconstruction seam): `welcome` sets the local id; `snapshot`/
+  `delta` reconstruct the roster + own player (via injected hooks); `directive`
+  renders through the engine UI and answers with `reply`; `presence` drives
+  toasts + emote/say bubbles. Sends its own input as `input` intents — the host
+  is the one authority (D1).
+- **`src/engine/net/world-host.ts`** — `pushInput(playerId, seq, intent)`, the
+  multi-player tick inbox (the loopback path now calls it with player 0).
+- **`src/shared/sim/players.ts`** — `PlayerState` wire shape + `buildPlayerStates`
+  / `applyPlayerStates` (identity + position are the ONLY per-player facts, D6).
+  `applyPlayerStates` snapshots prev-tick coords so a client interpolates the
+  host's authoritative positions smoothly.
+- **Live wiring (`d2e023e`), every branch gated so solo is byte-identical:**
+  - `loop.ts`: client mode runs the thin `clientTick`; host mode ticks
+    authoritatively then `afterTick()`. Solo takes the exact old path.
+  - `scenes/map.ts`: drained intents dispatch by playerId (0 →
+    `applyPlayerIntent` unchanged; peers → `applyRemoteIntent` moving their
+    roster entity with same-map collision); `advanceRemotePlayers()` + a roster
+    prx snapshot, both gated on a non-empty roster; `clientTick()` (capture
+    input → send intents).
+  - `net/active.ts`: live `host`/`client` refs (null in solo → no-op).
+  - `co-op.ts`: the Play Together flow — `createRoom` (host from a running game),
+    `joinRoom` (reconstruct map + player from the snapshot, apply authoritative
+    positions), presence toasts (inline-styled → no CSS/cache-bust).
+  - `boot.ts`: `RPGATLAS_MP` dev entry gains `createRoom`/`joinRoom`/`session`
+    (+ diagnostic `sendInput`/`sendEmote`/`localPlayer`). This is the MP4·B
+    "dev-flag entry"; the polished title-screen flow is MP5·C.
+- **Late-join:** a mid-game joiner gets the current `snapshot` (all player states
+  + mapId + timeOfDay); `reconstructClient` rebuilds the map + party from the
+  shared project and lands on the map, then authoritative positions apply. Proven
+  by the third tab in `mp-coop.spec.mjs`.
+- **Tests:** `tests-unit/broadcast-transport.test.ts` (+2, handshake + isolation);
+  `tests-unit/room-session.test.ts` (+5, the protocol heart headless over the
+  real bus: join→welcome→snapshot roster reconstruction, input routing tagged by
+  player, delta sync, presence join/emote + isolation, directive routing + reply
+  resuming the host).
 
-## Stage D — Two-context e2e (Opus, work order)
+### Stage C — Emotes + preset-phrase say (Opus, landed 2026-07-19)
 
-Playwright two-context e2e under `?rngseed`: join, walk, emote, trigger a
-directive event, late-join snapshot — deterministic, additive, existing goldens
-untouched. Must pass **3× consecutively** (flake bar).
+- The wire path landed with B: `emote`/`chat` → the host sets the roster entity's
+  social overlay + broadcasts `presence` emote/say → the client applies it to its
+  roster mirror. `PlayerEntity.emote`/`say` (reserved in stage A) carry `{id/text,
+  t}` stamped with the host tick.
+- **`render-glue.ts` `drawRemotePresence`** gained transient speech bubbles
+  (`drawPresenceBubble`) over remote players, expiring after `PRESENCE_BUBBLE_TICKS`
+  (~2.5s); free-text say wins over an emote token. Always-on social layer (D4);
+  the name tag stays the only PERSISTENT personal fact (D6). Inert in solo.
+- Scope: **emotes are the MP4 deliverable.** Preset-phrase *say* is wired
+  end-to-end (protocol `chat.preset` → presence → bubble), but the preset-phrase
+  **list authoring** is MP7 (DB) and filtered free-text is MP9 — so a `preset`
+  say has no text to render until MP7 supplies the list; free-text `text` renders
+  directly. The DB authoring UI for custom presets is MP7 per the roadmap.
+
+### Stage D — Two-context e2e (Opus, landed 2026-07-19)
+
+- **`tests-e2e/mp-coop.spec.mjs`** (+1): two pages of ONE browser context (same
+  origin ⇒ they share the BroadcastChannel bus, exactly like two tabs on one
+  machine — separate Playwright *contexts* are storage-partitioned and would NOT
+  share the bus, so two pages/one context is the correct shape). Proves: host
+  opens a room, client joins by code, the host sees the joiner in its roster and
+  the client mirrors the host, a move the client sends is simulated by the host
+  and echoed to both, an emote crosses the wire, and a **late** third joiner gets
+  a snapshot of everyone present — all with zero console/page errors. **Green 3×
+  consecutively** (the flake bar), via `--repeat-each=3`.
+
+### Design decisions (B/C/D)
+
+- **B-1 — Everyone is a player entity; the local one is `G.player`.** The host's
+  own player is player 0 (`G.player`, moved by the unchanged `applyPlayerIntent`);
+  peers are roster entities the host moves with `applyRemoteIntent`. A client's
+  own player is `G.player` (driven by the host's authoritative echo via `onLocal`);
+  the others are its roster. `buildPlayerStates` unifies them on the wire.
+- **B-2 — The host is the one authority (D1), even locally.** A client never
+  simulates: it sends intents and renders the host's deltas. `clientTick` is a
+  thin capture-and-send + terrain-anim; `update()` is never called in client mode,
+  so the authoritative tick body is untouched (no client/host divergence risk).
+- **B-3 — Solo byte-identity by gating, not by mode-specific code paths.** Every
+  new branch keys off `session.mode` / a non-empty roster / `active.host` — all of
+  which are the solo values (`"solo"` / empty / null) in single-player, so the
+  solo path is the *exact* pre-MP4 code. The golden suite (123 specs) confirms
+  byte-identical at every commit.
+- **B-4 — Two pages, one context (the BroadcastChannel reality).** BroadcastChannel
+  is same-origin AND same storage partition; separate browser contexts don't share
+  it. The "two-context" e2e is therefore two pages of one context — which is also
+  the real deployment (two tabs on one machine).
+
+### Deviations / discoveries (B/C/D)
+
+- **D-B1 (no `PROTOCOL_VERSION` bump):** MP4 adds no new message *type* — it uses
+  the MP0 protocol as-is (`hello`/`join`/`welcome`/`snapshot`/`delta`/`directive`/
+  `presence`/`input`/`emote`/`chat`). The MP4 snapshot/delta *payload* rides the
+  already-opaque `ServerSnapshot.world` / `ServerDelta.changes` (`JsonValue`), so
+  no wire-shape change. Consistent with the MP3 gate ruling: v1 keeps absorbing
+  additive content until 2.0 freezes it.
+- **D-B2 (leave detection deferred to MP5):** BroadcastChannel gives no
+  disconnect signal, and MP5·A owns resume-token reconnect + empty-room expiry +
+  heartbeats. MP4 implements JOIN + presence-join + late-join fully; clean LEAVE
+  (a tab closing) is not detected in MP4. `applyPlayerStates` already reconciles
+  the roster to the host's reported set, and `autoResolveDirectivesFor` +
+  `removePlayer` exist for when MP5 adds the heartbeat reaper. Documented, not a
+  gap in the MP4 proof (the e2e never requires a leave).
+- **D-B3 (remote attack/act deferred):** `applyRemoteIntent` handles `move` +
+  `face`. A peer's `attack`/`act` (which would trigger the host's events under the
+  participants-only pause) is a later slice — the structure is in place
+  (per-player origins, `participantsOf`), and MP6 (co-op battles) is where remote
+  action against world events gets its real treatment. MP4 peers walk, emote, and
+  see the host's world; they don't yet swing swords or trip events remotely.
+- **D-B4 (client sees static host NPCs — the D-0 boundary in practice):** a
+  client renders its own map with NPCs at their initial positions; the host's
+  authoritative NPC motion is not streamed to clients in MP4 (only player
+  positions are). This is the player-layer/NPC-layer split of D-0: full NPC state
+  sync rides MP8's per-zone runtime + real deltas. Co-located players see each
+  other move perfectly; NPC motion is host-local for now.
+- **D-B5 (all players spawn on the start tile):** MP4 spawns every joiner at the
+  project start position, so players overlap until they move (per-map spawn points
+  are MP7, per the roadmap). Name tags disambiguate.
+
+### Stage B/C/D gate snapshot (all green, 2026-07-19)
+
+| Gate | Result |
+|---|---|
+| vitest | **1075** (71 files; +2 broadcast-transport, +5 room-session over stage A's 1068) |
+| node --test | **46** (unchanged) |
+| cargo | **26** (Rust untouched) |
+| Playwright | **125/125** (2.9m) — the 123 single-player goldens **byte-identical** (`mp-presence` + `mp-coop` additive, no baselines); `mp-coop` green **3× consecutively**; renderer-perf 237.40 ms/frame (budget 300; beacon-3 246.10 → within band) |
+| eslint / tsc | **0 / 0** — sim wall holds; the room/transport modules are engine/host glue (BroadcastChannel is a browser API), correctly outside `src/shared/sim/` |
+| versions / FORMAT_VERSION / cache-busts | 1.2.0 · 2 · none (no `?v=` file; toast + bubbles are inline-styled, no player-facing string table) |
+| i18n | no locale strings added (names are player-supplied; the localized Play Together UI is MP5·C/MP7) |
+
+---
 
 ## Phase gate (Fable, after D)
 
 Template gates; new two-context e2e green 3× consecutively; goldens untouched;
 audit presence messages carry no data beyond name + entity state (D6). Verdict
 here + roadmap status table; tag `beacon-4`.
+
+**MP4 GATE kickoff (paste into a new Fable conversation):**
+```
+Project Beacon — MP4 GATE (Fable). Read docs/MULTIPLAYER_ROADMAP.md (MP4) + docs/mp-4-spec.md.
+Re-run template gates; run the new two-context e2e (tests-e2e/mp-coop.spec.mjs) 3× consecutively; goldens untouched; audit presence messages carry no data beyond name+entity state (D6). Also spot-check the solo-inert gating (session.mode/roster/active.host guards) that keeps the goldens byte-identical, and confirm the D-0/D-B2..B5 scope deferrals (headless NPC ticking, leave detection, remote attack/act, per-map spawns) are the intended MP5/MP6/MP7/MP8 boundaries.
+Record verdict, tag beacon-4, push, end with the MP5 BUILD hand-off block.
+```
