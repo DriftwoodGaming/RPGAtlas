@@ -79,10 +79,16 @@ assert.match(commandSource, /t: "dialogue", label: "Play Dialogue"/,
   const sounds = [];
   const probes = [];
   engine.registerCommand("probe", () => probes.push("ran"));
+  // Beacon MP3·B: the dialogue path emits through the presentation port (with
+  // the run's origin) instead of calling showMessage/showList directly. The
+  // port's message carries {text, speaker, portrait}; choices returns the
+  // picked index (here 1 = "Wilds"). richText now runs client-side at render.
   engine.initInterpServices({
-    showMessage: async (name, text, face) => messages.push({ name, text, face }),
-    showList: async () => 1,
-    richText: (text) => text,
+    presentation: {
+      localEcho: true,
+      message: async (_origin, d) => messages.push({ name: d.speaker, text: d.text, face: d.portrait }),
+      choices: async () => 1,
+    },
     Sfx: { play: (name) => sounds.push(name) },
   });
   engine.ctx.proj = {

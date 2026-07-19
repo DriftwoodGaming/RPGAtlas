@@ -30,6 +30,7 @@ import {
   Quests,
   evaluateQuestFailures,
   addInv,
+  invCount,
   makeActor,
   param,
   gainExp,
@@ -72,7 +73,6 @@ import { createPresentationPort } from "../shared/sim/directives.js";
 import { renderDirective } from "./scenes/directive-renderer.js";
 import { startLoop } from "./loop.js";
 import { initJournalView } from "./scenes/menus.js";
-import { numberInputScene, selectItemScene, nameInputScene } from "./scenes/input-scenes.js";
 import { Shop, wireShopGoods, applyShopTranscript } from "./scenes/shop.js";
 import { Battle } from "./scenes/battle.js";
 import { toTitle, showTitle, newGame } from "./scenes/title.js";
@@ -114,10 +114,6 @@ const EngineServices: any = {
   get showMessage() { return ctx.showMessage; },
   get richText() { return ctx.richText; },
   showList,
-  // message-system input scenes (M2·B)
-  numberInput: numberInputScene,
-  selectItem: selectItemScene,
-  nameInput: nameInputScene,
   // helpers
   clamp, rnd,
   // deps
@@ -149,6 +145,10 @@ const EngineServices: any = {
   // authoritative transcript apply (runs only for non-localEcho sessions).
   presentation: createPresentationPort(soloHost.world),
   wireShopGoods, applyShopTranscript,
+  // Select Item world-side ownership re-validation (MP3·B, A6/C3.2c): a remote
+  // session's chosen id is checked against authoritative inventory before it
+  // reaches the variable. Loopback (localEcho) trusts the client's read.
+  ownsItem: (kind: string, id: number) => invCount(kind, id) > 0,
   // Change Enemy TP bridge (M3·B): live only while a battle runs.
   get battleAddEnemyTp() { return (fns as any).battleAddEnemyTp; },
   // In-troop enemy commands bridge (M3·C, RM 331–340): same lifetime.

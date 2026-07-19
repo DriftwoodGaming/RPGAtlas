@@ -31,23 +31,41 @@ export function registerFlowCommands(): void {
     await interp.runList(c.branches[i] || []);
   });
 
-  // ---- Message-system input scenes (Project Compass M2·B) ----
-  // Each awaits a UI-stack scene (input-scenes.ts) wired into services, then
-  // stores the result — a variable, or the actor's new name.
-  registerCommand("inputNumber", async (c: any, { state, services }: InterpContext) => {
-    const value = await services.numberInput(Number(c.digits) || 1, 0);
+  // ---- Message-system input scenes (Beacon MP3·B: presentation directives) ----
+  // The three RM player-input scenes (Input Number 103, Select Item 104, Name
+  // Input 303) no longer await a UI service directly — the world emits a
+  // directive through the presentation port and stores the validated reply.
+  // The client renders each with the SAME input scene as before
+  // (scenes/directive-renderer.ts → input-scenes.ts), so in loopback this is
+  // byte-identical to the pre-directive engine.
+  registerCommand("inputNumber", async (c: any, { interp, state, services }: InterpContext) => {
+    // (initial 0, exactly as the old numberInput(digits, 0) call: the renderer
+    // defaults initial to 0, so the dial starts at zero as before.)
+    const value = await services.presentation.numberInput(interp.origin, { digits: Number(c.digits) || 1 });
     if (c.varId != null) state.vars[c.varId] = value;
   });
 
-  registerCommand("selectItem", async (c: any, { state, services }: InterpContext) => {
-    const id = await services.selectItem(c.itemType);
+  registerCommand("selectItem", async (c: any, { interp, state, services }: InterpContext) => {
+    const raw = await services.presentation.selectItem(interp.origin, { itemType: c.itemType });
+    // A remote session's pick is re-validated against authoritative inventory
+    // (A6/C3.2c) — an id the player doesn't actually own is voided to 0. In
+    // loopback the client read the world's own bag by reference (localEcho), so
+    // the pick is already authoritative and the raw id stands, byte-identical.
+    const id = raw && !services.presentation.localEcho && !services.ownsItem("item", raw) ? 0 : raw;
     if (c.varId != null) state.vars[c.varId] = id;
   });
 
-  registerCommand("nameInput", async (c: any, { state, services }: InterpContext) => {
+  registerCommand("nameInput", async (c: any, { interp, state, services }: InterpContext) => {
     const member = (state.party || []).find((a: any) => a.actorId === c.actorId);
     const current = member ? member.name : "";
-    const name = await services.nameInput(current, Number(c.maxChars) || 8);
+    // The world computes the current name and sends it as the initial value;
+    // the renderer's on-screen keyboard opens on it, exactly as before. Empty
+    // reply keeps the old name (the `&& name` guard, unchanged).
+    const name = await services.presentation.nameInput(interp.origin, {
+      maxLen: Number(c.maxChars) || 8,
+      initial: current,
+      actorId: c.actorId,
+    });
     if (member && name) member.name = name;
   });
 

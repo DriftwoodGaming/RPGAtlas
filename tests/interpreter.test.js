@@ -109,23 +109,68 @@ async function loadRegistry() {
     assert.ok(true, "presentation handlers run without throwing outside a browser");
   }
 
-  // ---- Message-system input commands (M2·B) drive their scenes + store results ----
+  // ---- Message-system input directives (Beacon MP3·B) ----
+  // Input Number (103), Select Item (104), Name Input (303) no longer await a
+  // UI service directly: they emit through the presentation port with the
+  // interpreter's origin and store the validated reply.
   {
-    let numArgs = null, nameArgs = null;
+    const origin = { playerId: 0 };
+    let numArgs = null, nameArgs = null, selArgs = null;
     const mstate = { vars: {}, party: [{ actorId: 5, name: "Old" }] };
-    const msvc = {
-      numberInput: async (digits, initial) => { numArgs = { digits, initial }; return 123; },
-      selectItem: async () => 9,
-      nameInput: async (cur, max) => { nameArgs = { cur, max }; return "Zed"; },
+    const port = {
+      localEcho: true,
+      numberInput: async (o, d) => { numArgs = { o, d }; return 123; },
+      selectItem: async (o, d) => { selArgs = { o, d }; return 9; },
+      nameInput: async (o, d) => { nameArgs = { o, d }; return "Zed"; },
     };
-    await getCommand("inputNumber")({ t: "inputNumber", varId: 2, digits: 3 }, { interp: {}, state: mstate, services: msvc });
+    const msvc = { presentation: port, ownsItem: () => true };
+    const mrun = (cmd) => getCommand(cmd.t)(cmd, { interp: { origin }, state: mstate, services: msvc });
+
+    await mrun({ t: "inputNumber", varId: 2, digits: 3 });
     assert.equal(mstate.vars[2], 123, "inputNumber stores the entered number in its variable");
-    assert.equal(numArgs.digits, 3, "inputNumber passes the digit count to the scene");
-    await getCommand("selectItem")({ t: "selectItem", varId: 4, itemType: 1 }, { interp: {}, state: mstate, services: msvc });
+    assert.equal(numArgs.o, origin, "inputNumber passes the interpreter's origin to the port");
+    assert.equal(numArgs.d.digits, 3, "inputNumber sends the digit count");
+
+    await mrun({ t: "selectItem", varId: 4, itemType: 1 });
     assert.equal(mstate.vars[4], 9, "selectItem stores the chosen item id");
-    await getCommand("nameInput")({ t: "nameInput", actorId: 5, maxChars: 6 }, { interp: {}, state: mstate, services: msvc });
+    assert.equal(selArgs.o, origin, "selectItem passes the origin");
+
+    await mrun({ t: "nameInput", actorId: 5, maxChars: 6 });
     assert.equal(mstate.party[0].name, "Zed", "nameInput renames the matching party actor");
-    assert.equal(nameArgs.max, 6, "nameInput passes the max length to the scene");
+    assert.equal(nameArgs.o, origin, "nameInput passes the origin");
+    assert.equal(nameArgs.d.maxLen, 6, "nameInput sends the max length");
+    assert.equal(nameArgs.d.initial, "Old", "nameInput sends the current name as the initial value");
+
+    // Empty reply keeps the old name (the `&& name` guard).
+    port.nameInput = async () => "";
+    await mrun({ t: "nameInput", actorId: 5, maxChars: 6 });
+    assert.equal(mstate.party[0].name, "Zed", "an empty name reply keeps the actor's current name");
+
+    // Select Item world-side re-validation: a remote session (localEcho false)
+    // voids a pick the player doesn't own; an owned pick stands.
+    const remoteVoid = { presentation: { localEcho: false, selectItem: async () => 7 }, ownsItem: (_k, id) => id === 9 };
+    await getCommand("selectItem")({ t: "selectItem", varId: 4 }, { interp: { origin }, state: mstate, services: remoteVoid });
+    assert.equal(mstate.vars[4], 0, "a remote session voids an item the player doesn't own");
+    const remoteKeep = { presentation: { localEcho: false, selectItem: async () => 9 }, ownsItem: (_k, id) => id === 9 };
+    await getCommand("selectItem")({ t: "selectItem", varId: 4 }, { interp: { origin }, state: mstate, services: remoteKeep });
+    assert.equal(mstate.vars[4], 9, "a remote session keeps an owned pick");
+  }
+
+  // ---- Scrolling Text (RM 105) emits a scrollText directive (Beacon MP3·B) ----
+  {
+    const origin = { playerId: 0 };
+    let stArgs = null;
+    const stsvc = { presentation: { scrollText: async (o, d) => { stArgs = { o, d }; } } };
+    const strun = (cmd) => getCommand("scrollText")(cmd, { interp: { origin }, state: {}, services: stsvc });
+    await strun({ t: "scrollText", text: "Long ago…", speed: 3, noFast: true });
+    assert.equal(stArgs.o, origin, "scrollText passes the origin");
+    assert.equal(stArgs.d.text, "Long ago…", "scrollText forwards the text");
+    assert.equal(stArgs.d.speed, 3, "scrollText forwards the speed");
+    assert.equal(stArgs.d.noFast, true, "scrollText forwards the no-fast-forward flag");
+    await strun({ t: "scrollText" });
+    assert.equal(stArgs.d.text, "", "absent scrollText text defaults to empty");
+    assert.equal(stArgs.d.speed, 2, "absent scrollText speed defaults to 2 (RM)");
+    assert.equal(stArgs.d.noFast, false, "absent scrollText noFast defaults to false");
   }
 
   // ---- Presentation directives (Beacon MP3·A): the converted modal handlers ----

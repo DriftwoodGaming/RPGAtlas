@@ -97,6 +97,10 @@ describe("client→server round-trips (every union arm is wire-safe)", () => {
         ],
       },
     });
+    // MP3·B kinds.
+    roundTripClient({ t: "reply", id: 13, value: { kind: "selectItem", id: 5 } });
+    roundTripClient({ t: "reply", id: 14, value: { kind: "selectItem", id: 0 } }); // nothing chosen
+    roundTripClient({ t: "reply", id: 15, value: { kind: "scrollText", done: true } });
   });
 
   it("emote and chat (preset + free text)", () => {
@@ -149,6 +153,15 @@ describe("server→client round-trips (every union arm is wire-safe)", () => {
         currencyId: 2,
       },
     });
+    // MP3·B additive kinds (D-A4 selectItem, D-B2 scrollText).
+    roundTripServer({ t: "directive", id: 13, directive: { kind: "selectItem", itemType: 1 } });
+    roundTripServer({ t: "directive", id: 14, directive: { kind: "selectItem" } }); // itemType optional
+    roundTripServer({
+      t: "directive",
+      id: 15,
+      directive: { kind: "scrollText", text: "Long ago, on Driftwood Shore…", speed: 3, noFast: true },
+    });
+    roundTripServer({ t: "directive", id: 16, directive: { kind: "scrollText", text: "" } }); // minimal
   });
 
   it("presence: join / leave / emote / say (preset + text)", () => {
@@ -229,6 +242,8 @@ describe("decoder strictness (hostile input comes back {ok:false}, never a throw
       { t: "reply", id: 1, value: { kind: "shop", transactions: [{ op: "steal", itemType: "item", id: 1, count: 1 }] } },
       /bad op/,
     );
+    rejectClient({ t: "reply", id: 1, value: { kind: "selectItem", id: -1 } }, /bad id/);
+    rejectClient({ t: "reply", id: 1, value: { kind: "scrollText", done: false } }, /done must be true/);
   });
 
   it("chat: exactly one of text/preset, within limits", () => {
@@ -243,6 +258,8 @@ describe("decoder strictness (hostile input comes back {ok:false}, never a throw
     rejectServer({ t: "snapshot", tick: 1 }, /missing world/);
     rejectServer({ t: "directive", id: 1, directive: { kind: "choices", options: [] } }, /bad options/);
     rejectServer({ t: "directive", id: 1, directive: { kind: "message", text: "x", background: "sparkly" } }, /bad background/);
+    rejectServer({ t: "directive", id: 1, directive: { kind: "selectItem", itemType: -1 } }, /bad itemType/);
+    rejectServer({ t: "directive", id: 1, directive: { kind: "scrollText" } }, /bad text/);
     rejectServer({ t: "presence", tick: 1, kind: "join", playerId: 1 }, /join needs name/);
     rejectServer({ t: "presence", tick: 1, kind: "say", playerId: 1 }, /exactly one/);
     rejectServer({ t: "kick", code: "vibes" }, /bad code/);

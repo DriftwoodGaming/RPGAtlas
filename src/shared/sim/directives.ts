@@ -129,6 +129,10 @@ export function escapeValueOf(d: Directive): DirectiveReplyValue {
       return { kind: "nameInput", value: d.initial ?? "" };
     case "shop":
       return { kind: "shop", transactions: [] };
+    case "selectItem":
+      return { kind: "selectItem", id: 0 };
+    case "scrollText":
+      return { kind: "scrollText", done: true };
   }
 }
 
@@ -194,6 +198,13 @@ export function validateReplyValue(directive: Directive, value: DirectiveReplyVa
       }
       return null;
     }
+    case "selectItem": {
+      const id = (value as { id?: unknown }).id;
+      if (typeof id !== "number" || !Number.isInteger(id) || id < 0) return "selectItem: bad id";
+      return null;
+    }
+    case "scrollText":
+      return (value as { done?: unknown }).done === true ? null : "scrollText: done must be true";
   }
 }
 
@@ -270,6 +281,19 @@ export interface PresentationPort {
     origin: InterpOrigin | undefined,
     d: { goods: ShopGood[]; buyOnly?: boolean; currencyId?: number },
   ): Promise<ShopTransaction[]>;
+  /** Resolves to the chosen item id, or 0 when nothing was picked / canceled.
+   *  The world re-validates ownership for non-localEcho sessions (the handler,
+   *  A6/C3.2c) — the raw reply is the client's read of its own inventory. */
+  selectItem(
+    origin: InterpOrigin | undefined,
+    d: Omit<Extract<Directive, { kind: "selectItem" }>, "kind">,
+  ): Promise<number>;
+  /** Modal scrolling text (RM 105); resolves once it has scrolled off or the
+   *  player skips — a completion ack, no value (like `message`). */
+  scrollText(
+    origin: InterpOrigin | undefined,
+    d: Omit<Extract<Directive, { kind: "scrollText" }>, "kind">,
+  ): Promise<void>;
 }
 
 export function createPresentationPort(world: World): PresentationPort {
@@ -308,6 +332,13 @@ export function createPresentationPort(world: World): PresentationPort {
     async shop(origin, d) {
       const r = await ask(origin, { kind: "shop", ...d });
       return r.kind === "shop" ? r.transactions : [];
+    },
+    async selectItem(origin, d) {
+      const r = await ask(origin, { kind: "selectItem", ...d });
+      return r.kind === "selectItem" ? r.id : 0;
+    },
+    async scrollText(origin, d) {
+      await ask(origin, { kind: "scrollText", ...d });
     },
   };
 }

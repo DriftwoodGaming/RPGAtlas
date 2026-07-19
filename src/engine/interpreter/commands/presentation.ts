@@ -12,7 +12,7 @@ import { panGainForTile } from "../../../shared/audio-math.js";
 import {
   showPicture, movePicture, rotatePicture, tintPicture, erasePicture, pictureBusy,
   tintScreen, tintBusy, startTimer, stopTimer, scrollMap, scrollBusy,
-  showBalloon, showScrollText,
+  showBalloon,
 } from "../../scenes/presentation-runtime.js";
 
 export function registerPresentationCommands(): void {
@@ -216,8 +216,17 @@ export function registerPresentationCommands(): void {
     if (c.wait) { await services.waitFrames(64); }
   });
 
-  registerCommand("scrollText", async (c: any, { services }: InterpContext) => {
-    await showScrollText(String(c.text || ""), Number(c.speed) || 2, !!c.noFast, services.frameWait);
+  // Show Scrolling Text (RM 105) is a presentation directive (Beacon MP3·B):
+  // like Show Message it is modal — the world suspends and the client runs the
+  // whole scroll (with its hold-OK speed-up / Cancel-skip) and replies when it
+  // finishes. The client renders it with the SAME showScrollText overlay as
+  // before (scenes/directive-renderer.ts), so loopback is byte-identical.
+  registerCommand("scrollText", async (c: any, { interp, services }: InterpContext) => {
+    await services.presentation.scrollText(interp.origin, {
+      text: String(c.text || ""),
+      speed: Number(c.speed) || 2,
+      noFast: !!c.noFast,
+    });
   });
 }
 

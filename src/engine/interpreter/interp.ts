@@ -132,22 +132,27 @@ export class Interp {
           const speaker: any = speakers.get(Number(node.speakerId));
           if (node.voice) await this.exec({ t: "se", name: node.voice });
           if (node.text) {
-            await EngineServices.showMessage(
-              speaker ? speaker.name : "",
-              node.text,
-              node.portrait || (speaker && speaker.portrait) || "",
-              {},
-            );
+            // Beacon MP3·B: the dialogue path emits through the presentation
+            // port with this run's origin, exactly like the `text`/`choices`
+            // command handlers — no direct UI call. Speaker/portrait values are
+            // passed byte-exact; the renderer reconstructs the same showMessage.
+            await EngineServices.presentation.message(this.origin, {
+              text: node.text,
+              speaker: speaker ? speaker.name : "",
+              portrait: node.portrait || (speaker && speaker.portrait) || "",
+            });
           }
           const options = Array.isArray(node.options) ? node.options : [];
           if (!options.length) {
             nodeId = Number(node.nextId) || 0;
             continue;
           }
-          const picked = await EngineServices.showList(
-            options.map((option: any) => ({ html: EngineServices.richText(option.text || "Choice") })),
-            { className: "choicewin", cancellable: false },
-          );
+          // The option strings ride the directive; richText runs client-side at
+          // render (same module, same values in loopback). Non-cancelable, so
+          // the reply is always a valid index — never -1.
+          const picked = await EngineServices.presentation.choices(this.origin, {
+            options: options.map((option: any) => option.text || "Choice"),
+          });
           nodeId = Number((options[picked] || {}).nextId) || Number(node.nextId) || 0;
         } else if (node.kind === "cutscene") {
           await this.runList(Array.isArray(node.commands) ? node.commands : []);
@@ -155,12 +160,11 @@ export class Interp {
         } else {
           const speaker: any = speakers.get(Number(node.speakerId));
           if (node.voice) await this.exec({ t: "se", name: node.voice });
-          await EngineServices.showMessage(
-            speaker ? speaker.name : "",
-            node.text || "",
-            node.portrait || (speaker && speaker.portrait) || "",
-            {},
-          );
+          await EngineServices.presentation.message(this.origin, {
+            text: node.text || "",
+            speaker: speaker ? speaker.name : "",
+            portrait: node.portrait || (speaker && speaker.portrait) || "",
+          });
           nodeId = Number(node.nextId) || 0;
         }
       }

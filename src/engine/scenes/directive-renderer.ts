@@ -18,7 +18,9 @@ import type { Directive, DirectiveReplyValue, ShopTransaction } from "../../shar
 import { MAX_SHOP_TRANSACTIONS, MESSAGE_BG_NAMES, MESSAGE_POS_NAMES } from "../../shared/net/protocol.js";
 import { ctx } from "../state/engine-context.js";
 import { showList } from "../ui-stack.js";
-import { numberInputScene, nameInputScene } from "./input-scenes.js";
+import { numberInputScene, nameInputScene, selectItemScene } from "./input-scenes.js";
+import { showScrollText } from "./presentation-runtime.js";
+import { frameWait } from "./map.js";
 import { Shop } from "./shop.js";
 
 /** Render one directive with the client's UI and return the player's answer.
@@ -63,5 +65,18 @@ export async function renderDirective(d: Directive): Promise<DirectiveReplyValue
       );
       return { kind: "shop", transactions };
     }
+    case "selectItem":
+      // The old `selectItem` handler's scene call. Atlas has one item bag and
+      // picks a regular item regardless of RM's category (d.itemType), exactly
+      // as before; 0 = nothing owned / canceled. The world re-validates the id
+      // against authoritative inventory for non-localEcho sessions.
+      return { kind: "selectItem", id: await selectItemScene() };
+    case "scrollText":
+      // The old `scrollText` handler's showScrollText call — same client
+      // frameWait tick source, same args; in loopback the scroll runs in the
+      // same frame cadence as the pre-directive engine (a completion ack, no
+      // value — modal like Show Message).
+      await showScrollText(d.text, d.speed ?? 2, !!d.noFast, frameWait);
+      return { kind: "scrollText", done: true };
   }
 }

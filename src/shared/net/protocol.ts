@@ -143,13 +143,27 @@ export type ShopDirective = {
   currencyId?: number;
 };
 export type ShopGood = { itemType: "item" | "weapon" | "armor"; id: number; price: number };
+/** Select Item (RM 104) — the player picks one owned item; the reply carries
+ *  the chosen id (0 = nothing chosen / canceled). Added at MP3·B (D-A4)
+ *  following the D-A1 additive pattern — a new directive kind, no version bump
+ *  (see docs/mp-3-spec.md D-B1). `itemType` is RM's category number; Atlas has
+ *  one item bag and picks a regular item regardless, so it rides the wire
+ *  informational (reserved for a future weapon/armor picker). */
+export type SelectItemDirective = { kind: "selectItem"; itemType?: number };
+/** Show Scrolling Text (RM 105) — a full-screen credits-style scroll the
+ *  player can speed up (hold OK) or skip (Cancel). Modal like Show Message: it
+ *  suspends the interpreter and the reply is a completion ack. Added at MP3·B
+ *  (D-B2). `speed` 1–8 (omitted = 2); `noFast` disables the hold-OK speed-up. */
+export type ScrollTextDirective = { kind: "scrollText"; text: string; speed?: number; noFast?: boolean };
 
 export type Directive =
   | MessageDirective
   | ChoicesDirective
   | NumberInputDirective
   | NameInputDirective
-  | ShopDirective;
+  | ShopDirective
+  | SelectItemDirective
+  | ScrollTextDirective;
 
 /** One buy/sell line in a shop session's reply transcript. The server
  *  re-validates every line against authoritative stock/wallet/inventory
@@ -170,7 +184,9 @@ export type DirectiveReplyValue =
   | { kind: "choices"; canceled: true }
   | { kind: "numberInput"; value: number }
   | { kind: "nameInput"; value: string }
-  | { kind: "shop"; transactions: ShopTransaction[] };
+  | { kind: "shop"; transactions: ShopTransaction[] }
+  | { kind: "selectItem"; id: number }
+  | { kind: "scrollText"; done: true };
 
 /* ── Client → server messages ──────────────────────────────────────────── */
 
@@ -361,6 +377,10 @@ function checkReplyValue(v: unknown): string | null {
       }
       return null;
     }
+    case "selectItem":
+      return isUint(v.id) ? null : "selectItem reply: bad id";
+    case "scrollText":
+      return v.done === true ? null : "scrollText reply: done must be true";
     default:
       return "unknown reply kind";
   }
@@ -392,6 +412,15 @@ function checkDirective(v: unknown): string | null {
       }
       return null;
     }
+    case "selectItem":
+      if (v.itemType !== undefined && !isUint(v.itemType)) return "selectItem: bad itemType";
+      return null;
+    case "scrollText":
+      if (typeof v.text !== "string") return "scrollText: bad text";
+      if (v.speed !== undefined && (typeof v.speed !== "number" || !Number.isFinite(v.speed)))
+        return "scrollText: bad speed";
+      if (v.noFast !== undefined && typeof v.noFast !== "boolean") return "scrollText: bad noFast";
+      return null;
     default:
       return "unknown directive kind";
   }

@@ -1,7 +1,7 @@
 # Phase MP3 Spec — Interpreter Presentation Directives ("Project Beacon")
 
-**Status:** stage A landed 2026-07-19 (Fable); stage B (Opus) pending; then the
-Fable phase gate + tag `beacon-3`.
+**Status:** stage A landed 2026-07-19 (Fable); **stage B landed 2026-07-19
+(Opus)**; next: the Fable phase gate + tag `beacon-3`.
 **Authored:** 2026-07-19 by Claude Fable 5 (stage A build), from the MP3 section
 of `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-0-spec.md` §C3/§C4/§C6 +
 `docs/mp-2-spec.md`.
@@ -267,6 +267,163 @@ client-side services).
 Log every handler in a conversion table (command · directive kind · node test
 · notes), stage-B gate snapshot, then end the conversation with the MP3 GATE
 block from the roadmap.
+
+### What landed (stage B, Opus, 2026-07-19)
+
+Every remaining modal/timed command that awaited UI now goes through
+`services.presentation` with `interp.origin`; the two commands that were still
+UI-shaped but had no directive kind (Select Item, Show Scrolling Text) got
+additive kinds following the stage-A D-A1 pattern; the timed-presentation family
+was audited and confirmed directive-free by construction. No new engine
+behavior — the client renders each directive with the same scene it always did,
+and in loopback the whole emit→render→reply→resume chain is synchronous, so the
+frozen goldens stay byte-identical.
+
+- **`src/shared/net/protocol.ts`** — two additive `Directive` kinds +
+  their replies + strict decoders:
+  - `SelectItemDirective` `{kind:"selectItem", itemType?}` / reply
+    `{kind:"selectItem", id}` (0 = nothing chosen / canceled). `itemType` is
+    RM's category number, informational (Atlas has one item bag).
+  - `ScrollTextDirective` `{kind:"scrollText", text, speed?, noFast?}` / reply
+    `{kind:"scrollText", done:true}` — modal like Show Message (a completion
+    ack, no value).
+  - `checkDirective`/`checkReplyValue` extended; **no `PROTOCOL_VERSION` bump**
+    (D-B1). Round-trip + rejection tests added.
+- **`src/shared/sim/directives.ts`** — `escapeValueOf` (selectItem→id 0,
+  scrollText→done), `validateReplyValue` (selectItem id bound, scrollText done),
+  and `PresentationPort.selectItem`/`.scrollText` on `createPresentationPort`.
+  Still headless (sim wall holds).
+- **`src/engine/scenes/directive-renderer.ts`** — two new arms: `selectItem`
+  calls the existing `selectItemScene()` (unchanged, one item bag), `scrollText`
+  calls the existing `showScrollText(...)` driven by the same client `frameWait`
+  (imported from `scenes/map.ts`, the exact source the old handler passed as
+  `services.frameWait`).
+- **`src/engine/interpreter/commands/flow.ts`** — `inputNumber` →
+  `presentation.numberInput(origin,{digits})` (initial 0 = the renderer default,
+  byte-identical to the old `numberInput(digits, 0)`); `nameInput` → world
+  computes the current name and sends it as `initial`, writes `member.name` from
+  the reply behind the unchanged `&& name` empty-keeps-old-name guard;
+  `selectItem` → `presentation.selectItem(origin,{itemType})`, with the pick
+  re-validated against authoritative inventory (`services.ownsItem`) **only when
+  `!localEcho`** (loopback trusts the client's by-reference read — the shop's
+  A4/localEcho fork, applied to a read instead of a write).
+- **`src/engine/interpreter/commands/presentation.ts`** — `scrollText` →
+  `presentation.scrollText(origin,{text,speed,noFast})`; the `showScrollText`
+  import is gone (it moved to the renderer), so this command module no longer
+  imports the DOM-overlay function.
+- **`src/engine/interpreter/interp.ts`** — `callDialogue`'s two
+  `EngineServices.showMessage` calls and its `showList` call become
+  `EngineServices.presentation.message`/`.choices(this.origin, …)`, exactly like
+  the `text`/`choices` command handlers. Speaker/portrait/voice pass byte-exact;
+  the option strings ride the directive and `richText` runs client-side at
+  render. `se` voice cues still fire through `this.exec({t:"se"})` unchanged.
+- **`src/engine/boot.ts`** — the three input-scene services
+  (`numberInput`/`selectItem`/`nameInput`) are retired from `EngineServices`
+  (their scenes are reached only through the renderer now); new `ownsItem`
+  service (`invCount(kind,id) > 0`) backs the selectItem re-validation.
+- **Tests** — node `interpreter.test.js`: the M2·B input block re-pinned to the
+  port (origin + digits/maxLen/initial passthrough, empty-name-keeps-old,
+  selectItem remote void/keep), a new scrollText block (arg normalization +
+  defaults); `dialogue-workspace.test.js`: stub swapped from
+  showMessage/showList to the presentation port (drives the real converted
+  `callDialogue`); vitest `net-directives` (escape table + semantic matrix +
+  port surface for both kinds) and `net-protocol` (round-trips + rejections for
+  both kinds). vitest stays **1058** (assertions added inside existing
+  `it` blocks, no new files); node **46**.
+
+#### Conversion table
+
+| Command (module) | Directive kind | Node test | Notes |
+|---|---|---|---|
+| `inputNumber` (flow.ts) | `numberInput` (A) | interpreter.test.js + **message-parity.spec.mjs** (live) | origin + `{digits}`; initial 0 = renderer default. Driven end-to-end in the browser by the committed e2e (text → inputNumber → "Got 1"). |
+| `nameInput` (flow.ts) | `nameInput` (A) | interpreter.test.js | world computes current name → `initial`; empty reply keeps old name (unchanged `&& name` guard). |
+| `selectItem` (flow.ts) | **`selectItem` (NEW, D-B1)** | interpreter.test.js | `itemType` informational; world re-validates ownership via `ownsItem` when `!localEcho`; loopback keeps the raw pick. |
+| dialogue lines + choices (interp.ts `callDialogue`) | `message` + `choices` (A) | dialogue-workspace.test.js (+ .spec.mjs) | speaker/portrait/voice byte-exact; option strings ride, `richText` client-side; non-cancelable → reply always a valid index. |
+| `scrollText` (presentation.ts) | **`scrollText` (NEW, D-B2)** | interpreter.test.js | modal like message; completion-ack reply; same `showScrollText` overlay + client `frameWait`. |
+| `cameraZoom`,`shake`,`flash` (presentation.ts) | — none | interpreter.test.js (`shake`) | mutate `services.ctx` scalars; `wait` polls `services.frameWait`/`tickTween`. No DOM. |
+| `showPic`,`movePic`,`rotatePic`,`tintPic`,`erasePic`,`tint`,`timer`,`scrollMap`,`balloon` | — none | interpreter.test.js (presentation block) | world-state writes on the presentation runtime, advanced by `updatePresentation()`/`tickTimer()`; `wait` variants poll `services.frameWait`. No direct DOM. |
+| `playAnim` | — none | — | timed effect via `services.playMapAnimation`/`battleEnemyOps`; awaits a frame-based `done`. No DOM. |
+| `weather` | — none | — | non-modal fire-and-forget; reaches `window.Atlas.weather(…)` directly (guarded). The **only** item-6 command that touches a client global — flagged D-B3 for MP4's presentation-effect channel, not a directive. |
+| `se`,`music`,`bgs`,`me`,`saveBgm`,`resumeBgm`,`stopSe`,`jingle` | — none (client audio) | interpreter.test.js | out of scope (item 7): logical state in G; audio via `services.Sfx`/`Music`/`AudioDeck`, never an `audio-deck` import. |
+| `battle` | — (MP6) | — | out of scope: MP6 owns battle directives. |
+
+### Design decisions (stage B)
+
+- **B-1 — selectItem re-uses the shop's localEcho fork, on a read.** Select
+  Item makes no world write — it returns an id the game stores in a variable.
+  In loopback the client reads the world's own item bag by reference (localEcho,
+  MP2·A A4), so the pick is already authoritative and the raw id stands
+  (byte-identical). A remote session (MP4/MP5) reads its mirror, so the world
+  re-validates the returned id against authoritative inventory (`ownsItem`) and
+  voids an unowned pick to 0 — the same A6/C3.2c posture as `applyShopTranscript`,
+  reduced to a clamp because there is nothing to apply. Node-tested now,
+  exercised live at MP4.
+- **B-2 — Scrolling Text is modal, so it is a directive, not a wait.** Its
+  duration depends on the text height *and* the player's hold-OK speed-up /
+  Cancel-skip, which are client-side — the world cannot count ticks for it, it
+  must await the client's completion, exactly like Show Message's dismissal.
+  So it becomes a directive whose reply is a completion ack, and the world-side
+  handler stops importing the DOM-overlay `showScrollText` (which now lives only
+  in the renderer). This is the one presentation-runtime command that built and
+  awaited a DOM overlay; every other member mutates tick-advanced state.
+- **B-3 — The timed presentation family needed no directives, by
+  construction.** Pictures, tint, timer, map-scroll, balloons, camera zoom,
+  shake and flash are all "advance a mutable scalar/tween in update()" world
+  state (MP0·B nature 2) — the command handler writes the target, the client's
+  per-tick `updatePresentation()`/`tickTimer()` advances it, and the `wait`
+  variants poll a `busy()` predicate through `services.frameWait`. None awaits
+  a modal reply and none touches the DOM in the command handler. Their
+  per-player split (whose screen shakes) is MP4's nature-2 work, not MP3's.
+- **B-4 — The dialogue path is the `text`/`choices` handlers, inlined.**
+  `callDialogue` predates the command registry (it is an `Interp` method that
+  walks a dialogue graph), but its line/choice rendering is identical to the
+  `text`/`choices` commands, so it converts to the same port calls with
+  `this.origin`. The dialogue's choice options are objects (`{text, nextId}`),
+  so the handler passes `option.text || "Choice"` strings and lets the
+  renderer's `richText` run client-side — byte-identical to the old
+  `showList(map(richText(option.text || "Choice")))`.
+
+### Deviations / discoveries (stage B)
+
+- **D-B1 (protocol amendment — the D-A4 pickup):** `selectItem` was modal with
+  no directive kind (MP0 typed five; D-A4 flagged it). Added the additive
+  `selectItem` directive + reply following D-A1. **No `PROTOCOL_VERSION` bump.**
+  Nuance worth the gate's eye: unlike D-A1 (an optional *field*, which an older
+  decoder forward-accepts), a new directive *kind* is *rejected* by an older
+  decoder. This is safe because protocol v1 has never shipped to any external
+  party (multiplayer is unreleased; it first ships as the single 2.0 build,
+  D7), the `hello`/`welcome` handshake guards cross-version mismatch once it
+  does, and the roadmap's D-A4 note explicitly says to follow "the D-A1
+  pattern" (which did not bump). If the gate prefers a bump, it is a one-line
+  change — but the pre-release + single-build reasoning says v1 keeps absorbing
+  additive kinds until 2.0 freezes it.
+- **D-B2 (protocol amendment):** `scrollText` directive + reply added (same
+  no-bump reasoning as D-B1). See B-2 for why it is a directive.
+- **D-B3 (audit finding, `weather`):** the item-6 sweep confirmed every timed
+  presentation command is directive-free by construction *except* that
+  `weather` reaches `window.Atlas.weather(…)` directly (a guarded global, a
+  no-op where the hook is absent). It is non-modal fire-and-forget, so it is
+  **not** a directive candidate; but it is the one presentation command that
+  still references a client global from the world-side handler. Left as-is for
+  MP3 (out of the modal-conversion scope) and flagged for MP4, which needs a
+  per-player presentation-effect broadcast channel (whose screen sees the
+  weather) — `weather` rides that channel with the rest of the nature-2 split.
+- **D-B4 (services cleanup):** the `numberInput`/`selectItem`/`nameInput`
+  EngineServices entries are retired — the scenes are now reached only through
+  the renderer, so keeping the direct services would be a second, unused path
+  to the same UI. `ownsItem` is the one new service (backs B-1).
+
+### Stage B gate snapshot (all green, 2026-07-19)
+
+| Gate | Result |
+|---|---|
+| vitest | **1058** (68 files; net-directives + net-protocol extended in place — assertions added, no new files) |
+| node --test | **46** (interpreter input block re-pinned to the port + scrollText block; dialogue-workspace stub → port) |
+| cargo | **26** (Rust untouched) |
+| Playwright | **123/123** (2.8m) — pixel goldens byte-identical vs beacon-2; `message-parity.spec.mjs` drives the converted `inputNumber` end-to-end in the live browser (text → Input Number scene → "Got 1", zero console errors); renderer-perf all-features 1080p 240.36 ms/frame (budget 300; beacon-2 full-suite 246.10, stage A 246.29 → within ±10%) |
+| eslint / tsc | **0 / 0** |
+| versions / FORMAT_VERSION / cache-busts | 1.2.0 · 2 · none needed (no `?v=` file touched — plumbing only, no player-facing strings) |
+| i18n | no player-facing strings added |
 
 ---
 

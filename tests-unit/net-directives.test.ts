@@ -144,6 +144,13 @@ describe("reply validation (C3.2 layers b + c)", () => {
         transactions: [{ op: "steal", itemType: "item", id: 1, count: 1 } as never],
       }),
     ).toMatch(/bad op/);
+    const sel: Directive = { kind: "selectItem", itemType: 1 };
+    expect(validateReplyValue(sel, { kind: "selectItem", id: 3 })).toBeNull();
+    expect(validateReplyValue(sel, { kind: "selectItem", id: 0 })).toBeNull(); // 0 = nothing chosen
+    expect(validateReplyValue(sel, { kind: "selectItem", id: -1 } as never)).toMatch(/bad id/);
+    const scroll: Directive = { kind: "scrollText", text: "credits" };
+    expect(validateReplyValue(scroll, { kind: "scrollText", done: true })).toBeNull();
+    expect(validateReplyValue(scroll, { kind: "scrollText", done: false } as never)).toMatch(/done/);
   });
 });
 
@@ -165,6 +172,9 @@ describe("escape values + auto-resolve (C3.4)", () => {
       value: "Bo",
     });
     expect(escapeValueOf({ kind: "shop", goods: [] })).toEqual({ kind: "shop", transactions: [] });
+    // MP3·B kinds: selectItem → nothing chosen (0); scrollText → completion ack.
+    expect(escapeValueOf({ kind: "selectItem" })).toEqual({ kind: "selectItem", id: 0 });
+    expect(escapeValueOf({ kind: "scrollText", text: "x" })).toEqual({ kind: "scrollText", done: true });
   });
 
   it("a disconnecting player's pendings all resolve with escapes; others' stay", async () => {
@@ -210,6 +220,8 @@ describe("the presentation port (handler-facing surface)", () => {
       shop: { kind: "shop", transactions: [{ op: "buy", itemType: "item", id: 2, count: 1 }] },
       numberInput: { kind: "numberInput", value: 42 },
       nameInput: { kind: "nameInput", value: "Zed" },
+      selectItem: { kind: "selectItem", id: 3 },
+      scrollText: { kind: "scrollText", done: true },
     };
     const { world } = makeSession(async (d) => answers[d.kind]);
     const port = createPresentationPort(world);
@@ -218,6 +230,8 @@ describe("the presentation port (handler-facing surface)", () => {
     await expect(port.choices(origin, { options: ["a", "b"] })).resolves.toBe(1);
     await expect(port.numberInput(origin, { digits: 2 })).resolves.toBe(42);
     await expect(port.nameInput(origin, { maxLen: 8 })).resolves.toBe("Zed");
+    await expect(port.selectItem(origin, { itemType: 1 })).resolves.toBe(3);
+    await expect(port.scrollText(origin, { text: "credits" })).resolves.toBeUndefined();
     await expect(
       port.shop(origin, { goods: [{ itemType: "item", id: 2, price: 10 }] }),
     ).resolves.toEqual([{ op: "buy", itemType: "item", id: 2, count: 1 }]);
