@@ -7,7 +7,7 @@ the most-requested feature RPG Maker never had, and we can deliver it because we
 own the engine: the required fundamentals get designed **into** the core, not
 bolted on. Target release: **RPGAtlas 2.0.0**.
 
-**Status:** ROADMAP APPROVED 2026-07-19 · Phase MP0 not started · Tags: `beacon-0` … `beacon-9` + `v2.0.0`
+**Status:** ROADMAP APPROVED 2026-07-19 · Phase MP0 in progress (baseline recorded 2026-07-19) · Tags: `beacon-0` … `beacon-9` + `v2.0.0`
 
 ---
 
@@ -132,9 +132,11 @@ eslint 0 · i18n parity (10 locales; DB field labels exempt) · FORMAT_VERSION 2
 versions consistent (7 sites) · cache-busts bumped where files changed
 (editor.css / patch-notes.js / data.js ?v=)`
 
-**Baseline (record live numbers as MP0·A's first act):** last known 2026-07-19
-— vitest 977+ · node 19 · cargo 23 · Playwright 111 · eslint 0 · version 1.2.0.
-Re-verify; never trust these written numbers.
+**Baseline (LIVE, recorded by MP0·A 2026-07-19):** vitest 983 (62 files) ·
+node 44 · cargo 26 · Playwright 123/123 · eslint 0 · version 1.2.0.
+(The roadmap's planning-time "last known" numbers — vitest 977+/node 19/cargo
+23/Playwright 111 — were already stale at MP0 kickoff, as predicted.)
+Re-verify at every gate; never trust written numbers.
 
 ### Status table
 
