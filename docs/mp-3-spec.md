@@ -1,7 +1,7 @@
 # Phase MP3 Spec — Interpreter Presentation Directives ("Project Beacon")
 
-**Status:** stage A landed 2026-07-19 (Fable); **stage B landed 2026-07-19
-(Opus)**; next: the Fable phase gate + tag `beacon-3`.
+**Status:** stage A landed 2026-07-19 (Fable); stage B landed 2026-07-19
+(Opus); **phase gate ✅ PASS 2026-07-19 (Fable) — tag `beacon-3`**.
 **Authored:** 2026-07-19 by Claude Fable 5 (stage A build), from the MP3 section
 of `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-0-spec.md` §C3/§C4/§C6 +
 `docs/mp-2-spec.md`.
@@ -434,3 +434,56 @@ green. Audit: sample 10 converted handlers vs git history for behavior drift;
 verify no handler imports audio-deck or DOM; verify wall-clock sleep is gone
 from world-side waits (D-A2's two conversions included). Verdict recorded here
 + roadmap status table; tag `beacon-3`.
+
+### Gate verdict — ✅ PASS (Fable, 2026-07-19)
+
+Every gate independently re-run by the Fable gate conversation (not trusting
+the build numbers); all green, all three audits clean. Tag `beacon-3`.
+
+| Gate | Independent re-run result |
+|---|---|
+| vitest | **1058** passed (68 files) — matches stage B; net-directives/net-protocol carry both new kinds' escape/semantic/round-trip coverage |
+| node --test | **46** pass, 0 fail — interpreter suite pinned to the port contract, dialogue-workspace driving the real converted `callDialogue` |
+| cargo | **26** passed (Rust untouched by MP3) |
+| Playwright | **123/123** (3.0m) — pixel goldens **byte-identical vs beacon-2**: `git diff beacon-2..HEAD` touches zero golden fixtures and every pixel spec passes against the frozen files; `message-parity.spec.mjs` drives the converted `inputNumber` end-to-end in the live browser |
+| Perf (±10% budget) | **252.03 ms/frame** all-features 1080p under full-suite concurrency (budget 300; beacon-2 recorded 246.10 → +2.4%) — within band |
+| eslint / tsc | **0 / 0** — sim lint wall re-proven to FIRE on a fresh probe (`src/shared/sim/` importing `engine/scenes/directive-renderer` → `no-restricted-imports` error; probe deleted); sim tree also greps clean of `window`/`document`/`Date.now`/`performance.now` |
+| FV / version / cache-busts | FORMAT_VERSION **2** (`js/data.js`) · **1.2.0** independently re-checked at all 7 sites · no cache-busts needed (no `?v=` file in the MP3 diff — plumbing only) |
+
+**Audit 1 — 10-handler drift sample vs git history (beacon-2 → HEAD) — CLEAN:**
+
+| # | Handler | Drift check result |
+|---|---|---|
+| 1 | `text` (flow.ts) | speaker/text/portrait byte-exact; numeric background/position → wire names → `indexOf` back to the same numerics; absent stays absent so message-system defaults apply as before (A-5 garbage-normalization noted and accepted) |
+| 2 | `choices` (flow.ts) | renderer reconstructs the exact old `showList` call (`richText` per option, `choicewin`, cancellable false — `!!undefined`); branch dispatch `branches[i] \|\| []` unchanged |
+| 3 | `shop` (combat.ts) | old `Shop.run` read ONLY `kind`/`id` off goods entries (price always from db via `RA.byId`) — the wire `{itemType,id}` reconstruction is complete; recorder is additive after the same `addCurrency`/`addInv` lines; transcript re-applied only when `!localEcho` |
+| 4 | `wait` (flow.ts) | handler byte-identical (`services.waitFrames(c.frames \|\| 30)`); `waitFrames` now bottoms out in sim `waitTicks(defaultWorld, n)` — pure tick counting |
+| 5 | `inputNumber` (flow.ts) | `Number(c.digits) \|\| 1` normalization unchanged; renderer `d.initial ?? 0` = the old explicit `numberInput(digits, 0)`; `state.vars[c.varId]` write unchanged |
+| 6 | `nameInput` (flow.ts) | initial = current member name, arg order (`initial`, `maxLen`) preserved at the renderer; `if (member && name)` empty-keeps-old-name guard verbatim |
+| 7 | `selectItem` (flow.ts) | old `selectItemScene()` already took ZERO parameters (itemType ignored — one item bag), so the renderer's bare call is identical; ownership clamp applies only when `!localEcho` (loopback keeps the raw by-reference pick) |
+| 8 | `callDialogue` (interp.ts) | all three call sites (two messages + choices) pass speaker/portrait/option values byte-exact; old `{}` opts → omitted directive fields → same defaults; `nextId` walk + `se` voice cues untouched |
+| 9 | `scrollText` (presentation.ts) | same `String/Number/!!` normalization world-side; renderer calls the SAME `showScrollText` with the SAME `frameWait` (imported from `scenes/map.js`, the old `services.frameWait` source); `showScrollText` import gone from the command module |
+| 10 | timed family (presentation.ts) | `cameraZoom`/`shake`/`flash`/`tint`/pictures/`timer`/`scrollMap`/`balloon`/`playAnim` show **zero diff** vs beacon-2 apart from the removed `showScrollText` import — B-3 confirmed by construction |
+
+**Audit 2 — no handler imports audio-deck or DOM — CLEAN:** command modules
+import only the registry + shared pure modules (`mz-script`, protocol name
+tables, `audio-math`); zero `audio-deck` imports anywhere under
+`src/engine/interpreter/`; the ONLY DOM-global reference in any handler is
+`weather`'s guarded `window.Atlas.weather` hook — the documented D-B3
+exception, non-modal fire-and-forget, flagged for MP4's per-player
+presentation-effect channel. Accepted as-is.
+
+**Audit 3 — wall-clock sleep gone from world-side waits — CLEAN:** beacon-2
+had five `sleep()` call sites; the two world-side ones (map.ts parallel
+re-arm, `sleep(50)`) are now `waitFrames(3)` (D-A2). The three survivors are
+all client presentation pacing (message typewriter, battle sting, battle ATB
+poll — battle is MP6's scope). `src/shared/sim/` contains no `setTimeout`/
+`setInterval`/`Date.now`/`performance.now`; the timer engine counts world
+ticks only.
+
+**Gate ruling on D-B1/D-B2 (no `PROTOCOL_VERSION` bump for the two new
+directive kinds):** ACCEPTED. Protocol v1 has never shipped to an external
+party, multiplayer first ships as the single 2.0 build (D7), and the
+`hello`/`welcome` handshake guards cross-version mismatch once real clients
+exist — v1 keeps absorbing additive kinds until 2.0 freezes it. The
+new-kind-vs-optional-field nuance is correctly documented for the record.
