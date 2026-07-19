@@ -79,7 +79,6 @@ const WORLD_SLICE = [
   ["cameraZoom", "cameraZoom"],
   ["map", "map"],
   ["evRTs", "evRTs"],
-  ["blockingRun", "blockingRun"],
   ["parallels", "parallels"],
   ["commonParallels", "commonParallels"],
   ["globalT", "tick"],
@@ -94,6 +93,20 @@ for (const [ctxKey, worldKey] of WORLD_SLICE) {
     },
   });
 }
+// blockingRun (Beacon MP3·A): the historical boolean is now the AGGREGATE view
+// of the world's per-player blocking set (participants-only pause). Reading is
+// "is anyone blocked?"; writing binds the one default player — solo semantics,
+// byte-identical for every existing reader/writer (plugins included). The map
+// scene's run fns manage the set with real participants via sim/directives.
+Object.defineProperty(ctx, "blockingRun", {
+  enumerable: true,
+  configurable: true,
+  get: () => defaultWorld.blocking.size > 0,
+  set: (v: any) => {
+    if (v) defaultWorld.blocking.add(0);
+    else defaultWorld.blocking.clear();
+  },
+});
 
 /** Late-bound engine functions (refreshAllPages, openMenu, Battle, Plugins,
  *  gameOver, toTitle). Modules that would need an upward/cyclic import call

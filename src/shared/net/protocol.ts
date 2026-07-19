@@ -115,7 +115,17 @@ export type MessageDirective = {
   speaker?: string;
   portrait?: string;
   pos?: "top" | "middle" | "bottom";
+  /** Window backdrop (RM 101 background) — added at MP3·A when the Show
+   *  Message conversion surfaced it (additive optional field, no version
+   *  bump). Omitted = "window". */
+  background?: "window" | "dim" | "transparent";
 };
+
+/** RM 101 stores position/background as 0/1/2; the wire uses the names above
+ *  (kid-readable JSON). Index with the numeric command value to emit, and
+ *  `indexOf` (or the reverse tables the client builds) to render. */
+export const MESSAGE_POS_NAMES = ["top", "middle", "bottom"] as const;
+export const MESSAGE_BG_NAMES = ["window", "dim", "transparent"] as const;
 export type ChoicesDirective = {
   kind: "choices";
   options: string[];
@@ -363,6 +373,8 @@ function checkDirective(v: unknown): string | null {
       if (typeof v.text !== "string") return "message: bad text";
       if (v.pos !== undefined && v.pos !== "top" && v.pos !== "middle" && v.pos !== "bottom")
         return "message: bad pos";
+      if (v.background !== undefined && v.background !== "window" && v.background !== "dim" && v.background !== "transparent")
+        return "message: bad background";
       return null;
     case "choices":
       if (!Array.isArray(v.options) || v.options.length === 0) return "choices: bad options";

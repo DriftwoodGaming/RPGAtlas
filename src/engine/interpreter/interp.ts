@@ -18,6 +18,9 @@ import { ctx } from "../state/engine-context.js";
 import { G, Quests, invCount, currencyBalance } from "../state/game-state.js";
 import { compareVariable } from "../util.js";
 import { evalMzScript, mzGlobalsFromState } from "../../shared/mz-script.js";
+import type { InterpOrigin } from "../../shared/sim/directives.js";
+
+export type { InterpOrigin };
 
 let EngineServices: any = null;
 /** Install the engine service surface command handlers receive (ctx.services). */
@@ -40,11 +43,19 @@ export class Interp {
   /** Yield counter guarding a wait-less backward jump loop (see the `jump`
    *  command); mirrors the `loop` handler's spin valve. */
   jumpSpins = 0;
+  /** Who this run acts as (Beacon MP3·A, MP0·C §C6): the triggering player
+   *  ({playerId: N}) or the world ({playerId: null} — autorun/parallel/timer
+   *  scheduling passes it explicitly). Presentation directives target
+   *  participantsOf(origin). The default is the solo player context, so every
+   *  constructor site that predates MP3 (battle common events, script API,
+   *  plugins) keeps its player-facing behavior without changes. */
+  origin: InterpOrigin;
 
-  constructor(evRT: any, commonStack?: any[], dialogueStack?: any[]) {
+  constructor(evRT: any, commonStack?: any[], dialogueStack?: any[], origin?: InterpOrigin) {
     this.evRT = evRT;
     this.commonStack = commonStack || [];
     this.dialogueStack = dialogueStack || [];
+    this.origin = origin || { playerId: 0 };
   }
   selfKey(key: any): string {
     return G.mapId + ":" + (this.evRT ? this.evRT.ev.id : 0) + ":" + key;

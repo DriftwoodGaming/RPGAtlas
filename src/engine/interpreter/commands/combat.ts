@@ -29,8 +29,20 @@ export function registerCombatCommands(): void {
     else if (result === "lose" && c.onLose) await interp.runList(c.onLose);
   });
 
-  registerCommand("shop", async (c: any, { services }: InterpContext) => {
-    await services.Shop.run(c.goods || [], c.currencyId);
+  // Open Shop is a presentation directive (Beacon MP3·A): the world offers the
+  // goods, the client runs the whole browse/buy/sell session and replies with
+  // the transcript. Loopback (localEcho): the session's live lines already
+  // applied by reference — the byte-identical solo path — so the transcript is
+  // NOT re-applied; a real remote session's transcript (MP4/MP5) is applied
+  // here through services.applyShopTranscript, re-validated line-by-line
+  // against authoritative stock/wallet (A6/C3.2c).
+  registerCommand("shop", async (c: any, { interp, services }: InterpContext) => {
+    const goods = c.goods || [];
+    const transactions = await services.presentation.shop(interp.origin, {
+      goods: services.wireShopGoods(goods),
+      currencyId: c.currencyId == null ? undefined : Number(c.currencyId) || 0,
+    });
+    if (!services.presentation.localEcho) services.applyShopTranscript(goods, c.currencyId, transactions);
   });
 
   // ---- In-troop enemy commands (RM 331–340, Project Compass M3·C) ----

@@ -8,17 +8,26 @@
 
 import { registerCommand, type InterpContext } from "../registry.js";
 import { runMzScript, mzGlobalsFromState } from "../../../shared/mz-script.js";
+import { MESSAGE_BG_NAMES, MESSAGE_POS_NAMES } from "../../../shared/net/protocol.js";
 
 export function registerFlowCommands(): void {
-  registerCommand("text", async (c: any, { services }: InterpContext) => {
-    await services.showMessage(c.name, c.text, c.face, { background: c.background, position: c.position });
+  // ---- Presentation directives (Project Beacon MP3·A) ----
+  // The modal commands no longer touch UI: they emit a directive through the
+  // presentation port (services.presentation, sim/directives.ts), suspend, and
+  // resume on the player's validated reply. The client renders with the same
+  // message/ui-stack code as before (scenes/directive-renderer.ts) — in
+  // loopback the whole emit→render chain is synchronous, so this is
+  // byte-identical to the old direct calls. RM's numeric position/background
+  // ride the wire as names and map back losslessly at render.
+  registerCommand("text", async (c: any, { interp, services }: InterpContext) => {
+    const d: any = { text: c.text, speaker: c.name, portrait: c.face };
+    if (c.background != null) d.background = MESSAGE_BG_NAMES[Number(c.background) || 0] || "window";
+    if (c.position != null) d.pos = MESSAGE_POS_NAMES[Number(c.position)] || "bottom";
+    await services.presentation.message(interp.origin, d);
   });
 
   registerCommand("choices", async (c: any, { interp, services }: InterpContext) => {
-    const i = await services.showList(
-      c.options.map((o: any) => ({ html: services.richText(o) })),
-      { className: "choicewin", cancellable: false },
-    );
+    const i = await services.presentation.choices(interp.origin, { options: c.options });
     await interp.runList(c.branches[i] || []);
   });
 

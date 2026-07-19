@@ -39,7 +39,14 @@ describe("createWorld — fresh state", () => {
     const w = createWorld();
     expect(w.map).toBeNull();
     expect(w.evRTs).toEqual([]);
-    expect(w.blockingRun).toBe(false);
+    // MP3·A: the blocking boolean became the per-player blocking set
+    // (participants-only pause); empty = the old `false`.
+    expect(w.blocking).toBeInstanceOf(Set);
+    expect(w.blocking.size).toBe(0);
+    expect(w.directives.pending.size).toBe(0);
+    expect(w.directives.nextId).toBe(1);
+    expect(w.directives.send).toBeNull();
+    expect(w.directives.localEcho).toBe(false);
     expect(w.parallels).toBeInstanceOf(Map);
     expect(w.parallels.size).toBe(0);
     expect(w.commonParallels).toBeInstanceOf(Map);
@@ -64,14 +71,16 @@ describe("createWorld — instance isolation", () => {
     a.tick = 500;
     a.evRTs.push({ x: 1 });
     a.parallels.set("ev", true);
-    a.blockingRun = true;
+    a.blocking.add(0);
+    a.directives.nextId = 9;
     a.cameraZoom = 2;
     expect(b.g.switches.opened).toBeUndefined();
     expect(b.g.party).toEqual([]);
     expect(b.tick).toBe(0);
     expect(b.evRTs).toEqual([]);
     expect(b.parallels.size).toBe(0);
-    expect(b.blockingRun).toBe(false);
+    expect(b.blocking.size).toBe(0);
+    expect(b.directives.nextId).toBe(1);
     expect(b.cameraZoom).toBe(1);
   });
   it("RNG streams are independent per world", () => {
@@ -206,8 +215,15 @@ describe("engine-context compat shim", () => {
     const p = { system: { title: "T" } };
     ctx.proj = p;
     expect(defaultWorld.proj).toBe(p);
+    // MP3·A: ctx.blockingRun is the AGGREGATE view of the per-player blocking
+    // set — writing binds the default player, reading asks "anyone blocked?".
     ctx.blockingRun = true;
-    expect(defaultWorld.blockingRun).toBe(true);
+    expect(defaultWorld.blocking.has(0)).toBe(true);
+    expect(ctx.blockingRun).toBe(true);
+    defaultWorld.blocking.add(3); // another participant keeps the aggregate up
+    ctx.blockingRun = false;
+    expect(defaultWorld.blocking.has(0)).toBe(false);
+    expect(ctx.blockingRun).toBe(false); // boolean write clears ALL (solo semantics)
     // …and writes on the world are visible through ctx.
     defaultWorld.cameraZoom = 2.5;
     expect(ctx.cameraZoom).toBe(2.5);

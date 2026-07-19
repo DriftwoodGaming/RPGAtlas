@@ -111,13 +111,12 @@ async function loadRegistry() {
 
   // ---- Message-system input commands (M2·B) drive their scenes + store results ----
   {
-    let numArgs = null, nameArgs = null, msgOpts = null;
+    let numArgs = null, nameArgs = null;
     const mstate = { vars: {}, party: [{ actorId: 5, name: "Old" }] };
     const msvc = {
       numberInput: async (digits, initial) => { numArgs = { digits, initial }; return 123; },
       selectItem: async () => 9,
       nameInput: async (cur, max) => { nameArgs = { cur, max }; return "Zed"; },
-      showMessage: async (_n, _t, _f, opts) => { msgOpts = opts; },
     };
     await getCommand("inputNumber")({ t: "inputNumber", varId: 2, digits: 3 }, { interp: {}, state: mstate, services: msvc });
     assert.equal(mstate.vars[2], 123, "inputNumber stores the entered number in its variable");
@@ -127,11 +126,87 @@ async function loadRegistry() {
     await getCommand("nameInput")({ t: "nameInput", actorId: 5, maxChars: 6 }, { interp: {}, state: mstate, services: msvc });
     assert.equal(mstate.party[0].name, "Zed", "nameInput renames the matching party actor");
     assert.equal(nameArgs.max, 6, "nameInput passes the max length to the scene");
-    await getCommand("text")({ t: "text", text: "hi", background: 1, position: 0 }, { interp: {}, state: mstate, services: msvc });
-    // (assert per-field — the opts object is built inside the vm realm, so a
-    // deep-equal against an outer-realm literal would fail on prototype identity.)
-    assert.equal(msgOpts.background, 1, "text forwards the window background option");
-    assert.equal(msgOpts.position, 0, "text forwards the window position option");
+  }
+
+  // ---- Presentation directives (Beacon MP3·A): the converted modal handlers ----
+  // text/choices/shop no longer touch UI services — they emit through the
+  // presentation port (services.presentation) with the interpreter's origin,
+  // and RM's numeric background/position ride as wire names.
+  {
+    const origin = { playerId: 0 };
+    let captured = null;
+    const pstate = { vars: {} };
+    const psvc = {
+      presentation: {
+        localEcho: true,
+        message: async (o, d) => { captured = { o, d }; },
+      },
+    };
+    await getCommand("text")(
+      { t: "text", name: "Elder", text: "hi", face: "elder.png", background: 1, position: 0 },
+      { interp: { origin }, state: pstate, services: psvc },
+    );
+    assert.equal(captured.o, origin, "text passes the interpreter's origin to the port");
+    assert.equal(captured.d.text, "hi", "text forwards the message text");
+    assert.equal(captured.d.speaker, "Elder", "text forwards the speaker name");
+    assert.equal(captured.d.portrait, "elder.png", "text forwards the portrait");
+    assert.equal(captured.d.background, "dim", "RM background 1 rides the wire as 'dim'");
+    assert.equal(captured.d.pos, "top", "RM position 0 rides the wire as 'top'");
+    captured = null;
+    await getCommand("text")(
+      { t: "text", text: "plain" },
+      { interp: { origin }, state: pstate, services: psvc },
+    );
+    assert.equal(captured.d.background, undefined, "absent background stays off the wire (client default)");
+    assert.equal(captured.d.pos, undefined, "absent position stays off the wire (client default)");
+
+    // choices: the port answers with an index; the handler runs that branch.
+    const ran = [];
+    const cinterp = {
+      origin,
+      runList: async (list) => { ran.push(list); },
+    };
+    const csvc = {
+      presentation: {
+        localEcho: true,
+        choices: async (o, d) => {
+          assert.equal(o, origin, "choices passes the origin");
+          assert.deepEqual(Array.from(d.options), ["Yes", "No"], "choices sends the raw option strings");
+          return 1;
+        },
+      },
+    };
+    await getCommand("choices")(
+      { t: "choices", options: ["Yes", "No"], branches: [[{ t: "label" }], [{ t: "label", name: "no" }]] },
+      { interp: cinterp, state: pstate, services: csvc },
+    );
+    assert.equal(ran.length, 1, "choices runs exactly one branch");
+    assert.equal(ran[0][0].name, "no", "choices runs the branch the reply picked");
+
+    // shop: localEcho (loopback) skips the transcript re-apply; a remote
+    // session (localEcho false) applies it through services.applyShopTranscript.
+    const goods = [{ kind: "item", id: 2 }];
+    const tx = [{ op: "buy", itemType: "item", id: 2, count: 1 }];
+    let applied = null;
+    const shopSvc = (localEcho) => ({
+      wireShopGoods: (g) => g.map((gd) => ({ itemType: gd.kind, id: gd.id, price: 5 })),
+      applyShopTranscript: (g, cid, t) => { applied = { g, cid, t }; },
+      presentation: {
+        localEcho,
+        shop: async (o, d) => {
+          assert.equal(o, origin, "shop passes the origin");
+          assert.equal(d.goods[0].itemType, "item", "shop sends wire-shaped goods");
+          return tx;
+        },
+      },
+    });
+    await getCommand("shop")({ t: "shop", goods }, { interp: { origin }, state: pstate, services: shopSvc(true) });
+    assert.equal(applied, null, "loopback (localEcho) never re-applies the transcript");
+    await getCommand("shop")({ t: "shop", goods, currencyId: 2 }, { interp: { origin }, state: pstate, services: shopSvc(false) });
+    assert.ok(applied, "a remote session's transcript IS applied world-side");
+    assert.equal(applied.g, goods, "apply gets the authoritative goods list");
+    assert.equal(applied.cid, 2, "apply gets the shop's currency");
+    assert.equal(applied.t, tx, "apply gets the reply transcript");
   }
   // ---- Change-actor-data family + system toggles (M2·C) mutate live state ----
   {

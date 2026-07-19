@@ -320,11 +320,12 @@ all presentation pacing) — stage A is the directive engine + a move of
   the worked pattern.
 - **B (Opus)** Convert the remaining modal/timed command handlers to the
   pattern; node tests per handler; the audio-deck import trap stands.
-- ❓ **Branch point (ask Driftwood at kickoff):** when a cutscene-grade event
-  (autorun, screen-fade, forced movement) runs in a shared map, does the world
-  pause for everyone, or only for participants? (Roadmap default: solo play
-  pauses exactly as today; shared maps pause only participants, others see the
-  event's world effects. Confirm or simplify.)
+- ❓ **Branch point — ANSWERED 2026-07-19 (Driftwood): PARTICIPANTS ONLY**
+  (the roadmap default, confirmed). Solo play pauses exactly as today; shared
+  maps pause only the event's participants, others keep playing and see its
+  world effects. MP3·A landed the structure (`world.blocking` per-player set +
+  interpreter origins + `participantsOf` targeting); MP4 keys participants off
+  real map rosters.
 
 **Gates:** template gates; goldens byte-identical (single-player directives run
 through loopback and must render pixel-equal); all interpreter suites green.

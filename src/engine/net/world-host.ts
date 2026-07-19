@@ -25,8 +25,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { World } from "../../shared/sim/world.js";
-import type { InputIntent } from "../../shared/net/protocol.js";
+import type { DirectiveReplyValue, InputIntent } from "../../shared/net/protocol.js";
 import type { NetMessage, Transport } from "../../shared/net/transport.js";
+import { deliverReply } from "../../shared/sim/directives.js";
 
 /** One buffered input, tagged with the connection sequence number it arrived
  *  with and the player it came from. `playerId` is 0 (the one default player)
@@ -50,16 +51,29 @@ export class WorldHost {
     this.world = world;
     this.transport = transport;
     this.transport.onMessage((msg) => this.onMessage(msg));
+    // MP3·A: the host owns the world's outbound directive channel — the
+    // world-side presentation port (sim/directives.ts) emits modal directives
+    // through this send. One transport = the one default player; MP4 keys the
+    // routing per connection.
+    world.directives.send = (_playerId, frame) => this.transport.send(frame);
   }
 
-  /** Route one inbound frame. Only `input` buffers an intent this phase; the
-   *  room-lifecycle frames (`hello`/`join`/`resume`/`reply`/`emote`/`chat`) are
-   *  MP3/MP5 business and are accepted-and-ignored here so a future client can
-   *  send them without the host throwing. */
+  /** Route one inbound frame. `input` buffers an intent for the tick to drain
+   *  (A2: never applied on arrival); `reply` (MP3) resolves its pending
+   *  directive IMMEDIATELY — deliberately un-buffered, because resuming the
+   *  suspended interpreter continues an already-running async event in the
+   *  same microtask chain (the solo engine's exact dismiss→resume timing, the
+   *  byte-identity requirement) and cannot re-enter the tick. The remaining
+   *  room-lifecycle frames (`hello`/`join`/`resume`/`emote`/`chat`) are MP5
+   *  business and are accepted-and-ignored so a future client can send them
+   *  without the host throwing. */
   private onMessage(msg: NetMessage): void {
     if ((msg as any).t === "input") {
       const m = msg as { seq: number; intent: InputIntent };
       this.inbox.push({ playerId: 0, seq: m.seq, intent: m.intent });
+    } else if ((msg as any).t === "reply") {
+      const m = msg as { id: number; value: DirectiveReplyValue };
+      deliverReply(this.world, 0, m.id, m.value);
     }
   }
 

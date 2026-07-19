@@ -21,6 +21,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { mulberry32 } from "../rng.js";
+import { createDirectiveState, type DirectiveState } from "./directives.js";
 
 /** One world's live game state — the exact object the engine has always
  *  called `G` (moved here verbatim from src/engine/state/game-state.ts).
@@ -72,9 +73,18 @@ export interface World {
   map: any;
   /** Event runtime states (ctx.evRTs): positions, move routes, active page. */
   evRTs: any[];
-  /** A blocking (action/touch/autorun) interpreter is active (ctx.blockingRun);
-   *  becomes per-player-context state in MP3. */
-  blockingRun: boolean;
+  /** Players currently paused by a blocking (action/touch/autorun)
+   *  interpreter — MP3's participants-only pause (branch decision, Driftwood
+   *  2026-07-19): an event pauses exactly its participants; other players on
+   *  a shared map keep playing and see its world effects. Solo: the one
+   *  default player, so the engine's aggregate view (the ctx.blockingRun shim
+   *  accessor, "anyone blocked?") behaves exactly as the old boolean. MP4
+   *  keys participants off real map rosters. */
+  blocking: Set<number>;
+  /** Presentation-directive broker (MP3): pending modal directives awaiting
+   *  player replies + the outbound send the host installs. Runtime-only —
+   *  never snapshotted (C3.4 auto-resolve covers disconnects). */
+  directives: DirectiveState;
   /** Parallel-interpreter scheduling: event runtime -> running flag. */
   parallels: Map<any, any>;
   /** Common-event parallel scheduling: common event id -> running flag. */
@@ -145,7 +155,8 @@ export function createWorld(proj: any = null, opts: WorldOptions = {}): World {
     g: createInitialGameState(),
     map: null,
     evRTs: [],
-    blockingRun: false,
+    blocking: new Set(),
+    directives: createDirectiveState(),
     parallels: new Map(),
     commonParallels: new Map(),
     tick: 0,

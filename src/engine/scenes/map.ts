@@ -11,13 +11,20 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { Assets, RA } from "../../shared/deps.js";
-import { clamp, rnd, rndf, sleep, sysSe } from "../util.js";
+import { clamp, rnd, rndf, sysSe } from "../util.js";
 import { findPath } from "../../shared/pathfind.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G, actorEffCarrier, param } from "../state/game-state.js";
 import { defaultWorld } from "../state/default-world.js";
 import { soloClient, soloHost } from "../net/solo-session.js";
 import type { Dir, GridDir, InputIntent } from "../../shared/net/protocol.js";
+import { waitTicks, tickTweenTicks, pumpTickTimers } from "../../shared/sim/timers.js";
+import {
+  beginBlocking,
+  endBlocking,
+  participantsOf,
+  type InterpOrigin,
+} from "../../shared/sim/directives.js";
 import { preemptiveRate, surpriseRate } from "./battle-logic.js";
 import { wantsDash } from "../state/player-options.js";
 import { UIStack } from "../ui-stack.js";
@@ -71,30 +78,31 @@ export function frameWait(): Promise<void> {
 // through the compat shim just like G. frameWaiters stays module-level (it is
 // per-RENDERED-frame render pacing — client state, not world state).
 //
-// Tick-accurate timers: counted in update(), so event waits/tweens advance by ticks even
-// when several ticks run in one rendered frame. (frameWait above is per-rendered-frame.)
+// MP3·A: the timer FUNCTIONS moved into the sim (src/shared/sim/timers.ts) so
+// a headless server-side interpreter can wait by world ticks; these exports
+// bind them to the default world, so every engine caller is byte-identical.
+// Tick-accurate timers: counted in update(), so event waits/tweens advance by
+// ticks even when several ticks run in one rendered frame.
 export function waitFrames(n: any): Promise<void> {
-  return new Promise((resolve) => defaultWorld.tickTimers.push({ left: Math.max(1, n | 0), resolve }));
+  return waitTicks(defaultWorld, n);
 }
 export function tickTween(n: any, step: any): Promise<void> {
-  const total = Math.max(1, n | 0);
-  return new Promise((resolve) => defaultWorld.tickTimers.push({ left: total, total, step, resolve }));
-}
-function pumpTickTimers(): void {
-  if (!defaultWorld.tickTimers.length) return;
-  const timers = defaultWorld.tickTimers; defaultWorld.tickTimers = [];
-  const done = [];
-  for (const tm of timers) {
-    tm.left--;
-    if (tm.step) tm.step((tm.total - tm.left) / tm.total);
-    if (tm.left <= 0) done.push(tm); else defaultWorld.tickTimers.push(tm);
-  }
-  done.forEach((tm) => tm.resolve());
+  return tickTweenTicks(defaultWorld, n, step);
 }
 
-export async function runEventBlocking(rt: any): Promise<void> {
+// Interpreter execution contexts (Beacon MP3·A, MP0·C §C6): action/touch/tap
+// triggers run as the player; autorun, parallel, and timer-driven runs are the
+// world's. Solo: both resolve to the one default player — participantsOf
+// keeps the blocking set and directive targeting byte-identical to the old
+// boolean flag while giving MP4 the per-player structure the branch decision
+// (participants-only pause, Driftwood 2026-07-19) needs.
+const PLAYER_CTX: InterpOrigin = { playerId: 0 };
+const WORLD_CTX: InterpOrigin = { playerId: null };
+
+export async function runEventBlocking(rt: any, origin: InterpOrigin = PLAYER_CTX): Promise<void> {
   if (ctx.blockingRun) return;
-  ctx.blockingRun = true;
+  const participants = participantsOf(defaultWorld, origin);
+  beginBlocking(defaultWorld, participants);
   rt.locked = true;
   if (rt.kind === "human" && rt.page.trigger === "action") {
     rt.dir = dirTo(rt.x, rt.y, G.player.x, G.player.y);
@@ -103,23 +111,24 @@ export async function runEventBlocking(rt: any): Promise<void> {
   // after the event; otherwise snap back to the page's authored facing.
   const facedDir = rt.dir;
   try {
-    await new Interp(rt).runList(rt.page.commands);
+    await new Interp(rt, undefined, undefined, origin).runList(rt.page.commands);
   } finally {
     rt.locked = false;
     if (rt.kind === "human" && rt.dir === facedDir) rt.dir = rt.page.dir || 0;
     refreshAllPages();
-    ctx.blockingRun = false;
+    endBlocking(defaultWorld, participants);
   }
 }
 
-async function runCommonEventBlocking(commonEvent: any): Promise<void> {
+async function runCommonEventBlocking(commonEvent: any, origin: InterpOrigin = PLAYER_CTX): Promise<void> {
   if (ctx.blockingRun) return;
-  ctx.blockingRun = true;
+  const participants = participantsOf(defaultWorld, origin);
+  beginBlocking(defaultWorld, participants);
   try {
-    await new Interp(null).callCommonEvent(commonEvent.id);
+    await new Interp(null, undefined, undefined, origin).callCommonEvent(commonEvent.id);
   } finally {
     refreshAllPages();
-    ctx.blockingRun = false;
+    endBlocking(defaultWorld, participants);
   }
 }
 
@@ -128,7 +137,7 @@ async function runCommonEventBlocking(commonEvent: any): Promise<void> {
 export async function runHudCommonEvent(commonEventId: any): Promise<void> {
   const commonEvent = RA.byId(ctx.proj.commonEvents || [], Number(commonEventId));
   if (!commonEvent || !commonEvent.commands || !commonEvent.commands.length) return;
-  await runCommonEventBlocking(commonEvent);
+  await runCommonEventBlocking(commonEvent, PLAYER_CTX); // player-initiated (HUD button)
 }
 fns.runHudCommonEvent = runHudCommonEvent;
 
@@ -139,7 +148,7 @@ export function updateCommonEvents(): void {
       commonEvent.trigger === "auto" &&
       commonEvent.commands.length &&
       RA.commonEventEnabled(commonEvent, G.switches));
-    if (autorun) runCommonEventBlocking(autorun);
+    if (autorun) runCommonEventBlocking(autorun, WORLD_CTX);
   }
   for (const commonEvent of commonEvents) {
     if (
@@ -149,8 +158,11 @@ export function updateCommonEvents(): void {
       ctx.commonParallels.get(commonEvent.id)
     ) continue;
     ctx.commonParallels.set(commonEvent.id, true);
-    new Interp(null).callCommonEvent(commonEvent.id).finally(async () => {
-      await sleep(50);
+    new Interp(null, undefined, undefined, WORLD_CTX).callCommonEvent(commonEvent.id).finally(async () => {
+      // MP3·A: the re-arm beat is world scheduling, so it counts world ticks
+      // (3 ≈ the old 50 ms at 60 Hz) — a headless server reschedules
+      // deterministically by tick, never by wall clock.
+      await waitFrames(3);
       ctx.commonParallels.set(commonEvent.id, false);
     });
   }
@@ -192,7 +204,7 @@ export function update(): void {
   const waiters = frameWaiters;
   frameWaiters = [];
   waiters.forEach((r) => r());
-  pumpTickTimers(); // advance tick-accurate event timers (wait / camera-zoom)
+  pumpTickTimers(defaultWorld); // advance tick-accurate event timers (wait / camera-zoom)
   // Rebuild this frame's input edge set before any early-return, so title/pause
   // menus see a clean edge set every tick and nothing stays latched across them.
   ctx.Input.poll();
@@ -208,7 +220,8 @@ export function update(): void {
   updatePresentation();
   const timerExpiry = tickTimer();
   if (timerExpiry && !ctx.blockingRun) {
-    new Interp(null).callCommonEvent(timerExpiry); // fire-and-forget, like a parallel
+    // fire-and-forget, like a parallel (world context — the clock triggered it)
+    new Interp(null, undefined, undefined, WORLD_CTX).callCommonEvent(timerExpiry);
   }
   // Dash "Toggle" mode: flip the latch on each rising edge of the dash button (tracked every
   // tick so a tap while standing still registers). Hold/Always read live in wantsDash().
@@ -302,13 +315,14 @@ export function update(): void {
         }
       }
     }
-    // autorun / parallel
+    // autorun / parallel (world contexts — the scheduler triggered them, not
+    // a player; solo still resolves their participants to the one player)
     if (
       !ctx.blockingRun &&
       rt.page.trigger === "auto" &&
       rt.page.commands.length
     ) {
-      runEventBlocking(rt);
+      runEventBlocking(rt, WORLD_CTX);
     }
     if (
       rt.page.trigger === "parallel" &&
@@ -316,8 +330,10 @@ export function update(): void {
       !ctx.parallels.get(rt)
     ) {
       ctx.parallels.set(rt, true);
-      new Interp(rt).runList(rt.page.commands).finally(async () => {
-        await sleep(50);
+      new Interp(rt, undefined, undefined, WORLD_CTX).runList(rt.page.commands).finally(async () => {
+        // MP3·A: world-tick re-arm beat (3 ≈ the old 50 ms) — see the common-
+        // parallel note above.
+        await waitFrames(3);
         ctx.parallels.set(rt, false);
       });
     }
@@ -376,7 +392,7 @@ function applyPlayerIntent(intent: InputIntent): void {
           blocker.page.trigger === "touch" &&
           blocker.page.commands.length
         ) {
-          runEventBlocking(blocker);
+          runEventBlocking(blocker, PLAYER_CTX); // the walking player triggered it
         } else if (tilePassable(nx, ny) && !blocker) {
           startMove(p, d);
           p.animT = p.animT || 0;
@@ -421,7 +437,7 @@ function onPlayerStep(): void {
         (rt.page.priority !== "same" || rt.page.through),
     );
     if (here) {
-      runEventBlocking(here);
+      runEventBlocking(here, PLAYER_CTX); // stepped onto it
       return;
     }
   }
@@ -605,7 +621,7 @@ export function handleMapTap(clientX: number, clientY: number): void {
     if (!target || target.erased || !target.page) return;
     if (Math.abs(p.x - tx) + Math.abs(p.y - ty) === 1) {
       p.dir = dirTo(p.x, p.y, tx, ty);
-      runEventBlocking(target);
+      runEventBlocking(target, PLAYER_CTX); // tapped it
     }
   };
   const path = findPath(passable, p.x, p.y, tx, ty, { near: true, maxNodes: 800 });
@@ -633,7 +649,7 @@ function checkActionTrigger(): void {
       (r: any) => r.page.trigger === "action" && r.page.commands.length,
     );
     if (rt) {
-      runEventBlocking(rt);
+      runEventBlocking(rt, PLAYER_CTX); // action button
       return;
     }
   }

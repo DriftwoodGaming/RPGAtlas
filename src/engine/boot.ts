@@ -67,11 +67,13 @@ import {
   armForcedEncounter,
   update,
 } from "./scenes/map.js";
-import { soloHost } from "./net/solo-session.js";
+import { soloClient, soloHost } from "./net/solo-session.js";
+import { createPresentationPort } from "../shared/sim/directives.js";
+import { renderDirective } from "./scenes/directive-renderer.js";
 import { startLoop } from "./loop.js";
 import { initJournalView } from "./scenes/menus.js";
 import { numberInputScene, selectItemScene, nameInputScene } from "./scenes/input-scenes.js";
-import { Shop } from "./scenes/shop.js";
+import { Shop, wireShopGoods, applyShopTranscript } from "./scenes/shop.js";
 import { Battle } from "./scenes/battle.js";
 import { toTitle, showTitle, newGame } from "./scenes/title.js";
 import { consumePlaytestStart, initPlaytestBridge } from "./playtest-bridge.js";
@@ -142,6 +144,11 @@ const EngineServices: any = {
   autosaveNow,
   // battle / shop
   Battle, Shop,
+  // Presentation directives (Beacon MP3·A): the world-side port modal command
+  // handlers emit through (sim/directives.ts) + the shop wire-mapping and the
+  // authoritative transcript apply (runs only for non-localEcho sessions).
+  presentation: createPresentationPort(soloHost.world),
+  wireShopGoods, applyShopTranscript,
   // Change Enemy TP bridge (M3·B): live only while a battle runs.
   get battleAddEnemyTp() { return (fns as any).battleAddEnemyTp; },
   // In-troop enemy commands bridge (M3·C, RM 331–340): same lifetime.
@@ -170,6 +177,10 @@ registerBuiltinCommands();
 // src/engine/net/ tree stays off the DOM graph). The loop then drives
 // soloHost.tick() each fixed step instead of calling update() directly.
 soloHost.setTickFn(update);
+// MP3·A: bind the client's modal-directive renderer (message/choices/shop/
+// input scenes) — injected here at the composition root, like the tick fn, so
+// src/engine/net/ stays off the DOM graph.
+soloClient.setDirectiveRenderer(renderDirective);
 
 // ============================ boot ============================
 function loadProject(): any {

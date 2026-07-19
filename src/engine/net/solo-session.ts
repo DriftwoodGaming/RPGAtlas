@@ -27,3 +27,9 @@ export const soloHost = new WorldHost(defaultWorld, link.server);
  *  `soloClient.sendInput()`; the renderer reads `soloClient.view` (the world by
  *  reference in loopback — the same object the ctx/G shim already exposes). */
 export const soloClient = new ClientSession(link.client, defaultWorld);
+
+// MP3·A: loopback posture — soloClient.view IS defaultWorld by reference
+// (MP2·A A4), so client-side presentation writes (the shop session's live
+// buy/sell lines) are already authoritative and the world side must not
+// re-apply reply transcripts. Real remote sessions (MP4/MP5) leave this false.
+defaultWorld.directives.localEcho = true;

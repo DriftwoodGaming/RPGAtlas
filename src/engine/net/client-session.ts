@@ -19,8 +19,13 @@
    module. GPL-3.0-or-later (see LICENSE). */
 
 import type { World } from "../../shared/sim/world.js";
-import type { InputIntent } from "../../shared/net/protocol.js";
-import type { Transport } from "../../shared/net/transport.js";
+import type { Directive, DirectiveReplyValue, InputIntent, ServerDirective } from "../../shared/net/protocol.js";
+import type { NetMessage, Transport } from "../../shared/net/transport.js";
+
+/** Renders one modal directive with the client's UI and resolves with the
+ *  player's answer (src/engine/scenes/directive-renderer.ts; injected so this
+ *  module stays off the DOM graph, like the host's tick fn). */
+export type DirectiveRenderer = (d: Directive) => Promise<DirectiveReplyValue>;
 
 /** The presentation layer's handle on the running game. */
 export class ClientSession {
@@ -32,14 +37,22 @@ export class ClientSession {
    *  `delta.ack` for the prediction reconciliation MP4+ adds; here it only
    *  proves the intent stream is ordered. */
   private seq = 0;
+  private renderer: DirectiveRenderer | null = null;
 
   constructor(transport: Transport, world: World) {
     this.transport = transport;
     this.world = world;
-    // Server frames (welcome/snapshot/delta) drive mirror reconstruction +
-    // prediction reconciliation at MP4; loopback discards them (mirror ==
-    // world by reference) — this is the marked seam.
-    this.transport.onMessage(() => this.onServerFrame());
+    // Server frames: `directive` drives the modal-UI renderer (MP3);
+    // welcome/snapshot/delta drive mirror reconstruction + prediction
+    // reconciliation at MP4 — loopback discards those (mirror == world by
+    // reference), the marked seam.
+    this.transport.onMessage((msg) => this.onServerFrame(msg));
+  }
+
+  /** Bind the modal-directive renderer (boot.ts installs the engine's UI one).
+   *  Injected, not imported, so src/engine/net/ stays off the DOM graph. */
+  setDirectiveRenderer(fn: DirectiveRenderer): void {
+    this.renderer = fn;
   }
 
   /** The world-mirror the renderer reads. Loopback: the world by reference. */
@@ -58,10 +71,20 @@ export class ClientSession {
     this.transport.send({ t: "input", seq: ++this.seq, intent });
   }
 
-  /** A server→client frame arrived. Loopback no-ops: the renderer reads the
-   *  world by reference, so there is no snapshot/delta to apply, and prediction
-   *  reconciliation (consuming `delta.ack`) lands at MP4. */
-  private onServerFrame(): void {
-    // MP2 loopback: mirror == world; nothing to reconstruct.
+  /** A server→client frame arrived. A `directive` renders through the bound
+   *  UI renderer and answers with a `reply` (MP3) — synchronously up to the
+   *  UI's first await, so in loopback the modal appears at the exact point in
+   *  the tick the old direct call made it appear. Snapshot/delta still no-op:
+   *  the renderer reads the world by reference; reconstruction and prediction
+   *  reconciliation (consuming `delta.ack`) land at MP4. */
+  private onServerFrame(msg: NetMessage): void {
+    if (msg.t === "directive") {
+      if (!this.renderer) return; // headless session (unit tests): no UI bound
+      const m: ServerDirective = msg;
+      void this.renderer(m.directive).then((value) =>
+        this.transport.send({ t: "reply", id: m.id, value }),
+      );
+    }
+    // MP2 loopback: mirror == world; nothing else to reconstruct.
   }
 }

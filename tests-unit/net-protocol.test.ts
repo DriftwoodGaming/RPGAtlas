@@ -127,6 +127,12 @@ describe("server→client round-trips (every union arm is wire-safe)", () => {
       id: 7,
       directive: { kind: "message", text: "Welcome to Driftwood Shore!", speaker: "Elder", pos: "bottom" },
     });
+    // MP3·A additive field: the RM 101 window backdrop rides as a name.
+    roundTripServer({
+      t: "directive",
+      id: 12,
+      directive: { kind: "message", text: "…", background: "dim", pos: "top" },
+    });
     roundTripServer({
       t: "directive",
       id: 8,
@@ -236,6 +242,7 @@ describe("decoder strictness (hostile input comes back {ok:false}, never a throw
     rejectServer({ t: "welcome", proto: 1, playerId: 1, roomCode: "nope", resumeToken: TOKEN, tick: 0 }, /bad roomCode/);
     rejectServer({ t: "snapshot", tick: 1 }, /missing world/);
     rejectServer({ t: "directive", id: 1, directive: { kind: "choices", options: [] } }, /bad options/);
+    rejectServer({ t: "directive", id: 1, directive: { kind: "message", text: "x", background: "sparkly" } }, /bad background/);
     rejectServer({ t: "presence", tick: 1, kind: "join", playerId: 1 }, /join needs name/);
     rejectServer({ t: "presence", tick: 1, kind: "say", playerId: 1 }, /exactly one/);
     rejectServer({ t: "kick", code: "vibes" }, /bad code/);
