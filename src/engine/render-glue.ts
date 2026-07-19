@@ -16,6 +16,8 @@ import { Renderer } from "../renderer/index.js";
 import { clamp } from "./util.js";
 import { ctx } from "./state/engine-context.js";
 import { G } from "./state/game-state.js";
+import { defaultWorld } from "./state/default-world.js";
+import { playersOnMap } from "../shared/sim/players.js";
 import { Plugins } from "./plugin-runtime.js";
 import {
   drawMapCombatOverlay,
@@ -99,6 +101,23 @@ export async function render(): Promise<void> {
       }
     }
   }
+  // Project Beacon MP4·A: remote players (the OTHER people in the room, on THIS
+  // map) draw through the same interpolated/depth-sorted sprite path as party
+  // followers. Their charset key resolves to a spritesheet index client-side;
+  // an unknown key falls back to the local player's sprite. Solo renders none
+  // (empty roster → `remotePlayers` empty → byte-identical goldens).
+  const remotePlayers = ctx.scene === "map" ? playersOnMap(defaultWorld, G.mapId) : EMPTY_REMOTES;
+  for (const rp of remotePlayers) {
+    let ci = rp.charset ? Assets.charsetIndex(rp.charset) : -1;
+    if (ci < 0) ci = p.charsetIdx | 0;
+    drawables.push({
+      remoteId: rp.id,
+      x: rp.x, y: rp.y, rx: rp.rx, ry: rp.ry, prx: rp.prx, pry: rp.pry,
+      dir: rp.dir, moving: rp.moving, animT: rp.animT,
+      charsetIdx: ci, kind: (Assets.charsets[ci] && Assets.charsets[ci].kind) || "human",
+      page: null,
+    });
+  }
   if (!p.transparent) drawables.push(p);
   drawables.sort((a: any, b: any) => {
     const pa = a.page ? a.page.priority : "same",
@@ -121,11 +140,13 @@ export async function render(): Promise<void> {
         id:
           d === p
             ? "player"
-            : d.followerId != null
-              ? "fol_" + d.followerId
-              : d.vehicleId
-                ? "veh_" + d.vehicleId
-                : "ev_" + d.ev.id,
+            : d.remoteId != null
+              ? "rp_" + d.remoteId
+              : d.followerId != null
+                ? "fol_" + d.followerId
+                : d.vehicleId
+                  ? "veh_" + d.vehicleId
+                  : "ev_" + d.ev.id,
         canvas: bushy
           ? bushFadedFrame(idx, d.dir, frame)
           : Assets.charFrameCanvas(idx, d.dir, frame),
@@ -203,6 +224,10 @@ export async function render(): Promise<void> {
     g.restore();
   }
   drawMapCombatOverlay(ctx.g2d, camX, camY, shakeX, shakeY, alpha, pix, piy);
+  // MP4·A: name tags + social bubbles float above remote players (both render
+  // paths, since they paint on the 2D overlay). No-op in solo (no remotes).
+  if (ctx.scene === "map" && remotePlayers.length)
+    drawRemotePresence(ctx.g2d, remotePlayers, camX, camY, ctx.cameraZoom, shakeX, shakeY, alpha);
   // Presentation layer (Project Compass M2·A): pictures, screen tint, balloons,
   // timer HUD — painted onto the 2D canvas over the map (works in HD + 2D),
   // below the screen flash. Map scene only.
@@ -222,6 +247,41 @@ export async function render(): Promise<void> {
     camX: camX, camY: camY, cameraZoom: ctx.cameraZoom,
     playerX: pix, playerY: piy, alpha: alpha, // interpolated player pos + blend factor
   });
+}
+
+// ---- remote-player presence overlay (Project Beacon MP4) ----
+/** Shared empty list so the solo render path allocates nothing per frame. */
+const EMPTY_REMOTES: any[] = [];
+
+/** Draw remote players' name tags on the 2D overlay, in the same
+ *  shake+zoom+camera space the combat overlay uses (so it works in both the HD
+ *  and Canvas-2D paths). The display name is the ONLY personal fact rendered
+ *  (D6). MP4·C extends this pass with transient emote / say bubbles. Called
+ *  only when at least one remote player stands on this map — never in solo. */
+function drawRemotePresence(
+  g: any, remotes: any[], camX: any, camY: any, zoom: any, shakeX: any, shakeY: any, alpha: any,
+): void {
+  const ipc = (pv: any, cv: any) => (pv == null ? cv : pv + (cv - pv) * alpha);
+  g.save();
+  g.translate(Math.round(shakeX), Math.round(shakeY));
+  g.scale(zoom, zoom);
+  g.translate(-camX, -camY);
+  g.font = "700 11px " + ((ctx.proj && ctx.proj.system.fontMenu) || "sans-serif");
+  g.textAlign = "center";
+  g.textBaseline = "alphabetic";
+  for (const rp of remotes) {
+    const cx = (ipc(rp.prx, rp.rx) + 0.5) * TILE;
+    const headY = ipc(rp.pry, rp.ry) * TILE - 6; // just above the sprite's head
+    if (rp.name) {
+      const w = g.measureText(rp.name).width;
+      g.fillStyle = "rgba(0,0,0,0.55)";
+      g.fillRect(cx - w / 2 - 3, headY - 12, w + 6, 14);
+      g.fillStyle = "#ffffff";
+      g.fillText(rp.name, cx, headY - 1);
+    }
+  }
+  g.restore();
+  g.globalAlpha = 1;
 }
 
 // ---- bush rendering helpers (Project Compass M4·A) ----

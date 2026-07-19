@@ -22,6 +22,7 @@
 
 import { mulberry32 } from "../rng.js";
 import { createDirectiveState, type DirectiveState } from "./directives.js";
+import { createRosterState, type RosterState } from "./players.js";
 
 /** One world's live game state — the exact object the engine has always
  *  called `G` (moved here verbatim from src/engine/state/game-state.ts).
@@ -85,6 +86,11 @@ export interface World {
    *  player replies + the outbound send the host installs. Runtime-only —
    *  never snapshotted (C3.4 auto-resolve covers disconnects). */
   directives: DirectiveState;
+  /** Multi-player roster (MP4): the OTHER players sharing this world + which
+   *  one is the local viewer. EMPTY in solo (nothing joins), so every remote-
+   *  player code path is inert and the goldens stay byte-identical. Runtime-
+   *  only — never snapshotted (a room rebuilds it from presence + snapshot). */
+  roster: RosterState;
   /** Parallel-interpreter scheduling: event runtime -> running flag. */
   parallels: Map<any, any>;
   /** Common-event parallel scheduling: common event id -> running flag. */
@@ -157,6 +163,7 @@ export function createWorld(proj: any = null, opts: WorldOptions = {}): World {
     evRTs: [],
     blocking: new Set(),
     directives: createDirectiveState(),
+    roster: createRosterState(),
     parallels: new Map(),
     commonParallels: new Map(),
     tick: 0,

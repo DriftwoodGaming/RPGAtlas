@@ -69,6 +69,7 @@ import {
   update,
 } from "./scenes/map.js";
 import { soloClient, soloHost } from "./net/solo-session.js";
+import { addPlayer, removePlayer } from "../shared/sim/players.js";
 import { createPresentationPort } from "../shared/sim/directives.js";
 import { renderDirective } from "./scenes/directive-renderer.js";
 import { startLoop } from "./loop.js";
@@ -363,6 +364,17 @@ async function boot(): Promise<void> {
   (window as any).RPGATLAS_BOOT_MS = performance.now();
   (window as any).RPGATLAS_RENDERER_STATS = () =>
     (Renderer as any).stats ? (Renderer as any).stats() : null;
+  // Project Beacon MP4·A: the local-test roster surface. Placing/removing a
+  // remote player through it drives the exact code path the MP4·B "Play
+  // Together" transport will (add/remove on defaultWorld.roster) — the two-
+  // context e2e and manual dev testing exercise the remote-render path without
+  // a live peer. Inert until called (never touched in normal play), so the
+  // frozen pixel goldens stay byte-identical.
+  (window as any).RPGATLAS_MP = {
+    addPlayer: (id: number, name: string, spawn?: any) => addPlayer(soloHost.world, id, name, spawn),
+    removePlayer: (id: number) => removePlayer(soloHost.world, id),
+    roster: () => soloHost.world.roster,
+  };
 
   // unlock audio on first interaction
   const unlock = () => {
