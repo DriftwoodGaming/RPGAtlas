@@ -15,6 +15,7 @@ import { clamp, rnd, rndf, sleep, sysSe } from "../util.js";
 import { findPath } from "../../shared/pathfind.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G, actorEffCarrier, param } from "../state/game-state.js";
+import { defaultWorld } from "../state/default-world.js";
 import { preemptiveRate, surpriseRate } from "./battle-logic.js";
 import { wantsDash } from "../state/player-options.js";
 import { UIStack } from "../ui-stack.js";
@@ -59,28 +60,32 @@ import { counterAt, damageFloorAt } from "./tile-behavior.js";
 import { autosaveNow } from "../state/save.js";
 
 let frameWaiters: any[] = [];
-let lastTimeBand = ""; // day/night page refresh edge (Phase 5)
 export function frameWait(): Promise<void> {
   return new Promise((r) => frameWaiters.push(r));
 }
+// Project Beacon MP1·B: the day/night edge detector and the tick-accurate
+// event timers are world state (MP0·B audit) — they now live on the world
+// instance (defaultWorld.lastTimeBand / defaultWorld.tickTimers), reached here
+// through the compat shim just like G. frameWaiters stays module-level (it is
+// per-RENDERED-frame render pacing — client state, not world state).
+//
 // Tick-accurate timers: counted in update(), so event waits/tweens advance by ticks even
 // when several ticks run in one rendered frame. (frameWait above is per-rendered-frame.)
-let tickTimers: any[] = [];
 export function waitFrames(n: any): Promise<void> {
-  return new Promise((resolve) => tickTimers.push({ left: Math.max(1, n | 0), resolve }));
+  return new Promise((resolve) => defaultWorld.tickTimers.push({ left: Math.max(1, n | 0), resolve }));
 }
 export function tickTween(n: any, step: any): Promise<void> {
   const total = Math.max(1, n | 0);
-  return new Promise((resolve) => tickTimers.push({ left: total, total, step, resolve }));
+  return new Promise((resolve) => defaultWorld.tickTimers.push({ left: total, total, step, resolve }));
 }
 function pumpTickTimers(): void {
-  if (!tickTimers.length) return;
-  const timers = tickTimers; tickTimers = [];
+  if (!defaultWorld.tickTimers.length) return;
+  const timers = defaultWorld.tickTimers; defaultWorld.tickTimers = [];
   const done = [];
   for (const tm of timers) {
     tm.left--;
     if (tm.step) tm.step((tm.total - tm.left) / tm.total);
-    if (tm.left <= 0) done.push(tm); else tickTimers.push(tm);
+    if (tm.left <= 0) done.push(tm); else defaultWorld.tickTimers.push(tm);
   }
   done.forEach((tm) => tm.resolve());
 }
@@ -215,8 +220,8 @@ export function update(): void {
   // Day/night gameplay (Phase 5): pages with a timeBand condition flip when
   // the clock crosses a band boundary (shops close at night, etc.)
   const band = timeBandOf(G.timeOfDay);
-  if (band !== lastTimeBand) {
-    lastTimeBand = band;
+  if (band !== defaultWorld.lastTimeBand) {
+    defaultWorld.lastTimeBand = band;
     if (!ctx.blockingRun) refreshAllPages();
   }
   // snapshot start-of-tick positions so render() can interpolate between ticks
@@ -512,13 +517,14 @@ function applyStepTileEffects(): boolean {
 // the playtest handoff; boot arms it, and the NEXT step inside an encounter
 // zone forces the roll immediately (so the tester doesn't have to wander for the
 // rate to trigger). One-shot: consumed on the first eligible step.
-let forcedEncounterArmed = false;
+// Project Beacon MP1·B: the forced-encounter latch is world state (MP0·B
+// audit) — it lives on the world instance, reached through the shim.
 export function armForcedEncounter(): void {
-  forcedEncounterArmed = true;
+  defaultWorld.forcedEncounterArmed = true;
 }
 function consumeForcedEncounter(): boolean {
-  if (!forcedEncounterArmed) return false;
-  forcedEncounterArmed = false;
+  if (!defaultWorld.forcedEncounterArmed) return false;
+  defaultWorld.forcedEncounterArmed = false;
   return true;
 }
 

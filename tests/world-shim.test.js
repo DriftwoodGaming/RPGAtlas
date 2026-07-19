@@ -31,7 +31,7 @@ const p = (rel) => JSON.stringify(path.join(root, rel).replace(/\\/g, "/"));
 const shimEntry = `
   export { ctx } from ${p("src/engine/state/engine-context.ts")};
   export { defaultWorld } from ${p("src/engine/state/default-world.ts")};
-  export { G } from ${p("src/engine/state/game-state.ts")};
+  export { G, initQuestRuntime, questRuntime, Quests } from ${p("src/engine/state/game-state.ts")};
   export { seedRnd, rnd, rndf } from ${p("src/engine/util.ts")};
   export { mulberry32 } from ${p("src/shared/rng.ts")};
 `;
@@ -51,7 +51,27 @@ function loadShim(windowStub) {
 }
 
 // ---- One world behind every legacy name ------------------------------------
-const win = { RPGAtlasDeps: { Assets: { TILE: 48 }, RA: {} } };
+// The quest-runtime factory is stubbed (js/quests.js is a classic script); it
+// records the deps it was handed so we can prove the runtime closes over the
+// world's own G (MP1·B — quest runtime is world-scoped state).
+let capturedQuestDeps = null;
+const questRuntimeStub = {
+  create: (deps) => {
+    capturedQuestDeps = deps;
+    return {
+      Quests: { list: () => [] },
+      questState: () => ({}),
+      objectiveDone: () => false,
+      evaluateQuestFailures: () => {},
+      noteBattleFailure: () => {},
+      onEnemyKilled: () => {},
+    };
+  },
+};
+const win = {
+  RPGAtlasDeps: { Assets: { TILE: 48 }, RA: {} },
+  RPGAtlasQuests: questRuntimeStub,
+};
 const shim = loadShim(win);
 
 assert.equal(shim.G, shim.defaultWorld.g, "G IS the default world's game state");
@@ -95,6 +115,28 @@ assert.equal(shim.rndf(), ref7(), "AtlasRng.seed reseeds the default world");
 assert.equal(shim.defaultWorld.rngSeed, 7, "…and the world records it");
 win.AtlasRng.unseed();
 assert.equal(shim.defaultWorld.rngSeed, null, "AtlasRng.unseed restores Math.random");
+
+// ---- MP1·B: the quest runtime lives on the world ----------------------------
+// initQuestRuntime() builds js/quests.js's runtime (closing over G) and stores
+// it on defaultWorld.questRuntime; the game-state live-let exports mirror that
+// world's runtime — the same "one world behind every legacy name" contract.
+shim.initQuestRuntime();
+assert.ok(shim.defaultWorld.questRuntime, "initQuestRuntime builds the world's quest runtime");
+assert.equal(
+  shim.questRuntime,
+  shim.defaultWorld.questRuntime,
+  "the game-state questRuntime export mirrors the world's runtime",
+);
+assert.equal(
+  shim.Quests,
+  shim.defaultWorld.questRuntime.Quests,
+  "the destructured Quests export is the world runtime's own member",
+);
+assert.equal(
+  capturedQuestDeps && capturedQuestDeps.G,
+  shim.defaultWorld.g,
+  "the quest runtime closes over the world's own G (world-scoped, not a copy)",
+);
 
 // ---- pre-boot RPGATLAS_RNG_SEED seeds the world at module eval ---------------
 const seededWin = {

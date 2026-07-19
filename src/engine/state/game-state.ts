@@ -289,8 +289,13 @@ export function currencyRewardTotals(
 }
 
 // Quest runtime (js/quests.js): created by the engine body at the same point
-// the monolith created it, so timing is identical. The destructured pieces are
-// live exports — import sites always see the assigned values.
+// the monolith created it, so timing is identical. Project Beacon MP1·B: the
+// runtime now LIVES on the world instance (defaultWorld.questRuntime) — it
+// closes over `g`, so it is world-scoped state, exactly what the MP0·B audit
+// classed it. The module-level exports below are the solo session's live
+// mirrors of that world's runtime (the same pattern as `G = defaultWorld.g`):
+// the destructured pieces are live exports — import sites always see the
+// assigned values, unchanged.
 export let questRuntime: any;
 export let Quests: any;
 export let questState: any;
@@ -300,7 +305,7 @@ export let noteBattleFailure: any;
 export let onEnemyKilled: any;
 
 export function initQuestRuntime(): void {
-  questRuntime = RPGAtlasQuests.create({
+  defaultWorld.questRuntime = RPGAtlasQuests.create({
     G,
     RA,
     clamp,
@@ -312,6 +317,7 @@ export function initQuestRuntime(): void {
     getProj: () => ctx.proj,
     now: () => Date.now(),
   });
+  questRuntime = defaultWorld.questRuntime;
   ({
     Quests,
     questState,

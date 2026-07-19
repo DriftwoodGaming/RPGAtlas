@@ -34,6 +34,7 @@ import { zonesAtTile, distanceToZoneTile } from "../../shared/zone-geom.js";
 import { setAmbience } from "../../shared/audio-deck.js";
 import { mergeCommandBgs } from "../../shared/audio-math.js";
 import { G } from "../state/game-state.js";
+import { defaultWorld } from "../state/default-world.js";
 
 /** A transfer the runtime wants map.ts to fire (kept out of this module so the
  *  transfer routing stays in one place and there's no import cycle). */
@@ -54,7 +55,15 @@ interface ZoneState {
   soundActive: boolean;            // is any sound zone contributing ambience?
 }
 
-let Z: ZoneState = emptyState();
+// Project Beacon MP1·B: the zone runtime state is world state (MP0·B audit) —
+// it now LIVES on the world instance (defaultWorld.zone), reached here through
+// the compat shim as a stable alias (like `G = defaultWorld.g`). resetZoneState
+// re-bakes it IN PLACE per map (Object.assign, not reassignment) so this alias
+// stays the live object for every reader. The world part is `inside` (per-
+// player presence, MP4 keys it); passGrid/hasZones are config-derived per map,
+// weatherApplied/soundActive are client ambience mirrors — all ride the world
+// block at MP1 (MP0·C: natures 1+2 collapse until MP4 splits them).
+const Z: ZoneState = defaultWorld.zone;
 
 function emptyState(): ZoneState {
   return {
@@ -86,7 +95,7 @@ function setWeather(kind: string, power: number): void {
  *  overlay and clear the presence/weather/sound bookkeeping. Called from
  *  loadMap. Absent `zones` ⇒ empty state, no overlay, no per-step work. */
 export function resetZoneState(map: any): void {
-  Z = emptyState();
+  Object.assign(Z, emptyState()); // reset the world's zone state in place
   Z.map = map;
   const zones = map && map.zones;
   if (!zones || !zones.length) return;

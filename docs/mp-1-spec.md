@@ -135,15 +135,89 @@ binds its historical module-level names to ONE default world.
 
 ---
 
-## Stage B — World systems onto the instance (Opus, pending)
+## Stage B — World systems onto the instance (Opus, landed 2026-07-19)
 
-Per the roadmap: game-state helpers, map runtime movement/collision,
-tile-behavior, encounters/steps, quests, inventory/wallet — mechanically
-migrated per the MP0·B audit table, engine imports flowing through the shim;
-all existing suites stay green. Repeat the stage-A pattern (above) per row;
-the remaining world rows are listed in A4. Respect the traps: sim modules
-stay DOM-free (vitest env=node is load-bearing), never import `deps.ts` /
-`audio-deck.ts` into anything the sim touches.
+### What landed
+
+The remaining MP0·B world rows (the A4 list) now live on the `World`
+instance; each owning engine module binds its historical module-level name to
+`defaultWorld` through the compat shim, exactly the stage-A pattern. **Zero
+behavior change** — every existing suite green, goldens byte-identical.
+
+- **`src/shared/sim/world.ts`** — appended the stage-B fields with initializers
+  copied verbatim from the owning modules: `questRuntime` (null until built);
+  `tickTimers` (`[]`), `lastTimeBand` (`""`), `forcedEncounterArmed` (`false`);
+  `zone` (the zone-runtime `emptyState()` shape — `map/hasZones/passGrid/inside
+  (Set)/weatherApplied/weatherBaseline/soundActive`); and the presentation
+  sextet `pictures` (Map), `tint` (`[0,0,0,0]`), `tintTween` (null), `timer`
+  (`{running:false,frames:0,common:0}`), `scroll` (`{x:0,y:0}`), `scrollTween`
+  (null). Still headless — no new imports (only `../rng.js`).
+- **`src/engine/state/game-state.ts`** — `initQuestRuntime()` builds the runtime
+  onto `defaultWorld.questRuntime` (it closes over `G`, so it is world-scoped);
+  the live-`let` exports (`questRuntime/Quests/questState/objectiveDone/
+  evaluateQuestFailures/noteBattleFailure/onEnemyKilled`) mirror that world's
+  runtime — the same "`G = defaultWorld.g`" mirror pattern. Import sites
+  unchanged.
+- **`src/engine/scenes/map.ts`** — `tickTimers`, `lastTimeBand`,
+  `forcedEncounterArmed` now read/write `defaultWorld.*` (imports
+  `defaultWorld`). `frameWaiters` stays module-level (per-**rendered**-frame
+  render pacing = client, not world — audit ✓).
+- **`src/engine/scenes/zone-runtime.ts`** — `Z` is now a **stable const alias**
+  of `defaultWorld.zone` (like `G`). `resetZoneState` resets **in place**
+  (`Object.assign(Z, emptyState())`) instead of reassigning `Z`, so the alias
+  stays the live object for every reader — behavior-identical (all 7 fields
+  overwritten, `inside` gets a fresh `Set`).
+- **`src/engine/scenes/presentation-runtime.ts`** — `pictures` and `scroll`
+  become stable const aliases of `defaultWorld.*` (mutated in place, so their
+  many call sites are untouched); the reassigned members (`tint`, `tintTween`,
+  `timer`, `scrollTween`) reference `defaultWorld.*` at each site. `__test`
+  hooks + `serialize/restorePresentation` route through the world.
+- **Tests** — `tests-unit/sim-world.test.ts` (+2 → **15**): fresh-init + per-
+  instance isolation for every new row. `tests/presentation-runtime.test.js`:
+  identity pins (`__test.pictures() === world.pictures`, `scroll`) + write-
+  through (tint/timer/picture/scroll land on the world). `tests/world-shim.test.js`:
+  `initQuestRuntime` builds `defaultWorld.questRuntime`, the game-state exports
+  mirror it, and the runtime closes over the world's own `G` (RPGAtlasQuests
+  stubbed under the classic-script window). **node --test stays 45** (asserts
+  added to existing files, no new file).
+
+### The stage-B binding rule (which arm of the A pattern per row)
+
+- **Reassigned scalars/refs** (`tickTimers`, `lastTimeBand`,
+  `forcedEncounterArmed`, `tint`, `tintTween`, `timer`, `scrollTween`) →
+  reference `defaultWorld.<field>` at each site (a module `let` can't carry an
+  accessor; these are module-**private**, so there are no external call sites to
+  preserve — only the owning module's own references move).
+- **Stable-identity objects** (`Z`, `pictures`, `scroll`, and `G`/quest
+  runtime) → a **const alias** captured once, mutated in place. The one
+  reassignment that would have staled an alias (`Z = emptyState()`) became an
+  in-place reset.
+
+### Deviations / discoveries (stage B)
+
+- **D-B1:** `resetZoneState` had to switch from wholesale reassignment to
+  in-place `Object.assign` so the const alias `Z` stays the world's live object.
+  Verified behavior-identical (fresh `Set` for `inside`, all fields reset).
+- **D-B2:** the zone-state shape is duplicated in `world.ts`'s initializer
+  (commented "kept in sync with `emptyState()`") because `world.ts` may not
+  import `zone-runtime.ts` — it pulls `audio-deck` (the sim headless law / the
+  MP1·C lint wall). This is the only intentional shape duplication in stage B.
+- **D-B3 (free coverage, like A's D2):** the existing
+  `tests/presentation-runtime.test.js` round-trips (show/move/tint/timer/scroll
+  + serialize/restore) all pass unmodified against the world-backed state — the
+  regression net the shim wants, now proving the presentation state IS the
+  world's.
+
+### Stage B gate snapshot (all green, 2026-07-19)
+
+| Gate | Result |
+|---|---|
+| vitest | **1028** (65 files; +2 sim-world) |
+| node --test | **45** (asserts added to world-shim + presentation-runtime) |
+| cargo | **26** (untouched) |
+| Playwright | **123/123** (2.8m) — single-player goldens byte-identical; perf 243.32 ms/frame (budget 300) |
+| eslint / tsc | **0 / 0** |
+| versions / FORMAT_VERSION / cache-busts | 1.2.0 · 2 · none needed (no ?v= file touched) |
 
 ## Stage C — Headless boot + determinism (Opus, pending)
 

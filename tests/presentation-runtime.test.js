@@ -18,6 +18,9 @@ async function loadRuntime() {
   const { build } = require("esbuild");
   const entry = `export * from ${JSON.stringify(
     path.join(root, "src/engine/scenes/presentation-runtime.ts").replace(/\\/g, "/"),
+  )};
+  export { defaultWorld } from ${JSON.stringify(
+    path.join(root, "src/engine/state/default-world.ts").replace(/\\/g, "/"),
   )};`;
   const out = (await build({
     stdin: { contents: entry, resolveDir: root, loader: "ts" },
@@ -117,6 +120,30 @@ const jsonEq = (actual, expected, msg) => assert.equal(JSON.stringify(actual), J
   jsonEq(P.scrollOffsetPx(), { x: 2 * 48, y: 0 }, "scroll right 2 tiles → +96px x offset");
   P.resetScroll();
   jsonEq(P.scrollOffsetPx(), { x: 0, y: 0 }, "resetScroll clears the offset");
+
+  // ---- Project Beacon MP1·B: the presentation state LIVES on the world ----
+  // The sextet (pictures, tint/tintTween, timer, scroll/scrollTween) is world
+  // state now; the module binds to defaultWorld through the compat shim. Prove
+  // the stable aliases ARE the world's objects and reassigned members write
+  // through to the world — so a server's per-room world owns its own screen.
+  P.resetPresentation();
+  assert.equal(P.__test.pictures(), P.defaultWorld.pictures, "pictures IS world.pictures");
+  assert.equal(P.__test.scroll(), P.defaultWorld.scroll, "scroll IS world.scroll");
+  assert.equal(P.__test.tint(), P.defaultWorld.tint, "__test.tint() reads world.tint");
+  assert.equal(P.__test.timer(), P.defaultWorld.timer, "__test.timer() reads world.timer");
+  P.showPicture({ id: 9, name: "" });
+  assert.ok(P.defaultWorld.pictures.get(9), "showPicture stores on world.pictures");
+  P.tintScreen({ tone: [12, 0, 0, 0], frames: 0 });
+  jsonEq(P.defaultWorld.tint, [12, 0, 0, 0], "tintScreen writes land on world.tint");
+  P.tintScreen({ tone: [50, 0, 0, 0], frames: 4 });
+  assert.ok(P.defaultWorld.tintTween, "a tint tween lives on world.tintTween");
+  P.startTimer(3, 5);
+  assert.equal(P.defaultWorld.timer.running, true, "startTimer writes land on world.timer");
+  P.scrollMap({ dir: "right", distance: 1, speed: 6 });
+  assert.ok(P.defaultWorld.scrollTween, "scrollMap writes land on world.scrollTween");
+  P.resetPresentation();
+  assert.equal(P.defaultWorld.pictures.size, 0, "resetPresentation clears world.pictures");
+  jsonEq(P.defaultWorld.tint, [0, 0, 0, 0], "resetPresentation restores world.tint");
 
   console.log("Presentation-runtime state tests passed.");
 })().catch((e) => {

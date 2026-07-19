@@ -85,6 +85,41 @@ export interface World {
   /** Camera zoom — per-player world state (MP0·C nature 2): event-driven AND
    *  saved. Kept in the world block at MP1; MP4 keys it per player. */
   cameraZoom: number;
+
+  // ---- MP1·B world rows (the remaining MP0·B audit rows, migrated per the
+  // stage-A pattern: the state lives here; the engine's owning modules bind
+  // their historical module-level names to defaultWorld through the shim). ----
+
+  /** The quest runtime (js/quests.js instance): closes over `g`, so it is one
+   *  per world. Created by game-state.ts initQuestRuntime(); null until then.
+   *  Its members (Quests, questState, objectiveDone, evaluateQuestFailures,
+   *  noteBattleFailure, onEnemyKilled) are the game-state live exports. */
+  questRuntime: any;
+  /** Tick-accurate event wait/tween timers (scenes/map.ts): pumped once per
+   *  world tick in update(). `waitFrames(n)` = n world ticks. */
+  tickTimers: any[];
+  /** Day/night page-refresh edge detector (scenes/map.ts): the last time band
+   *  crossed, derived from g.timeOfDay. */
+  lastTimeBand: string;
+  /** Forced-encounter one-shot latch (scenes/map.ts): the editor's "Test
+   *  Encounter in This Area" arms it; the next eligible step consumes it. */
+  forcedEncounterArmed: boolean;
+  /** Gameplay-zone runtime state for the current map (scenes/zone-runtime.ts):
+   *  the baked collision/nav overlay, zone-presence set, and weather/sound
+   *  bookkeeping. Instanced per world; resetZoneState re-bakes it per map.
+   *  Shape kept in sync with zone-runtime.ts emptyState(). */
+  zone: any;
+  /** On-screen presentation state (scenes/presentation-runtime.ts) — the
+   *  per-player sextet the audit lists (MP0·C nature 2: event-driven AND
+   *  save-serialized): pictures, screen tint (+ its tween), the count-down
+   *  timer, and the map scroll offset (+ its tween). Client renders them. */
+  pictures: any;
+  tint: any;
+  tintTween: any;
+  timer: any;
+  scroll: any;
+  scrollTween: any;
+
   /** The seed the RNG stream currently runs under (>>> 0 normalized), or
    *  null when unseeded (Math.random). Read-only outside; set via seedRnd. */
   rngSeed: number | null;
@@ -115,6 +150,28 @@ export function createWorld(proj: any = null, opts: WorldOptions = {}): World {
     commonParallels: new Map(),
     tick: 0,
     cameraZoom: 1,
+    // MP1·B rows — initializers copied verbatim from the owning engine modules
+    // (game-state.ts quest exports start unset; scenes/map.ts timers/latches;
+    // scenes/zone-runtime.ts emptyState(); scenes/presentation-runtime.ts).
+    questRuntime: null,
+    tickTimers: [],
+    lastTimeBand: "",
+    forcedEncounterArmed: false,
+    zone: {
+      map: null,
+      hasZones: false,
+      passGrid: null,
+      inside: new Set(),
+      weatherApplied: null,
+      weatherBaseline: null,
+      soundActive: false,
+    },
+    pictures: new Map(),
+    tint: [0, 0, 0, 0],
+    tintTween: null,
+    timer: { running: false, frames: 0, common: 0 },
+    scroll: { x: 0, y: 0 },
+    scrollTween: null,
     rngSeed: null,
     seedRnd(seed: number | null | undefined): void {
       if (seed == null) {

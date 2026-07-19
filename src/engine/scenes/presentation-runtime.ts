@@ -27,6 +27,7 @@ import { el } from "../util.js";
 import { pushUI, removeUI } from "../ui-stack.js";
 import { ctx } from "../state/engine-context.js";
 import { G } from "../state/game-state.js";
+import { defaultWorld } from "../state/default-world.js";
 
 // ---------------------------------------------------------------------------
 // Types + module state
@@ -58,12 +59,17 @@ interface TimerState { running: boolean; frames: number; common: number; }
 
 const NORMAL_TONE: Tone = [0, 0, 0, 0];
 
-const pictures = new Map<number, Picture>();
-let tint: Tone = [...NORMAL_TONE] as Tone;
-let tintTween: Tween<Tone> | null = null;
-let timer: TimerState = { running: false, frames: 0, common: 0 };
-const scroll = { x: 0, y: 0 }; // camera offset in tiles
-let scrollTween: (Tween<{ x: number; y: number }>) | null = null;
+// Project Beacon MP1·B: the persistent presentation state — pictures, the
+// screen tint (+ tween), the count-down timer, and the map-scroll offset
+// (+ tween) — is world state (MP0·C nature 2: event-driven AND save-
+// serialized), so it now LIVES on the world instance and is reached here
+// through the compat shim. `pictures` and `scroll` are stable aliases (mutated
+// in place, exactly like `G`); tint/tintTween/timer/scrollTween are reassigned
+// in place through `defaultWorld.*`. The client still renders them; MP4 keys
+// them per player. (Balloons stay parked on entity runtimes; scroll is
+// transient and not serialized, matching RM.)
+const pictures: Map<number, Picture> = defaultWorld.pictures;
+const scroll: { x: number; y: number } = defaultWorld.scroll; // camera offset in tiles
 
 const clamp = (v: number, a: number, b: number): number => (v < a ? a : v > b ? b : v);
 const num = (v: any): number => (typeof v === "number" ? v : Number(v) || 0);
@@ -179,24 +185,25 @@ function normTone(t: any): Tone {
 export function tintScreen(c: any): void {
   const target = normTone(c.tone);
   const frames = Math.max(0, Math.floor(num(c.frames)));
-  if (!frames) { tint = target; tintTween = null; return; }
-  tintTween = { from: [...tint] as Tone, to: target, left: frames, total: frames };
+  if (!frames) { defaultWorld.tint = target; defaultWorld.tintTween = null; return; }
+  defaultWorld.tintTween = { from: [...defaultWorld.tint] as Tone, to: target, left: frames, total: frames };
 }
 
 /** True while the screen tint is still tweening (drives `wait`). */
-export function tintBusy(): boolean { return !!tintTween; }
+export function tintBusy(): boolean { return !!defaultWorld.tintTween; }
 
 // ---------------------------------------------------------------------------
 // Count-down timer (124)
 // ---------------------------------------------------------------------------
 export function startTimer(seconds: number, common?: number): void {
-  timer = { running: true, frames: Math.max(0, Math.round(seconds * 60)), common: num(common) };
+  defaultWorld.timer = { running: true, frames: Math.max(0, Math.round(seconds * 60)), common: num(common) };
 }
-export function stopTimer(): void { timer.running = false; }
+export function stopTimer(): void { defaultWorld.timer.running = false; }
 
 /** Advance the timer one tick. Returns the expiry common-event id when the
  *  timer JUST reached 0 this tick (so scenes/map.ts can fire it), else 0. */
 export function tickTimer(): number {
+  const timer: TimerState = defaultWorld.timer;
   if (!timer.running || timer.frames <= 0) return 0;
   timer.frames--;
   if (timer.frames <= 0) {
@@ -219,16 +226,16 @@ export function scrollMap(c: any): void {
   // RM: distance-per-frame = 2^speed / 256 tiles → total frames for `distance`.
   const frames = Math.max(1, Math.round((distance * 256) / Math.pow(2, speed)));
   const to = { x: scroll.x + dx * distance, y: scroll.y + dy * distance };
-  scrollTween = { from: { x: scroll.x, y: scroll.y }, to, left: frames, total: frames };
+  defaultWorld.scrollTween = { from: { x: scroll.x, y: scroll.y }, to, left: frames, total: frames };
 }
-export function scrollBusy(): boolean { return !!scrollTween; }
+export function scrollBusy(): boolean { return !!defaultWorld.scrollTween; }
 /** Camera offset in pixels (added to the follow-camera before edge-clamping). */
 export function scrollOffsetPx(): { x: number; y: number } {
   const TILE = Assets.TILE;
   return { x: scroll.x * TILE, y: scroll.y * TILE };
 }
 /** Clear the transient scroll offset (called on map transfer). */
-export function resetScroll(): void { scroll.x = scroll.y = 0; scrollTween = null; }
+export function resetScroll(): void { scroll.x = scroll.y = 0; defaultWorld.scrollTween = null; }
 
 // ---------------------------------------------------------------------------
 // Balloon icons (213) — transient state parked on the target entity runtime
@@ -319,17 +326,18 @@ export function updatePresentation(): void {
     }
   }
   // screen tint tween
-  if (tintTween) {
-    const tw = tintTween;
+  if (defaultWorld.tintTween) {
+    const tw = defaultWorld.tintTween as Tween<Tone>;
     tw.left--;
     const t = ease((tw.total - tw.left) / tw.total);
-    tint = tw.from.map((f, i) => Math.round(f + (tw.to[i] - f) * t)) as Tone;
-    if (tw.left <= 0) { tint = tw.to; tintTween = null; }
+    defaultWorld.tint = tw.from.map((f, i) => Math.round(f + (tw.to[i] - f) * t)) as Tone;
+    if (tw.left <= 0) { defaultWorld.tint = tw.to; defaultWorld.tintTween = null; }
   }
   // map scroll tween
-  if (scrollTween) {
-    const done = stepTween(scrollTween, (v) => { scroll.x = v.x; scroll.y = v.y; });
-    if (done) { scroll.x = scrollTween.to.x; scroll.y = scrollTween.to.y; scrollTween = null; }
+  if (defaultWorld.scrollTween) {
+    const tw = defaultWorld.scrollTween as Tween<{ x: number; y: number }>;
+    const done = stepTween(tw, (v) => { scroll.x = v.x; scroll.y = v.y; });
+    if (done) { scroll.x = tw.to.x; scroll.y = tw.to.y; defaultWorld.scrollTween = null; }
   }
 }
 
@@ -444,6 +452,7 @@ function drawBalloon(g: any, entity: any, camX: number, camY: number, TILE: numb
 }
 
 function drawTimer(g: any, w: number): void {
+  const timer: TimerState = defaultWorld.timer;
   if (!timer.running && timer.frames <= 0) return;
   const sec = Math.ceil(timer.frames / 60);
   const mm = Math.floor(sec / 60);
@@ -471,7 +480,7 @@ function drawTimer(g: any, w: number): void {
  *  composites and before the screen flash in render-glue. */
 export function drawPresentation(g: any, camX: number, camY: number, TILE: number): void {
   if (pictures.size) drawPictures(g);
-  if (!toneEq(tint, NORMAL_TONE)) paintTone(g, tint, ctx.SCREEN_W, ctx.SCREEN_H);
+  if (!toneEq(defaultWorld.tint, NORMAL_TONE)) paintTone(g, defaultWorld.tint, ctx.SCREEN_W, ctx.SCREEN_H);
   // balloons (player + visible events)
   drawBalloon(g, G.player, camX, camY, TILE);
   for (const rt of ctx.evRTs || []) if (rt && rt.balloon && !rt.erased) drawBalloon(g, rt, camX, camY, TILE);
@@ -484,9 +493,9 @@ export function drawPresentation(g: any, camX: number, camY: number, TILE: numbe
 /** Full reset (new game). */
 export function resetPresentation(): void {
   pictures.clear();
-  tint = [...NORMAL_TONE] as Tone;
-  tintTween = null;
-  timer = { running: false, frames: 0, common: 0 };
+  defaultWorld.tint = [...NORMAL_TONE] as Tone;
+  defaultWorld.tintTween = null;
+  defaultWorld.timer = { running: false, frames: 0, common: 0 };
   resetScroll();
 }
 
@@ -499,8 +508,8 @@ export function serializePresentation(): any {
       sx: p.sx, sy: p.sy, opacity: p.opacity, blend: p.blend,
       angle: p.angle, angVel: p.angVel, tone: [...p.tone],
     })),
-    tint: [...tint],
-    timer: { running: timer.running, frames: timer.frames, common: timer.common },
+    tint: [...defaultWorld.tint],
+    timer: { running: defaultWorld.timer.running, frames: defaultWorld.timer.frames, common: defaultWorld.timer.common },
   };
 }
 
@@ -520,14 +529,14 @@ export function restorePresentation(d: any): void {
     pictures.set(pic.id, pic);
     loadPictureImage(pic);
   }
-  if (Array.isArray(d.tint)) tint = normTone(d.tint);
-  if (d.timer) timer = { running: !!d.timer.running, frames: Math.max(0, num(d.timer.frames)), common: num(d.timer.common) };
+  if (Array.isArray(d.tint)) defaultWorld.tint = normTone(d.tint);
+  if (d.timer) defaultWorld.timer = { running: !!d.timer.running, frames: Math.max(0, num(d.timer.frames)), common: num(d.timer.common) };
 }
 
 // Test-only inspection (vitest) — reading module state without a DOM.
 export const __test = {
   pictures: () => pictures,
-  tint: () => tint,
-  timer: () => timer,
+  tint: () => defaultWorld.tint,
+  timer: () => defaultWorld.timer,
   scroll: () => scroll,
 };

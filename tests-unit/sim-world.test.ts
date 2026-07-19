@@ -83,6 +83,65 @@ describe("createWorld — instance isolation", () => {
   });
 });
 
+describe("createWorld — MP1·B world rows", () => {
+  it("start at the owning engine modules' initializers", () => {
+    const w = createWorld();
+    // game-state.ts quest runtime — unset until initQuestRuntime()
+    expect(w.questRuntime).toBeNull();
+    // scenes/map.ts scene state
+    expect(w.tickTimers).toEqual([]);
+    expect(w.lastTimeBand).toBe("");
+    expect(w.forcedEncounterArmed).toBe(false);
+    // scenes/zone-runtime.ts emptyState()
+    expect(w.zone).toEqual({
+      map: null,
+      hasZones: false,
+      passGrid: null,
+      inside: new Set(),
+      weatherApplied: null,
+      weatherBaseline: null,
+      soundActive: false,
+    });
+    expect(w.zone.inside).toBeInstanceOf(Set);
+    // scenes/presentation-runtime.ts sextet
+    expect(w.pictures).toBeInstanceOf(Map);
+    expect(w.pictures.size).toBe(0);
+    expect(w.tint).toEqual([0, 0, 0, 0]);
+    expect(w.tintTween).toBeNull();
+    expect(w.timer).toEqual({ running: false, frames: 0, common: 0 });
+    expect(w.scroll).toEqual({ x: 0, y: 0 });
+    expect(w.scrollTween).toBeNull();
+  });
+  it("are isolated per instance (a server hosts many worlds)", () => {
+    const a = createWorld();
+    const b = createWorld();
+    a.questRuntime = { marker: true };
+    a.tickTimers.push({ left: 5 });
+    a.lastTimeBand = "night";
+    a.forcedEncounterArmed = true;
+    a.zone.hasZones = true;
+    a.zone.inside.add(3);
+    a.pictures.set(1, { id: 1 });
+    a.tint = [10, 0, 0, 0];
+    a.tintTween = { left: 2 };
+    a.timer.running = true;
+    a.scroll.x = 4;
+    a.scrollTween = { left: 3 };
+    expect(b.questRuntime).toBeNull();
+    expect(b.tickTimers).toEqual([]);
+    expect(b.lastTimeBand).toBe("");
+    expect(b.forcedEncounterArmed).toBe(false);
+    expect(b.zone.hasZones).toBe(false);
+    expect(b.zone.inside.size).toBe(0);
+    expect(b.pictures.size).toBe(0);
+    expect(b.tint).toEqual([0, 0, 0, 0]);
+    expect(b.tintTween).toBeNull();
+    expect(b.timer.running).toBe(false);
+    expect(b.scroll).toEqual({ x: 0, y: 0 });
+    expect(b.scrollTween).toBeNull();
+  });
+});
+
 describe("createWorld — the RNG contract", () => {
   it("same seed ⇒ the identical stream, and it IS mulberry32", () => {
     const a = createWorld(null, { seed: 123 });
