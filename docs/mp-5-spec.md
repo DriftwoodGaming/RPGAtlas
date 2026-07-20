@@ -1,7 +1,7 @@
 # Phase MP5 Spec — Beacon Server, Rooms & Transport ("Project Beacon")
 
-**Status:** 🚧 **IN PROGRESS** (Opus build). Stage A landed 2026-07-19. Ends with
-the **Fable SECURITY GATE** (block at the bottom).
+**Status:** ✅ **COMPLETE — Fable SECURITY GATE PASS 2026-07-19** (verdict at the
+bottom; tag `beacon-5`). Build: Opus, stages A–E.
 **Authored:** 2026-07-19 by Claude Opus 4.8, from the MP5 section of
 `docs/MULTIPLAYER_ROADMAP.md` + the "Kid safety & privacy" rules + `docs/mp-4-spec.md`.
 **Workflow:** commit + push each stage to `main`; the frozen pixel goldens stay
@@ -368,6 +368,99 @@ wire). Stage D adds the dedicated **fuzz gate** the security review requires.
 
 Template gates + fuzz suite + adversarial audit against the D6/safety checklist.
 Verdict recorded here + the roadmap status table; tag `beacon-5`.
+
+### SECURITY GATE VERDICT — ✅ PASS (Fable, 2026-07-19)
+
+Every gate independently re-run on a clean tree at `77fadbc`; every audit item
+below verified by reading the source, not the spec.
+
+**Template gates (re-run):**
+
+| Gate | Result |
+|---|---|
+| vitest (test:unit, parallel pool) | **1109/1109** (74 files) |
+| vitest (test:net, isolated serial) | **7/7** (beacon-ws 2 · relay-client 4 · beacon-load 1) — run alone, CPU quiet |
+| node --test | **46/46** (determinism hash 46633057 still green) |
+| cargo | **26/26** |
+| Playwright | **126/126**; perf 242.58/300 ms (beacon-4 234.62 → +3.4%, within ±10%) |
+| goldens | `git diff beacon-4..HEAD -- "*.png"` → **empty** (byte-identical at the byte level) |
+| tsc | root **0** · server Node **0** · server CF (`tsconfig.cf.json` vs @cloudflare/workers-types) **0** |
+| eslint | **0**, and the sim wall **fires on a probe** (engine import into `src/shared/sim/` → no-restricted-imports error) |
+| i18n parity | 31 tests green (MP5 player strings English per D-C5-2; localization is MP7·D) |
+| versions / FV / cache-busts | 1.2.0 × 7 sites · FORMAT_VERSION 2 · no `?v=` file touched since beacon-4 |
+| **16-bot latency gate** | **18 players (16 bots + 2 clients), 144 samples — p50 16.4 ms · p95 31.9 ms (budget 150)** |
+| fuzz | 4/4 — 5000 seeded garbage frames · adversarial well-shaped · token replay rejected · brute force capped |
+
+**Adversarial audit (D6/safety checklist) — CLEAN:**
+
+1. **Code brute-force math.** Codes are 9 chars over a 30-glyph alphabet =
+   **44.16 bits ≥ 40**, CSPRNG with rejection sampling (no modulo bias),
+   collision-checked at create. Join/resume share one per-source budget
+   (30/min default); a miss answers ambiguous `room-not-found` (no room-vs-token
+   oracle). At the capped rate a single source needs ~10⁵–10⁶ years to hit a
+   room even with 1000 concurrently active — online guessing is hopeless.
+2. **Flood.** Per-connection token bucket (40 msg/s, burst 80) + 20-strike
+   close; joins separately capped per source; movement is buffer-then-tick
+   (one pending move per member — delivery never re-enters the sim), so an
+   input flood cannot reorder or wedge the world. Fuzz proves a healthy player
+   is unaffected during a 5000-frame garbage storm.
+3. **Oversized / malformed frames.** Three independent caps: `ws` `maxPayload`
+   at the socket, `byteLen` (true UTF-8 bytes) in the core, and the protocol
+   decoder's length cap. Every inbound frame goes through `decodeClientMessage`;
+   failure → counted strike + `malformed`, never a throw. Binary frames map to
+   malformed. The client symmetrically strict-decodes server frames and drops
+   invalid ones (survives a malicious self-hosted server).
+4. **Resume-token replay.** Tokens are 32-char CSPRNG (192 bits), issued per
+   session, **rotated on every successful resume**; the fuzz suite replays the
+   pre-rotation token and gets `room-not-found`. Tokens match live members
+   never (only `conn === null` slots resume), so a sniffed token can't hijack a
+   connected player.
+5. **Cross-room leakage.** `broadcastDelta`/`broadcastPresence` iterate only
+   the room's own member map; each room owns a separate `createWorld` instance;
+   directives route per-pid to that member's socket; `deliverReply` rejects a
+   reply whose `playerId` doesn't own the pending directive and re-validates
+   the value against the directive shape.
+6. **No IP / PII on the wire.** All seven server→client sends enumerated
+   (welcome/snapshot/delta/directive/presence/kick/error): payloads are typed
+   unions; `PlayerState` = id + name(≤24) + charset key + mapId + motion only.
+   `source` (the IP bucket) appears solely in the join limiter and dev log
+   events — never in any `encodeMessage` call, either direction. Retention is
+   documented (server/README "What ships on the wire (privacy)" + roadmap
+   safety rule 1).
+7. **Expiry / grace.** Empty-room TTL 60 s, resume grace 30 s, idle timeout
+   45 s — all enforced in `sweep()` (injectable clock, covered by
+   beacon-server tests); DO target re-arms a storage alarm so the sweep runs
+   through hibernation.
+8. **Chat default-off (D4).** Free-text `chat` is rejected server-side with
+   `chat-disabled` until the MP7 DB toggle exists; presets pass. Verified in
+   code + tests.
+9. **Friendly copy.** `friendlyError`/`friendlyKick` cover every ErrorCode /
+   kick code with plain language; `detail` and decode reasons are dev-facing
+   and never rendered; the Play Together modal shows status text, not codes.
+10. **wss-only.** `connectSocket` throws on a non-wss URL (`ws://` allowed only
+    to localhost/127.0.0.1/::1 for dev); `connectRelay` pre-checks and shows
+    friendly copy. Tauri CSP already permits wss (D-C5-1, no change).
+11. **Title gating / goldens.** "Play Together" renders only when
+    `multiplayerEnabled()`; absent in the frozen fixtures — proven by the empty
+    PNG diff + 126/126.
+
+**Scope deferrals CONFIRMED as intended boundaries:** D-5-0 (server = player
+layer + static wall collision; NPC/event sim, dynamic collision, zone overlays,
+loop edge-wrap, directive ORIGINATION → MP8·A per-zone runtime — routing is
+wired + tested now), D-5-1 (one configured game per process; arbitrary-game
+relay → MP7/MP9 packaging), D-B5-1 (live DO deploy = operator's Cloudflare
+account), D-B5-2 (world persistence across DO eviction → MP8).
+
+**Non-blocking notes carried to MP9 hardening:** resume-token comparison is not
+constant-time (impractical to exploit: 192-bit token, network jitter dwarfs the
+compare, and resumes burn the join budget) · CF Worker `/new` mints codes with
+no HTTP-layer throttle (an abandoned code costs nothing — the DO spawns only on
+`/rt` — and Cloudflare's fronting absorbs; revisit with the MP9 packaging CSP
+pass) · `main.ts` writes the abuse-event `source` to stdout on strike-close /
+idle-timeout — inside the documented transient-retention allowance, keep it out
+of any player-correlated logging when MP9 adds moderation logs.
+
+Tag: `beacon-5`.
 
 **MP5 SECURITY GATE kickoff (paste into a new Fable conversation):**
 ```
