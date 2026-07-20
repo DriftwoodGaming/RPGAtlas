@@ -681,3 +681,95 @@ re-verified live) · cargo **26** · root tsc 0 · server tsc Node + CF 0 ·
 eslint 0 · both server bundles build, `beacon.mjs --help` evaluates headless ·
 Playwright **130/130**, `git diff beacon-8..HEAD -- "*.png"` EMPTY (solo
 goldens byte-identical) · no `js/` touched (no cache-bust due).
+
+#### E2 — Friend rooms become engine worlds (Opus, 2026-07-20)
+
+Built per D-9E-1 in two sub-stages. The insight that shaped it: the room's
+CONNECTION + SEMANTICS layer (server.ts + room.ts — room code, anonymous hello,
+empty-TTL, resume grace, owner + promotion, name-ban, chat gate, social bucket)
+is already MP5-audited and orthogonal to the SIM. So E2 leaves that layer on the
+main thread untouched and moves only the world tick into a new per-room engine
+world — the exact directory/zone split BeaconWorld already uses, one tier down.
+Client needed ZERO changes (RelayClient already applies `snap.party` /
+`changes.party` / `changes.battle`; directive-renderer auto-answers `battleJoin`
+and renders `battleCmd` — the room simply had no engine to emit them until now).
+
+**E2·a — the in-process core** (`server/src/core/room-world.ts`,
+`server/src/core/room.ts`, `server/src/core/server.ts`):
+
+- NEW `RoomWorld` (implements `RoomSim`): a self-contained per-room engine world
+  directory. The start map is the ENGINE zone (adopts `defaultWorld` + the
+  per-zone runtime → NPCs/events/encounters/battles, E1's `battle-runtime`); a
+  `transferOut` spins up a second zone in the SAME instance (player-layer — the
+  one-`defaultWorld`-per-worker rule means only the first zone carries the
+  runtime, exactly the in-process `--engine-events` shape, engine-zone.ts). It
+  reuses `Zone` + the injected `engineZoneFactory` (stays OFF the engine graph
+  like beacon-world.ts — the host injects the factory). Its zone `outbox` routes
+  `send`/`sendMany` to the room's sockets, resolves `transferOut` in memory,
+  fans `sharedSet` to every zone; `recordPatch` is dropped.
+- `BeaconRoom` gains an optional `simFactory`. When present it keeps EVERY room
+  semantic and delegates admit/frame/tick/resume/remove/close to the sim; the
+  room still owns pids, welcome + resume tokens, owner, name-ban and the mod path
+  (kick/ban/report is a room concern, never forwarded to the sim). Absent ⇒ the
+  MP5 player-layer room, byte-identical (beacon-server/moderation/fuzz suites
+  green). `BeaconServerOptions.roomSimFactory` threads the factory through
+  `ensureRoom`/`createRoom`.
+
+**E2·b — worker-per-room + CLI** (`server/src/node/room-worker.ts`,
+`worker-room.ts`, `main.ts`, `build.mjs`):
+
+- NEW `room-worker.ts` (worker entry, parallel to zone-worker.ts): hosts a
+  `RoomWorld` with the engine zone factory, imports engine-zone.ts (headless-env
+  FIRST), self-ticks drift-compensated 60 Hz, routes the RoomSim/RoomOutbox ops
+  across the thread. NEW `worker-room.ts` (parent adapter `WorkerRoomWorld` +
+  `workerRoomFactory`, parallel to worker-zone.ts). Third esbuild bundle
+  `dist/room-worker.mjs`.
+- `main.ts`: engine rooms are the DEFAULT for `beacon.mjs --project` (one worker
+  per room — the out-of-the-box co-op promise). `--no-engine-rooms` opts back to
+  MP5 player-layer rooms; `--max-rooms N` caps the worker budget. Banner +
+  `--help` updated. The CF DO target (`cf/worker.ts`) is UNTOUCHED — it builds
+  BeaconServer with no `roomSimFactory`, so CF DO rooms stay player-layer in 2.0
+  (D-9E-1's honest deferral D-9E-D1).
+
+**Locked decisions:**
+
+- **D-9E-E2-1** — worker-per-room, semantics on the parent. A room delegates its
+  whole SIM to one RoomWorld (one worker in production); the parent keeps the
+  sockets + every room semantic. This is why one process hosts many engine rooms
+  despite the one-`defaultWorld`-per-thread rule.
+- **D-9E-E2-2** — a room is ONE multi-map engine world in ONE instance (the MP4
+  free-roam-host model): start map = engine zone (co-op battles live here, the
+  one-map scope D-9E-4), a transfer spins up a player-layer zone for the target
+  map in the same worker, and A-2 party-follow + `sharedSet` fan-out resolve
+  internally. So `beacon.mjs --project` rooms free-roam across maps with no
+  per-map worker sharding — the exact `--engine-events` (in-process) behavior.
+- **D-9E-E2-3** — a room is EPHEMERAL. RoomWorld drops `recordPatch` (no
+  passport, no record, no durable store — a room disappears on its empty-TTL) and
+  keeps no per-zone empty-expiry inside a room (the whole worker tears down at the
+  room's TTL via `close()` → `sim.stop()`). Positions are never persisted; that
+  is a WORLD feature (beacon-world.ts).
+
+**Deviation carried to E3:** the plan's "friendly 'relay is full' error" beyond
+`--max-rooms` is left as the existing `internal` refusal server-side (the cap is
+enforced; a new room create past it is refused). A dedicated player-facing
+"relay full" string is client copy + i18n, so it rides E3's honesty-copy pass
+rather than adding a protocol code here.
+
+**Tests** — `tests-unit/room-world.test.ts` (fast pool, 4): RoomWorld directory
+routing (player-layer — admit/see-each-other/move-delta/leave) · two players join
+by ROOM CODE, TEAM UP over the relay, BOTH win a shared battle (the F-1 proof,
+in-process through the whole room stack) · a Transfer Player re-homes a player
+onto a second map inside the one room · owner-kick through the delegated sim
+(non-owner refused `not-allowed`; owner kick → sim drops the entity + leave
+reaches the room). `tests-unit/room-battle.test.ts` (net suite, 1): the same F-1
+co-op battle through the BUILT `room-worker` bundle in a REAL worker thread
+(own `defaultWorld`, own headless shim), driven by ROOM CODE over the RoomSim/
+RoomOutbox op protocol.
+
+**Gates (E2):** fast `test:unit` **1306 / 94 files** (was 1302/93; +room-world) ·
+net **12 × 3 consecutive** (was 11; +room-battle worker e2e) · node --test
+**48/48** (determinism golden 46633057 held) · cargo **26** · root tsc 0 ·
+server tsc Node + CF 0 · eslint 0 · all **three** server bundles build
+(`dist/room-worker.mjs` new), `beacon.mjs --help` evaluates headless ·
+Playwright **130/130** (perf 254.25/300), `git diff beacon-8..HEAD -- "*.png"`
+EMPTY (solo goldens byte-identical) · E2 touched no `js/` (no cache-bust due).

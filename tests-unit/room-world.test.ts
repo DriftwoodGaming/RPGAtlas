@@ -299,3 +299,44 @@ describe("engine friend room over the room stack (MP9·E E2, F-1 fix)", () => {
     expect(a.conn.last("snapshot")!.world.mapId).toBe(2);
   }, 20000);
 });
+
+/* ── room semantics still hold with a delegated sim (player-layer) ────────── */
+
+describe("engine-room semantics through the delegated sim", () => {
+  let server: BeaconServer | null = null;
+  afterEach(() => { if (server) { server.shutdown(); server = null; } });
+
+  // A player-layer RoomWorld sim (no engine) keeps this defaultWorld-free while
+  // still exercising the BeaconRoom→RoomSim delegation for moderation.
+  function makeServer(project: any): BeaconServer {
+    return new BeaconServer({
+      project, seed: 1,
+      roomSimFactory: (proj, out) => new RoomWorld(proj, out, { limits: DEFAULT_LIMITS, seed: 1 }),
+    });
+  }
+  async function join(s: BeaconServer, name: string, code?: string): Promise<{ conn: MockConn; pid: number; code: string }> {
+    const conn = new MockConn();
+    s.accept(conn);
+    conn.recv({ t: "hello", proto: 1, name });
+    conn.recv(code === undefined ? { t: "join" } : { t: "join", code });
+    await flush();
+    const w = conn.last("welcome")!;
+    return { conn, pid: w.playerId, code: w.roomCode };
+  }
+
+  it("the owner (first player) can kick — the sim drops the entity and the leave reaches the room", async () => {
+    server = makeServer(plainProject());
+    const a = await join(server, "Ada");         // owner
+    const b = await join(server, "Bo", a.code);
+    await flush();
+    // A non-owner kick is refused (owner-only).
+    b.conn.recv({ t: "mod", action: "kick", target: a.pid });
+    await flush();
+    expect(b.conn.frames().some((m: any) => m.t === "error" && m.code === "not-allowed")).toBe(true);
+    // The owner kicks Bo: Bo gets a kick frame, Ada hears the leave (from the sim).
+    a.conn.recv({ t: "mod", action: "kick", target: b.pid });
+    await flush();
+    expect(b.conn.frames().some((m: any) => m.t === "kick")).toBe(true);
+    expect(a.conn.frames().some((m: any) => m.t === "presence" && m.kind === "leave" && m.playerId === b.pid)).toBe(true);
+  });
+});
