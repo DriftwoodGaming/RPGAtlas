@@ -46,6 +46,8 @@ import {
   type PlayerState,
 } from "../../../src/shared/sim/players.js";
 import { deliverReply } from "../../../src/shared/sim/directives.js";
+import { consumePartyDirty, partyTable, type PartyTableEntry } from "../../../src/shared/sim/party.js";
+import { drainBattleOutbox, type BattleEvent } from "../../../src/shared/sim/coop-battle.js";
 import {
   bakeMapCollision,
   canStep,
@@ -141,6 +143,9 @@ interface ZoneWorldPayload {
   mapId: number;
   timeOfDay: number;
   events?: EventNetState[];
+  /** MP9·E: the player-party table (additive — present only when parties
+   *  exist / membership changed; the client mirror is applyPartyTable). */
+  party?: PartyTableEntry[];
 }
 
 export class Zone implements ZoneApi {
@@ -220,6 +225,10 @@ export class Zone implements ZoneApi {
 
   remove(pid: PlayerId, announce: boolean): void {
     if (!this.members.delete(pid)) return;
+    // MP9·E: withdraw from any shared battle, dissolve party membership and
+    // auto-resolve pending directives BEFORE the entity goes (the runtime owns
+    // the sim-core calls; a runtime-less zone has none of that state).
+    if (this.runtime && this.runtime.onLeave) this.runtime.onLeave(pid);
     removePlayer(this.world, pid);
     if (announce) {
       this.announce({ t: "presence", tick: this.world.tick, kind: "leave", playerId: pid }, pid);
@@ -314,6 +323,15 @@ export class Zone implements ZoneApi {
         if (e && !e.moving && !this.world.blocking.has(pid)) {
           this.runtime.onAct(pid, e.x, e.y, e.dir);
         }
+      } else if (
+        this.runtime &&
+        this.runtime.onPartyIntent &&
+        (msg.intent.k === "partyInvite" || msg.intent.k === "partyLeave")
+      ) {
+        // MP9·E (the F-1 fix): party verbs reach the sim core instead of being
+        // silently dropped. Engine zones only — a walk-only player-layer zone
+        // has no battles for a party to fight, so it honestly has no Team Up.
+        this.runtime.onPartyIntent(pid, msg.intent);
       }
     } else if (msg.t === "reply") {
       deliverReply(this.world, pid, msg.id, msg.value);
@@ -404,40 +422,74 @@ export class Zone implements ZoneApi {
   }
 
   /** Below the bypass threshold: one frame for everyone. Above it: group by
-   *  chunk — members of a chunk share one interest set and one encode. */
+   *  chunk — members of a chunk share one interest set and one encode.
+   *  MP9·E: the delta additionally carries the party table when membership
+   *  changed, and each member's queued battle events (per-player frames — the
+   *  RoomHost afterTick precedent). Both drains are empty on a zone without
+   *  parties/battles, keeping the shared-frame path byte-identical. */
   private broadcast(): void {
     const tick = this.world.tick;
     const events = this.eventsPayload();
+    const table = consumePartyDirty(this.world) ? partyTable(this.world) : undefined;
+    const battleByPid = this.drainBattle();
+    const sendBucket = (pids: PlayerId[], players: PlayerState[]): void => {
+      const base = this.payload(players, events, table);
+      const shared: PlayerId[] = [];
+      for (const pid of pids) {
+        const mine = battleByPid && battleByPid.get(pid);
+        if (!mine) {
+          shared.push(pid);
+          continue;
+        }
+        const changes = { ...base, battle: mine } as unknown as JsonValue;
+        this.outbox.send(pid, encodeMessage({ t: "delta", tick, changes }));
+      }
+      if (shared.length) {
+        const frame = encodeMessage({ t: "delta", tick, changes: base as unknown as JsonValue });
+        this.outbox.sendMany(shared, frame);
+      }
+    };
     if (this.members.size <= this.limits.aoiBypassMax) {
       const players: PlayerState[] = [];
       for (const e of this.world.roster.players.values()) players.push(entityState(e));
-      const frame = encodeMessage({
-        t: "delta",
-        tick,
-        changes: this.payload(players, events) as unknown as JsonValue,
-      });
-      this.outbox.sendMany(Array.from(this.members.keys()), frame);
+      sendBucket(Array.from(this.members.keys()), players);
       return;
     }
     const index = buildChunkIndex(this.world.roster.players.values());
     for (const [chunkKey, bucket] of index) {
       const interest = interestSetOf(chunkKey, index);
-      const players = interest.map(entityState);
-      const frame = encodeMessage({
-        t: "delta",
-        tick,
-        changes: this.payload(players, events) as unknown as JsonValue,
-      });
-      this.outbox.sendMany(bucket.map((e) => e.id), frame);
+      sendBucket(bucket.map((e) => e.id), interest.map(entityState));
     }
+  }
+
+  /** Take the queued per-player battle events (MP6·A A-9, drained here the way
+   *  the RoomHost drains them per tick), grouped by recipient. Null when none —
+   *  the common case, and always on a runtime-less zone. */
+  private drainBattle(): Map<PlayerId, BattleEvent[]> | null {
+    const evs = drainBattleOutbox(this.world);
+    if (!evs.length) return null;
+    const byPid = new Map<PlayerId, BattleEvent[]>();
+    for (const e of evs) {
+      const list = byPid.get(e.pid);
+      if (list) list.push(e.ev);
+      else byPid.set(e.pid, [e.ev]);
+    }
+    return byPid;
   }
 
   /** Compose a delta/snapshot payload, attaching event states only when the
    *  engine runtime produced any (additive — a runtime-less zone omits the
-   *  field, byte-identical to MP8·A). */
-  private payload(players: PlayerState[], events: EventNetState[] | undefined): ZoneWorldPayload {
+   *  field, byte-identical to MP8·A). `party` rides the same additive rule. */
+  private payload(
+    players: PlayerState[],
+    events: EventNetState[] | undefined,
+    party?: PartyTableEntry[],
+  ): ZoneWorldPayload {
     const p: ZoneWorldPayload = { players, mapId: this.mapId, timeOfDay: this.world.g.timeOfDay };
     if (events && events.length) p.events = events;
+    // An EMPTY table still rides when membership changed (the last party
+    // dissolving must reach clients) — the RoomHost afterTick behavior.
+    if (party) p.party = party;
     return p;
   }
 
@@ -476,6 +528,9 @@ export class Zone implements ZoneApi {
       const index = buildChunkIndex(this.world.roster.players.values());
       players = interestSetOf(chunkKeyOf(e.x, e.y), index).map(entityState);
     }
-    return this.payload(players, this.eventsPayload());
+    // MP9·E: a snapshot (join/resume/post-transfer) always reflects the live
+    // party table, like the RoomHost's late-joiner snapshot.
+    const parties = this.world.party.parties.size ? partyTable(this.world) : undefined;
+    return this.payload(players, this.eventsPayload(), parties);
   }
 }

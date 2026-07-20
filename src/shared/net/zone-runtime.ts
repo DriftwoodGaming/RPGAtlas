@@ -11,9 +11,13 @@
    `createZoneEventRuntime` conforms to it and the server's `ZoneOutbox`
    structurally satisfies `ZoneRuntimeOutbox`. GPL-3.0-or-later (see LICENSE). */
 
-import type { JsonValue, PlayerId } from "./protocol.js";
+import type { InputIntent, JsonValue, PlayerId } from "./protocol.js";
 import type { World } from "../sim/world.js";
 import type { MapCollision } from "../sim/collision.js";
+
+/** The party verbs a zone routes to its engine runtime (Beacon MP9·E — the
+ *  F-1 fix: these §C5 intents were silently dropped by every server zone). */
+export type PartyIntent = Extract<InputIntent, { k: "partyInvite" | "partyLeave" }>;
 
 /** The subset of the zone outbox the engine runtime drives (the server's
  *  ZoneOutbox is a superset — send/sendMany are the zone's own concern). */
@@ -72,6 +76,16 @@ export interface ZoneRuntime {
   /** External world-shared write the directory applied (so the runtime does not
    *  re-emit it through the outbox as its own change). */
   noteExternalShared(key: string, value: JsonValue): void;
+  /** MP9·E: a player's party verb (`partyInvite`/`partyLeave`). The sim core
+   *  validates authoritatively; consent rides the directive broker; membership
+   *  changes surface through the party-dirty flag the zone broadcasts. Optional
+   *  so pre-MP9·E runtime fakes keep compiling — the zone calls it if present. */
+  onPartyIntent?(pid: PlayerId, intent: PartyIntent): void;
+  /** MP9·E: a player left the zone (disconnect, reap, or transfer): withdraw
+   *  them from any shared battle (D-6-4), dissolve party membership (parties
+   *  are one-zone scope in 2.0 — D-9E-4) and auto-resolve their pending
+   *  directives (C3.4) so no interpreter hangs on an absent player. */
+  onLeave?(pid: PlayerId): void;
   stop(): void;
 }
 
