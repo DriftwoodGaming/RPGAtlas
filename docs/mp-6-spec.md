@@ -462,6 +462,19 @@ Every stage-B addition is presence-gated or default-preserving:
 | eslint | **0** — sim wall holds (the coop-battle.ts union extension imports only shared modules) |
 | versions / FV / cache-busts | 1.2.0 · 2 · none (new player strings inline English per D-C5-2 → MP7; overlay + HUD inline-styled, no `?v=` file touched) |
 
-*(MP6 build complete. The MP6 GATE block — Fable — is in
-`docs/MULTIPLAYER_ROADMAP.md` §MP6; the gate records the verdict and tags
-`beacon-6`.)*
+---
+
+## Phase gate (Fable, after B)
+
+Template gates + battle matrix + determinism hash + two-context battle e2e 3× +
+solo-battle goldens byte-identical + the draw-conservation audit. Verdict
+recorded here + the roadmap status table; tag `beacon-6`.
+
+**MP6 GATE kickoff (paste into a new Fable conversation):**
+```
+Project Beacon — MP6 GATE (Fable). Read docs/MULTIPLAYER_ROADMAP.md (MP6) + docs/mp-6-spec.md (all of it — design decisions A-1..A-10, deviations D-6-0..D-6-8 + D-6-B-1..B-3).
+Independently re-run the template gates: npm run test:unit (expect 1145) · npm run test:net (7) · node --test tests/ (46 — the determinism hash 46633057 must hold) · cargo test (26, Rust untouched by MP6) · npx tsc --noEmit + the server typechecks (Node + CF, both 0) · npx eslint src --ext .ts (0, and prove the sim wall still FIRES on a probe import) · FULL npx playwright test (127/127; perf within ±10% of 245.36/300). Solo-battle byte-identity: `git diff beacon-5..HEAD -- "*.png"` must be EMPTY. Flake bar: tests-e2e/mp-battle.spec.mjs 3× consecutively with --workers=1.
+Draw-conservation audit (THE battle contract): enumerate every rnd()/rndf() call site added since beacon-5 (`git diff beacon-5..HEAD -- src/`) and verify each is unreachable when `coop` is null — the presence gates are isCoopHost() + openSharedBattle (party + proximity) and `party === G.party` by reference in solo. Verify: the verbatim enemies statement in battle.ts (tests/battle-index.test.js) untouched; useItemOn's deductInv defaults true at every classic callsite; Battle.lastShared unreachable in solo and checked at BOTH game-over callsites (combat.ts + map.ts encounter); world.blocking gains only REMOTE pids from battles (no event-owned blocking bit cleared by battle teardown); the battleCmd/battleJoin validation layers (protocol decoder + directives.ts semantic + battle.ts live-state fallback-to-guard) each reject their layer's garbage.
+Semantics review against the spec: A-6 collective escape, A-7 defeat-revive + suppressed game-over, A-8 per-participant rewards AFTER the classic sequence in join order, A-10 participants-only blocking, D-6-1 per-player parties/loadouts/end-frames. Confirm the deferrals as intended boundaries: D-6-0 (relay battles → MP8·A), D-6-5 (relay drops party intents), D-6-6 (co-op is turn-based; ATB/CTB + idle-poll redesign → MP8), D-6-8 (raw-EXP co-op), D-6-B-3 (cross-participant ally targeting → post-2.0 ledger).
+Record the verdict here + the roadmap status table, tag beacon-6, push with tags, and end with the MP7 BUILD hand-off block.
+```

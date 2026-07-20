@@ -444,9 +444,12 @@ Friends fight side-by-side. Deepest battle-logic surgery in the plan (D5).
 - **B (Opus)** Breadth: skills/items/states/luck/dual-wield paths over
   multiple participants; enemy targeting across participants; battle HUD for
   allies; node tests across the battle-logic matrix; two-context battle e2e.
-- ❓ **Branch point (ask at kickoff):** when a non-partied player walks into a
-  partied player's encounter tile — solo instanced battle (default) or
-  spectate/assist options?
+- ❓ **Branch point — ANSWERED 2026-07-19 (Driftwood): SOLO INSTANCED BATTLE**
+  (the roadmap default, confirmed). A non-partied player at a partied
+  encounter gets their own private battle exactly as today; spectate/assist
+  stays in the deferred ledger (post-2.0). A shared battle freezes only its
+  participants (the MP3 participants-only pause generalized), so a non-partied
+  player never notices a partied fight beyond the participants standing still.
 
 **Gates:** template gates; battle vitest matrix green; determinism hash still
 holds; two-context battle e2e 3×; solo battles byte-identical (goldens).
@@ -591,7 +594,12 @@ Sign the verdict in the roadmap header, tag beacon-9 + v2.0.0, push with tags, u
 
 - Binary wire encoding, delta compression: MP8, only if measurement demands.
 - Client prediction beyond tile-walk (combat responsiveness): post-2.0.
-- Shared-battle spectate/assist for non-partied players: MP6 ❓.
+- Shared-battle spectate/assist for non-partied players: MP6 ❓ ANSWERED
+  2026-07-19 — solo instanced battle now; spectate/assist post-2.0.
+- Cross-participant ally targeting in shared battles (heal a FRIEND's hero):
+  post-2.0 view widening (MP6 D-6-B-3; your-own-party targeting ships in 2.0).
+- Co-op ATB/CTB battles: shared battles are turn-based in 2.0 (MP6 D-6-6);
+  the timed schedulers' world-side redesign rides MP8's headless battles.
 - Filtered-chat quality for non-English locales: honest-docs approach in 2.0;
   community word-lists post-2.0.
 - Voice, streaming/spectator mode, matchmaking: explicitly out of scope for 2.0.
