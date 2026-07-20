@@ -35,6 +35,7 @@ import {
   type ServerMessage,
   type ServerPresence,
 } from "../../../src/shared/net/protocol.js";
+import { resolveSay, newSocialBucket, spendSocial, type SocialBucket } from "./chat.js";
 import { createWorld, type World } from "../../../src/shared/sim/world.js";
 import {
   addPlayer,
@@ -126,6 +127,8 @@ interface ZoneMember {
   charset: string;
   lastSeq: number;
   pending: PendingMove | null;
+  /** Say/emote spam bucket (MP9·A, tick-based). */
+  social: SocialBucket;
 }
 
 /** The world payload shape snapshots/deltas carry (matches the MP5 room's
@@ -207,7 +210,7 @@ export class Zone implements ZoneApi {
 
   admit(pid: PlayerId, name: string, charset: string, x: number, y: number, dir: number, snapshot: boolean): void {
     addPlayer(this.world, pid, name, { mapId: this.mapId, x, y, dir, charset });
-    this.members.set(pid, { pid, name, charset, lastSeq: 0, pending: null });
+    this.members.set(pid, { pid, name, charset, lastSeq: 0, pending: null, social: newSocialBucket(this.world.tick) });
     if (snapshot) this.requestSnapshot(pid);
     this.announce(
       { t: "presence", tick: this.world.tick, kind: "join", playerId: pid, name },
@@ -315,6 +318,7 @@ export class Zone implements ZoneApi {
     } else if (msg.t === "reply") {
       deliverReply(this.world, pid, msg.id, msg.value);
     } else if (msg.t === "emote") {
+      if (!spendSocial(member.social, this.world.tick)) return; // drop bubble spam
       const e = getPlayer(this.world, pid);
       if (e) e.emote = { id: msg.emote, t: this.world.tick };
       this.announce(
@@ -322,16 +326,19 @@ export class Zone implements ZoneApi {
         pid,
       );
     } else if (msg.t === "chat") {
-      // D4 posture unchanged from MP5: presets always pass, free text is
-      // rejected until the MP9 chat engine lands server-side.
-      if (msg.text !== undefined) {
-        this.outbox.send(pid, encodeMessage({ t: "error", code: "chat-disabled" }));
+      // Presets always pass; free text passes only under the game's opted-in
+      // chatMode:"text" (D4), censored by the shared filter — same gate as the
+      // friend room (server/src/core/chat.ts).
+      const r = resolveSay(this.world.proj, msg);
+      if (!r.ok) {
+        this.outbox.send(pid, encodeMessage({ t: "error", code: r.error }));
         return;
       }
+      if (!spendSocial(member.social, this.world.tick)) return; // drop say spam
       const e = getPlayer(this.world, pid);
-      if (e) e.say = { preset: msg.preset, t: this.world.tick };
+      if (e) e.say = { text: r.say.text, preset: r.say.preset, t: this.world.tick };
       this.announce(
-        { t: "presence", tick: this.world.tick, kind: "say", playerId: pid, preset: msg.preset },
+        { t: "presence", tick: this.world.tick, kind: "say", playerId: pid, text: r.say.text, preset: r.say.preset },
         pid,
       );
     } else if (msg.t === "custom") {

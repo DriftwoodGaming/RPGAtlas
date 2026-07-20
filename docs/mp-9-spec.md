@@ -82,3 +82,65 @@ MP7-custom / MP8-passport precedent; no `PROTOCOL_VERSION` bump):
 **Gate slice (A1):** root tsc 0 · server tsc Node 0 / CF 0 · chat-filter 14/14 ·
 net-protocol 34/34. No `js/` `?v=` touched; no golden touched (shared/protocol
 only, no runtime path reaches it yet — server + client wiring is A2/A3).
+
+### A2 — Server enforcement: chat gate, moderation, operator CLI ✅ landed 2026-07-20
+
+The authority side of chat + moderation, wired identically into the friend-room
+path (server.ts + room.ts) and the world path (beacon-world.ts + zone.ts) via a
+shared helper.
+
+**`server/src/core/chat.ts` (NEW):** `chatModeOf(proj)` (reads
+`system.multiplayer.chatMode`, defaults `"off"` — the MP5 posture for any
+project that never touched the toggle) + `resolveSay(proj, msg)` (presets always
+pass; free text passes ONLY under `chatMode:"text"`, then `censorChat`-masked —
+the server MASKS, never rejects, so chat keeps flowing). A tick-based
+`SocialBucket` (burst 6, ~2/s refill) caps the visible say/emote bubble-spam
+vector beyond the connection's general 40/s message bucket; exhausting it drops
+the say/emote silently (never strikes a kid off the link for chatting).
+
+**Friend room (`room.ts` + `server.ts`):**
+- **Owner** = the first player admitted (`ownerPid`); promoted to the
+  earliest-joined remaining member when the owner leaves (kick/ban removal AND
+  resume-grace reaping in `sweep`).
+- **Chat:** `resolveSay` + the social bucket replace the blanket free-text
+  rejection; presets + emotes still gated by the social bucket.
+- **`mod`:** `report` (any player) → the owner's inbox as a `report` frame;
+  `kick`/`ban` are **owner-only** — a non-owner gets `not-allowed`. A friend
+  room is anonymous (D3) so `ban` is **name-based** (the display name can't
+  rejoin until the room ends; evadable by renaming — documented honestly;
+  durable identity bans require a WORLD/passport). `server.enter` refuses a
+  banned name at the door (`not-allowed`).
+- `server.route` now passes `mod` through to the room like the other in-room
+  frames.
+
+**World (`beacon-world.ts` + `zone.ts`):** the zone chat handler uses the same
+`resolveSay` + social bucket. `mod` is handled at the **world** level (the zone
+doesn't know operators): a world has no in-game owner, so clients may only
+`report` (→ the operator inbox + a `warn` log line, carrying the reported
+passport **fingerprint** so the operator can ban durably); `kick`/`ban` from a
+client are refused `not-allowed`. New operator surface on `BeaconWorld`:
+`unban`, `bannedFingerprints`, `recentReports`, `playerList` (all no-PII —
+fingerprints + public names only).
+
+**Operator CLI (`server/src/node/main.ts`):** in `--world` mode an interactive
+stdin console (TTY-gated, so daemonized servers + the test harness are
+unaffected) exposes `players`, `reports`, `ban <pid|fingerprint>`, `unban`,
+`bans`, `help`. Ban-by-passport is the durable moderation tool (D3); it persists
+in the WorldSnapshot with `--data`.
+
+**Proof:**
+- `tests-unit/beacon-moderation.test.ts` (8): chat off → free text rejected /
+  preset passes; `chatMode:text` → free text accepted + masked; social bucket
+  caps emote spam; first player = owner; non-owner kick → not-allowed; owner
+  kick (kick frame + leave); name-ban rejoin refusal; report → owner inbox;
+  owner promotion on owner-leave.
+- `tests-unit/beacon-world.test.ts` (+5, now 17): world client kick/ban →
+  not-allowed; report → operator inbox with the target fingerprint; operator
+  ban-by-fingerprint kicks the live session + refuses the door + `unban` clears
+  it; world chat obeys `chatMode` (off rejects, text masks).
+
+**Gate slice (A2):** root tsc 0 · server tsc Node 0 / CF 0 · eslint 0 · fast
+`test:unit` **1282** (90 files; +30 over beacon-8's 1252: chat-filter 14 ·
+beacon-moderation 8 · net-protocol +4 · beacon-world +5) · net `test:net`
+**11/11** · both server bundles build + `beacon.mjs --help` evaluates headless.
+No golden touched (server-only + protocol); no `js/` `?v=` touched.

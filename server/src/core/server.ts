@@ -184,7 +184,7 @@ export class BeaconServer {
     // In a room: only in-room frames are meaningful; hello/join/resume there are
     // protocol errors (already in a room).
     if (st.phase === "in-room") {
-      if (msg.t === "input" || msg.t === "reply" || msg.t === "emote" || msg.t === "chat" || msg.t === "custom") {
+      if (msg.t === "input" || msg.t === "reply" || msg.t === "emote" || msg.t === "chat" || msg.t === "custom" || msg.t === "mod") {
         if (st.room && st.member) st.room.handleFrame(st.member, msg);
       } else if (msg.t === "hello" || msg.t === "join" || msg.t === "resume") {
         this.sendError(st, "already-in-room");
@@ -283,6 +283,11 @@ export class BeaconServer {
 
   /** Admit a greeted connection into a room as a NEW player. */
   private enter(st: ConnState, room: BeaconRoom): void {
+    // MP9·A: a name the owner banned can't rejoin (friend-room name ban).
+    if (room.isNameBanned(st.name)) {
+      this.sendError(st, "not-allowed", true);
+      return;
+    }
     const member = room.admit(st.conn, st.name, "");
     if (!member) {
       this.sendError(st, "room-full");

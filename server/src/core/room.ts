@@ -23,11 +23,13 @@ import {
   PROTOCOL_VERSION,
   encodeMessage,
   type ClientMessage,
+  type ClientMod,
   type JsonValue,
   type PlayerId,
   type ServerMessage,
   type ServerPresence,
 } from "../../../src/shared/net/protocol.js";
+import { resolveSay, newSocialBucket, spendSocial, type SocialBucket } from "./chat.js";
 import { createWorld, type World } from "../../../src/shared/sim/world.js";
 import {
   addPlayer,
@@ -69,6 +71,8 @@ export interface RoomMember {
   pending: PendingMove | null;
   /** ms timestamp of disconnect, or 0 while connected. */
   disconnectedAt: number;
+  /** Say/emote spam bucket (MP9·A, tick-based). */
+  social: SocialBucket;
 }
 
 export interface RoomOptions {
@@ -99,6 +103,14 @@ export class BeaconRoom {
   private readonly runFlags = new WeakMap<PlayerEntity, boolean>();
   private nextPid = 1;
   private lastEmptyAt: number;
+  /** The room owner (the first player to enter). Owner-only moderation
+   *  (kick/ban); promoted to the earliest remaining member if the owner leaves
+   *  (MP9·A). -1 while the room has never held a member. */
+  private ownerPid: PlayerId = -1;
+  /** Lowercased display names the owner banned. A friend room is anonymous
+   *  (D3) so a ban is name-based and thus evadable by renaming — this is
+   *  documented honestly; durable identity bans require a WORLD (passport). */
+  private readonly bannedNames = new Set<string>();
 
   constructor(code: string, project: unknown, opts: RoomOptions) {
     this.code = code;
@@ -143,6 +155,17 @@ export class BeaconRoom {
   /** Room is full for a NEW player (resumes don't count against this). */
   get isFull(): boolean {
     return this.members.size >= this.capacity;
+  }
+
+  /** The current room owner's player id (-1 if the room is empty). */
+  get owner(): PlayerId {
+    return this.ownerPid;
+  }
+
+  /** True when this display name was banned by the owner (checked by the server
+   *  before admitting a NEW player — a banned name can't rejoin, MP9·A). */
+  isNameBanned(name: string): boolean {
+    return this.bannedNames.has(String(name || "").trim().toLowerCase());
   }
 
   /** The member whose slot this connection currently drives, if any. */
@@ -191,8 +214,10 @@ export class BeaconRoom {
     const member: RoomMember = {
       pid, conn, name: cleanName, charset,
       resumeToken: randomResumeToken(), lastSeq: 0, pending: null, disconnectedAt: 0,
+      social: newSocialBucket(this.world.tick),
     };
     this.members.set(pid, member);
+    if (this.ownerPid < 0) this.ownerPid = pid; // first player in = room owner
     conn.send(encodeMessage({
       t: "welcome", proto: PROTOCOL_VERSION, playerId: pid,
       roomCode: this.code, resumeToken: member.resumeToken, tick: this.world.tick,
@@ -244,6 +269,7 @@ export class BeaconRoom {
     } else if (msg.t === "reply") {
       deliverReply(this.world, member.pid, msg.id, msg.value);
     } else if (msg.t === "emote") {
+      if (!spendSocial(member.social, this.world.tick)) return; // drop bubble spam
       const e = getPlayer(this.world, member.pid);
       if (e) e.emote = { id: msg.emote, t: this.world.tick };
       this.broadcastPresence(
@@ -251,19 +277,23 @@ export class BeaconRoom {
         member.pid, // the emoter already knows; others see the bubble
       );
     } else if (msg.t === "chat") {
-      // Preset-say is always allowed; free-text is dev-opt-in (D4). MP5 has no
-      // per-project chat toggle yet (MP7 DB), so free text is rejected to keep
-      // the default-off safety posture; presets pass through.
-      if (msg.text !== undefined) {
-        if (member.conn) member.conn.send(encodeMessage({ t: "error", code: "chat-disabled" }));
+      // Preset-say is always allowed; free-text passes only under the game's
+      // opted-in chatMode:"text" (MP7 DB toggle, D4) and is then run through the
+      // authoritative profanity filter. Everything else stays default-off.
+      const r = resolveSay(this.world.proj, msg);
+      if (!r.ok) {
+        if (member.conn) member.conn.send(encodeMessage({ t: "error", code: r.error }));
         return;
       }
+      if (!spendSocial(member.social, this.world.tick)) return; // drop say spam
       const e = getPlayer(this.world, member.pid);
-      if (e) e.say = { preset: msg.preset, t: this.world.tick };
+      if (e) e.say = { text: r.say.text, preset: r.say.preset, t: this.world.tick };
       this.broadcastPresence(
-        { t: "presence", tick: this.world.tick, kind: "say", playerId: member.pid, preset: msg.preset },
+        { t: "presence", tick: this.world.tick, kind: "say", playerId: member.pid, text: r.say.text, preset: r.say.preset },
         member.pid,
       );
+    } else if (msg.t === "mod") {
+      this.handleMod(member, msg);
     } else if (msg.t === "custom") {
       // Beacon MP7·C: relay the plugin's opaque payload to everyone else in the
       // room. The engine NEVER interprets `data` — only the game's plugins do.
@@ -272,6 +302,52 @@ export class BeaconRoom {
       const frame = encodeMessage({ t: "custom", from: member.pid, data: msg.data });
       for (const m of this.members.values()) if (m.conn && m.pid !== member.pid) m.conn.send(frame);
     }
+  }
+
+  /** Moderation (MP9·A). `report` (any player → the owner's inbox); `kick`/`ban`
+   *  (owner-only — a non-owner gets `not-allowed`). A friend room is anonymous
+   *  (D3), so `ban` is name-based (blocks the display name from rejoining until
+   *  the room ends; evadable by renaming — documented). */
+  private handleMod(member: RoomMember, msg: ClientMod): void {
+    if (msg.action === "report") {
+      if (msg.target === member.pid) return; // no self-reports
+      const owner = this.ownerPid >= 0 ? this.members.get(this.ownerPid) : undefined;
+      if (!owner || !owner.conn) return; // nowhere to deliver it
+      const target = this.members.get(msg.target);
+      owner.conn.send(encodeMessage({
+        t: "report", from: member.pid, target: msg.target,
+        name: target ? target.name : undefined, reason: msg.reason,
+      }));
+      return;
+    }
+    // kick / ban are owner-only.
+    if (member.pid !== this.ownerPid) {
+      if (member.conn) member.conn.send(encodeMessage({ t: "error", code: "not-allowed" }));
+      return;
+    }
+    if (msg.target === member.pid) return; // the owner can't remove themselves
+    const target = this.members.get(msg.target);
+    if (!target) return; // already gone
+    if (msg.action === "ban") this.bannedNames.add(target.name.trim().toLowerCase());
+    this.removeMember(target, msg.action === "ban" ? "banned" : "kicked");
+  }
+
+  /** Remove a member immediately (owner kick/ban): kick frame, close, drop the
+   *  entity, announce the leave, promote a new owner if this was the owner. */
+  private removeMember(m: RoomMember, code: "kicked" | "banned"): void {
+    if (m.conn) { m.conn.send(encodeMessage({ t: "kick", code })); m.conn.close(); }
+    this.members.delete(m.pid);
+    removePlayer(this.world, m.pid);
+    this.broadcastPresence({ t: "presence", tick: this.world.tick, kind: "leave", playerId: m.pid });
+    if (m.pid === this.ownerPid) this.promoteOwner();
+  }
+
+  /** After the owner leaves, the earliest-joined remaining member inherits it
+   *  (lowest pid; -1 when the room is now empty). */
+  private promoteOwner(): void {
+    let next = -1;
+    for (const pid of this.members.keys()) if (next < 0 || pid < next) next = pid;
+    this.ownerPid = next;
   }
 
   /** Advance the room one 60 Hz tick: snapshot prev-tick coords, apply each
@@ -345,6 +421,7 @@ export class BeaconRoom {
         this.members.delete(m.pid);
         removePlayer(this.world, m.pid);
         this.broadcastPresence({ t: "presence", tick: this.world.tick, kind: "leave", playerId: m.pid });
+        if (m.pid === this.ownerPid) this.promoteOwner();
       }
     }
     if (this.members.size === 0) return now - this.lastEmptyAt >= this.limits.emptyRoomTtlMs;

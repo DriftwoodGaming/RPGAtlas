@@ -8,6 +8,8 @@
    Driftwood's free relay is this, deployed with a featured game. GPL-3.0. */
 
 import { readFile } from "node:fs/promises";
+import { createInterface } from "node:readline";
+import type { BeaconWorld } from "../core/beacon-world.js";
 import { DEFAULT_WORLD_LIMITS, type WorldLimits } from "../core/config.js";
 import { workerZoneFactory } from "./worker-zone.js";
 import { engineZoneFactory } from "./engine-zone.js";
@@ -67,7 +69,10 @@ function printHelp(): void {
     "  --max-players <n>      Players per room (default 16); in world mode,\n" +
     "                         players per world (default 1200)\n" +
     "  --trust-proxy          Read X-Forwarded-For for rate-limit source\n" +
-    "  --help, -h             Show this help\n",
+    "  --help, -h             Show this help\n\n" +
+    "  In --world mode an interactive operator console (stdin) accepts\n" +
+    "  moderation commands: players, reports, ban <pid|fingerprint>, unban,\n" +
+    "  bans, help. Bans are by passport and durable (persist with --data).\n",
   );
 }
 
@@ -138,6 +143,87 @@ async function main(): Promise<void> {
   const stop = () => { handle.close().then(() => process.exit(0)); };
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
+
+  // Operator console (MP9·A): a world has no in-game owner — the operator
+  // moderates from here (ban by passport, review reports). Interactive only, so
+  // a daemonized / piped server (and the test harness) is unaffected.
+  if (args.world && "world" in handle && process.stdin.isTTY) {
+    startOperatorConsole((handle as { world: BeaconWorld }).world);
+  }
+}
+
+/** The world operator's moderation console (MP9·A). Reads commands on stdin:
+ *  `players`, `reports`, `ban <pid|fingerprint>`, `unban <fingerprint>`,
+ *  `bans`, `help`. Ban-by-passport is the durable moderation tool (D3). */
+function startOperatorConsole(world: BeaconWorld): void {
+  const out = (s: string) => process.stdout.write(s + "\n");
+  const rl = createInterface({ input: process.stdin });
+  out(
+    "[beacon] operator console ready — type `help` for moderation commands\n" +
+    "         (players · reports · ban <pid|fingerprint> · unban <fp> · bans)",
+  );
+  /** Resolve a numeric pid OR a fingerprint prefix to a full fingerprint. */
+  const resolveFingerprint = (arg: string): string | null => {
+    if (/^\d+$/.test(arg)) {
+      const p = world.playerList().find((x) => x.pid === Number(arg));
+      return p ? p.fingerprint : null;
+    }
+    // A fingerprint or an unambiguous prefix of a live player's fingerprint.
+    const matches = world.playerList().filter((x) => x.fingerprint.startsWith(arg));
+    if (matches.length === 1) return matches[0].fingerprint;
+    return arg; // ban a full fingerprint even if the player is offline
+  };
+  rl.on("line", (line) => {
+    const [cmd, ...rest] = line.trim().split(/\s+/);
+    const arg = rest.join(" ");
+    switch (cmd) {
+      case "":
+        break;
+      case "help":
+        out(
+          "  players            list connected players (pid · name · fingerprint · map)\n" +
+          "  reports [n]        show the last n player reports (default 20)\n" +
+          "  ban <pid|fp>       ban a passport (durable) — kicks the live session\n" +
+          "  unban <fingerprint>  lift a passport ban\n" +
+          "  bans               list active passport bans\n" +
+          "  help               this list",
+        );
+        break;
+      case "players": {
+        const list = world.playerList();
+        if (!list.length) { out("  (no players connected)"); break; }
+        for (const p of list) out(`  #${p.pid}  ${p.name}  ${p.fingerprint}  map ${p.mapId}`);
+        break;
+      }
+      case "reports": {
+        const n = Number(arg) || 20;
+        const list = world.recentReports(n);
+        if (!list.length) { out("  (no reports)"); break; }
+        for (const r of list)
+          out(`  ${new Date(r.at).toISOString()}  ${r.fromName}(#${r.from}) → ${r.targetName}(#${r.target}) ${r.targetFingerprint}${r.reason ? "  \"" + r.reason + "\"" : ""}`);
+        break;
+      }
+      case "ban": {
+        if (!arg) { out("  usage: ban <pid|fingerprint>"); break; }
+        const fp = resolveFingerprint(arg);
+        if (!fp) { out(`  no live player #${arg}`); break; }
+        world.ban(fp);
+        out(`  banned ${fp}`);
+        break;
+      }
+      case "unban":
+        out(world.unban(arg) ? `  unbanned ${arg}` : `  ${arg} was not banned`);
+        break;
+      case "bans": {
+        const bans = world.bannedFingerprints();
+        if (!bans.length) { out("  (no bans)"); break; }
+        for (const b of bans) out(`  ${b}`);
+        break;
+      }
+      default:
+        out(`  unknown command "${cmd}" — type help`);
+    }
+  });
 }
 
 function projectTitle(project: unknown): string {

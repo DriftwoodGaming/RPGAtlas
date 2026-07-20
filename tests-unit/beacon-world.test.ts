@@ -310,3 +310,73 @@ describe("MP8·A transfers, records, resume, shared state, zone expiry", () => {
     expect(world.zoneIds()).toEqual([7]); // zone 1 dropped, zone 7 (occupied) alive
   });
 });
+
+describe("MP9·A world moderation (operator-only; report inbox; passport bans)", () => {
+  const CHAT_PROJECT = {
+    ...PROJECT,
+    system: { ...PROJECT.system, multiplayer: { enabled: true, chatMode: "text" } },
+  };
+  const saysTo = (conn: MockConn): any[] =>
+    conn.frames().filter((m: any) => m.t === "presence" && m.kind === "say");
+
+  it("a world client can only report — kick/ban are refused (operator-only)", async () => {
+    const { world } = makeWorld();
+    const a = await joinWorld(world, await generatePassport("Ana"));
+    const b = await joinWorld(world, await generatePassport("Bo"));
+    a.conn.recv({ t: "mod", action: "kick", target: b.pid });
+    expect(a.conn.last("error")?.code).toBe("not-allowed");
+    a.conn.recv({ t: "mod", action: "ban", target: b.pid });
+    expect(a.conn.last("error")?.code).toBe("not-allowed");
+    expect(b.conn.last("kick")).toBeUndefined(); // Bo untouched
+  });
+
+  it("a report lands in the operator inbox WITH the passport fingerprint", async () => {
+    const { world } = makeWorld();
+    const a = await joinWorld(world, await generatePassport("Ana"));
+    const b = await joinWorld(world, await generatePassport("Bo"));
+    a.conn.recv({ t: "mod", action: "report", target: b.pid, reason: "griefing" });
+    const reports = world.recentReports();
+    expect(reports.length).toBe(1);
+    expect(reports[0]).toMatchObject({ from: a.pid, target: b.pid, targetName: "Bo", reason: "griefing" });
+    expect(reports[0].targetFingerprint).toHaveLength(43); // operator can ban this passport
+  });
+
+  it("operator ban-by-fingerprint kicks the live session AND refuses the door", async () => {
+    const { world } = makeWorld();
+    const bo = await generatePassport("Bo");
+    const b = await joinWorld(world, bo);
+    const fp = world.playerList().find((p) => p.pid === b.pid)!.fingerprint;
+    world.ban(fp);
+    expect(b.conn.last("kick")?.code).toBe("banned");
+    // Bo reconnecting with the SAME passport is refused at the door.
+    const conn = new MockConn();
+    world.accept(conn);
+    const nonce = conn.last("challenge")!.nonce;
+    conn.recv({ t: "hello", proto: 1, name: "Bo", pub: await passportPublicRaw(bo), sig: await signChallenge(bo, nonce) });
+    conn.recv({ t: "join" });
+    await flush();
+    await flush();
+    expect(conn.last("kick")?.code).toBe("banned");
+    expect(conn.last("welcome")).toBeUndefined();
+    // …and unban clears the passport ban.
+    expect(world.bannedFingerprints()).toContain(fp);
+    expect(world.unban(fp)).toBe(true);
+    expect(world.bannedFingerprints()).not.toContain(fp);
+  });
+
+  it("world chat obeys chatMode: text masks profanity, default rejects free text", async () => {
+    // default project (multiplayer absent) → chat off → free text rejected
+    const off = makeWorld();
+    const oa = await joinWorld(off.world, await generatePassport("Ana"));
+    oa.conn.recv({ t: "chat", text: "hello" });
+    expect(oa.conn.last("error")?.code).toBe("chat-disabled");
+    // chatMode:text → accepted + masked, broadcast to the audience
+    const on = makeWorld(CHAT_PROJECT);
+    const a = await joinWorld(on.world, await generatePassport("Ana"));
+    const b = await joinWorld(on.world, await generatePassport("Bo"));
+    a.conn.recv({ t: "chat", text: "shit happens" });
+    await flush();
+    const say = saysTo(b.conn).pop();
+    expect(say?.text).toBe("**** happens");
+  });
+});

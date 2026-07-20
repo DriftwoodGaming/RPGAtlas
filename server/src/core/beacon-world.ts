@@ -32,6 +32,7 @@ import {
   decodeClientMessage,
   encodeMessage,
   type ClientMessage,
+  type ClientMod,
   type ErrorCode,
   type JsonValue,
   type PlayerId,
@@ -87,6 +88,20 @@ export interface WorldMember {
   disconnectedAt: number;
 }
 
+/** One buffered player report for the operator inbox (MP9·A). Fingerprints let
+ *  the operator ban the reported passport durably (world bans are by
+ *  fingerprint, D3). No IP / no PII — the same public identity facts as a
+ *  presence frame plus the passport fingerprint the server already holds. */
+export interface WorldReport {
+  from: PlayerId;
+  fromName: string;
+  target: PlayerId;
+  targetName: string;
+  targetFingerprint: string;
+  reason?: string;
+  at: number;
+}
+
 interface ConnState {
   conn: ServerConnection;
   phase: "new" | "authing" | "ready" | "in-world";
@@ -123,6 +138,11 @@ export class BeaconWorld {
   private readonly byFingerprint = new Map<string, WorldMember>();
   private readonly records = new Map<string, PlayerRecord>();
   private readonly bans = new Set<string>();
+  /** Player reports (MP9·A): a world has no in-game owner, so reports land in
+   *  the operator inbox — logged, and buffered here for the operator CLI
+   *  (`reports` command). Capped so it can't grow unbounded. Carries the
+   *  reporter/target fingerprints so the operator can ban by passport. */
+  private readonly reports: WorldReport[] = [];
   private readonly conns = new Set<ConnState>();
   private readonly joinBuckets = new Map<string, JoinBucket>();
   /** Tombstones for just-dropped pids: a worker zone's async exit-position
@@ -224,8 +244,8 @@ export class BeaconWorld {
     return Array.from(this.zones.keys());
   }
 
-  /** Ban a passport fingerprint (operator surface; MP9 wires the CLI). Kicks
-   *  a live session immediately. */
+  /** Ban a passport fingerprint (operator surface; MP9·A wires the CLI). Kicks
+   *  a live session immediately. Durable (persisted in the WorldSnapshot). */
   ban(fingerprint: string): void {
     this.bans.add(fingerprint);
     this.worldDirty = true;
@@ -234,6 +254,59 @@ export class BeaconWorld {
       m.conn.send(encodeMessage({ t: "kick", code: "banned" }));
       m.conn.close();
     }
+  }
+
+  /** Lift a passport ban (operator CLI `unban`). */
+  unban(fingerprint: string): boolean {
+    const had = this.bans.delete(fingerprint);
+    if (had) this.worldDirty = true;
+    return had;
+  }
+
+  /** Active passport bans (operator CLI `bans`). */
+  bannedFingerprints(): string[] {
+    return Array.from(this.bans);
+  }
+
+  /** The operator's report inbox (newest last), for the CLI `reports` command.
+   *  Includes each reported player's fingerprint so the operator can
+   *  `ban <fingerprint>` durably. */
+  recentReports(limit = 50): WorldReport[] {
+    return this.reports.slice(-limit);
+  }
+
+  /** Live players (pid → name → fingerprint) for the operator CLI `players`
+   *  command, so the operator can pick a fingerprint to ban. No IP / no PII. */
+  playerList(): Array<{ pid: PlayerId; name: string; fingerprint: string; mapId: number }> {
+    return Array.from(this.members.values()).map((m) => ({
+      pid: m.pid, name: m.name, fingerprint: m.fingerprint, mapId: m.mapId,
+    }));
+  }
+
+  /** Handle a client `mod` frame in a world. Clients may only `report`
+   *  (→ operator inbox + log); kick/ban are operator-only (the CLI), so a
+   *  client kick/ban is refused with `not-allowed`. */
+  private handleMod(st: ConnState, msg: ClientMod): void {
+    const from = st.member;
+    if (!from || from.conn !== st.conn) return;
+    if (msg.action !== "report") {
+      this.sendError(st, "not-allowed");
+      return;
+    }
+    if (msg.target === from.pid) return; // no self-reports
+    const target = this.members.get(msg.target);
+    if (!target) return;
+    const report: WorldReport = {
+      from: from.pid, fromName: from.name,
+      target: target.pid, targetName: target.name, targetFingerprint: target.fingerprint,
+      reason: msg.reason, at: this.clock(),
+    };
+    this.reports.push(report);
+    if (this.reports.length > 500) this.reports.splice(0, this.reports.length - 500);
+    this.log("warn", "player-report", {
+      from: from.pid, fromName: from.name, target: target.pid,
+      targetName: target.name, targetFingerprint: target.fingerprint, reason: msg.reason,
+    });
   }
 
   /** Write one world-shared state cell and fan it out to every zone (the
@@ -483,7 +556,12 @@ export class BeaconWorld {
 
   private route(st: ConnState, msg: ClientMessage): void {
     if (st.phase === "in-world") {
-      if (msg.t === "input" || msg.t === "reply" || msg.t === "emote" || msg.t === "chat" || msg.t === "custom") {
+      if (msg.t === "mod") {
+        // Moderation is world-level (the zone doesn't know operators). A world
+        // has no in-game owner: clients may only `report` (→ operator inbox);
+        // kick/ban are operator-only, via the CLI (MP9·A).
+        this.handleMod(st, msg);
+      } else if (msg.t === "input" || msg.t === "reply" || msg.t === "emote" || msg.t === "chat" || msg.t === "custom") {
         const m = st.member;
         if (m && m.conn === st.conn) {
           const zone = this.zones.get(m.mapId);
