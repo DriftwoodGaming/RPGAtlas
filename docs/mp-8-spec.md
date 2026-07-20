@@ -1,8 +1,13 @@
 # Phase MP8 Spec — Scale: Zones, Interest Management, Persistence, Load Harness ("Project Beacon")
 
-**Status:** Stage A ✅ landed 2026-07-20 (Fable). Stage B pending (Opus).
+**Status:** ✅ **PHASE COMPLETE — Fable LOAD GATE PASS 2026-07-20, tag
+`beacon-8`** (verdict at the end of this file). Stage A ✅ 2026-07-20 (Fable);
+stage B ✅ 2026-07-20 (Opus, all 6 items).
 Commits: A1 `2a87897` (passport + protocol) · A2 `0f315e7` (zones/AOI/world/
-workers) · A3 `c40ff82`+`314afc0` (tick-strategy measurement + decision).
+workers) · A3 `c40ff82`+`314afc0` (tick-strategy measurement + decision) ·
+B2 `3ac0afb` (persistence) · B5 `4a2daeb`+`379852b` (harness/re-measure) ·
+B1 `3d14aed` (per-zone engine runtime) · B3 `864b608` (CF DO world) ·
+B4 `c1676d7` (client world-join).
 **Authored:** 2026-07-20 by Claude Fable 5, from the MP8 section of
 `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-7-spec.md`.
 **Workflow:** commit + push each stage to `main`; frozen pixel goldens stay
@@ -807,3 +812,77 @@ world-join (4) are green and pushed. The load gate is next; the one open item:
 
 - **Item 6 — encoding:** still NO by measurement (above); revisit only if the
   item-1 runtime deltas move the numbers.
+
+---
+
+## MP8 LOAD GATE — VERDICT (Fable, 2026-07-20): ✅ PASS, tag `beacon-8`
+
+Every gate independently re-run from scratch at `c1676d7`; nothing taken from
+the written numbers on faith.
+
+**Template gates (all green):**
+
+| Gate | Result |
+|---|---|
+| vitest `test:unit` | **1252 / 1252** (88 files) — exact match to §B·4's count |
+| vitest `test:net` | **11 / 11 ×3 consecutive** (6 files; incl. world-smoke's socketed restart round-trip + world-engine-events' in-worker interpreter proof) |
+| node --test | **48 / 48**, determinism hash **46633057** re-computed live |
+| cargo | **26 / 26** |
+| Playwright | **128 / 128**; perf 232.21 / 300 ms (beacon-7 255.73 → −9.2 %, within ±10 %); `git diff beacon-7..HEAD -- "*.png"` **EMPTY** — solo byte-identical |
+| eslint | **0**, and the MP1·C sim wall FIRES on a `window` probe in `src/shared/sim/world.ts` (reverted clean) |
+| tsc | root **0** · server Node **0** · server CF **0** |
+| i18n | mp-i18n parity **34 / 34** (10 packs × the exact 43-key EN set) |
+| versions / format | **1.2.0 ×7 sites** · FORMAT_VERSION **2** · **no `js/` file touched beacon-7..HEAD** → no cache-busts owed |
+| bundles | `dist/beacon.mjs` + `dist/zone-worker.mjs` build; `beacon.mjs --help` evaluates headless (engine slice + `headless-env` shim stand up in plain Node) |
+
+**Load harness — independent re-measure (fresh runs, solo, no other suites
+in flight; §A4/§B·5 recorded numbers in brackets):**
+
+| config | samples | p50 | p95 | p99 | moved | resources (whole process) |
+|--------|--------:|----:|----:|----:|------:|:--------------------------|
+| 200 bots / 1 zone (in-proc) | 15,498 | 58.0 [58.2–66.5] | **82.6** [82.6–83.1] | 83.8 | 200/200 | 88 MB rss, 4.1 s user / ~22 s |
+| 200 / 1 zone + `--data` | 15,507 | 57.6 | **82.3** (flat) | 83.9 | 200/200 | 89 MB rss; 25.8 KB on disk (~129 B/player), graceful flush 6 ms |
+| 1000 bots / 8 zones (workers) | 69,799 | 70.7 [69.4–71.3] | **101.8** [99.5–100.1] | 117.3 | 1000/1000 | 259 MB rss, 17.2 s user / ~22 s |
+| 200 bots / 8 zones + `--data` (transfer probe) | 13,956 | 66.9 | **82.5** | 83.5 | 200/200 | 85 MB rss; 25 records/mapId ×8 + 8 ZoneSnapshots persisted |
+
+Zone budget (p95 ≤ 250 ms @ 200/zone) holds with **3× headroom**; the
+1000/8 world with **2.5×**. The 1000/8 p95 came in 1.7 ms over the recorded
+run — measurement noise, both sides of 100 ms across runs. §A4 decisions
+re-confirmed: 60 Hz sim · 12 Hz + AOI world broadcast · in-proc Node default ·
+encoding NO.
+
+**Transfer under load:** the harness routes every bot through the real
+`world.transferPlayer` on the live loaded world (1000 cross-zone transfers in
+the world run; every transferred bot then echoed moves in its target zone).
+The independent 8-zone `--data` probe shows the records FOLLOW the transfers
+durably: exactly 25 records per mapId ×8 on disk + all 8 ZoneSnapshots.
+Gateway semantics (leave old zone → admit new → fresh snapshot) unit-proven
+in beacon-world.test.ts; the worker-boundary path proven by zone-worker +
+world-engine-events (net, ×3).
+
+**Persistence round-trip (kill a zone, restore, state intact):**
+world-persistence.test.ts 5/5 (build→play→flush→shutdown→rebuild over BOTH
+the memory KV and the real-disk `NodeFileWorldStore`) + the world-smoke net
+e2e ×3 (full server kill → new world on the same store → the same passport
+rejoins at the saved tile, end-to-end over the socket) + do-store.test.ts 4/4
+(the CF DO storage seam, incl. corrupt-unit reads-as-empty). On-disk records
+inspected directly: fingerprint-keyed, position + `data` bag only.
+
+**Passport no-PII (verified live, not just by test):** a freshly generated
+passport is exactly `{v, kind, name, created, publicKeyJwk, privateKeyJwk}`;
+the JWKs carry pure P-256 key material (`kty/x/y/crv/d/key_ops/ext`);
+passport.test.ts pins the exact key set. The persisted PlayerRecord is
+fingerprint → `{name, mapId, x, y, dir, data, lastSeen}` — no IP, no email,
+no account, no device identifier anywhere in the passport, on the wire, or
+on disk (D3/D6 posture intact).
+
+**Deferrals ratified as phase boundaries:** D-8-6 (per-player
+party/inventory/gold split + server-side battles/shops → the loadout work),
+D-8-7 (CF multi-DO zone sharding — seams in place, Node already meets the
+scale gate), D-8-8 (handoff re-dial wired but no live target emits `handoff`
+until D-8-7), item 6 encoding NO by measurement. The §A4 re-measure WITH
+event-runtime bot load (the one that could flip decision 4) rides the next
+harness growth, as §B·1 notes.
+
+**Scale-table numbers recorded in the roadmap; tag `beacon-8` pushed. Next:
+MP9 (Opus BUILD → Fable RELEASE gate → v2.0.0).**
