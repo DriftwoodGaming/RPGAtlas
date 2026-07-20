@@ -4,6 +4,20 @@
 
 export const PATCH_NOTES = [
   {
+    date: "July 20, 2026",
+    title: "Play Together — online multiplayer is here (RPGAtlas 2.0.0)",
+    summary:
+      "Friends can join your game online with a room code in under a minute — the feature RPG Maker never had, built right into the engine.",
+    items: [
+      "Turn it on with one checkbox: Database ▸ Multiplayer ▸ Enable Play Together. Your game stays byte-for-byte the same offline until you do — single-player is completely untouched.",
+      "Friends share a short room code, walk the same maps together, wave with emotes and preset phrases you write, party up, and fight battles side by side. Loot and experience go to each player's own party, and nobody's game ends because a shared fight went badly.",
+      "Kid-safe by design: no accounts, no email, no personal information — a player is just a display name. Players only ever connect to a play server, never to each other, so nobody's location is ever exposed.",
+      "Chat is OFF by default (emotes + your preset phrases only). You can opt into filtered free-text chat per game — and even then every player can mute anyone instantly and report a problem, and room owners can kick or ban.",
+      "Dream bigger? Run the open-source Beacon server yourself — a persistent world for hundreds of players, on a plain computer or Cloudflare's free tier, with authored NPCs and cutscenes running server-side and durable, passport-based moderation.",
+      "New help pages: \"Making Your Game Multiplayer\", \"Hosting a World\", and a plain-language \"Online Safety\" page you can show a parent or teacher. Try the built-in Driftwood Shore co-op demo to see it all in action.",
+    ],
+  },
+  {
     date: "July 19, 2026",
     title: "Change Items can read its count from a variable",
     summary:

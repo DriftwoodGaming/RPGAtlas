@@ -279,3 +279,68 @@ map 1" rule, honored by deriving a whole project, not a map).
 **Gate slice (C):** eslint 0 (new script/config/spec) · **Playwright coop-demo
 2/2** (full suite → 130) · Atlas_Quest_Coop.json builds; maps identical to the
 source (`[1,2,3,4,5]`). No `js/` `?v=` touched; no map layout edited.
+
+---
+
+## Stage D — release prep (Opus) ✅ landed 2026-07-20 (NOT tagged — the gate tags)
+
+Everything for 2.0.0 except the final verdict-signing + tags, which are the
+**Fable RELEASE gate's** job (per the BUILD kickoff: "Do NOT tag v2.0.0").
+
+- **Version → 2.0.0** across the **6 literal sites**: `package.json`,
+  `server/package.json`, `src/editor/help.ts` (About display),
+  `src/editor/workspace.ts` (storage comment), `src-tauri/Cargo.toml`,
+  `src-tauri/tauri.conf.json`. `cargo check` confirms `rpgatlas v2.0.0`
+  compiles. (No stray `1.2.0` remains outside historical patch notes / specs.)
+- **Patch note:** a "Play Together — online multiplayer is here (RPGAtlas
+  2.0.0)" entry added to the top of `js/patch-notes.js` (kid-readable: one
+  checkbox, room codes, kid-safe by construction, chat off-by-default with
+  mute/report/kick/ban, self-hosting, the new help pages + demo). **Cache-bust
+  bumped `patch-notes.js ?v=74 → 75`** in BOTH `src/editor/help.ts` (import) and
+  `src/editor/shims.d.ts` (module decl — they must match; tsc enforces it).
+  `editor.css` (?v=70) and `data.js` (?v=36) UNTOUCHED (no such file changed) →
+  no bump owed.
+- **README:** version badge → 2.0.0, "RPGAtlas 2.0", and a "New in 2.0 — Play
+  Together" highlight linking Making-Multiplayer / Hosting-a-World /
+  Online-Safety.
+- **Plugin API re-frozen for 2.x:** `wiki/Plugin-and-Script-API.md` compatibility
+  promise now reads "frozen for 2.x" and names `atlas.mp` (the 2.0 net surface)
+  as part of the frozen set, with the no-PII/opaque/rate-limited note.
+  docs-site rebuilt (28 pages).
+- **Roadmap status table** MP9 row updated to 🚧 BUILD COMPLETE (gate-ready
+  numbers recorded); the header verdict + tags stay for the gate.
+- **FORMAT_VERSION stays 2** (untouched). Frozen goldens untouched (js/
+  patch-notes is editor-About only; not on the player/golden path).
+
+**Release follow-up flagged for the gate/operator (NOT in the MP9·D checklist):**
+the committed desktop binaries (`RPGAtlas-Desktop.exe`, `RPGAtlas.exe`,
+`bin/RPGAtlasLauncher.exe`) still embed the previous build — they are rebuilt
+from the now-2.0.0 source with the Tauri/Rust toolchain (`npm run tauri:build` /
+`scripts/package-game-exe.mjs`), a heavy step deliberately outside this BUILD
+(the web/itch export + source are 2.0.0; the exe rebuild is a packaging step).
+
+**Gate slice (D):** root tsc 0 (patch-notes ?v= matches shims) · cargo check
+`v2.0.0` 0 · Playwright editor+coop-demo 24/24 · eslint 0 · version 2.0.0 ×6 +
+patch-notes ?v=75 · docs-site 28 pages. No golden touched.
+
+---
+
+## MP9 BUILD complete — hand-off to the Fable RELEASE gate
+
+All four stages (A chat+moderation · B packaging+safety docs · C showcase ·
+D release prep) are landed + pushed to `main`. The BUILD did **not** tag.
+
+**Gate-ready snapshot (re-verify from scratch — never trust these numbers):**
+fast `test:unit` **1290** (92 files) · net `test:net` **11/11** · node --test
+**48** (determinism 46633057) · cargo **26** · Playwright **130/130** (128
+goldens byte-identical + 2 coop-demo; perf 235.18/300) · root + server (Node +
+CF) tsc **0** · eslint **0** + sim wall fires · mp-i18n parity **34** (58
+keys/pack) · **version 2.0.0 ×6 + patch-notes ?v=75** · FORMAT_VERSION **2** ·
+both server bundles build + `beacon.mjs --help` headless.
+
+**RELEASE GATE kickoff (paste into a NEW Fable conversation):**
+```
+Project Beacon — MP9 RELEASE GATE (Fable). Read docs/MULTIPLAYER_ROADMAP.md (ALL) + every docs/mp-N-spec.md.
+Independently re-verify every phase gate (full vitest/node/cargo/Playwright/eslint/i18n/load-harness smoke), run the end-to-end safety checklist (chat off by default, filter/mute/report/kick, no-IP audit, room-code entropy, parent page accuracy), verify version consistency across the sites + cache-busts + FORMAT_VERSION 2, and do the fresh-eyes playthrough (room → join → co-op battle → world, <60s to first join).
+Sign the verdict in the roadmap header, tag beacon-9 + v2.0.0, push with tags, update the Beacon memory file, and end with a summary for Driftwood.
+```

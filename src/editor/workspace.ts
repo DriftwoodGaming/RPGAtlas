@@ -136,7 +136,7 @@ act("play", { label: "Playtest", icon: "play", key: "F5", tip: "Save and run the
   // playtest window is pre-built and reused (open_playtest navigates it from its idle
   // parking page to play.html, or reloads if already there; close parks it back idle);
   // we never build a window from a command (trap 2). saves/ slots stay in browser
-  // storage for 1.2.0.
+  // storage for 2.0.0.
   saveNow();
   if (host.isTauri) {
     host.openPlaytest().catch((e: any) => alert("Could not open play-test window: " + ((e && e.message) || e)));

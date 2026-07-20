@@ -7,19 +7,30 @@
 <p align="center"><i>Chart your world. Tell your story.</i></p>
 
 <p align="center">
-  <img alt="Version 1.2.0" src="https://img.shields.io/badge/version-1.2.0-ffd86a.svg">
+  <img alt="Version 2.0.0" src="https://img.shields.io/badge/version-2.0.0-ffd86a.svg">
   <a href="LICENSE"><img alt="License: GPL v3" src="https://img.shields.io/badge/License-GPLv3-blue.svg"></a>
   <img alt="Zero-install runtime" src="https://img.shields.io/badge/runtime-zero--install-brightgreen.svg">
   <img alt="Self-contained exports" src="https://img.shields.io/badge/exports-self--contained-brightgreen.svg">
 </p>
 
-**RPGAtlas 1.0** is a complete, original, **free and open source** RPG making engine in the spirit of
+**RPGAtlas 2.0** is a complete, original, **free and open source** RPG making engine in the spirit of
 classic 2D RPG makers — with a modern **HD-2D renderer** (tilted perspective, dynamic lights and
 shadows, animated water, day/night, weather, full post-processing) layered on top. No copyrighted
 assets, nothing to install for creators or players — everything (code, tiles, sprites, monsters,
 sound effects, even the music) is generated procedurally, imports are welcome when you want them,
 and exported games are single self-contained files. (Only working from a *source checkout* needs
 free [Node.js](https://nodejs.org/); downloaded copies ship the editor pre-built.)
+
+🕹️ **New in 2.0 — Play Together (online multiplayer).** Tick one checkbox and friends join your game
+online with a short **room code**: they walk the same maps, wave and chat, party up, and fight
+battles side by side. It's kid-safe by construction — **no accounts, no email, no personal
+information**, players connect only to a server (never to each other, so no one's location is ever
+exposed), and free-text chat is **off by default** with instant mute + report + owner kick/ban.
+Single-player stays byte-for-byte identical until you opt in. Ambitious creators can self-host the
+open-source **Beacon** server (plain Node or Cloudflare's free tier) for a persistent world of
+hundreds. See [Making Your Game Multiplayer](wiki/Making-Your-Game-Multiplayer.md),
+[Hosting a World](wiki/Hosting-a-World.md), and the plain-language
+[Online Safety](wiki/Online-Safety.md) page for parents and teachers.
 
 📖 **Documentation:** the [project wiki](wiki/Home.md) — also available as a static
 [docs site](docs-site/index.html) (`docs-site/`, GitHub Pages-ready), including the

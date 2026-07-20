@@ -138,8 +138,14 @@ Reusable conversations can be awaited with `game.callDialogue(id)`, just like
 
 ## Compatibility promise
 
-This surface is **frozen for 1.x**: existing properties and calls keep working across updates
-(new ones may be added). Plugins and graphs written against it survive engine upgrades and ship
-unchanged inside exported games — see the [Migration Guide](Migration-Guide).
+This surface is **frozen for 2.x**: existing properties and calls — including the multiplayer
+surface `atlas.mp` added in 2.0 — keep working across updates (new ones may be added). Plugins and
+graphs written against it survive engine upgrades and ship unchanged inside exported games — see the
+[Migration Guide](Migration-Guide).
+
+> **2.0 note.** The online-multiplayer additions (`atlas.mp` — join/leave hooks + `sendCustom`) are
+> now part of the frozen surface. `sendCustom` payloads are opaque to the engine and travel on the
+> communication tier (like an emote), size-capped and rate-limited; they never carry a player's
+> address or any personal information.
 
 **Next:** [Migration Guide →](Migration-Guide)
