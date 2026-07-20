@@ -1,10 +1,11 @@
 # Phase MP9 Spec — Safety, Chat, Moderation, Packaging, Release 2.0 ("Project Beacon")
 
-**Status:** 🚧 IN PROGRESS (Opus BUILD). Prior: `beacon-8` tagged (MP8 LOAD GATE
-PASS 2026-07-20). This phase ships opt-in filtered chat + moderation, packaging
-& parent/teacher safety docs, the Driftwood Shore co-op showcase, and the 2.0.0
-release prep — then hands to the **Fable RELEASE gate** (which tags `beacon-9` +
-`v2.0.0`; this BUILD conversation does NOT tag v2.0.0).
+**Status:** BUILD ✅ (Opus, 4 stages) → **RELEASE GATE ❌ NO-GO 2026-07-20 (Fable)
+— `beacon-9` + `v2.0.0` NOT tagged.** All numeric/safety gates re-verified PASS;
+the fresh-eyes playthrough fails its co-op-battle leg (D5 unreachable by
+players). See §RELEASE GATE at the end of this file for the full verdict,
+findings F-1…F-5, and the fix fork. Prior: `beacon-8` tagged (MP8 LOAD GATE
+PASS 2026-07-20).
 
 **Authored:** 2026-07-20 by Claude Opus 4.8, from the MP9 section of
 `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-8-spec.md`.
@@ -344,3 +345,144 @@ Project Beacon — MP9 RELEASE GATE (Fable). Read docs/MULTIPLAYER_ROADMAP.md (A
 Independently re-verify every phase gate (full vitest/node/cargo/Playwright/eslint/i18n/load-harness smoke), run the end-to-end safety checklist (chat off by default, filter/mute/report/kick, no-IP audit, room-code entropy, parent page accuracy), verify version consistency across the sites + cache-busts + FORMAT_VERSION 2, and do the fresh-eyes playthrough (room → join → co-op battle → world, <60s to first join).
 Sign the verdict in the roadmap header, tag beacon-9 + v2.0.0, push with tags, update the Beacon memory file, and end with a summary for Driftwood.
 ```
+
+---
+
+## §RELEASE GATE — verdict ❌ NO-GO (Fable, 2026-07-20; tags withheld)
+
+The gate ran in full. Every re-runnable gate below was re-executed from scratch
+this session; every safety-checklist item was re-audited from source (never
+from the specs' claims); the playthrough was performed live in a real browser
+against real servers built from this tree. The release fails on one finding
+that the roadmap's own gate definition makes blocking, plus one operator gap.
+
+### Re-verified PASS (all numbers live this session)
+
+- fast `test:unit` **1290 / 92 files** · net `test:net` **11/11 × 3 consecutive**
+  (MP5·E 16-bot latency 144 samples p50 16.4 / p95 31.9 ms vs 150 budget;
+  world restart-over-socket round-trip green each run)
+- node --test **48/48**, determinism hash **46633057** re-computed live ·
+  cargo **26/26** · root tsc 0 · server tsc Node + CF 0 · eslint 0, and the
+  MP1·C sim wall PROVEN to fire (probe import of `engine/net/moderation` from
+  `src/shared/sim/` → 1 error; an `editor/` probe does NOT fire it — the wall's
+  restricted set is engine/ui/renderer/audio/platform/three, as designed)
+- **Playwright 130/130** (perf 245.92/300 ms, −4.1 % vs beacon-8's 232.21 →
+  within ±10 %); `git diff beacon-7..HEAD -- "*.png"` **EMPTY** (solo frozen
+  goldens byte-identical through TWO phases)
+- Load smoke re-run live: **200 bots/1 zone p95 74.0 ms** (15,489 samples,
+  200/200 moved, 88 MB rss) · **1000 bots/8 worker zones p95 104.4 ms**
+  (68,593 samples, 1000/1000 moved, 262 MB rss) — match the MP8-recorded
+  82.6/101.8 within noise, 2.4–3× headroom under the 250 ms budget
+- i18n: editor parity 31 + **mp-i18n parity 34** green · versions **2.0.0 × 7**
+  (package.json, server/package.json, Cargo.toml + Cargo.lock, tauri.conf.json,
+  help.ts About, README badge; workspace.ts comment) · patch-notes **?v=75** in
+  BOTH help.ts and shims.d.ts · editor.css v70 / data.js v36 correctly
+  untouched (`git diff beacon-8..HEAD -- js/` = patch-notes.js +14 only) ·
+  FORMAT_VERSION **2** · docs-site **28 pages** incl. Online-Safety.html ·
+  both server bundles build; `beacon.mjs --help` evaluates headless
+- Coop demo artifact: `Atlas_Quest_Coop.json` maps byte-equal to source
+  (no map edited), multiplayer 8-player `chatMode:"presets"`, 8 presets,
+  shore spawn map 4 — as specified.
+
+### Safety checklist PASS (all re-audited from source)
+
+- **Chat off by default:** `chatModeOf` defaults `"off"`; free text passes only
+  under `"text"`, then `censorChat`-masked; presets always pass. Enforced by
+  the ONE shared `resolveSay` on all four transports (server room.ts:283,
+  server zone.ts:332, RoomHost peer path :163 AND host-own path :204).
+- **Mute** is client-local only — `protocol.ts` contains no mute on the wire.
+- **Report** frame = `{t,from,target,name?,reason?}` — two public pids + display
+  name + capped hint; room.ts:318 constructs exactly that. World reports carry
+  the passport **fingerprint** for durable bans; the `player-report` log
+  (beacon-world.ts:306) carries pids/names/fingerprint and **never `source`** —
+  the MP5 "keep IPs out of player-correlated moderation logs" note is honored
+  (`source` still appears only in the pre-existing transient abuse events:
+  conn-idle-timeout / conn-closed-strikes).
+- **Room codes:** 9 chars × 30-alphabet = 44.16 bits ≥ 40, CSPRNG,
+  rejection-sampled (REJECT_AT 240), collision-checked server-side; live
+  normalization proven (typed `7zs-v09-kwx` lowercase+dashes → joined).
+- **No-IP wire audit:** grep of both directions + server sources — IP/`source`
+  exists only in rate-limit buckets and the documented transient logs.
+- **Parent page (Online-Safety.md)** verified claim-by-claim against code:
+  accurate throughout except the F-5 wording nit below.
+- Passport-file trust-tier promise from MP8 ("same trust tier as a save file")
+  is delivered in Hosting-a-World.md:102.
+
+### Fresh-eyes playthrough (live browser, real relay + real world server)
+
+Create Room → code `7ZS-V09-KWX` → second tab Join (lowercase + dashes) →
+friend lands on **Driftwood Shore** beside the host: **≈30 s wall clock** ✅
+(<60 s budget). Friendly error copy renders verbatim ("Couldn't find that room —
+check the code and try again"). 💬 Players & Chat panel: 9 emotes, the demo's 8
+phrases, "Free typing is off — use emotes and quick phrases." (presets mode),
+per-player **Mute / Report / Kick / Ban** on the owner's view. World leg: Play
+Together → Join a World → address → in, silent passport creation + challenge
+sign-in, server logs `zone-created {mapId:4}` + `world-join`, engine events ON.
+Observed live along the way: empty-room TTL + the 45 s idle reaper both fired
+exactly as specified (see F-4).
+
+**The co-op-battle leg cannot be performed — see F-1. The playthrough as the
+roadmap defines it (room → join → co-op battle → world) is impossible through
+the shipped UI, which fails the gate.**
+
+### Findings
+
+- **F-1 · BLOCKER (D5).** Parties + co-op battles are unreachable by any
+  player-facing flow. They run only on the local BroadcastChannel transport,
+  whose sole entries are dev-console hooks (`RPGATLAS_MP.createRoom/joinRoom/
+  partyInvite`; co-op.ts's own header: local test is "Reached only via the
+  RPGATLAS_MP dev hook"). NOTHING in the UI sends `partyInvite` (grep: only
+  boot.ts's dev surface; the social panel, menus, map scene and title flow have
+  no Team Up affordance). The shipped title flow is relay/world-only, and
+  `server/src` contains **zero** party or battle code: relay rooms still run the
+  MP5 player-layer world (no encounters — D-5-0 was never closed for rooms),
+  and the world engine-zone runtime stubs `Battle: { run: async () => "win" }`
+  (D-8-6). Confirmed live: a relay-room `partyInvite` is silently dropped — no
+  consent prompt reaches the target. MP6's own principle ("an invite that can
+  never battle would be a lie to a kid") now describes the shipped experience,
+  while the wiki promises "party up, and fight battles side by side". Each link
+  in the deferral chain (D-5-0 → MP8 · MP6 local-only awaiting MP8 · D-8-6
+  deferring server battles) passed its phase gate honestly; nobody reconciled
+  the chain against the locked D5 ("co-op battles In 2.0") before release, and
+  MP9 A–D shipped chat/docs/demo/version work around the gap.
+- **F-2 · docs.** Making-Your-Game-Multiplayer's "Party up and fight together"
+  section is transport-silent and reads as general online play; the online-
+  event-commands section directly above it IS transport-honest ("local co-op
+  today… for real on a world server with `--engine-events`"). Fix with F-1.
+- **F-3 · operator, release-day.** `DEFAULT_RELAY_URL = "wss://beacon.rpgatlas.app"`
+  — the hostname **does not resolve** (checked live this session). Until
+  Driftwood deploys the relay (D-B5-1 was always an operator step), every
+  "zero setup" path in the docs + demo dies with the friendly offline error.
+  Deploy before announce, or soften the copy.
+- **F-4 · note.** No client keepalive/auto-reconnect: a tab backgrounded ≥45 s
+  is idle-reaped (observed live twice; the server behaves exactly as MP5
+  specified). Two-device play is unaffected (both players foregrounded);
+  same-machine tab-switching and alt-tabbed hosts are affected. D-8-8's
+  reconnect deferral covers the re-dial half; a lightweight WS-level keepalive
+  is worth considering in the fix phase.
+- **F-5 · nit.** Online-Safety.md says a world ban "keeps that specific device
+  from rejoining" — a ban is per-**passport** (key), not per-device; a wiped
+  passport is a fresh identity (at the cost of all progress, which is a real
+  deterrent). Tighten the sentence in the fix phase.
+- Minor coverage note: filter/mute/report/kick are exercised in vitest
+  (unit + real-bus) and were exercised live here; no Playwright moderation
+  spec exists. Acceptable now; nice-to-have with fork (a).
+
+### Fix fork (Driftwood decides; then re-run this gate)
+
+- **(a) Make D5 true online** — wire party intents + shared battles into the
+  server engine-zone runtime (and decide the friend-room story: rooms gain
+  `--engine-events`-style sim, or battles are worlds-only and rooms say so).
+  The MP6 battle/party core already lives headless in `src/shared/sim/` —
+  it was built for exactly this. Biggest work, honest 2.0.
+- **(b) Re-scope 2.0** — multiplayer ships as explore/chat/events now, co-op
+  battles become 2.1. Contradicts locked D5, so it needs Driftwood's explicit
+  sign-off, plus copy edits (wiki battle section, demo copy, patch note).
+- **(c) Same-device co-op made real** — a player-facing local-room entry in
+  the title flow + a Team Up button (social panel rows), with every battle
+  mention transport-labeled. Smallest work; weakest fulfilment of D5.
+
+Whichever fork: deploy the relay or soften "zero setup" (F-3), fix F-2/F-5,
+rebuild the desktop exe (still embeds the 1.2.0-era build — MP9·D's flag),
+and consider F-4's keepalive. Tags `beacon-9` + `v2.0.0` stay withheld until
+a re-gate passes the playthrough end-to-end.
