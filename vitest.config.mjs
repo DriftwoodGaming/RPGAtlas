@@ -29,6 +29,7 @@ export default defineConfig({
       "tests-unit/zone-worker.test.ts", // MP8·A: real worker threads + 60 Hz timers
       "tests-unit/world-smoke.test.ts", // MP8·B: real sockets + 60 Hz world tick
       "tests-unit/world-engine-events.test.ts", // MP8·B: engine runtime in a real worker
+      "tests-unit/room-battle.test.ts", // MP9·E E2·b: engine friend room in a real worker
     ],
   },
 });

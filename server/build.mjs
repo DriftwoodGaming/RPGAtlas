@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, "dist/beacon.mjs");
 const workerOut = resolve(here, "dist/zone-worker.mjs");
+const roomWorkerOut = resolve(here, "dist/room-worker.mjs");
 
 await mkdir(dirname(out), { recursive: true });
 await build({
@@ -43,3 +44,18 @@ await build({
   legalComments: "none",
 });
 process.stdout.write(`built ${workerOut}\n`);
+
+// MP9·E (E2·b): the worker_threads ROOM entry (engine friend rooms, the default
+// for `beacon.mjs --project`) — one whole engine world per room, spawned per
+// created room by the main bundle.
+await build({
+  entryPoints: [resolve(here, "src/node/room-worker.ts")],
+  outfile: roomWorkerOut,
+  bundle: true,
+  platform: "node",
+  target: "node20",
+  format: "esm",
+  external: ["ws"],
+  legalComments: "none",
+});
+process.stdout.write(`built ${roomWorkerOut}\n`);

@@ -10,8 +10,9 @@
 import { readFile } from "node:fs/promises";
 import { createInterface } from "node:readline";
 import type { BeaconWorld } from "../core/beacon-world.js";
-import { DEFAULT_WORLD_LIMITS, type WorldLimits } from "../core/config.js";
+import { DEFAULT_LIMITS, DEFAULT_WORLD_LIMITS, type BeaconLimits, type WorldLimits } from "../core/config.js";
 import { workerZoneFactory } from "./worker-zone.js";
+import { workerRoomFactory } from "./worker-room.js";
 import { engineZoneFactory } from "./engine-zone.js";
 import { NodeFileWorldStore } from "./file-store.js";
 import { startNodeServer, startNodeWorldServer } from "./ws-server.js";
@@ -21,15 +22,23 @@ interface Args {
   port: number;
   host?: string;
   maxPlayers?: number;
+  maxRooms?: number;
   trustProxy: boolean;
   world: boolean;
   zoneWorkers: boolean;
   engineEvents: boolean;
+  /** Engine friend rooms (co-op parties + shared battles, worker-per-room).
+   *  Default ON in room mode; `--no-engine-rooms` opts back to MP5 player-layer
+   *  rooms (walk/emote/chat only — the same posture the CF DO target keeps). */
+  engineRooms: boolean;
   data?: string;
 }
 
 function parseArgs(argv: string[]): Args {
-  const out: Args = { port: 8787, trustProxy: false, world: false, zoneWorkers: false, engineEvents: false };
+  const out: Args = {
+    port: 8787, trustProxy: false, world: false, zoneWorkers: false,
+    engineEvents: false, engineRooms: true,
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -37,10 +46,12 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--port") out.port = Number(next()) || 8787;
     else if (a === "--host") out.host = next();
     else if (a === "--max-players") out.maxPlayers = Number(next()) || undefined;
+    else if (a === "--max-rooms") out.maxRooms = Number(next()) || undefined;
     else if (a === "--trust-proxy") out.trustProxy = true;
     else if (a === "--world") out.world = true;
     else if (a === "--zone-workers") out.zoneWorkers = true;
     else if (a === "--engine-events") out.engineEvents = true;
+    else if (a === "--no-engine-rooms") out.engineRooms = false;
     else if (a === "--data") out.data = next();
     else if (a === "--help" || a === "-h") { printHelp(); process.exit(0); }
   }
@@ -52,6 +63,13 @@ function printHelp(): void {
     "RPGAtlas Beacon server (Project Beacon MP5/MP8)\n\n" +
     "  node beacon.mjs --project <game.json> [options]\n\n" +
     "  --project, -p <path>   Game project JSON to host (required)\n" +
+    "  --no-engine-rooms      Friend rooms run the FULL engine by default (one\n" +
+    "                         worker per room — co-op parties + shared battles,\n" +
+    "                         NPCs/events server-side). This flag opts back to\n" +
+    "                         MP5 walk/emote/chat-only rooms (no server events).\n" +
+    "  --max-rooms <n>        Cap simultaneous rooms (= engine-room worker budget\n" +
+    "                         for a shared relay; default 1000). Beyond it, a new\n" +
+    "                         room create is refused.\n" +
     "  --world                Persistent-world mode (MP8): one shared world,\n" +
     "                         zone-per-map, passport sign-in — instead of\n" +
     "                         friend rooms with codes\n" +
@@ -110,6 +128,23 @@ async function main(): Promise<void> {
     : args.engineEvents
       ? engineZoneFactory({ project, limits: worldLimits, log })
       : undefined;
+  // Room-mode (friend rooms) limits + the engine-room worker factory (E2·b,
+  // D-9E-1). Engine rooms are the DEFAULT — one worker per room hosts the full
+  // engine world (co-op parties + shared battles). `--no-engine-rooms` opts back
+  // to MP5 player-layer rooms; `--max-rooms` caps the worker budget.
+  const roomLimits: Partial<BeaconLimits> = {
+    ...(args.maxPlayers ? { maxPlayersPerRoom: args.maxPlayers } : {}),
+    ...(args.maxRooms ? { maxRooms: args.maxRooms } : {}),
+  };
+  const roomSimFactory =
+    !args.world && args.engineRooms
+      ? workerRoomFactory({
+          entry: new URL("./room-worker.mjs", import.meta.url),
+          projectJson: JSON.stringify(project),
+          limits: { ...DEFAULT_LIMITS, ...roomLimits },
+          log,
+        })
+      : undefined;
   const handle = args.world
     ? await startNodeWorldServer({
         project,
@@ -126,7 +161,8 @@ async function main(): Promise<void> {
         port: args.port,
         host: args.host,
         trustProxy: args.trustProxy,
-        limits: args.maxPlayers ? { maxPlayersPerRoom: args.maxPlayers } : undefined,
+        limits: Object.keys(roomLimits).length ? roomLimits : undefined,
+        roomSimFactory,
         log,
       });
   process.stdout.write(
@@ -135,6 +171,11 @@ async function main(): Promise<void> {
     (args.world && args.engineEvents
       ? `[beacon] engine events ON — NPCs/events/cutscenes run server-side` +
         (args.zoneWorkers ? " (one map per worker)\n" : " (single-map in-process; add --zone-workers for multi-map)\n")
+      : "") +
+    (!args.world
+      ? (args.engineRooms
+          ? "[beacon] engine rooms ON — co-op parties + shared battles (one worker per room)\n"
+          : "[beacon] engine rooms OFF (--no-engine-rooms) — walk/emote/chat only, no server events\n")
       : "") +
     (store ? `[beacon] persisting world state to ${args.data} (flush every 30s + on shutdown)\n` : "") +
     (args.world && !store ? "[beacon] in-memory world (no --data): state resets on restart\n" : "") +
