@@ -35,6 +35,11 @@ export interface BeaconServerOptions {
   clock?: Clock;
   /** Deterministic room-RNG seed (tests); production leaves it unseeded. */
   seed?: number | null;
+  /** ONE-ROOM-PER-DO mode (MP5·B): pin this process to a single room with the
+   *  given code. A codeless `join` (create) and a `join`/`resume` for this code
+   *  all land in that one room; any other code is `room-not-found`. The Node
+   *  target leaves this unset (many rooms, random codes). */
+  fixedRoomCode?: string;
   /** Optional structured log sink (dev-facing; never player copy). */
   log?: (level: "info" | "warn", event: string, detail?: Record<string, unknown>) => void;
 }
@@ -65,6 +70,7 @@ export class BeaconServer {
   private readonly limits: BeaconLimits;
   private readonly clock: Clock;
   private readonly seed: number | null;
+  private readonly fixedRoomCode: string | undefined;
   private readonly log: NonNullable<BeaconServerOptions["log"]>;
   private readonly rooms = new Map<string, BeaconRoom>();
   private readonly conns = new Set<ConnState>();
@@ -75,7 +81,21 @@ export class BeaconServer {
     this.limits = { ...DEFAULT_LIMITS, ...(opts.limits || {}) };
     this.clock = opts.clock || Date.now;
     this.seed = opts.seed ?? null;
+    this.fixedRoomCode = opts.fixedRoomCode;
     this.log = opts.log || (() => {});
+  }
+
+  /** Get-or-create a room with EXACTLY `code` (the one-room-per-DO entry). Used
+   *  by the Durable Object target so its single room exists before any client
+   *  frame arrives. Returns null if the room cap is hit. */
+  ensureRoom(code: string): BeaconRoom | null {
+    let room = this.rooms.get(code);
+    if (!room) {
+      if (this.rooms.size >= this.limits.maxRooms) return null;
+      room = new BeaconRoom(code, this.project, { limits: this.limits, clock: this.clock, seed: this.seed });
+      this.rooms.set(code, room);
+    }
+    return room;
   }
 
   get roomCount(): number {
@@ -211,6 +231,18 @@ export class BeaconServer {
 
   private handleJoin(st: ConnState, code: string | undefined): void {
     if (!this.allowJoinAttempt(st)) return;
+    // One-room-per-DO: a codeless (create) OR matching-code join both enter the
+    // pinned room; any other code cannot exist here.
+    if (this.fixedRoomCode) {
+      if (code !== undefined && code !== this.fixedRoomCode) {
+        this.sendError(st, "room-not-found");
+        return;
+      }
+      const room = this.ensureRoom(this.fixedRoomCode);
+      if (!room || room.isFull) { this.sendError(st, room ? "room-full" : "internal"); return; }
+      this.enter(st, room);
+      return;
+    }
     if (code === undefined) {
       // Create a fresh room and become its first player.
       if (this.rooms.size >= this.limits.maxRooms) {

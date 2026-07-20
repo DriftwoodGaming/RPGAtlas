@@ -271,6 +271,36 @@ describe("MP5·D hardening", () => {
   });
 });
 
+describe("MP5·B one-room-per-DO (fixedRoomCode)", () => {
+  it("codeless and matching-code joins both enter the one pinned room", () => {
+    const CODE = "BCDFGHJKM";
+    const server = new BeaconServer({ project: PROJECT, clock: () => 1000, seed: 1, fixedRoomCode: CODE });
+    server.ensureRoom(CODE);
+    // Creator: codeless join.
+    const a = new MockConn();
+    server.accept(a);
+    a.recv({ t: "hello", proto: 1, name: "Ana" });
+    a.recv({ t: "join" });
+    expect(a.last("welcome")?.roomCode).toBe(CODE);
+    // Joiner: matching code → same room, second player.
+    const b = new MockConn();
+    server.accept(b);
+    b.recv({ t: "hello", proto: 1, name: "Bo" });
+    b.recv({ t: "join", code: CODE });
+    expect(b.last("welcome")?.playerId).toBe(2);
+    expect(server.roomCount).toBe(1);
+  });
+
+  it("a non-matching code is room-not-found in a pinned server", () => {
+    const server = new BeaconServer({ project: PROJECT, clock: () => 1000, fixedRoomCode: "BCDFGHJKM" });
+    const conn = new MockConn();
+    server.accept(conn);
+    conn.recv({ t: "hello", proto: 1, name: "Z" });
+    conn.recv({ t: "join", code: "MNPQRSTVW" });
+    expect(conn.last("error")?.code).toBe("room-not-found");
+  });
+});
+
 describe("MP5 directive routing", () => {
   it("routes a directive to the right player and its reply resumes the world", async () => {
     const { server } = makeServer();

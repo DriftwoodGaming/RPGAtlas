@@ -11,12 +11,15 @@
   "scripts": {
     "build": "node build.mjs",
     "start": "node dist/beacon.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.cf.json",
+    "cf:deploy": "wrangler deploy",
+    "cf:dev": "wrangler dev"
   },
   "dependencies": {
     "ws": "^8.18.0"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250110.0",
     "@types/ws": "^8.5.13",
     "esbuild": "^0.25.12",
     "typescript": "^5.9.0"

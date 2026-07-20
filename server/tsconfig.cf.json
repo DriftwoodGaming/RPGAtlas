@@ -1,0 +1,16 @@
+{
+  "comment": "Project Beacon MP5·B — typecheck the Cloudflare Workers/DO target (src/cf) against @cloudflare/workers-types. The Node target (src/node) is checked by tsconfig.json instead; the two runtimes have different globals so they can't share one program.",
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "types": ["@cloudflare/workers-types"]
+  },
+  "include": ["src/cf", "src/core"]
+}

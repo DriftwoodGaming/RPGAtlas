@@ -180,7 +180,66 @@ The transport-agnostic server core + the plain-Node `ws` target.
 
 ---
 
-## Stage B — Cloudflare Durable Object target + deploy recipe (Opus, PENDING)
+## Stage B — Cloudflare Durable Object target + deploy recipe (Opus, landed 2026-07-19)
+
+The second target from the same core: one room/world per Durable Object with
+WebSocket hibernation.
+
+### What landed
+
+- **`server/src/core/server.ts`** gains one-room-per-DO support: a
+  `fixedRoomCode` option + `ensureRoom(code)`. When pinned, a codeless (create)
+  or matching-code `join`/`resume` all enter the one room; any other code is
+  `room-not-found`. The Node target leaves it unset (many rooms, random codes).
+- **`server/src/cf/room-do.ts`** (NEW) — `BeaconRoomDO`: one `BeaconServer`
+  (`fixedRoomCode` = its room code) per DO. Accepts sockets via the hibernation
+  API (`state.acceptWebSocket`), stashes the room code in the socket's
+  `serializeAttachment` so it survives eviction, drives the 60 Hz tick with a
+  while-awake `setInterval` (stops when the last socket closes → the DO
+  hibernates), and re-arms a storage `alarm` for the expiry sweep. Loads the game
+  project once from the `GAME` KV namespace.
+- **`server/src/cf/worker.ts`** (NEW) — the Worker front: `GET /new` mints a
+  fresh room code (a create), `GET /rt?code=…` routes the WS upgrade to
+  `BEACON_ROOM.idFromName(code)`, `GET /health` is a liveness check. `/new` keeps
+  the browser client uniform: it asks for a code, then connects to `/rt?code=…`
+  for both create and join (the Node target accepts a codeless `join` instead;
+  the client handles both, MP5·C).
+- **`server/wrangler.jsonc`** (NEW) — DO binding + `new_sqlite_classes`
+  migration + `GAME` KV binding + `nodejs_compat`. **`server/tsconfig.cf.json`**
+  typechecks `src/cf` + `src/core` against `@cloudflare/workers-types` (the Node
+  and Workers runtimes have different globals, so `src/cf` is excluded from the
+  Node `tsconfig.json`). **`server/README.md`** documents both deploy recipes.
+
+### Design decisions (stage B)
+
+- **B-1 — Same core, thin adapter.** The DO reuses `BeaconServer`/`BeaconRoom`
+  verbatim (via `fixedRoomCode`); only the socket wrapper + tick/alarm wiring is
+  DO-specific. Everything the Node core-tests prove holds for the DO.
+- **B-2 — `/new` mints the code so the client stays uniform.** Routing a DO
+  needs the code up front (`idFromName`), but the create intent has no code, so
+  the Worker mints one at the HTTP layer; the client then connects with it.
+
+### Deviations / discoveries (stage B)
+
+- **D-B5-1 (no live DO deploy in this phase).** A Cloudflare account is the
+  operator's; the DO is built correct-by-construction and **typechecks against
+  `@cloudflare/workers-types`**, reusing the fully-tested core. `wrangler dev`
+  (miniflare) + `wrangler deploy` are documented; live deploy is the user's step.
+- **D-B5-2 (hibernation eviction resets a room — MP8).** World-state persistence
+  across a DO eviction is MP8 (per-zone DO-storage snapshots). MP5's DO rebuilds
+  an empty room on a cold start; active friend rooms keep the isolate warm, so
+  this is rare. The precise hibernation-friendly tick cadence (60 Hz vs
+  decimated) is also an MP8 measurement decision.
+
+### Stage B gate snapshot (all green, 2026-07-19)
+
+| Gate | Result |
+|---|---|
+| vitest | **1107** (+2 fixedRoomCode / one-room-per-DO tests over stage A's 1105) |
+| node target `tsc` | **0** (`src/cf` excluded) |
+| CF target `tsc` | **0** (`tsconfig.cf.json` vs `@cloudflare/workers-types`) |
+| root `tsc` / eslint | **0 / 0** |
+| goldens | untouched (no engine/render file changed) |
 
 ## Stage C — Client "Play Together" title-screen flow + wss transport (Opus, PENDING)
 

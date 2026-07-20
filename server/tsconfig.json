@@ -11,5 +11,6 @@
     "resolveJsonModule": true,
     "types": ["node", "ws"]
   },
-  "include": ["src", "build.mjs"]
+  "include": ["src", "build.mjs"],
+  "exclude": ["src/cf"]
 }
