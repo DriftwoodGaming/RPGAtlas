@@ -1,9 +1,8 @@
 # Phase MP7 Spec — Editor, Database, Event Commands, Plugin API, Docs ("Project Beacon")
 
-**Status:** ✅ **BUILD COMPLETE (Opus) — awaiting Fable gate.** Stages A/B/C
-landed 2026-07-19, stage D 2026-07-20. Commits: A `a9f19ee` · B `dc8aa9f` ·
-C `fe6e73d` · D `2a5c275`. The MP7 GATE block is at the bottom of this file; the
-Fable gate records the verdict + tags `beacon-7`.
+**Status:** ✅ **COMPLETE — Fable gate PASS 2026-07-20, tag `beacon-7`.**
+Stages A/B/C landed 2026-07-19, stage D 2026-07-20. Commits: A `a9f19ee` ·
+B `dc8aa9f` · C `fe6e73d` · D `2a5c275`. Verdict at the bottom of this file.
 **Authored:** 2026-07-19 by Claude Opus 4.8, from the MP7 section of
 `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-6-spec.md`.
 **Workflow:** commit + push each stage to `main`; the frozen pixel goldens stay
@@ -394,7 +393,82 @@ Semantics review against the spec: A the DB block + resolveSpawn per-map spawns 
 Record the verdict here + the roadmap status table, tag beacon-7, push with tags, and end with the MP8 BUILD hand-off block.
 ```
 
-### VERDICT — ⏳ PENDING (Fable gate)
+### VERDICT — ✅ PASS (Fable gate, 2026-07-20)
 
-_The Fable gate records the verdict here, updates the roadmap status table, and
-tags `beacon-7`._
+Every gate independently re-run by the Fable gate; all green, **no defects
+found**. Tagged `beacon-7`.
+
+**Template gates (all re-run, not read from the stage log):**
+
+- vitest `test:unit` **1194** (79 files) · `test:net` **7** (isolated serial).
+- node --test **48** — determinism hash **46633057** re-computed live.
+- cargo **26** (Rust untouched by MP7).
+- root tsc **0** · server tsc **Node + CF both 0** · eslint **0**, and the sim
+  wall proven to FIRE on a probe (`no-restricted-imports` on an engine import
+  dropped into `src/shared/sim/` → 1 error; clean again after removal).
+- Playwright **128/128** · perf 255.73/300 ms vs beacon-6's 242.77 →
+  **+5.3 %, within ±10 %**.
+- Solo byte-identity: `git diff beacon-6..HEAD -- "*.png"` **EMPTY**.
+- Flake bar: `mp-database.spec.mjs` 3× consecutive `--workers=1` → 3/3 green.
+
+**i18n parity (both directions, all locales):** editor 31 green · mp-i18n
+**34 green** — each of the ten packs defines EXACTLY the 33-key English set
+(missing AND orphans asserted per pack), non-empty values, `{placeholders}`
+preserved; `mpText` falls back English → key. DB-tab field labels confirmed
+**i18n-EXEMPT by precedent**: `multiplayer-tab.ts` uses plain-English `field()`
+labels, no locale pack gains a key, the editor parity count is unchanged at 31.
+
+**migrateProject round-trip:** `tests/mp-project.test.js` verified
+line-by-line — a v2 project without `system.multiplayer` gains the exact inert
+default (`enabled:false` ⇒ `multiplayerEnabled()` false ⇒ byte-identical); the
+normalizer clamps every field (maxPlayers 2–16, chatMode whitelist, presets
+trim/≤60/≤24, spawns int-key ≥0 / 0–999 / dir whitelist, garbage ⇒ full
+default); authored configs survive re-validation; double-migration is a no-op.
+The editor fresh-project fallback now migrates — `src/editor/boot.ts:308`
+`loadStored() || RA.migrateProject(DataDefaults.newProject())` — verified in
+source.
+
+**Plugin net surface minimality (re-frozen after 2.0):** `atlas.mp` is exactly
+the seven documented members, late-bound through `fns.mp` so plugin-runtime.ts
+never imports the net tree. `PROTOCOL_VERSION` still **1** — the `custom` arm
+is additive within v1 (D-6-3 precedent), diff-verified no bump. The wire arm is
+opaque (decoder asserts only `data` presence client-side, uint `from` + `data`
+server-side) and sits inside the standard inbound pipeline: hard byte cap →
+message token bucket → strict decode → route. Relay is room-scoped
+(`room.ts handleFrame` iterates only the room's member map) and never echoes
+the sender (server: `m.pid !== member.pid`; local bus: `broadcast(…, except
+pid)`; host `sendCustom` goes out as id 0 and is not re-dispatched locally).
+No world-sim involvement; no IP/PII on the wire — **MP5 security posture
+unchanged**.
+
+**Semantics vs spec, verified in source:** **A** the DB tab's six fields write
+`system.multiplayer`; `resolveSpawn` precedence = explicit pin → authored
+per-map spawn → project start (null-safe, pure, lint-walled); `room.ts
+capacity` = authored ≥2 ? min(operator, ⌊authored⌋) : operator — the authored
+cap can only LOWER the operator ceiling. **B** `waitPlayers` solo-instant
+(`!mpOnline()` early return), timeout clamped 1–60 s default 10, 6-tick poll of
+`mpAllOnMap`; Show-Message-To strips `to` from the payload, fire-and-forgets
+peer copies via `emitDirective`, awaits only the origin's reply; per-player
+switches live on the origin pid's `G.pSwitches` namespace with init/New-Game
+reset/save round-trip all present (old saves ⇒ `{}`); `online`/`playerCount`
+operands read EngineServices (solo false / 1). **C** the custom channel works
+both directions on the local bus (room-host) AND the relay (server core).
+**D** mp-i18n 33 keys × 10 locales; both wiki pages ship; docs-site
+**27 pages**; the mp-database e2e exercises the real tab round-trip against
+the persisted document.
+
+**D-7-0 CONFIRMED as the intended boundary:** the server core still runs no
+interpreter (D-5-0 holds — no events/encounters/battles over the relay until
+MP8·A); MP7·B ships the authoring surface + solo-correct + headless semantics
+on the local-authority path — the MP3/MP4 structure-ahead-of-runtime precedent.
+
+**Versions:** 1.2.0 · FORMAT_VERSION 2 · `data.js ?v=36` (stage A, the only
+`?v=` file touched).
+
+**Non-blocking note (for MP8 or the next touch of the file):** the engine
+play-boot sample fallback (`src/engine/boot.ts` `loadProject()` final return)
+still returns a bare `DataDefaults.newProject()` without `migrateProject`.
+Inert-correct today — `multiplayerEnabled()` and `resolveSpawn` are null-safe,
+and the path only serves the bundled-sample case — but if "migrateProject is
+the one boundary every entry path runs" is to hold globally, wrap this one too
+when the file is next touched.
