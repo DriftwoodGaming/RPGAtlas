@@ -28,6 +28,7 @@ import {
 } from "../../shared/sim/directives.js";
 import { preemptiveRate, surpriseRate } from "./battle-logic.js";
 import { leaveParty, requestPartyInvite, warpPartyToLeader } from "../../shared/sim/party.js";
+import { deadReckonRemotes } from "../../shared/sim/players.js";
 import { session } from "../net/session.js";
 import { wantsDash } from "../state/player-options.js";
 import { UIStack } from "../ui-stack.js";
@@ -509,7 +510,15 @@ function advanceRemotePlayers(): void {
  *  the host-synced world clock for parity. The loop calls this in client mode
  *  only — solo/host never reach it, so update() is untouched. */
 export function clientTick(): void {
-  if (ctx.scene === "map") tickMapAnim(ctx.globalT);
+  if (ctx.scene === "map") {
+    tickMapAnim(ctx.globalT);
+    // Beacon MP8·B (D-8-4): dead-reckon remote players between decimated world
+    // deltas (12 Hz, §A4) so they glide, not stutter. Snapshot prev-tick coords
+    // first (render interpolates prx→rx); the next delta reconciles. No-op in a
+    // friend room's byte-per-tick broadcast and in solo (empty roster).
+    for (const rp of defaultWorld.roster.players.values()) { rp.prx = rp.rx; rp.pry = rp.ry; }
+    deadReckonRemotes(defaultWorld, G.mapId);
+  }
   ctx.Input.poll();
   const client = active.client;
   if (!client || ctx.scene !== "map" || ctx.menuOpen) return;

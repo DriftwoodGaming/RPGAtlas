@@ -23,6 +23,7 @@
 
 import type { PlayerId } from "../net/protocol.js";
 import type { World } from "./world.js";
+import { DIR_OFFSET } from "./collision.js";
 
 /** One OTHER player as this world knows them. The motion sextet
  *  (x/y, rx/ry, prx/pry, tx/ty, dir, moving, animT) mirrors the map runtime's
@@ -179,6 +180,33 @@ export function playersOnMap(world: World, mapId: number): PlayerEntity[] {
 }
 
 const EMPTY: PlayerEntity[] = [];
+
+/** Client-side dead reckoning (Beacon MP8·B, D-8-4). A persistent world
+ *  broadcasts state DECIMATED (12 Hz + AOI, §A4), so a remote player's
+ *  authoritative rx/ry lands only every ~5 ticks. Between deltas, this
+ *  extrapolates each MOVING remote on `mapId` toward its next tile at walk
+ *  speed, so the remote GLIDES instead of stuttering; the next delta reconciles
+ *  it (applyPlayerStates snaps rx/ry to the authoritative value). The client
+ *  snapshots prx/pry BEFORE calling this (the render interpolates prx→rx). The
+ *  advance is capped at the next tile so a late "stopped" delta corrects at most
+ *  one tile of overshoot. No-op for an empty roster (solo, byte-identical) or a
+ *  still remote — friend rooms broadcast every tick so their motion is already
+ *  smooth and this simply matches it. */
+export function deadReckonRemotes(world: World, mapId: number, speed = 0.085): void {
+  const players = world.roster.players;
+  if (players.size === 0) return;
+  for (const e of players.values()) {
+    if (!e.moving || e.mapId !== mapId) continue;
+    const [dx, dy] = DIR_OFFSET[e.dir] || [0, 0];
+    const tx = e.x + dx;
+    const ty = e.y + dy;
+    if (dx > 0) e.rx = Math.min(tx, e.rx + speed);
+    else if (dx < 0) e.rx = Math.max(tx, e.rx - speed);
+    if (dy > 0) e.ry = Math.min(ty, e.ry + speed);
+    else if (dy < 0) e.ry = Math.max(ty, e.ry - speed);
+    e.animT = (e.animT || 0) + 1;
+  }
+}
 
 /* ── Snapshot / delta framing (MP4·B) ──────────────────────────────────────
    The host broadcasts every player's position each tick; a client mirrors it.

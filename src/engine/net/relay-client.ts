@@ -19,6 +19,7 @@ import {
   type ErrorCode,
   type InputIntent,
   type JsonValue,
+  type ServerHandoff,
   type ServerKick,
   type ServerMessage,
   type ServerPresence,
@@ -26,6 +27,7 @@ import {
 import type { Transport } from "../../shared/net/transport.js";
 import type { World } from "../../shared/sim/world.js";
 import type { BattleEvent } from "../../shared/sim/coop-battle.js";
+import { passportPublicRaw, signChallenge, type Passport } from "../../shared/net/passport.js";
 import { applyPartyTable, type PartyChange, type PartyTableEntry } from "../../shared/sim/party.js";
 import { applyPlayerStates, getPlayer, type PlayerState } from "../../shared/sim/players.js";
 import type { RoomSnapshot } from "./room-client.js";
@@ -40,6 +42,16 @@ export interface RelayClientOptions {
   code?: string;
   /** Resume an existing session instead of joining fresh. */
   resume?: { code: string; token: string };
+  /** WORLD mode (D-8-4): the device passport. When present, the client speaks
+   *  the world handshake — it waits for the server's `challenge`, signs the
+   *  nonce, and sends the signed `hello` (pub/sig) before `join`/`resume`.
+   *  Absent ⇒ a friend room (anonymous, D3): the eager `hello` + `join` MP5
+   *  path, byte-identical. */
+  passport?: Passport;
+  /** WORLD mode (D-8-1): the server asked this client to reconnect to another
+   *  zone (the socket-per-zone handoff — the CF multi-DO path). The engine
+   *  re-dials `url` and resumes with `token` on the target map. */
+  onHandoff?: (h: { mapId: number; token: string; url?: string }) => void;
   /** Fired once with the player id AND the room code (create returns the
    *  server-assigned code here — the UI shows it to share). */
   onWelcome?: (playerId: number, roomCode: string, resumeToken: string) => void;
@@ -82,14 +94,50 @@ export class RelayClient {
     session.mode = "client";
     session.roomCode = opts.code || opts.resume?.code || "";
     session.name = opts.name;
-    // Handshake (buffered by the transport until the socket opens, in order).
-    this.transport.send({ t: "hello", proto: PROTOCOL_VERSION, name: opts.name });
-    if (opts.resume) this.transport.send({ t: "resume", code: opts.resume.code, token: opts.resume.token });
-    else this.transport.send({ t: "join", code: opts.code });
+    // A WORLD (passport present) waits for the server's `challenge` and answers
+    // with a SIGNED hello (see onFrame). A FRIEND ROOM (no passport) sends the
+    // anonymous handshake eagerly — the MP5 path, byte-identical. Both are
+    // buffered by the transport until the socket opens, in order.
+    if (!opts.passport) {
+      this.transport.send({ t: "hello", proto: PROTOCOL_VERSION, name: opts.name });
+      this.sendEntry();
+    }
+  }
+
+  /** Send `join` (fresh — codeless creates / a world's single room) or
+   *  `resume`, after the hello. */
+  private sendEntry(): void {
+    if (this.opts.resume) this.transport.send({ t: "resume", code: this.opts.resume.code, token: this.opts.resume.token });
+    else this.transport.send({ t: "join", code: this.opts.code });
+  }
+
+  /** WORLD handshake: sign the server's challenge nonce with the device
+   *  passport and send the signed hello, then the entry frame. Any crypto
+   *  failure surfaces as a friendly auth error (the server also fails closed). */
+  private async answerChallenge(nonce: string): Promise<void> {
+    const passport = this.opts.passport;
+    if (!passport) return;
+    try {
+      const pub = await passportPublicRaw(passport);
+      const sig = await signChallenge(passport, nonce);
+      if (!this.transport) return;
+      this.transport.send({ t: "hello", proto: PROTOCOL_VERSION, name: this.opts.name, pub, sig });
+      this.sendEntry();
+    } catch {
+      this.opts.onError?.("auth-failed");
+    }
   }
 
   private onFrame(m: ServerMessage): void {
-    if (m.t === "welcome") {
+    if (m.t === "challenge") {
+      // WORLD mode: sign the nonce and send the signed hello (see constructor).
+      void this.answerChallenge(m.nonce);
+    } else if (m.t === "handoff") {
+      // WORLD mode (D-8-1): the server moved us to another zone (socket-per-zone
+      // CF path). The engine re-dials the target and resumes with the token.
+      const h = m as ServerHandoff;
+      this.opts.onHandoff?.({ mapId: h.mapId, token: h.token, url: h.url });
+    } else if (m.t === "welcome") {
       this.localPlayerId = m.playerId;
       this.roomCode = m.roomCode;
       this.resumeToken = m.resumeToken;

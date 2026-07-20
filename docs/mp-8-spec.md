@@ -733,13 +733,77 @@ files are not on the solo/Node path) · both Node bundles build. CF changes are
 `server/src/cf/*` + `wrangler.jsonc` only; no golden, no `js/ ?v=`, no Node
 runtime behaviour touched.
 
-### Remaining stage-B work (hand-off — items 4, 6)
+### B·4 — Client world-join (D-8-4) ✅ landed 2026-07-20
 
-Infra (2, 5) + the engine runtime (1) + the CF persistent world (3) are green
-and pushed. The next tranche:
+The browser client can now enter a PERSISTENT WORLD: it authenticates with the
+device passport, joins by address, dead-reckons remote motion at the world's
+decimated cadence, and can carry its passport between devices.
 
-- **Item 4 — client world-join (D-8-4):** relay-client `challenge`/`handoff`/
-  `replaced` handling; world address entry; passport export/import UI;
-  dead-reckoning smoothing for 12 Hz deltas; i18n ×10.
+**`src/engine/net/relay-client.ts` — the WORLD handshake.** A friend room stays
+anonymous (D3): the client sends its `hello` + `join` EAGERLY, byte-identical to
+MP5. A WORLD (a `passport` option is present) does NOT: it WAITS for the
+server's `challenge`, signs the nonce with the passport, and sends the SIGNED
+`hello` (pub/sig) before the codeless `join`/`resume` (a world has one shared
+room). A `handoff` frame fires an `onHandoff` reconnect hook (the CF
+socket-per-zone arm — D-8-1/D-8-7); a `replaced` kick already surfaces friendly
+copy. Proven headless over a mock transport
+(`tests-unit/relay-client-world.test.ts`, 4): the world client sends nothing
+until the challenge, then a hello whose signature VERIFIES against the nonce
+(`verifyChallenge` — exactly the server's check) followed in order by the entry
+frame; world-resume signs then resumes with the token; a friend room stays eager
++ anonymous; a handoff fires the hook.
+
+**`src/engine/co-op.ts` — the Play Together flow.** A new `connectWorld(name,
+url)` uses `loadOrCreatePassport` (a kid never sees a signup — the passport is
+auto-created on first world connect, D3) and wires a world `RelayClient` with
+the challenge/handoff/replaced handling; the "Play Together" modal gains a "Join
+a World" button that reveals a `wss://` address field (mirroring the join-by-code
+reveal), and a passport row — Save Passport (`exportPassportFile` → a downloaded
+`.json` the player carries to another device) / Load Passport
+(`importPassportFile` → strict-validated replace; a corrupt file never
+half-loads). `friendlyError` maps `auth-failed` to plain-language copy.
+`reconnectWorld` is the handoff re-dial (resume on the target zone DO with the
+handoff token) — wired but exercised only by the deferred multi-DO server path
+(D-8-7); single-DO worlds never emit `handoff`.
+
+**Dead-reckoning smoothing — `src/shared/sim/players.ts` `deadReckonRemotes`.** A
+world broadcasts DECIMATED (12 Hz + AOI, §A4), so a moving remote's authoritative
+position lands only every ~5 ticks. The client (`scenes/map.ts` `clientTick`,
+which runs ONLY for a joined client) snapshots prev-tick coords then extrapolates
+each moving remote toward its next tile at walk speed, so it GLIDES instead of
+stuttering; the next delta reconciles it (`applyPlayerStates` snaps rx/ry). The
+advance is capped at the next tile (≤ one tile of overshoot on a late "stopped"
+delta). Pure + headless, proven by `tests-unit/dead-reckon.test.ts` (3); a no-op
+for an empty roster (solo, byte-identical) and for a friend room (every-tick
+broadcast is already smooth). The golden-sensitive render interpolation
+(`render-glue.ts` prx→rx) is UNTOUCHED — the smoothing is a separate,
+multiplayer-only pass.
+
+**i18n — `src/engine/mp-i18n.ts`.** Nine new player strings (joinWorld,
+worldAddress, enteredWorld, passportExport/Import, passportSaved/Loaded/BadFile,
+errAuthFailed) added to EN + all ten packs; the parity set is now **43
+keys/pack** and `tests-unit/mp-i18n-parity.test.ts` (34) stays green.
+
+**Deviation D-8-8 (carried).** `reconnectWorld` (the handoff re-dial) is wired
+but untested against a live server — no target emits `handoff` until the
+multi-DO CF split (D-8-7). The dead-reckoning is a cardinal-tile extrapolation
+(the common case); diagonal-move remotes fall back to the existing per-frame
+interpolation. Both are honest client-feel choices, not gate blockers.
+
+**Gate slice (B·4):** root tsc 0 · server tsc Node/CF 0 · eslint 0 · **fast
+`test:unit` 1245 → 1252** (88 files; +4 relay-client-world, +3 dead-reckon) ·
+net suite 11 (unchanged) · **i18n parity 34** (43 keys/pack) · node --test 48
+(determinism UNTOUCHED — the map.ts change is inside `clientTick`, which never
+runs in solo; players.ts gains an additive export). Both Node bundles build. No
+golden touched — the Play Together modal is gated behind `multiplayerEnabled`
+(absent in the frozen fixtures) and `clientTick` is client-only, so solo is
+byte-identical; **the frozen pixel goldens (Playwright) are the MP8 LOAD GATE's
+job** (Fable), per the phase workflow. No `js/ ?v=` file touched.
+
+### Remaining stage-B work (hand-off — item 6)
+
+Infra (2, 5) + the engine runtime (1) + the CF persistent world (3) + the client
+world-join (4) are green and pushed. The load gate is next; the one open item:
+
 - **Item 6 — encoding:** still NO by measurement (above); revisit only if the
   item-1 runtime deltas move the numbers.

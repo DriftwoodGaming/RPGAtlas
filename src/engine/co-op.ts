@@ -35,7 +35,8 @@ import { connectSocket, isAllowedRelayUrl } from "./net/socket-transport.js";
 import { renderDirective } from "./scenes/directive-renderer.js";
 import { loadMap, initPlayer, syncFollowers } from "./scenes/map-runtime.js";
 import { generateRoomCode, normalizeRoomCode, formatRoomCode } from "../shared/net/room-code.js";
-import { resetSession } from "./net/session.js";
+import { resetSession, session } from "./net/session.js";
+import { loadOrCreatePassport, exportPassportText, importPassportText } from "./net/passport-store.js";
 import { mpText } from "./mp-i18n.js";
 import type { PlayerState } from "../shared/sim/players.js";
 import type { ErrorCode } from "../shared/net/protocol.js";
@@ -356,6 +357,8 @@ function friendlyError(code: ErrorCode | "offline"): string {
       return mpText("errRateLimited");
     case "proto-mismatch":
       return mpText("errProtoMismatch");
+    case "auth-failed":
+      return mpText("errAuthFailed");
     case "offline":
       return mpText("errOffline");
     default:
@@ -415,6 +418,129 @@ function connectRelay(
   return client;
 }
 
+/** The world address of the current session (for a handoff re-dial). */
+let lastWorldUrl = "";
+
+/** Connect to a persistent WORLD by address (Project Beacon MP8·B, D-8-4). A
+ *  world requires a passport (D3): the device passport (auto-created on first
+ *  use — a kid never sees a signup) answers the server's `challenge`, and the
+ *  join is codeless (a world has one shared room). `onEntered` fires on welcome;
+ *  the snapshot has already landed the player on their saved tile. */
+function connectWorld(name: string, url: string, onEntered: () => void, onFail: (message: string) => void): void {
+  if (!isAllowedRelayUrl(url)) { onFail(mpText("errBadRelay")); return; }
+  myName = (name || "Player").slice(0, 24);
+  void (async () => {
+    let passport;
+    try {
+      passport = await loadOrCreatePassport(myName);
+    } catch {
+      onFail(friendlyError("auth-failed"));
+      return;
+    }
+    let settled = false;
+    let transport;
+    try {
+      transport = connectSocket(url, {
+        onClose: () => { if (!settled) { settled = true; onFail(friendlyError("offline")); } },
+        onError: () => { if (!settled) { settled = true; onFail(friendlyError("offline")); } },
+      });
+    } catch {
+      onFail(friendlyError("offline"));
+      return;
+    }
+    lastWorldUrl = url;
+    active.client = new RelayClient(defaultWorld, transport, {
+      name: myName,
+      passport,
+      onWelcome: () => { settled = true; onEntered(); },
+      onSnapshot: reconstructClient,
+      onLocal: writeLocalPlayer,
+      onPresence: (p) => { if (p.kind === "join") toast(mpText("playerJoined", { name: p.name || mpText("someone") })); firePresencePlugins(p); },
+      renderDirective,
+      onError: (c) => { if (!settled) { settled = true; onFail(friendlyError(c)); } },
+      onKick: (c) => { toast(friendlyKick(c)); leaveRelay(); },
+      onHandoff: (h) => reconnectWorld(h.url || lastWorldUrl, h.token),
+      onParty: onPartyChange,
+      onBattle: onBattleEvent,
+      onCustom: onCustomMessage,
+    });
+  })();
+}
+
+/** Handoff re-dial (the CF socket-per-zone path, D-8-1 / carried as D-8-7): the
+ *  server moved us to another zone DO. Re-open the target and RESUME with the
+ *  handoff token — same passport, same world. Single-DO worlds never emit a
+ *  handoff (in-process gateway transfer), so this is the multi-DO scale arm. */
+function reconnectWorld(url: string, token: string): void {
+  if (active.client) { active.client.close(); active.client = null; }
+  if (!isAllowedRelayUrl(url)) return;
+  void (async () => {
+    const passport = await loadOrCreatePassport(myName).catch(() => null);
+    if (!passport) return;
+    let transport;
+    try {
+      transport = connectSocket(url, {});
+    } catch {
+      return;
+    }
+    lastWorldUrl = url;
+    active.client = new RelayClient(defaultWorld, transport, {
+      name: myName,
+      passport,
+      resume: { code: session.roomCode, token },
+      onSnapshot: reconstructClient,
+      onLocal: writeLocalPlayer,
+      onPresence: (p) => firePresencePlugins(p),
+      renderDirective,
+      onKick: (c) => { toast(friendlyKick(c)); leaveRelay(); },
+      onHandoff: (h) => reconnectWorld(h.url || url, h.token),
+      onParty: onPartyChange,
+      onBattle: onBattleEvent,
+      onCustom: onCustomMessage,
+    });
+  })();
+}
+
+/** Export the device passport to a file the player carries to another device
+ *  (D3 — the passport is the same trust tier as a save file). User-initiated. */
+function exportPassportFile(): void {
+  const text = exportPassportText();
+  if (!text || typeof document === "undefined") { toast(mpText("passportBadFile")); return; }
+  try {
+    const blob = new Blob([text], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "rpgatlas-passport.json";
+    a.click();
+    setTimeout(() => { try { URL.revokeObjectURL(a.href); } catch { /* */ } }, 1000);
+    toast(mpText("passportSaved"));
+  } catch {
+    toast(mpText("passportBadFile"));
+  }
+}
+
+/** Import a passport file (replaces the device passport after strict validation
+ *  — a corrupt file can never half-load; passport-store guarantees it). */
+function importPassportFile(onDone?: () => void): void {
+  if (typeof document === "undefined") return;
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json,application/json,text/plain";
+  input.onchange = (): void => {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (): void => {
+      const p = importPassportText(String(reader.result || ""));
+      toast(p ? mpText("passportLoaded") : mpText("passportBadFile"));
+      onDone?.();
+    };
+    reader.onerror = (): void => toast(mpText("passportBadFile"));
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
 /** Tear down the current relay session and return to solo (title). */
 export function leaveRelay(): void {
   if (active.client) { active.client.close(); active.client = null; }
@@ -455,10 +581,13 @@ export function playTogether(): Promise<boolean> {
   };
   const createBtn = mkBtn(mpText("createRoom"), true);
   const joinBtn = mkBtn(mpText("joinRoom"), false);
+  const worldBtn = mkBtn(mpText("joinWorld"), false); worldBtn.style.flex = "unset"; worldBtn.style.width = "100%";
   const closeX = mkBtn(mpText("cancel"), false); closeX.style.marginTop = "10px"; closeX.style.background = "transparent"; closeX.style.color = "#9aa6bf";
 
-  const setBusy = (busy: boolean): void => { createBtn.disabled = joinBtn.disabled = busy; };
+  const setBusy = (busy: boolean): void => { createBtn.disabled = joinBtn.disabled = worldBtn.disabled = busy; };
   const enter = (roomCode: string, isHost: boolean): void => { status.textContent = ""; back.remove(); onRoomEntered(roomCode, isHost); resolve(true); };
+  // A world has no code to share; the snapshot already placed the player.
+  const enterWorld = (): void => { status.textContent = ""; back.remove(); toast(mpText("enteredWorld")); resolve(true); };
 
   createBtn.onclick = (): void => {
     setBusy(true); status.textContent = mpText("creatingRoom");
@@ -488,10 +617,39 @@ export function playTogether(): Promise<boolean> {
       (msg) => { setBusy(false); status.textContent = msg; },
     );
   };
+  // Join a persistent WORLD by address (D-8-4): reveal an address field on the
+  // first click, connect on the second (mirrors the Join-by-code reveal).
+  worldBtn.onclick = (): void => {
+    if (!card.querySelector(".mp-world-in")) {
+      const addrLabel = el("div"); addrLabel.textContent = mpText("worldAddress"); addrLabel.style.cssText = "font-size:12px;opacity:.75;text-align:left;margin:4px 0;";
+      const addrIn = document.createElement("input");
+      addrIn.className = "mp-world-in"; addrIn.type = "text"; addrIn.placeholder = "wss://…"; addrIn.maxLength = 200;
+      addrIn.style.cssText = nameIn.style.cssText;
+      card.insertBefore(addrLabel, status); card.insertBefore(addrIn, status);
+      worldBtn.textContent = mpText("join");
+      addrIn.focus();
+      return;
+    }
+    const addrIn = card.querySelector<HTMLInputElement>(".mp-world-in")!;
+    const url = addrIn.value.trim();
+    if (!url) { status.textContent = mpText("errBadRelay"); return; }
+    setBusy(true); status.textContent = mpText("joining");
+    connectWorld(nameIn.value, url, enterWorld, (msg) => { setBusy(false); status.textContent = msg; });
+  };
   closeX.onclick = (): void => { back.remove(); resolve(false); };
 
   btnRow.appendChild(createBtn); btnRow.appendChild(joinBtn);
-  card.append(h, nameLabel, nameIn, btnRow, status, closeX);
+  const worldRow = el("div"); worldRow.style.cssText = "display:flex;margin-top:10px;";
+  worldRow.appendChild(worldBtn);
+  // Passport custody (D3): carry your device passport between devices.
+  const ppRow = el("div"); ppRow.style.cssText = "display:flex;gap:8px;justify-content:center;margin-top:12px;";
+  const ppExport = mkBtn(mpText("passportExport"), false);
+  const ppImport = mkBtn(mpText("passportImport"), false);
+  for (const b of [ppExport, ppImport]) { b.style.fontSize = "12px"; b.style.padding = "6px 8px"; b.style.background = "transparent"; b.style.color = "#9aa6bf"; b.style.border = "1px solid #3a4358"; }
+  ppExport.onclick = (): void => exportPassportFile();
+  ppImport.onclick = (): void => importPassportFile();
+  ppRow.append(ppExport, ppImport);
+  card.append(h, nameLabel, nameIn, btnRow, worldRow, status, ppRow, closeX);
   ctx.uiLayer.appendChild(back);
   nameIn.focus();
   });
