@@ -33,6 +33,8 @@ export interface NodeServerHandle {
 /** The tick length must match the engine (loop.ts TICK_MS = 1000/60). */
 const TICK_MS = 1000 / 60;
 const SWEEP_MS = 1000;
+/** Durable-persistence flush cadence (§A5 crash-loss budget ≤ 30 s). */
+const PERSIST_MS = 30_000;
 
 let connSeq = 0;
 
@@ -135,9 +137,11 @@ export interface NodeWorldHandle {
 /** Start a Node Beacon WORLD server: one game, one world, zone-per-map
  *  (`node beacon.mjs --project game.json --world`). Same socket wrapping and
  *  cadences as the friend-room relay; the core behind them is BeaconWorld. */
-export function startNodeWorldServer(opts: NodeWorldOptions): Promise<NodeWorldHandle> {
+export async function startNodeWorldServer(opts: NodeWorldOptions): Promise<NodeWorldHandle> {
   const limits: WorldLimits = { ...DEFAULT_WORLD_LIMITS, ...(opts.limits || {}) };
   const world = new BeaconWorld({ ...opts, limits });
+  // Restore durable state before any client can connect (§A5).
+  await world.load();
   const http = createServer((_req, res) => {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true, mode: "world", ...world.stats() }));
@@ -167,8 +171,16 @@ export function startNodeWorldServer(opts: NodeWorldOptions): Promise<NodeWorldH
     while (n-- > 0) world.tickZones();
   }, 8);
   const sweepTimer = setInterval(() => world.sweep(), SWEEP_MS);
+  // Durable flush loop (only when a store is configured): persist the dirty set
+  // on a fixed cadence so a crash loses at most PERSIST_MS of world state (§A5).
+  const persistTimer = opts.store
+    ? setInterval(() => {
+        void world.flush().catch((e) => opts.log?.("warn", "persist-error", { error: String(e) }));
+      }, PERSIST_MS)
+    : null;
   if (typeof tickTimer.unref === "function") tickTimer.unref();
   if (typeof sweepTimer.unref === "function") sweepTimer.unref();
+  if (persistTimer && typeof persistTimer.unref === "function") persistTimer.unref();
 
   return new Promise((resolve) => {
     http.listen(opts.port ?? 8787, opts.host, () => {
@@ -176,9 +188,13 @@ export function startNodeWorldServer(opts: NodeWorldOptions): Promise<NodeWorldH
       const port = addr && typeof addr === "object" ? addr.port : (opts.port ?? 8787);
       resolve({
         world, wss, http, port,
-        close(): Promise<void> {
+        async close(): Promise<void> {
           clearInterval(tickTimer);
           clearInterval(sweepTimer);
+          if (persistTimer) clearInterval(persistTimer);
+          // Graceful shutdown flush (§A5): capture final positions/state before
+          // the sockets close, so a clean stop loses nothing.
+          if (opts.store) await world.flush().catch(() => {});
           world.shutdown();
           return new Promise((done) => {
             wss.close(() => http.close(() => done()));

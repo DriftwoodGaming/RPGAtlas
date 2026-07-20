@@ -398,3 +398,82 @@ Per the roadmap MP8·B + the stage-A deviations, in rough order:
 goldens untouched + the §A4 tables re-run with the runtime + persistence
 round-trip e2e. Then the separate **MP8 LOAD GATE** (Fable) re-runs
 everything per the roadmap block and tags `beacon-8`.
+
+---
+
+## Stage B — implementation log (Opus)
+
+**Sequencing (Driftwood, 2026-07-20):** stage B is six PR-sized subsystems;
+landing all six to gate quality in one sitting is not realistic, so — asked at
+kickoff — Driftwood chose **infra-first**: land the self-contained, fully
+testable, load-gate-critical pieces (item 2 persistence, item 5 harness +
+re-measure) to green first, then take the per-zone event runtime (1), CF DO
+world (3), and client (4) as the next tranche. The work order's "rough order"
+clause permits this. Items 1/3/4 remain OPEN — see the hand-off at the end.
+
+### B·2 — Persistence (WorldStore) ✅ landed 2026-07-20
+
+The §A5 durable-persistence design, implemented end-to-end for the Node
+default and the Cloudflare storage seam, satisfying the load-gate criterion
+("kill a zone, restore, state intact").
+
+**The seam — `server/src/core/store.ts`:**
+- `WorldStore` — the one async durable-storage interface. Three units per §A5:
+  `WorldSnapshot` (shared switches/vars/timeOfDay + ban list), `PlayerRecord`
+  (passport-fingerprint → last position + durable `data` bag; the type MOVED
+  here from beacon-world.ts, re-exported for compat), `ZoneSnapshot` (per-map
+  zone-local state — `selfSw` now, event-runtime state later via D-8-0).
+- `KvWorldStore` over a tiny `AsyncKv` (get/put/delete/list) — records + zones
+  are individual keys, world is one key. `MemoryKv`/`MemoryWorldStore` back the
+  tests and a `--data`-less run; the SAME class serves the CF DO target over
+  DO storage (see `server/src/cf/do-store.ts` `doStorageKv`).
+- Defensive normalizers: stored JSON is treated as possibly-corrupt (a
+  truncated file from an ungraceful kill reads as an empty unit, never a crash).
+
+**Node default — `server/src/node/file-store.ts`:** `NodeFileWorldStore`, a
+zero-dep JSON snapshot directory (`world.json` · `records.json` ·
+`zone-<mapId>.json`). Every write is **atomic** (serialize to a sibling temp
+file, `rename()` over the target — REPLACE_EXISTING on POSIX and Windows, so a
+crash mid-write keeps the old snapshot intact; one retry guards the rare
+Windows sharing race). This is the answered branch point: `node beacon.mjs
+--world --data ./world-data` persists with nothing beyond Node.
+
+**Directory wiring — `beacon-world.ts`:** optional `store`; `async load()`
+restores world+bans+records+zone-snapshots at start (before any connection);
+`async flush()` writes only the dirty set (world snapshot if shared/bans moved,
+dirty player records, a fresh ZoneSnapshot per live in-process zone). Dirty
+tracking on every record mutation (join/transfer/recordPatch/1 Hz sweep) +
+`worldDirty` on setShared/ban. `zoneFor` applies a pending ZoneSnapshot on zone
+creation; `dropZone` (empty-zone expiry) stashes + persists the snapshot so
+selfSw survives expiry. Zone gained in-process `snapshot()`/`restore()`
+(read directly like `positionOf` — worker/DO zones push snapshots through the
+outbox, wired in Part 3).
+
+**Driver — `ws-server.ts`:** `startNodeWorldServer` is now `async` — it
+`await world.load()` before `http.listen`, runs a 30 s flush timer (only when a
+store is configured — §A5 crash-loss budget ≤ 30 s), and `close()` awaits a
+final `world.flush()` before shutdown (graceful stop loses nothing). CLI: a new
+`--data <dir>` flag (`main.ts`) builds the file store; absent ⇒ in-memory
+(pre-persistence behavior, byte-identical).
+
+**Deviation D-8-5 (records batch-load):** the §A5 interface sketch had
+`loadRecord(fingerprint)` (lazy, per join). Implemented instead as
+`loadRecords()` (one batch at `load()`), because it keeps the MP5-audited auth
+pipeline (verifyHello → handleJoin) fully **synchronous** — no `await` inserted
+into the door — and a 1000-player record set is ~1 MB (§A5), trivial to
+preload. File store: one read; DO store: one `list({prefix})`. `zoneIds()`
+added to the interface for the same reason (restore knows which zones to load
+before anyone arrives).
+
+**Proof — `tests-unit/world-persistence.test.ts` (5 tests, fast pool, no
+sockets):** position survives a full build→play→flush→shutdown→rebuild cycle
+(the load-gate criterion) over BOTH the in-memory KV store and the real-disk
+`NodeFileWorldStore` (asserts the on-disk JSON files parse + carry the tile);
+world-shared switches/timeOfDay + bans round-trip (restored ban refuses the
+griefer at the door, restored switches replay into a fresh zone); ZoneSnapshot
+selfSw round-trips; and WITHOUT a store nothing persists (a restart resets to
+the project start — opt-in proven).
+
+**Gate slice (B·2):** server tsc Node 0 · server tsc CF 0 · root tsc 0 ·
+eslint 0 · vitest world-persistence 5/5 + beacon-world 13/13 · both server
+bundles build. No `js/` `?v=` touched; no golden touched (server-only).

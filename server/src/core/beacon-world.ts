@@ -47,8 +47,11 @@ import { createWorld, type World } from "../../../src/shared/sim/world.js";
 import { Zone, type ZoneApi, type ZoneOutbox } from "./zone.js";
 import { DEFAULT_WORLD_LIMITS, type WorldLimits } from "./config.js";
 import { randomResumeToken } from "./tokens.js";
+import type { PlayerRecord, WorldStore, ZoneSnapshot } from "./store.js";
 import type { Clock } from "./room.js";
 import type { ServerConnection } from "./connection.js";
+
+export type { PlayerRecord };
 
 export interface BeaconWorldOptions {
   /** The game project this world runs (shared read-only by every zone). */
@@ -64,6 +67,11 @@ export interface BeaconWorldOptions {
    *  stage B's DO adapter) inject their own factory here — the directory
    *  never knows where a zone runs. */
   zoneFactory?: (mapId: number, outbox: ZoneOutbox) => ZoneApi;
+  /** Durable persistence (MP8·B §A5). Absent ⇒ the world lives only in memory
+   *  (state is lost on restart) — the pre-persistence behavior, kept for tests
+   *  and ephemeral rooms. Present ⇒ `load()` restores it at start and `flush()`
+   *  persists it on the driver's cadence + graceful shutdown. */
+  store?: WorldStore;
   log?: (level: "info" | "warn", event: string, detail?: Record<string, unknown>) => void;
 }
 
@@ -77,20 +85,6 @@ export interface WorldMember {
   resumeToken: string;
   mapId: number;
   disconnectedAt: number;
-}
-
-/** A passport-keyed player record — the persistence unit (stage B stores
- *  these durably; stage A keeps them in-memory so a rejoin lands where you
- *  left off while the server lives). See docs/mp-8-spec.md §A5. */
-export interface PlayerRecord {
-  name: string;
-  mapId: number;
-  x: number;
-  y: number;
-  dir: number;
-  /** Per-player durable state (pSwitches etc.) once zone events run (stage B). */
-  data: Record<string, JsonValue>;
-  lastSeen: number;
 }
 
 interface ConnState {
@@ -141,6 +135,14 @@ export class BeaconWorld {
   private readonly scratch: World;
   /** One outbox for every zone (pids are world-unique, so routing is by pid). */
   private readonly outbox: ZoneOutbox;
+  /** Durable store (§A5) or null (in-memory only). */
+  private readonly store: WorldStore | null;
+  /** Fingerprints whose record changed since the last flush (flush only these). */
+  private readonly dirtyRecords = new Set<string>();
+  /** ZoneSnapshots loaded at start, applied when their map's zone is created. */
+  private readonly pendingZoneSnapshots = new Map<number, ZoneSnapshot>();
+  private worldDirty = false;
+  private loaded = false;
 
   constructor(opts: BeaconWorldOptions) {
     this.project = opts.project;
@@ -148,6 +150,7 @@ export class BeaconWorld {
     this.clock = opts.clock || Date.now;
     this.seed = opts.seed ?? null;
     this.requirePassport = opts.requirePassport !== false;
+    this.store = opts.store || null;
     this.zoneFactory =
       opts.zoneFactory ||
       ((mapId, outbox) => new Zone(mapId, this.project, outbox, { limits: this.limits, clock: this.clock, seed: this.seed }));
@@ -200,6 +203,7 @@ export class BeaconWorld {
           else if (k === "dir" && typeof v === "number") rec.dir = v;
           else rec.data[k] = v;
         }
+        this.dirtyRecords.add(fingerprint);
       },
     };
   }
@@ -224,6 +228,7 @@ export class BeaconWorld {
    *  a live session immediately. */
   ban(fingerprint: string): void {
     this.bans.add(fingerprint);
+    this.worldDirty = true;
     const m = this.byFingerprint.get(fingerprint);
     if (m && m.conn) {
       m.conn.send(encodeMessage({ t: "kick", code: "banned" }));
@@ -235,6 +240,7 @@ export class BeaconWorld {
    *  stage-B event runtime calls this via the zone outbox). */
   setShared(key: string, value: JsonValue): void {
     this.shared.set(key, value);
+    this.worldDirty = true;
     for (const zone of this.zones.values()) zone.applyShared(key, value);
   }
 
@@ -264,6 +270,7 @@ export class BeaconWorld {
       rec.x = spawn.x;
       rec.y = spawn.y;
       rec.dir = spawn.dir;
+      this.dirtyRecords.add(member.fingerprint);
     }
     return true;
   }
@@ -344,6 +351,67 @@ export class BeaconWorld {
   /** The in-memory record for a fingerprint (stage B persists these). */
   recordOf(fingerprint: string): PlayerRecord | undefined {
     return this.records.get(fingerprint);
+  }
+
+  /* ── persistence (§A5) ───────────────────────────────────────────────────
+     load() restores durable state at start (before any connection); flush()
+     writes the dirty set on the driver's cadence + graceful shutdown. Both are
+     no-ops without a store, so an ephemeral world is byte-identical to before. */
+
+  /** Restore world-shared state, bans, player records, and per-zone snapshots
+   *  from the store. Idempotent; call once before accepting connections. The
+   *  passport auth pipeline stays synchronous because records are preloaded
+   *  here (D-8-5) rather than fetched per join. */
+  async load(): Promise<void> {
+    if (!this.store || this.loaded) return;
+    this.loaded = true;
+    const w = await this.store.loadWorld();
+    if (w) {
+      for (const [key, value] of Object.entries(w.shared)) this.shared.set(key, value);
+      for (const fp of w.bans) this.bans.add(fp);
+    }
+    for (const [fp, rec] of await this.store.loadRecords()) this.records.set(fp, rec);
+    for (const mapId of await this.store.zoneIds()) {
+      const snap = await this.store.loadZone(mapId);
+      if (snap) this.pendingZoneSnapshots.set(mapId, snap);
+    }
+    this.log("info", "world-loaded", {
+      records: this.records.size, bans: this.bans.size, zoneSnapshots: this.pendingZoneSnapshots.size,
+    });
+  }
+
+  /** Persist everything that changed since the last flush: the world snapshot
+   *  (if shared/bans moved), the dirty player records, and a fresh ZoneSnapshot
+   *  for every live in-process zone. Safe to call concurrently-ish (writes are
+   *  atomic per unit); the driver calls it on a timer + at shutdown. */
+  async flush(): Promise<void> {
+    if (!this.store) return;
+    // Refresh live positions into records first, so a flush captures the latest
+    // tile even between the 1 Hz sweeps.
+    for (const m of this.members.values()) this.noteRecordPosition(m);
+    const tasks: Array<Promise<void>> = [];
+    if (this.worldDirty) {
+      this.worldDirty = false;
+      tasks.push(
+        this.store.saveWorld({
+          shared: Object.fromEntries(this.shared),
+          bans: Array.from(this.bans),
+        }),
+      );
+    }
+    if (this.dirtyRecords.size) {
+      const batch: Array<[string, PlayerRecord]> = [];
+      for (const fp of this.dirtyRecords) {
+        const rec = this.records.get(fp);
+        if (rec) batch.push([fp, rec]);
+      }
+      this.dirtyRecords.clear();
+      if (batch.length) tasks.push(this.store.saveRecords(batch));
+    }
+    for (const [mapId, zone] of this.zones) {
+      if (zone instanceof Zone) tasks.push(this.store.saveZone(mapId, zone.snapshot()));
+    }
+    await Promise.all(tasks);
   }
 
   /* ── connection pipeline (MP5 posture, see header) ───────────────────── */
@@ -542,6 +610,7 @@ export class BeaconWorld {
       name: member.name, mapId: spawn.mapId, x: spawn.x, y: spawn.y, dir: spawn.dir,
       data: rec ? rec.data : {}, lastSeen: this.clock(),
     });
+    this.dirtyRecords.add(st.fingerprint);
     st.member = member;
     st.phase = "in-world";
     st.conn.send(encodeMessage({
@@ -590,6 +659,13 @@ export class BeaconWorld {
       if (!this.zoneCounts.has(mapId)) this.zoneCounts.set(mapId, 0);
       // Replay the world-shared state into the fresh replica (§A5).
       for (const [key, value] of this.shared) zone.applyShared(key, value);
+      // Restore this map's persisted zone-local state, if any (in-process
+      // zones only — a worker/DO zone gets its snapshot injected at spawn).
+      const snap = this.pendingZoneSnapshots.get(mapId);
+      if (snap && zone instanceof Zone) {
+        zone.restore(snap);
+        this.pendingZoneSnapshots.delete(mapId);
+      }
       this.log("info", "zone-created", { mapId, zones: this.zones.size });
     }
     return zone;
@@ -606,6 +682,13 @@ export class BeaconWorld {
   private dropZone(mapId: number): void {
     const zone = this.zones.get(mapId);
     if (!zone) return;
+    // Preserve the zone-local state across the expiry: stash it so a respawn
+    // restores it, and persist it durably (§A5: snapshot on empty-zone expiry).
+    if (zone instanceof Zone) {
+      const snap = zone.snapshot();
+      this.pendingZoneSnapshots.set(mapId, snap);
+      if (this.store) void this.store.saveZone(mapId, snap).catch(() => {});
+    }
     zone.stop();
     this.zones.delete(mapId);
     this.zoneCounts.delete(mapId);
@@ -644,6 +727,7 @@ export class BeaconWorld {
       rec.dir = pos.dir;
     }
     rec.lastSeen = this.clock();
+    this.dirtyRecords.add(m.fingerprint);
   }
 
   /** Spawn placement on a map: explicit coords win; else the map's authored

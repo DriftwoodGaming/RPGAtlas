@@ -55,6 +55,7 @@ import { advanceStep, startStep, translateIntent, type PendingMove } from "./mot
 import { buildChunkIndex, chunkKeyOf, interestSetOf } from "./interest.js";
 import type { WorldLimits } from "./config.js";
 import type { Clock } from "./room.js";
+import type { ZoneSnapshot } from "./store.js";
 
 /** What a zone can be asked to do. Every method is fire-and-forget (void) so
  *  the calls marshal across a worker/DO boundary unchanged. */
@@ -208,6 +209,22 @@ export class Zone implements ZoneApi {
   stop(): void {
     this.members.clear();
     this.world.roster.players.clear();
+  }
+
+  /* ── persistence (in-process zones; §A5 ZoneSnapshot) ────────────────────
+     Snapshot/restore capture the ZONE-LOCAL state (map-scoped self-switches
+     now; the per-zone event runtime widens `data` with event positions/pages
+     in D-8-0). The directory reads these directly on an in-process Zone (like
+     positionOf) — a worker/DO zone pushes its snapshot through the outbox
+     instead (stage-B CF work). Shared state (switches/vars/timeOfDay) is the
+     directory's WorldSnapshot, not the zone's. */
+
+  snapshot(): ZoneSnapshot {
+    return { selfSw: { ...this.world.g.selfSw }, data: {} };
+  }
+
+  restore(snap: ZoneSnapshot): void {
+    if (snap.selfSw) Object.assign(this.world.g.selfSw, snap.selfSw);
   }
 
   /* ── inbound frames ──────────────────────────────────────────────────── */
