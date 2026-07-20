@@ -23,6 +23,8 @@ export interface WorkerZoneFactoryOptions {
   projectJson: string;
   limits: WorldLimits;
   seed?: number | null;
+  /** Run the engine event runtime in each worker zone (D-8-0). */
+  engineRuntime?: boolean;
   log?: (level: "info" | "warn", event: string, detail?: Record<string, unknown>) => void;
 }
 
@@ -39,6 +41,7 @@ class WorkerZone implements ZoneApi {
         projectJson: opts.projectJson,
         limits: opts.limits,
         seed: opts.seed ?? null,
+        engineRuntime: !!opts.engineRuntime,
       },
     });
     this.worker.unref(); // zones never keep the process alive by themselves

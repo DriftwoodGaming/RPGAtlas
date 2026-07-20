@@ -10,6 +10,7 @@
 import { readFile } from "node:fs/promises";
 import { DEFAULT_WORLD_LIMITS, type WorldLimits } from "../core/config.js";
 import { workerZoneFactory } from "./worker-zone.js";
+import { engineZoneFactory } from "./engine-zone.js";
 import { NodeFileWorldStore } from "./file-store.js";
 import { startNodeServer, startNodeWorldServer } from "./ws-server.js";
 
@@ -21,11 +22,12 @@ interface Args {
   trustProxy: boolean;
   world: boolean;
   zoneWorkers: boolean;
+  engineEvents: boolean;
   data?: string;
 }
 
 function parseArgs(argv: string[]): Args {
-  const out: Args = { port: 8787, trustProxy: false, world: false, zoneWorkers: false };
+  const out: Args = { port: 8787, trustProxy: false, world: false, zoneWorkers: false, engineEvents: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -36,6 +38,7 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--trust-proxy") out.trustProxy = true;
     else if (a === "--world") out.world = true;
     else if (a === "--zone-workers") out.zoneWorkers = true;
+    else if (a === "--engine-events") out.engineEvents = true;
     else if (a === "--data") out.data = next();
     else if (a === "--help" || a === "-h") { printHelp(); process.exit(0); }
   }
@@ -52,6 +55,10 @@ function printHelp(): void {
     "                         friend rooms with codes\n" +
     "  --zone-workers         With --world: run each zone on its own worker\n" +
     "                         thread (multi-core scale-out)\n" +
+    "  --engine-events        With --world: run authored NPCs/events/cutscenes\n" +
+    "                         server-side (the per-zone engine runtime). In-process\n" +
+    "                         it hosts one map; add --zone-workers for a multi-map\n" +
+    "                         engine world (one map per worker).\n" +
     "  --data <dir>           With --world: persist the world to JSON snapshot\n" +
     "                         files in <dir> (players rejoin where they left off\n" +
     "                         across restarts). Omit for an in-memory world.\n" +
@@ -84,6 +91,20 @@ async function main(): Promise<void> {
     ...(args.maxPlayers ? { maxPlayersPerWorld: args.maxPlayers } : {}),
   };
   const store = args.world && args.data ? new NodeFileWorldStore(args.data) : undefined;
+  // Zone sharding adapter: worker threads (multi-core / multi-map engine
+  // worlds), an in-process engine zone (single-map engine world), or the
+  // default in-process player-layer factory.
+  const zoneFactory = args.zoneWorkers
+    ? workerZoneFactory({
+        entry: new URL("./zone-worker.mjs", import.meta.url),
+        projectJson: JSON.stringify(project),
+        limits: worldLimits,
+        engineRuntime: args.engineEvents,
+        log,
+      })
+    : args.engineEvents
+      ? engineZoneFactory({ project, limits: worldLimits, log })
+      : undefined;
   const handle = args.world
     ? await startNodeWorldServer({
         project,
@@ -92,14 +113,7 @@ async function main(): Promise<void> {
         trustProxy: args.trustProxy,
         limits: worldLimits,
         store,
-        zoneFactory: args.zoneWorkers
-          ? workerZoneFactory({
-              entry: new URL("./zone-worker.mjs", import.meta.url),
-              projectJson: JSON.stringify(project),
-              limits: worldLimits,
-              log,
-            })
-          : undefined,
+        zoneFactory,
         log,
       })
     : await startNodeServer({
@@ -113,6 +127,10 @@ async function main(): Promise<void> {
   process.stdout.write(
     `[beacon] listening on :${handle.port} — hosting "${projectTitle(project)}"` +
     (args.world ? " (persistent world)" : "") + "\n" +
+    (args.world && args.engineEvents
+      ? `[beacon] engine events ON — NPCs/events/cutscenes run server-side` +
+        (args.zoneWorkers ? " (one map per worker)\n" : " (single-map in-process; add --zone-workers for multi-map)\n")
+      : "") +
     (store ? `[beacon] persisting world state to ${args.data} (flush every 30s + on shutdown)\n` : "") +
     (args.world && !store ? "[beacon] in-memory world (no --data): state resets on restart\n" : "") +
     `[beacon] players connect over ws://<host>:${handle.port} (wss:// behind TLS)\n`,

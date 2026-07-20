@@ -534,24 +534,144 @@ clean at 50/200/1000. No golden or `js/?v=` touched.
 i18n parity all UNTOUCHED by the server-only B·2/B·5 work — the Fable load gate
 re-runs them from scratch.)*
 
-### Remaining stage-B work (hand-off — items 1, 3, 4, 6)
+### B·1 — Per-zone engine event runtime (D-8-0) ✅ landed 2026-07-20
 
-Infra (2, 5) is green and pushed. The next tranche, in the spec's order:
+The headliner: authored NPCs, events, cutscenes, and triggers run
+SERVER-SIDE in a world zone, driven by the REAL interpreter registry, with
+their world effects reaching players through the already-wired seams.
 
-- **Item 1 — per-zone ENGINE event runtime (D-8-0).** The headliner and the
-  hardest: a NEW headless map-event driver (the existing `map.ts` +
-  `map-runtime.ts` are render/audio-coupled and can't be bundled as-is) reusing
-  the REAL interpreter registry (headless-bundleable — `tests/mp-commands.test.js`
-  proves it) bound to the zone's world (one zone per process/worker adopts
-  `defaultWorld` so module-level `G`/`ctx` drive that zone — see §A2 and the
-  shim in `src/engine/state/default-world.ts`/`engine-context.ts`). Wire world
-  switches → `sharedSet`, per-player switches → `recordPatch` (into the record
-  `data` bag persistence already round-trips), transfers → `transferOut`,
-  messages → the already-wired directive broker. Carry the MP6 notes
-  (`world.blocking` refcount, ally-idx, loadout writeback). **No golden covers a
-  server event runtime — correctness rests on new headless tests.** Then extend
-  `ZoneSnapshot.data` with event positions/pages and grow the harness bots to
-  trigger events + re-measure §A4 (revisit decision #4).
+**The adopt-`defaultWorld` mechanism (§A2 made concrete).** The engine's
+interpreter reads game state through the MP1 compat shim — `G` is
+`defaultWorld.g`, `ctx.map`/`ctx.evRTs`/`ctx.proj` delegate to `defaultWorld`.
+So an engine zone is built with `world: defaultWorld` (new `ZoneOptions.world`):
+the zone's world IS the engine default world, and every interpreter read
+operates on THIS zone. That is why there is exactly one engine zone per
+process/worker — a second binding would fight over the one `defaultWorld`
+(guarded: `createZoneEventRuntime` throws on a foreign world or a double bind).
+Multi-map engine worlds therefore shard onto worker threads (one map per
+worker, each its own module scope = its own `defaultWorld`); a single in-process
+engine zone hosts one map.
+
+**The NEW headless driver — `src/engine/net/zone-event-runtime.ts`.** `map.ts` +
+`map-runtime.ts` are render/audio-coupled (they prerender canvases, drive the
+Renderer, play Music) and cannot be bundled headless, so this module
+re-implements the PURE event logic they carry — page resolution
+(`pageActive`/`refreshPage`, switch/timeBand/var/selfSw conditions), entity
+motion (`updateEntityMotion`/`updateRoute`/`canEntityPass`, static passability
+from `collision.ts` + event-vs-event + event-vs-player blocking), and the
+`map.ts update()` scheduler (autorun, parallel map + common events, day/night
+page refresh, the tick-timer pump) — against the headless sim. The interpreter
+registry ITSELF (`interp.ts` + `commands/*`) is headless-bundleable and is
+reused verbatim (as `tests/mp-commands.test.js` already proved); the runtime
+installs a DOM-free `EngineServices` (the directive `presentation` port from
+`sim/directives.ts`, the world-tick timers, `transferPlayer`→outbox, `setRoute`,
+the mp-condition getters, headless `RA`/state helpers) and no-ops the
+audio/render/battle/menu services a server has no business running.
+
+**The headless bootstrap — `src/engine/net/headless-env.ts`.** A pure
+side-effect module (no imports) imported FIRST by the runtime, so ESM order
+guarantees it stands up `window.RPGAtlasDeps` (a faithful headless `RA` — the
+`byId`/trait/`commonEventEnabled` helpers copied from `js/data.js` — plus inert
+`Assets`/`Music`/`Sfx` stubs) and `location` BEFORE `src/shared/deps.ts`
+evaluates. This is what lets the engine slice bundle + run in a plain-Node
+worker with no DOM.
+
+**The seam — `src/shared/net/zone-runtime.ts`** (DOM-free types both trees
+import, so the zone never imports the engine and the engine never imports the
+server core): `ZoneRuntime` (start/tick/onAct/onArrive/eventStates/snapshot·
+restoreData/noteExternalShared/stop), `ZoneRuntimeContext`, `ZoneRuntimeOutbox`
+(the transferOut/sharedSet/recordPatch subset), `ZoneRuntimeFactory`. The
+engine's `createZoneEventRuntime` conforms; the server's `ZoneOutbox`
+structurally satisfies `ZoneRuntimeOutbox`.
+
+**Zone wiring — `server/src/core/zone.ts`.** Optional `world` (adopt) +
+`runtimeFactory`. `tick()` advances players, fires `onArrive` on each completed
+step (touch triggers), then `runtime.tick()` (events, before broadcast); an
+`act` intent → `onAct` (action triggers); a blocking-participant player is
+frozen (`world.blocking.has(pid)` guard — inert without a runtime). `snapshot()`
+folds the runtime's event positions into `ZoneSnapshot.data`; `applyShared`
+tells the runtime (`noteExternalShared`) so a directory fan-out is never echoed
+back out. The delta/snapshot payload gains an additive `events` field ONLY when
+a runtime is attached (existing clients ignore it — a runtime-less zone is
+byte-identical to MP8·A).
+
+**World-effect propagation = SHADOW DIFFING (reuse the audited commands
+unchanged).** The switch/var/selfsw commands write `G` directly (the MP7-audited
+handlers are untouched); once per tick the runtime diffs `G.switches`/`G.vars`/
+`G.timeOfDay`/`G.pSwitches` against shadows seeded at start and fans the
+changes: world cells → `outbox.sharedSet` (persisted in the WorldSnapshot,
+fanned to sibling zones), per-player switches → `outbox.recordPatch(pid,
+{"pSwitch:ID": v})` (into the PlayerRecord `data` bag persistence already
+round-trips). Self-switches are zone-local — never fanned; they ride the
+ZoneSnapshot. Transfers → `outbox.transferOut`; modal commands (Show Message/
+Choices/…) → the directive broker (`world.directives.send`, already zone-wired).
+
+**Drivers.** `server/src/node/engine-zone.ts` is the one server module that
+imports the engine (re-exports `createZoneEventRuntime` + `defaultWorld`,
+controlling import order so `headless-env` beats `deps.ts`). Worker path:
+`zone-worker.ts` builds the runtime when `workerData.engineRuntime` is set
+(threaded through `worker-zone.ts` `engineRuntime`); in-proc path:
+`engineZoneFactory` (single-map — a second occupied map warns + falls back to a
+plain zone). CLI: `--engine-events` (in-proc single map) or
+`--engine-events --zone-workers` (multi-map, one per worker), both in `main.ts`.
+Both `dist/beacon.mjs` + `dist/zone-worker.mjs` bundle the engine slice + shim
+and evaluate headless (`node beacon.mjs --help` proves it).
+
+**Proof — new tests (NO golden covers a server event runtime, by design).**
+- `tests-unit/zone-event-runtime.test.ts` (9, fast pool): the runtime end-to-end
+  over a Zone built on `defaultWorld` — autorun flips a world switch →
+  `sharedSet` while a self-switch stays zone-local (rides the ZoneSnapshot);
+  action button → Show Message directive to the actor; a parallel event → a
+  world `var` `sharedSet`; a transfer command → `transferOut` for the acting
+  player; stepping onto a touch tile → a per-player switch `recordPatch` (never
+  fanned as a world switch); an authored move route advances an NPC (eventStates
+  + snapshot carry it); `restoreData` re-applies event positions; a runtime-less
+  zone carries NO `events` (MP8·A byte-identical); and the foreign-world /
+  double-bind guard.
+- `tests-unit/world-engine-events.test.ts` (1, net suite): the BUILT worker
+  bundle — a passported player joins a `--engine-events --zone-workers` world,
+  presses the action button, and the interpreter running INSIDE the worker
+  (against its own `defaultWorld`, headless shim in a real thread) emits a
+  message directive that round-trips back over the ZoneApi/ZoneOutbox seam.
+
+**Deviation D-8-6 (scope carried, honest).** This slice delivers the world
+coordination surface — world/per-player switches + vars + timeOfDay, transfers,
+messages/choices/modal input, self-switches, NPC page resolution + random/route
+motion, autorun/parallel/action/touch triggers, common events, the tick-timer
+pump. Deferred (documented, not silently dropped): per-player party/inventory/
+gold/wallet SPLIT (item/party/heal commands run against a shared world `G` bag
+this slice — inert for coordination events; the §A5 per-player durable slices
+land with the loadout work), player-targeted move routes (`move target:player` —
+NPC routes are the common case), server-side battles/shops/encounters (the
+Battle/Shop/encounter services are no-ops — a headless battle system is a
+larger lift; touch/action events that open a battle simply resolve the no-op),
+quest page-conditions (best-effort against `G.quests`; the server quest runtime
+is a later slice), and the record→`G.pSwitches` READ-BACK on rejoin (the WRITE
+persists via `recordPatch`; re-hydrating it into the joining player's namespace
+needs an admit-time record hook — a follow-up). The MP6 notes (`world.blocking`
+participants-only pause, loadout writeback) are carried where they apply now
+(the blocking pause is wired + tested); ally-idx/loadout writeback ride the
+per-player battle split.
+
+**Wire capability + §A4 re-measure (carry).** Server-driven NPC/event states now
+ride the world-zone delta (`events`, additive). CLIENT rendering of them +
+dead-reckoning is item 4; growing the harness bots to TRIGGER events and
+re-measuring §A4 WITH the interpreter/NPC-motion load (the re-measure that could
+move decision #4 — workers becoming CPU-worth-it) rides item 4/5's harness work,
+called out again in the hand-off.
+
+**Gate slice (B·1):** root tsc 0 · server tsc Node/CF 0 · eslint 0 · **fast
+`test:unit` 1232 → 1241** (85 files; +9 zone-event-runtime) · **net suite 10 →
+11** (6 files; +1 world-engine-events, the built-worker proof) · node --test 48
+(determinism 46633057 UNTOUCHED — no solo-engine file changed; the new modules
+are reachable only from the server bundle path) · both server bundles build +
+evaluate headless. No golden or `js/ ?v=` touched (server + additive engine-net
+only; solo/friend-room byte-identical).
+
+### Remaining stage-B work (hand-off — items 3, 4, 6)
+
+Infra (2, 5) + the engine runtime (1) are green and pushed. The next tranche:
+
 - **Item 3 — CF DO world (D-8-1):** zone DO + directory DO; the persistence
   seam is ready (`server/src/cf/do-store.ts` `doStorageKv` +
   `KvWorldStore`) — the DO builds `new KvWorldStore(doStorageKv(state.storage))`.

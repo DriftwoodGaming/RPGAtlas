@@ -21,6 +21,7 @@ export default defineConfig({
       "tests-unit/beacon-load.test.ts",
       "tests-unit/zone-worker.test.ts", // MP8·A: worker_threads zone sharding
       "tests-unit/world-smoke.test.ts", // MP8·B: world load smoke + socket persistence
+      "tests-unit/world-engine-events.test.ts", // MP8·B: engine event runtime in a worker
     ],
     fileParallelism: false,
   },

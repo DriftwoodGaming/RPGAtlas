@@ -15,6 +15,7 @@
 
 import { parentPort, workerData } from "node:worker_threads";
 import { Zone, type ZoneOutbox } from "../core/zone.js";
+import { createZoneEventRuntime, engineDefaultWorld } from "./engine-zone.js";
 import type { WorldLimits } from "../core/config.js";
 import type { ClientMessage, JsonValue, PlayerId } from "../../../src/shared/net/protocol.js";
 
@@ -40,6 +41,11 @@ interface ZoneWorkerData {
   projectJson: string;
   limits: WorldLimits;
   seed: number | null;
+  /** Run the engine event runtime (NPCs/events/interpreter) in this worker.
+   *  Each worker is its own thread = its own module scope = its own
+   *  defaultWorld, so multi-zone engine worlds are exactly one-zone-per-worker
+   *  (§A2). Absent/false ⇒ a bare player-layer zone (MP8·A behavior). */
+  engineRuntime?: boolean;
 }
 
 const TICK_MS = 1000 / 60;
@@ -57,10 +63,15 @@ function main(): void {
     sharedSet: (key, value) => post({ op: "sharedSet", key, value }),
     recordPatch: (pid, patch) => post({ op: "recordPatch", pid, patch }),
   };
-  const zone = new Zone(init.mapId, JSON.parse(init.projectJson), outbox, {
-    limits: init.limits,
-    seed: init.seed,
-  });
+  const project = JSON.parse(init.projectJson);
+  const zone = init.engineRuntime
+    ? new Zone(init.mapId, project, outbox, {
+        limits: init.limits,
+        seed: init.seed,
+        world: engineDefaultWorld,
+        runtimeFactory: createZoneEventRuntime,
+      })
+    : new Zone(init.mapId, project, outbox, { limits: init.limits, seed: init.seed });
   const pids = new Set<PlayerId>(); // membership shadow for the position mirror
   // Every patch is stamped with THIS zone's mapId so the directory can drop a
   // stale one that lands after the player transferred away (the async race).

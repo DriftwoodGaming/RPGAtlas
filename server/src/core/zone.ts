@@ -56,6 +56,13 @@ import { buildChunkIndex, chunkKeyOf, interestSetOf } from "./interest.js";
 import type { WorldLimits } from "./config.js";
 import type { Clock } from "./room.js";
 import type { ZoneSnapshot } from "./store.js";
+import type {
+  EventNetState,
+  ZoneRuntime,
+  ZoneRuntimeFactory,
+} from "../../../src/shared/net/zone-runtime.js";
+
+export type { ZoneRuntime, ZoneRuntimeFactory, ZoneRuntimeContext, ZoneRuntimeOutbox, EventNetState } from "../../../src/shared/net/zone-runtime.js";
 
 /** What a zone can be asked to do. Every method is fire-and-forget (void) so
  *  the calls marshal across a worker/DO boundary unchanged. */
@@ -100,6 +107,17 @@ export interface ZoneOptions {
   limits: WorldLimits;
   clock?: Clock;
   seed?: number | null;
+  /** Adopt an existing world instead of creating a fresh one. The per-zone
+   *  ENGINE event runtime (D-8-0) requires this to be the engine's
+   *  `defaultWorld` so the interpreter's compat shim drives THIS zone —
+   *  one engine zone per process/worker (docs/mp-8-spec.md §A2). Absent ⇒ a
+   *  fresh isolated world (the player-layer default; many per process). */
+  world?: World;
+  /** Attach an engine event runtime (NPCs/events/interpreter) to this zone. The
+   *  factory is injected by the world driver (never imported by the zone), so
+   *  the headless zone core stays off the engine graph. Requires `world` to be
+   *  the engine default world. */
+  runtimeFactory?: ZoneRuntimeFactory;
 }
 
 interface ZoneMember {
@@ -111,11 +129,15 @@ interface ZoneMember {
 }
 
 /** The world payload shape snapshots/deltas carry (matches the MP5 room's
- *  RoomWorldPayload — the client already speaks it). */
+ *  RoomWorldPayload — the client already speaks it). `events` is additive and
+ *  only present on a world zone with an engine runtime (D-8-0): server-driven
+ *  NPC/event states a future world client renders (item 4). Existing clients
+ *  ignore the extra field, so a runtime-less zone is byte-identical. */
 interface ZoneWorldPayload {
   players: PlayerState[];
   mapId: number;
   timeOfDay: number;
+  events?: EventNetState[];
 }
 
 export class Zone implements ZoneApi {
@@ -127,18 +149,43 @@ export class Zone implements ZoneApi {
   private readonly runFlags = new WeakMap<PlayerEntity, boolean>();
   private collision: MapCollision | null = null;
   private sinceBroadcast = 0;
+  /** The optional engine event runtime (D-8-0). Null ⇒ a bare player-layer zone
+   *  (byte-identical to MP8·A); non-null ⇒ NPCs/events/interpreter run here. */
+  private readonly runtime: ZoneRuntime | null;
 
   constructor(mapId: number, project: unknown, outbox: ZoneOutbox, opts: ZoneOptions) {
     this.mapId = mapId;
     this.outbox = outbox;
     this.limits = opts.limits;
-    this.world = createWorld(project, { seed: opts.seed ?? null });
+    // Adopt the engine default world (engine-runtime zones) or create a fresh
+    // isolated one (the player-layer default).
+    if (opts.world) {
+      this.world = opts.world;
+      this.world.proj = project;
+      if (opts.seed != null) this.world.seedRnd(opts.seed);
+    } else {
+      this.world = createWorld(project, { seed: opts.seed ?? null });
+    }
     this.world.g.mapId = mapId;
     // Route outbound directives to the owning player's connection (the MP5
-    // seam, kept live — stage B's per-zone event runtime emits through it).
+    // seam, kept live — the per-zone event runtime emits through it).
     this.world.directives.send = (pid, frame) => {
       this.outbox.send(pid, encodeMessage(frame as ServerMessage));
     };
+    // Attach the engine event runtime (D-8-0). It shares this.world, drives
+    // NPCs/events, and pushes world effects through the outbox. Built after the
+    // directive send is wired so its presentation port reaches players.
+    if (opts.runtimeFactory) {
+      this.runtime = opts.runtimeFactory({
+        world: this.world,
+        mapId,
+        collision: this.collisionGrid(),
+        outbox: this.outbox,
+      });
+      this.runtime.start();
+    } else {
+      this.runtime = null;
+    }
   }
 
   get memberCount(): number {
@@ -184,6 +231,13 @@ export class Zone implements ZoneApi {
     return e ? { x: e.x, y: e.y, dir: e.dir } : null;
   }
 
+  /** Live server-driven event states (empty without an engine runtime). The
+   *  directory reads this on an in-process zone like positionOf; the broadcast
+   *  path carries it in the delta for a future world client (item 4). */
+  eventStates(): EventNetState[] {
+    return this.runtime ? this.runtime.eventStates() : [];
+  }
+
   requestSnapshot(pid: PlayerId): void {
     const e = getPlayer(this.world, pid);
     this.outbox.send(
@@ -204,9 +258,13 @@ export class Zone implements ZoneApi {
     } else if (key.startsWith("var:")) {
       if (typeof value === "number") this.world.g.vars[key.slice(4)] = value;
     }
+    // Tell the engine runtime this was an EXTERNAL write (directory fan-out), so
+    // its world-effect diff does not echo it straight back out through sharedSet.
+    if (this.runtime) this.runtime.noteExternalShared(key, value);
   }
 
   stop(): void {
+    if (this.runtime) this.runtime.stop();
     this.members.clear();
     this.world.roster.players.clear();
   }
@@ -220,11 +278,20 @@ export class Zone implements ZoneApi {
      directory's WorldSnapshot, not the zone's. */
 
   snapshot(): ZoneSnapshot {
-    return { selfSw: { ...this.world.g.selfSw }, data: {} };
+    // selfSw is zone-local (map-scoped self-switches); `data` carries the engine
+    // runtime's event positions/pages when one is attached (D-8-0).
+    return {
+      selfSw: { ...this.world.g.selfSw },
+      data: this.runtime ? this.runtime.snapshotData() : {},
+    };
   }
 
   restore(snap: ZoneSnapshot): void {
     if (snap.selfSw) Object.assign(this.world.g.selfSw, snap.selfSw);
+    // Restore event runtime state AFTER selfSw (pages resolve against selfSw).
+    if (this.runtime && snap.data) {
+      this.runtime.restoreData(snap.data);
+    }
   }
 
   /* ── inbound frames ──────────────────────────────────────────────────── */
@@ -236,6 +303,15 @@ export class Zone implements ZoneApi {
       member.lastSeq = msg.seq;
       const pm = translateIntent(msg.intent);
       if (pm) member.pending = pm; // latest move/face wins for the next tick
+      else if (this.runtime && msg.intent.k === "act") {
+        // Action-button interaction (talk to an NPC / open a door) — only a
+        // world zone with an engine runtime acts on it; the player must be
+        // standing still and not mid-cutscene.
+        const e = getPlayer(this.world, pid);
+        if (e && !e.moving && !this.world.blocking.has(pid)) {
+          this.runtime.onAct(pid, e.x, e.y, e.dir);
+        }
+      }
     } else if (msg.t === "reply") {
       deliverReply(this.world, pid, msg.id, msg.value);
     } else if (msg.t === "emote") {
@@ -270,7 +346,10 @@ export class Zone implements ZoneApi {
 
   tick(): void {
     this.world.tick++;
-    if (this.members.size === 0) return;
+    // With an engine runtime attached, events/NPCs must keep ticking even with
+    // no players present (autorun cutscenes, parallel clocks, respawn timers);
+    // a bare player-layer zone has nothing to do when empty.
+    if (this.members.size === 0 && !this.runtime) return;
     for (const e of this.world.roster.players.values()) {
       e.prx = e.rx;
       e.pry = e.ry;
@@ -278,14 +357,23 @@ export class Zone implements ZoneApi {
     for (const member of this.members.values()) {
       const e = getPlayer(this.world, member.pid);
       if (!e) continue;
-      if (!e.moving && member.pending) {
+      // A player participating in a blocking event (participants-only pause,
+      // MP3/D-8-0) does not move — inert without a runtime (blocking is empty).
+      if (!e.moving && member.pending && !this.world.blocking.has(member.pid)) {
         const p = member.pending;
         member.pending = null;
         if (p.kind === "face") e.dir = p.dir;
         else this.tryMove(e, p.dir, p.run);
       }
-      if (e.moving) advanceStep(e, this.runFlags.get(e) === true);
+      if (e.moving) {
+        const arrived = advanceStep(e, this.runFlags.get(e) === true);
+        // A completed step onto a tile can trigger a touch event (world zones).
+        if (arrived && this.runtime) this.runtime.onArrive(member.pid, e.x, e.y);
+      }
     }
+    // Advance the engine layer (NPCs/events/interpreter) after player motion,
+    // before the broadcast — so event positions + world effects are current.
+    if (this.runtime) this.runtime.tick();
     if (++this.sinceBroadcast >= this.limits.broadcastEveryTicks) {
       this.sinceBroadcast = 0;
       this.broadcast();
@@ -312,13 +400,14 @@ export class Zone implements ZoneApi {
    *  chunk — members of a chunk share one interest set and one encode. */
   private broadcast(): void {
     const tick = this.world.tick;
+    const events = this.eventsPayload();
     if (this.members.size <= this.limits.aoiBypassMax) {
       const players: PlayerState[] = [];
       for (const e of this.world.roster.players.values()) players.push(entityState(e));
       const frame = encodeMessage({
         t: "delta",
         tick,
-        changes: { players, mapId: this.mapId, timeOfDay: this.world.g.timeOfDay } as unknown as JsonValue,
+        changes: this.payload(players, events) as unknown as JsonValue,
       });
       this.outbox.sendMany(Array.from(this.members.keys()), frame);
       return;
@@ -330,10 +419,23 @@ export class Zone implements ZoneApi {
       const frame = encodeMessage({
         t: "delta",
         tick,
-        changes: { players, mapId: this.mapId, timeOfDay: this.world.g.timeOfDay } as unknown as JsonValue,
+        changes: this.payload(players, events) as unknown as JsonValue,
       });
       this.outbox.sendMany(bucket.map((e) => e.id), frame);
     }
+  }
+
+  /** Compose a delta/snapshot payload, attaching event states only when the
+   *  engine runtime produced any (additive — a runtime-less zone omits the
+   *  field, byte-identical to MP8·A). */
+  private payload(players: PlayerState[], events: EventNetState[] | undefined): ZoneWorldPayload {
+    const p: ZoneWorldPayload = { players, mapId: this.mapId, timeOfDay: this.world.g.timeOfDay };
+    if (events && events.length) p.events = events;
+    return p;
+  }
+
+  private eventsPayload(): EventNetState[] | undefined {
+    return this.runtime ? this.runtime.eventStates() : undefined;
   }
 
   /** The interest-set audience around a player (whole zone under bypass),
@@ -367,6 +469,6 @@ export class Zone implements ZoneApi {
       const index = buildChunkIndex(this.world.roster.players.values());
       players = interestSetOf(chunkKeyOf(e.x, e.y), index).map(entityState);
     }
-    return { players, mapId: this.mapId, timeOfDay: this.world.g.timeOfDay };
+    return this.payload(players, this.eventsPayload());
   }
 }

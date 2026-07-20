@@ -28,6 +28,7 @@ export default defineConfig({
       "tests-unit/beacon-load.test.ts",
       "tests-unit/zone-worker.test.ts", // MP8·A: real worker threads + 60 Hz timers
       "tests-unit/world-smoke.test.ts", // MP8·B: real sockets + 60 Hz world tick
+      "tests-unit/world-engine-events.test.ts", // MP8·B: engine runtime in a real worker
     ],
   },
 });
