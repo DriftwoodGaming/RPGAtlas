@@ -51,6 +51,7 @@ import { advanceStep, startStep, translateIntent, type PendingMove } from "./mot
 import { randomResumeToken } from "./tokens.js";
 import type { BeaconLimits } from "./config.js";
 import type { ServerConnection } from "./connection.js";
+import type { RoomOutbox, RoomSim } from "./room-world.js";
 
 /** A `() => number` millisecond clock (injectable so expiry/resume windows are
  *  testable without real time). Defaults to Date.now. */
@@ -80,6 +81,14 @@ export interface RoomOptions {
   clock?: Clock;
   /** Seed the room's RNG stream (determinism/tests). */
   seed?: number | null;
+  /** MP9·E (E2, D-9E-1): make this an ENGINE room. When present, the room's
+   *  simulation is delegated to a RoomWorld (in-process here or across a worker)
+   *  that runs the engine event runtime — so co-op parties + shared battles work
+   *  over the relay. The room keeps every semantic (code, TTL, resume, owner,
+   *  name-ban, chat gate); only the world tick moves into the sim. Absent ⇒ the
+   *  MP5 player-layer room, byte-identical. The factory is injected by the server
+   *  host so this module never touches the engine. */
+  simFactory?: (project: unknown, outbox: RoomOutbox) => RoomSim;
 }
 
 /** The snapshot/delta payload the room and the engine client agree on (the
@@ -111,6 +120,11 @@ export class BeaconRoom {
    *  (D3) so a ban is name-based and thus evadable by renaming — this is
    *  documented honestly; durable identity bans require a WORLD (passport). */
   private readonly bannedNames = new Set<string>();
+  /** MP9·E (E2): the engine world sim, or null for a player-layer room. When
+   *  set, admit/frame/tick/resume/remove delegate to it and `this.world` is a
+   *  scratch used only for `proj`/`capacity` reads (the real world lives in the
+   *  sim, possibly on a worker thread). */
+  private readonly sim: RoomSim | null;
 
   constructor(code: string, project: unknown, opts: RoomOptions) {
     this.code = code;
@@ -122,10 +136,31 @@ export class BeaconRoom {
     // triggers events on the MP5 server yet (D-0), but the seam is live +
     // tested (a directive emitted at pid N reaches member N and its reply
     // resumes the world — room.test.ts), so MP8's runtime plugs in unchanged.
+    // (In an engine room this scratch world is inert; the sim routes directives
+    // through its own zone outbox → the RoomOutbox below.)
     this.world.directives.send = (pid, frame) => {
       const m = this.members.get(pid);
       if (m && m.conn) m.conn.send(encodeMessage(frame as ServerMessage));
     };
+    // MP9·E: an engine room delegates its whole simulation to a RoomWorld. Its
+    // outbox delivers encoded frames straight to the addressed member's socket.
+    if (opts.simFactory) {
+      const outbox: RoomOutbox = {
+        send: (pid, frame) => {
+          const m = this.members.get(pid);
+          if (m && m.conn) m.conn.send(frame);
+        },
+        sendMany: (pids, frame) => {
+          for (const pid of pids) {
+            const m = this.members.get(pid);
+            if (m && m.conn) m.conn.send(frame);
+          }
+        },
+      };
+      this.sim = opts.simFactory(project, outbox);
+    } else {
+      this.sim = null;
+    }
   }
 
   /** Connected-member count. */
@@ -209,27 +244,33 @@ export class BeaconRoom {
     if (this.isFull) return null;
     const pid = this.nextPid++;
     const cleanName = String(name || "").slice(0, MAX_NAME_LEN) || "Player " + pid;
-    const spawn = resolveSpawn(this.world, { charset });
-    addPlayer(this.world, pid, cleanName, spawn);
     const member: RoomMember = {
       pid, conn, name: cleanName, charset,
       resumeToken: randomResumeToken(), lastSeq: 0, pending: null, disconnectedAt: 0,
       social: newSocialBucket(this.world.tick),
     };
-    this.members.set(pid, member);
+    this.members.set(pid, member); // must precede sim.admit (its outbox routes here)
     if (this.ownerPid < 0) this.ownerPid = pid; // first player in = room owner
     conn.send(encodeMessage({
       t: "welcome", proto: PROTOCOL_VERSION, playerId: pid,
       roomCode: this.code, resumeToken: member.resumeToken, tick: this.world.tick,
     }));
-    conn.send(encodeMessage({
-      t: "snapshot", tick: this.world.tick,
-      world: this.worldPayload(spawn.mapId) as unknown as JsonValue,
-    }));
-    this.broadcastPresence(
-      { t: "presence", tick: this.world.tick, kind: "join", playerId: pid, name: cleanName },
-      pid,
-    );
+    if (this.sim) {
+      // Engine room: the world sim spawns the entity at the start map, pushes
+      // the join snapshot, and announces the join to the others via its outbox.
+      this.sim.admit(pid, cleanName, charset, true);
+    } else {
+      const spawn = resolveSpawn(this.world, { charset });
+      addPlayer(this.world, pid, cleanName, spawn);
+      conn.send(encodeMessage({
+        t: "snapshot", tick: this.world.tick,
+        world: this.worldPayload(spawn.mapId) as unknown as JsonValue,
+      }));
+      this.broadcastPresence(
+        { t: "presence", tick: this.world.tick, kind: "join", playerId: pid, name: cleanName },
+        pid,
+      );
+    }
     return member;
   }
 
@@ -243,15 +284,19 @@ export class BeaconRoom {
         m.disconnectedAt = 0;
         m.pending = null;
         m.resumeToken = randomResumeToken(); // rotate: a replayed old token is dead
-        const e = getPlayer(this.world, m.pid);
         conn.send(encodeMessage({
           t: "welcome", proto: PROTOCOL_VERSION, playerId: m.pid,
           roomCode: this.code, resumeToken: m.resumeToken, tick: this.world.tick,
         }));
-        conn.send(encodeMessage({
-          t: "snapshot", tick: this.world.tick,
-          world: this.worldPayload(e ? e.mapId : 0) as unknown as JsonValue,
-        }));
+        if (this.sim) {
+          this.sim.requestSnapshot(m.pid); // the sim re-pushes the current map
+        } else {
+          const e = getPlayer(this.world, m.pid);
+          conn.send(encodeMessage({
+            t: "snapshot", tick: this.world.tick,
+            world: this.worldPayload(e ? e.mapId : 0) as unknown as JsonValue,
+          }));
+        }
         return m;
       }
     }
@@ -262,6 +307,17 @@ export class BeaconRoom {
    *  are BUFFERED and applied by the tick (never on arrival, so message delivery
    *  never re-enters the sim); reply/emote/chat act now. */
   handleFrame(member: RoomMember, msg: ClientMessage): void {
+    if (this.sim) {
+      // Engine room: moderation stays a room concern (owner/ban/report over the
+      // member table); everything world-facing — movement, action/party intents,
+      // replies, emote/say (chat gate + spam bucket enforced in the zone), and
+      // plugin custom relay — goes to the sim.
+      if (msg.t === "mod") { this.handleMod(member, msg); return; }
+      if (msg.t === "input" || msg.t === "reply" || msg.t === "emote" || msg.t === "chat" || msg.t === "custom") {
+        this.sim.frame(member.pid, msg);
+      }
+      return;
+    }
     if (msg.t === "input") {
       member.lastSeq = msg.seq;
       const pm = translateIntent(msg.intent);
@@ -336,9 +392,13 @@ export class BeaconRoom {
    *  entity, announce the leave, promote a new owner if this was the owner. */
   private removeMember(m: RoomMember, code: "kicked" | "banned"): void {
     if (m.conn) { m.conn.send(encodeMessage({ t: "kick", code })); m.conn.close(); }
-    this.members.delete(m.pid);
-    removePlayer(this.world, m.pid);
-    this.broadcastPresence({ t: "presence", tick: this.world.tick, kind: "leave", playerId: m.pid });
+    this.members.delete(m.pid); // before sim.remove so the leave-presence skips them
+    if (this.sim) {
+      this.sim.remove(m.pid, true);
+    } else {
+      removePlayer(this.world, m.pid);
+      this.broadcastPresence({ t: "presence", tick: this.world.tick, kind: "leave", playerId: m.pid });
+    }
     if (m.pid === this.ownerPid) this.promoteOwner();
   }
 
@@ -354,6 +414,13 @@ export class BeaconRoom {
    *  player's buffered move (grid step + wall collision + player anti-stack),
    *  advance in-progress steps, then broadcast one delta of every player. */
   tick(): void {
+    if (this.sim) {
+      // The engine sim owns the world tick (in-process here; a worker self-ticks
+      // and no-ops). It must advance even with no players — autorun/parallel
+      // events, respawn timers, and shared-battle deadlines keep running.
+      this.sim.tick();
+      return;
+    }
     this.world.tick++;
     if (this.members.size === 0) return;
     // prev-tick render coords for the clients' between-tick interpolation.
@@ -419,8 +486,12 @@ export class BeaconRoom {
     for (const m of Array.from(this.members.values())) {
       if (m.conn === null && now - m.disconnectedAt >= this.limits.resumeGraceMs) {
         this.members.delete(m.pid);
-        removePlayer(this.world, m.pid);
-        this.broadcastPresence({ t: "presence", tick: this.world.tick, kind: "leave", playerId: m.pid });
+        if (this.sim) {
+          this.sim.remove(m.pid, true);
+        } else {
+          removePlayer(this.world, m.pid);
+          this.broadcastPresence({ t: "presence", tick: this.world.tick, kind: "leave", playerId: m.pid });
+        }
         if (m.pid === this.ownerPid) this.promoteOwner();
       }
     }
@@ -437,5 +508,6 @@ export class BeaconRoom {
       }
     }
     this.members.clear();
+    if (this.sim) this.sim.stop(); // tear down the engine world (terminates its worker)
   }
 }

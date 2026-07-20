@@ -22,7 +22,7 @@ import {
   type ErrorCode,
 } from "../../../src/shared/net/protocol.js";
 import { generateRoomCode } from "../../../src/shared/net/room-code.js";
-import { BeaconRoom, type Clock, type RoomMember } from "./room.js";
+import { BeaconRoom, type Clock, type RoomMember, type RoomOptions } from "./room.js";
 import { DEFAULT_LIMITS, type BeaconLimits } from "./config.js";
 import type { ServerConnection } from "./connection.js";
 
@@ -40,6 +40,13 @@ export interface BeaconServerOptions {
    *  all land in that one room; any other code is `room-not-found`. The Node
    *  target leaves this unset (many rooms, random codes). */
   fixedRoomCode?: string;
+  /** MP9·E (E2, D-9E-1): make every room an ENGINE room. When present, each
+   *  room delegates its simulation to a RoomWorld built by this factory (one
+   *  engine world per room; in production one worker per room). Absent ⇒ MP5
+   *  player-layer rooms, byte-identical. The Node host injects the worker
+   *  factory; the CF DO target leaves it unset (engine rooms stay Node-only in
+   *  2.0 — D-9E-1). */
+  roomSimFactory?: RoomOptions["simFactory"];
   /** Optional structured log sink (dev-facing; never player copy). */
   log?: (level: "info" | "warn", event: string, detail?: Record<string, unknown>) => void;
 }
@@ -71,6 +78,7 @@ export class BeaconServer {
   private readonly clock: Clock;
   private readonly seed: number | null;
   private readonly fixedRoomCode: string | undefined;
+  private readonly roomSimFactory: BeaconServerOptions["roomSimFactory"];
   private readonly log: NonNullable<BeaconServerOptions["log"]>;
   private readonly rooms = new Map<string, BeaconRoom>();
   private readonly conns = new Set<ConnState>();
@@ -82,6 +90,7 @@ export class BeaconServer {
     this.clock = opts.clock || Date.now;
     this.seed = opts.seed ?? null;
     this.fixedRoomCode = opts.fixedRoomCode;
+    this.roomSimFactory = opts.roomSimFactory;
     this.log = opts.log || (() => {});
   }
 
@@ -92,7 +101,9 @@ export class BeaconServer {
     let room = this.rooms.get(code);
     if (!room) {
       if (this.rooms.size >= this.limits.maxRooms) return null;
-      room = new BeaconRoom(code, this.project, { limits: this.limits, clock: this.clock, seed: this.seed });
+      room = new BeaconRoom(code, this.project, {
+        limits: this.limits, clock: this.clock, seed: this.seed, simFactory: this.roomSimFactory,
+      });
       this.rooms.set(code, room);
     }
     return room;
@@ -302,7 +313,9 @@ export class BeaconServer {
   private createRoom(): BeaconRoom {
     let code = generateRoomCode();
     while (this.rooms.has(code)) code = generateRoomCode();
-    const room = new BeaconRoom(code, this.project, { limits: this.limits, clock: this.clock, seed: this.seed });
+    const room = new BeaconRoom(code, this.project, {
+      limits: this.limits, clock: this.clock, seed: this.seed, simFactory: this.roomSimFactory,
+    });
     this.rooms.set(code, room);
     return room;
   }
