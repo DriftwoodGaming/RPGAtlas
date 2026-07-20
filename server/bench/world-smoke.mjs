@@ -9,12 +9,17 @@
    this; the stage-A numbers live in docs/mp-8-spec.md §A4.
 
      node bench/world-smoke.mjs [--bots 200] [--zones 1] [--seconds 12]
-                                [--workers]
+                                [--workers] [--data <dir>]
+
+   With `--data <dir>` the world persists to JSON snapshot files (§A5) — the
+   run reports the flushed record count + on-disk size so an operator can gauge
+   the persistence footprint + overhead at scale (the socket-level restart
+   round-trip is proven deterministically by tests-unit/world-smoke.test.ts).
 
    GPL-3.0-or-later (see LICENSE). */
 
 import { build } from "esbuild";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, rm, readdir, stat } from "node:fs/promises";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { WebSocket } from "ws";
@@ -30,6 +35,7 @@ const BOTS = Number(args.bots) || 200;
 const ZONES = Math.max(1, Number(args.zones) || 1);
 const SECONDS = Number(args.seconds) || 12;
 const WORKERS = args.workers !== undefined;
+const DATA = typeof args.data === "string" && args.data !== "1" ? args.data : null;
 
 const SIZE = 128;
 const PROJECT = {
@@ -45,6 +51,7 @@ async function loadCore() {
   const entrySrc = `
     export { startNodeWorldServer } from ${JSON.stringify(resolve(here, "../src/node/ws-server.ts").replace(/\\/g, "/"))};
     export { workerZoneFactory } from ${JSON.stringify(resolve(here, "../src/node/worker-zone.ts").replace(/\\/g, "/"))};
+    export { NodeFileWorldStore } from ${JSON.stringify(resolve(here, "../src/node/file-store.ts").replace(/\\/g, "/"))};
     export { DEFAULT_WORLD_LIMITS } from ${JSON.stringify(resolve(here, "../src/core/config.ts").replace(/\\/g, "/"))};
     export { generatePassport, passportPublicRaw, signChallenge } from ${JSON.stringify(resolve(here, "../../src/shared/net/passport.ts").replace(/\\/g, "/"))};
   `;
@@ -154,16 +161,18 @@ let workerDist = null;
 if (WORKERS) {
   workerDist = resolve(here, "../dist/zone-worker.mjs");
 }
+const store = DATA ? new mod.NodeFileWorldStore(DATA) : undefined;
 handle = await mod.startNodeWorldServer({
   project: PROJECT,
   port: 0,
   limits,
+  store,
   zoneFactory: WORKERS
     ? mod.workerZoneFactory({ entry: workerDist, projectJson: JSON.stringify(PROJECT), limits })
     : undefined,
 });
 const url = `ws://127.0.0.1:${handle.port}`;
-console.log(`world-smoke: ${BOTS} bots, ${ZONES} zone(s), ${SECONDS}s, workers=${WORKERS} — ${url}`);
+console.log(`world-smoke: ${BOTS} bots, ${ZONES} zone(s), ${SECONDS}s, workers=${WORKERS}, data=${DATA || "off"} — ${url}`);
 
 console.log("generating passports…");
 const passports = await Promise.all(Array.from({ length: BOTS }, (_, i) => mod.generatePassport("Bot " + i)));
@@ -206,6 +215,23 @@ console.log(
   `process (server+ALL bots${WORKERS ? "+workers" : ""}): rss=${(process.memoryUsage().rss / 1048576).toFixed(0)}MB ` +
   `cpu user=${(cpu.user / 1e6).toFixed(1)}s sys=${(cpu.system / 1e6).toFixed(1)}s over ~${SECONDS + 10}s wall`,
 );
+// handle.close() flushes the durable snapshot on a graceful stop (§A5); report
+// the persistence footprint so an operator can gauge disk cost at this scale.
+const t0 = performance.now();
 await handle.close();
+if (DATA) {
+  const flushMs = performance.now() - t0;
+  try {
+    const files = await readdir(DATA);
+    let bytes = 0;
+    for (const f of files) bytes += (await stat(join(DATA, f))).size;
+    console.log(
+      `persistence: ${files.length} snapshot file(s), ${(bytes / 1024).toFixed(1)} KB on disk in ${DATA} ` +
+      `(final graceful flush ${flushMs.toFixed(0)}ms)`,
+    );
+  } catch (e) {
+    console.log(`persistence: could not read ${DATA}: ${e}`);
+  }
+}
 await cleanup();
 process.exit(0);

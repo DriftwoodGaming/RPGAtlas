@@ -477,3 +477,80 @@ the project start — opt-in proven).
 **Gate slice (B·2):** server tsc Node 0 · server tsc CF 0 · root tsc 0 ·
 eslint 0 · vitest world-persistence 5/5 + beacon-world 13/13 · both server
 bundles build. No `js/` `?v=` touched; no golden touched (server-only).
+
+### B·5 — Load harness + CI smoke + re-measure ✅ landed 2026-07-20
+
+**Harness growth — `server/bench/world-smoke.mjs`:** added a persistence
+dimension — `--data <dir>` runs the big-N world with a `NodeFileWorldStore`,
+and the run reports the flushed snapshot file count + on-disk size + the final
+graceful-flush time so an operator can gauge the durable footprint at scale.
+The transfer-through-doors bot behavior (scatter via `transferPlayer`) is
+already in place from stage A; the "bots that also trigger events" growth waits
+on the per-zone event runtime (item 1).
+
+**CI smoke — `tests-unit/world-smoke.test.ts` (net suite):** the harness's
+health check, small-N over REAL sockets — (1) N passported bots join one zone,
+random-walk, and the p95 intent→echo is asserted inside the ≤ 250 ms zone
+budget; (2) a player's position survives a FULL server restart over the socket
+(play → graceful close/flush → brand-new world on the same store → the same
+passport rejoins at the saved tile) — the kill-a-zone/restore load-gate
+criterion end-to-end on the wire. Added to `vitest.net.config.mjs` (isolated
+serial, per the MP5 timing rule). Net suite now **10 tests / 5 files**.
+
+**Re-measured §A4 (socketed, dev box, 2026-07-20, WITH the B·2 persistence
+changes in place):**
+
+| config | samples | p50 | p95 | p99 | moved | vs stage A |
+|--------|--------:|----:|----:|----:|------:|:-----------|
+| 50 bots / 1 zone (in-proc) | 3,570 | 64.4 | 80.3 | 81.3 | 50/50 | 64.1 / 79.8 — unchanged |
+| 200 bots / 1 zone (in-proc) | 13,881 | 59.5 | 82.7 | 84.3 | 200/200 | 58.2 / 83.1 — unchanged |
+| 200 bots / 1 zone (in-proc) **+ --data** | 13,893 | 66.5 | 82.6 | 83.9 | 200/200 | +persistence, p95 flat |
+| 1000 bots / 8 zones (workers) | 70,397 | 71.3 | 99.5 | 112.3 | 1000/1000 | 69.4 / 100.1 — unchanged |
+
+The player layer is **untouched by persistence** — the flush is off the hot
+path (a 30 s timer; the hot path only sets a dirty bit). **Persistence
+footprint:** the 200-player `--data` run wrote **129 bytes/player** (≈ 130 KB
+for a 1000-player world — an order under the §A5 ~1 MB estimate) and a graceful
+shutdown flush of **4–6 ms**. So the durable world is essentially free at these
+scales.
+
+**Decision #4/#5 revisit (item 5):** the player-layer numbers are unchanged, so
+both stage-A decisions still hold — **in-process zones stay the Node default**
+(the thread hop still costs more than parallelism buys at player-layer load)
+and **no binary/delta encoding is demanded** (37 KB/s/client peak stands; the
+6 ms flush adds nothing to the wire). The re-measure that could move #4 is the
+one WITH the per-zone event runtime (interpreter + NPC motion make zones
+CPU-heavier) — that rides item 1, and is called out again in the hand-off.
+
+**Gate slice (B·5):** root tsc 0 · server tsc Node/CF 0 · eslint 0 · **net
+suite 10/10** (beacon-ws 2 · relay-client 4 · beacon-load 1 · zone-worker 1 ·
+world-smoke 2) · bench runs clean at 50/200/1000. No golden or `js/?v=` touched.
+
+### Remaining stage-B work (hand-off — items 1, 3, 4, 6)
+
+Infra (2, 5) is green and pushed. The next tranche, in the spec's order:
+
+- **Item 1 — per-zone ENGINE event runtime (D-8-0).** The headliner and the
+  hardest: a NEW headless map-event driver (the existing `map.ts` +
+  `map-runtime.ts` are render/audio-coupled and can't be bundled as-is) reusing
+  the REAL interpreter registry (headless-bundleable — `tests/mp-commands.test.js`
+  proves it) bound to the zone's world (one zone per process/worker adopts
+  `defaultWorld` so module-level `G`/`ctx` drive that zone — see §A2 and the
+  shim in `src/engine/state/default-world.ts`/`engine-context.ts`). Wire world
+  switches → `sharedSet`, per-player switches → `recordPatch` (into the record
+  `data` bag persistence already round-trips), transfers → `transferOut`,
+  messages → the already-wired directive broker. Carry the MP6 notes
+  (`world.blocking` refcount, ally-idx, loadout writeback). **No golden covers a
+  server event runtime — correctness rests on new headless tests.** Then extend
+  `ZoneSnapshot.data` with event positions/pages and grow the harness bots to
+  trigger events + re-measure §A4 (revisit decision #4).
+- **Item 3 — CF DO world (D-8-1):** zone DO + directory DO; the persistence
+  seam is ready (`server/src/cf/do-store.ts` `doStorageKv` +
+  `KvWorldStore`) — the DO builds `new KvWorldStore(doStorageKv(state.storage))`.
+  `handoff` reconnect flow; drift-compensated DO tick; hibernation restore from
+  the ZoneSnapshots this layer now persists.
+- **Item 4 — client world-join (D-8-4):** relay-client `challenge`/`handoff`/
+  `replaced` handling; world address entry; passport export/import UI;
+  dead-reckoning smoothing for 12 Hz deltas; i18n ×10.
+- **Item 6 — encoding:** still NO by measurement (above); revisit only if the
+  item-1 runtime deltas move the numbers.
