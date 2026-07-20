@@ -25,8 +25,8 @@ import { el, esc } from "./util.js";
 import { defaultWorld } from "./state/default-world.js";
 import { applyBattleEnd } from "./scenes/battle-coop.js";
 import type { BattleEvent } from "../shared/sim/coop-battle.js";
-import type { PartyChange } from "../shared/sim/party.js";
-import { soloHost } from "./net/solo-session.js";
+import { partyOf, type PartyChange } from "../shared/sim/party.js";
+import { soloHost, soloClient } from "./net/solo-session.js";
 import { active } from "./net/active.js";
 import { RoomHost } from "./net/room-host.js";
 import { RoomClient, type RoomSnapshot } from "./net/room-client.js";
@@ -41,7 +41,7 @@ import { mpText } from "./mp-i18n.js";
 import { mountSocialUI, unmountSocialUI, type SocialApi } from "./net/social-ui.js";
 import { clearMuted } from "./net/moderation.js";
 import type { PlayerState } from "../shared/sim/players.js";
-import type { ErrorCode, ModAction } from "../shared/net/protocol.js";
+import type { ErrorCode, InputIntent, ModAction } from "../shared/net/protocol.js";
 
 /** Host a room from an ALREADY-running game (player 0 = G.player). Returns the
  *  room code to share. The host keeps playing exactly as solo; peers join. */
@@ -303,6 +303,31 @@ function mpMod(action: ModAction, target: number, reason?: string): void {
   else if (active.client) active.client.sendMod(action, target, reason);
 }
 
+/* MP9·E (E3, D-9E-3): the Team Up / Leave Team verbs — exactly what the
+   RPGATLAS_MP dev hook did, now behind the social panel. The party intent rides
+   the §C5 channel: a relay/room session drains it through active.client; the
+   local BroadcastChannel host (active.host, no active.client) drains its own
+   through the loopback soloClient. The sim validates authoritatively either
+   way, so the button is safe on every transport. */
+function mpInvite(pid: number): void {
+  const intent: InputIntent = { k: "partyInvite", target: pid };
+  if (active.client) active.client.sendInput(intent);
+  else soloClient.sendInput(intent);
+}
+function mpLeaveParty(): void {
+  const intent: InputIntent = { k: "partyLeave" };
+  if (active.client) active.client.sendInput(intent);
+  else soloClient.sendInput(intent);
+}
+/** My player-party, from the world this tab reads (host: the authority; client:
+ *  the mirror kept by applyPartyTable). Drives the panel's Leave Team + mate marks. */
+function myParty(): { partied: boolean; mates: number[] } {
+  const w = rosterWorld();
+  const rec = partyOf(w, w.roster.local);
+  if (!rec) return { partied: false, mates: [] };
+  return { partied: true, mates: rec.members.filter((m) => m !== w.roster.local) };
+}
+
 /** The live roster of OTHER players (the panel's mute/report/kick list). */
 function socialApi(): SocialApi {
   return {
@@ -315,6 +340,9 @@ function socialApi(): SocialApi {
       for (const e of w.roster.players.values()) out.push({ id: e.id, name: e.name || "" });
       return out;
     },
+    invite: mpInvite,
+    leaveParty: mpLeaveParty,
+    party: myParty,
   };
 }
 

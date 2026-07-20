@@ -28,6 +28,15 @@ export interface SocialApi {
   mod(action: ModAction, target: number, reason?: string): void;
   /** The OTHER players in the room (not the local player). */
   roster(): Array<{ id: number; name: string }>;
+  /** MP9·E (E3, D-9E-3): invite a player to team up, or leave my party. Both
+   *  ride the §C5 party-intent channel; the sim validates authoritatively
+   *  (self / ghost / already-partied / full are all rejected server-side), so
+   *  the buttons are safe to show on every transport and in any state. */
+  invite(pid: number): void;
+  leaveParty(): void;
+  /** My current player-party (read from the client mirror), so the panel can
+   *  show Leave Team and mark teammates. `mates` are the OTHER pids with me. */
+  party(): { partied: boolean; mates: number[] };
 }
 
 /** A compact, kid-readable emote palette (rendered as the bubble text itself —
@@ -94,10 +103,20 @@ function openPanel(): void {
     "background:#232a3a;color:#fff;border-radius:14px;padding:14px 14px 12px;z-index:141;" +
     "box-shadow:0 10px 34px rgba(0,0,0,0.5);font-family:system-ui,sans-serif;";
 
-  const head = el("div"); head.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;";
-  const title = el("div"); title.textContent = mpText("openSocial"); title.style.cssText = "font-weight:700;font-size:15px;";
+  // MP9·E (E3): my party membership drives Leave Team (header) + teammate marks.
+  const myParty = api.party();
+
+  const head = el("div"); head.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:8px;";
+  const title = el("div"); title.textContent = mpText("openSocial"); title.style.cssText = "font-weight:700;font-size:15px;flex:1;min-width:0;";
+  const headBtns = el("div"); headBtns.style.cssText = "display:flex;align-items:center;gap:6px;";
+  if (myParty.partied) {
+    const leaveBtn = mkBtn(mpText("leaveTeamBtn"), "warn");
+    leaveBtn.onclick = (): void => { api!.leaveParty(); togglePanel(); };
+    headBtns.appendChild(leaveBtn);
+  }
   const x = mkBtn("✕"); x.style.background = "transparent"; x.style.color = "#9aa6bf"; x.onclick = (): void => togglePanel();
-  head.append(title, x);
+  headBtns.appendChild(x);
+  head.append(title, headBtns);
   card.appendChild(head);
 
   // Emotes (always on).
@@ -155,7 +174,8 @@ function openPanel(): void {
     const empty = el("div"); empty.textContent = mpText("noOthers");
     empty.style.cssText = "font-size:12px;opacity:.6;"; list.appendChild(empty);
   }
-  for (const p of others) list.appendChild(playerRow(p, () => togglePanel()));
+  const mates = new Set(myParty.mates);
+  for (const p of others) list.appendChild(playerRow(p, mates, () => togglePanel()));
   card.appendChild(list);
 
   ctx.uiLayer.appendChild(card);
@@ -168,20 +188,31 @@ function section(label: string): HTMLElement {
   return s;
 }
 
-function playerRow(p: { id: number; name: string }, refresh: () => void): HTMLElement {
+function playerRow(p: { id: number; name: string }, mates: Set<number>, refresh: () => void): HTMLElement {
   const row = el("div");
   row.style.cssText = "display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:#1c2331;border-radius:8px;padding:6px 8px;";
-  const name = el("span"); name.textContent = p.name || ("#" + p.id);
+  const teamed = mates.has(p.id);
+  const label = p.name || ("#" + p.id);
+  const name = el("span"); name.textContent = (teamed ? "🤝 " : "") + label;
   name.style.cssText = "flex:1;min-width:60px;font-size:13px;font-weight:600;";
+  // MP9·E (E3): Team Up on players not already on my team (leaving is in the
+  // header). The invite rides the party-intent channel; the sim decides.
+  let teamBtn: HTMLButtonElement | null = null;
+  if (!teamed) {
+    teamBtn = mkBtn(mpText("teamUpBtn"), "primary");
+    teamBtn.onclick = (): void => { api!.invite(p.id); toast(mpText("inviteSentToast", { name: label })); };
+  }
   const muteBtn = mkBtn(isMuted(p.id) ? mpText("unmuteBtn") : mpText("muteBtn"));
   muteBtn.onclick = (): void => { const on = toggleMute(p.id); muteBtn.textContent = on ? mpText("unmuteBtn") : mpText("muteBtn"); };
   const reportBtn = mkBtn(mpText("reportBtn"));
-  reportBtn.onclick = (): void => { api!.mod("report", p.id); toast(mpText("reportedToast", { name: p.name || ("#" + p.id) })); };
+  reportBtn.onclick = (): void => { api!.mod("report", p.id); toast(mpText("reportedToast", { name: label })); };
   const kickBtn = mkBtn(mpText("kickBtn"), "warn");
   kickBtn.onclick = (): void => { api!.mod("kick", p.id); };
   const banBtn = mkBtn(mpText("banBtn"), "warn");
   banBtn.onclick = (): void => { api!.mod("ban", p.id); };
-  row.append(name, muteBtn, reportBtn, kickBtn, banBtn);
+  row.append(name);
+  if (teamBtn) row.append(teamBtn);
+  row.append(muteBtn, reportBtn, kickBtn, banBtn);
   void refresh;
   return row;
 }

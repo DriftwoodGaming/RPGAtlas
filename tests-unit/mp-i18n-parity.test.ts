@@ -49,6 +49,10 @@ describe("mpText()", () => {
     expect(mpText("victory")).toBe("Victory!");
     expect(mpText("playerJoined", { name: "Robin" })).toBe("Robin joined");
     expect(mpText("battleStart", { names: "Ana, Bo" })).toBe("Battle! Fighting alongside Ana, Bo!");
+    // MP9·E (E3): the Team Up affordance strings.
+    expect(mpText("teamUpBtn")).toBe("Team Up");
+    expect(mpText("leaveTeamBtn")).toBe("Leave Team");
+    expect(mpText("inviteSentToast", { name: "Ana" })).toBe("Invited Ana to team up.");
   });
 
   it("returns the key itself for a truly unknown string (never throws)", () => {

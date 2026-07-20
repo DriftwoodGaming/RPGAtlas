@@ -79,6 +79,11 @@ export const MP_EN: MpStrings = {
   onlyOwner: "Only the room owner can do that.",
   noOthers: "No one else is here yet.",
   chatOffNote: "Free typing is off — use emotes and quick phrases.",
+  // MP9·E (E3): Team Up / Leave Team affordances on the social panel.
+  teamUpBtn: "Team Up",
+  leaveTeamBtn: "Leave Team",
+  inviteSentToast: "Invited {name} to team up.",
+  errRelayFull: "The play server is full right now — try again in a little while.",
 };
 
 /** The ten translated packs (the editor's locale ids). */
@@ -142,6 +147,10 @@ export const MP_PACKS: Record<string, MpStrings> = {
     onlyOwner: "Solo el propietario de la sala puede hacer eso.",
     noOthers: "Todavía no hay nadie más aquí.",
     chatOffNote: "La escritura libre está desactivada: usa gestos y frases rápidas.",
+    teamUpBtn: "Formar grupo",
+    leaveTeamBtn: "Salir del grupo",
+    inviteSentToast: "Invitaste a {name} al grupo.",
+    errRelayFull: "El servidor de juego está lleno ahora mismo: inténtalo de nuevo en un ratito.",
   },
   fr: {
     playTogether: "Jouer ensemble",
@@ -202,6 +211,10 @@ export const MP_PACKS: Record<string, MpStrings> = {
     onlyOwner: "Seul le propriétaire du salon peut faire ça.",
     noOthers: "Il n'y a encore personne d'autre ici.",
     chatOffNote: "La saisie libre est désactivée — utilise les émotes et les phrases rapides.",
+    teamUpBtn: "Faire équipe",
+    leaveTeamBtn: "Quitter l'équipe",
+    inviteSentToast: "Tu as invité {name} dans ton équipe.",
+    errRelayFull: "Le serveur de jeu est plein pour le moment — réessaie dans un petit moment.",
   },
   de: {
     playTogether: "Zusammen spielen",
@@ -262,6 +275,10 @@ export const MP_PACKS: Record<string, MpStrings> = {
     onlyOwner: "Das kann nur der Raum-Besitzer tun.",
     noOthers: "Hier ist noch niemand sonst.",
     chatOffNote: "Freies Tippen ist aus — nutze Emotes und schnelle Sätze.",
+    teamUpBtn: "Gruppe bilden",
+    leaveTeamBtn: "Gruppe verlassen",
+    inviteSentToast: "{name} in die Gruppe eingeladen.",
+    errRelayFull: "Der Spielserver ist gerade voll — versuch es in einer Weile noch mal.",
   },
   ja: {
     playTogether: "いっしょに遊ぶ",
@@ -322,6 +339,10 @@ export const MP_PACKS: Record<string, MpStrings> = {
     onlyOwner: "それはルームのオーナーだけができます。",
     noOthers: "まだほかにだれもいません。",
     chatOffNote: "自由入力はオフです — エモートと定型メッセージを使ってね。",
+    teamUpBtn: "パーティーに誘う",
+    leaveTeamBtn: "パーティーを抜ける",
+    inviteSentToast: "{name} をパーティーにさそいました。",
+    errRelayFull: "プレイサーバーが今いっぱいです — 少し待ってからもう一度お試しください。",
   },
   "zh-tw": {
     playTogether: "一起玩",
@@ -382,6 +403,10 @@ export const MP_PACKS: Record<string, MpStrings> = {
     onlyOwner: "只有房主才能這麼做。",
     noOthers: "這裡還沒有其他人。",
     chatOffNote: "自由輸入已關閉 — 請使用表情和快速短語。",
+    teamUpBtn: "組隊",
+    leaveTeamBtn: "離開隊伍",
+    inviteSentToast: "已邀請 {name} 組隊。",
+    errRelayFull: "遊戲伺服器現在滿了 — 請稍後再試一次。",
   },
   "zh-cn": {
     playTogether: "一起玩",
@@ -442,6 +467,10 @@ export const MP_PACKS: Record<string, MpStrings> = {
     onlyOwner: "只有房主才能这么做。",
     noOthers: "这里还没有其他人。",
     chatOffNote: "自由输入已关闭 — 请使用表情和快捷短语。",
+    teamUpBtn: "组队",
+    leaveTeamBtn: "离开队伍",
+    inviteSentToast: "已邀请 {name} 组队。",
+    errRelayFull: "游戏服务器现在满了 — 请稍后再试一次。",
   },
   pt: {
     playTogether: "Jogar juntos",
@@ -502,6 +531,10 @@ export const MP_PACKS: Record<string, MpStrings> = {
     onlyOwner: "Só o dono da sala pode fazer isso.",
     noOthers: "Ainda não há mais ninguém aqui.",
     chatOffNote: "A digitação livre está desligada — use emotes e frases rápidas.",
+    teamUpBtn: "Formar grupo",
+    leaveTeamBtn: "Sair do grupo",
+    inviteSentToast: "Você convidou {name} para o grupo.",
+    errRelayFull: "O servidor de jogo está cheio agora — tente de novo daqui a pouco.",
   },
   ko: {
     playTogether: "함께 플레이",
@@ -562,6 +595,10 @@ export const MP_PACKS: Record<string, MpStrings> = {
     onlyOwner: "그건 방장만 할 수 있어요.",
     noOthers: "아직 다른 사람이 없습니다.",
     chatOffNote: "자유 입력이 꺼져 있어요 — 이모트와 빠른 문구를 사용하세요.",
+    teamUpBtn: "파티에 초대",
+    leaveTeamBtn: "파티 나가기",
+    inviteSentToast: "{name} 님을 파티에 초대했습니다.",
+    errRelayFull: "플레이 서버가 지금 가득 찼어요 — 잠시 후 다시 시도하세요.",
   },
   it: {
     playTogether: "Gioca insieme",
@@ -622,6 +659,10 @@ export const MP_PACKS: Record<string, MpStrings> = {
     onlyOwner: "Solo il proprietario della stanza può farlo.",
     noOthers: "Non c'è ancora nessun altro qui.",
     chatOffNote: "La scrittura libera è disattivata — usa emote e frasi rapide.",
+    teamUpBtn: "Forma gruppo",
+    leaveTeamBtn: "Lascia il gruppo",
+    inviteSentToast: "Hai invitato {name} nel gruppo.",
+    errRelayFull: "Il server di gioco è pieno in questo momento — riprova tra poco.",
   },
   ru: {
     playTogether: "Играть вместе",
@@ -682,6 +723,10 @@ export const MP_PACKS: Record<string, MpStrings> = {
     onlyOwner: "Это может сделать только владелец комнаты.",
     noOthers: "Здесь пока больше никого нет.",
     chatOffNote: "Свободный ввод выключен — используйте эмоции и быстрые фразы.",
+    teamUpBtn: "В отряд",
+    leaveTeamBtn: "Покинуть отряд",
+    inviteSentToast: "Вы пригласили {name} в отряд.",
+    errRelayFull: "Игровой сервер сейчас переполнен — попробуйте снова чуть позже.",
   },
 };
 
