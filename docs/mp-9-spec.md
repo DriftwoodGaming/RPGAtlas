@@ -195,6 +195,13 @@ peer's profanity, chat-off rejects, peer report → host inbox, peer kick →
 not-allowed while the host owner kicks, banned name can't rejoin).
 
 **Gate slice (A3):** root tsc 0 · server tsc Node/CF 0 · eslint 0 · fast
-`test:unit` **1290** (92 files; +8) · i18n parity 34 (58 keys/pack) · Playwright
-goldens byte-identical (render-glue additions are remote-loop-only, never run in
-solo — full suite re-run below). No `js/` `?v=` touched.
+`test:unit` **1290** (92 files; +8) · i18n parity 34 (58 keys/pack) · **Playwright
+128/128** (perf 235.18/300; renderer-golden + showcase specs green — the
+render-glue additions are remote-loop-only, so the frozen goldens are
+byte-identical). No `js/` `?v=` touched.
+
+**Stage A complete.** Chat + moderation are wired end-to-end on every transport
+(loopback/BroadcastChannel/relay/world) with the D4 posture enforced by the
+authority: chat off by default, filtered opt-in text, instant client-local mute,
+report → owner/operator, owner kick/ban (friend room) + operator ban-by-passport
++ CLI (world). Solo byte-identical (Playwright 128/128).
