@@ -75,10 +75,9 @@ function runConfig(Zone, LIMITS, players, broadcastEveryTicks, aoi) {
     aoiBypassMax: aoi ? 32 : Number.MAX_SAFE_INTEGER,
   };
   let bytes = 0;
-  let frames = 0;
   const outbox = {
-    send: (_pid, frame) => { bytes += frame.length; frames += 1; },
-    sendMany: (pids, frame) => { bytes += frame.length * pids.length; frames += pids.length; },
+    send: (_pid, frame) => { bytes += frame.length; },
+    sendMany: (pids, frame) => { bytes += frame.length * pids.length; },
     transferOut: () => {},
     sharedSet: () => {},
     recordPatch: () => {},
@@ -93,7 +92,6 @@ function runConfig(Zone, LIMITS, players, broadcastEveryTicks, aoi) {
     seqs.set(pid, 0);
   }
   bytes = 0; // ignore join presence
-  frames = 0;
 
   const t0 = performance.now();
   for (let t = 0; t < TICKS; t++) {
