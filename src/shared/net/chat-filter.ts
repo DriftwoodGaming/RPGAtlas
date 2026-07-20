@@ -160,3 +160,32 @@ export function censorChat(text: string): CensorResult {
 export function isCleanChat(text: string): boolean {
   return !censorChat(text).changed;
 }
+
+/* ── chat policy (D4) — shared by the server authority AND the local co-op
+      host so the gate is identical on every transport ─────────────────────── */
+
+export type ChatMode = "off" | "presets" | "text";
+
+/** The hosted game's communication mode (D4). Defaults to the safest option
+ *  ("off" = emotes + presets only) for any project that doesn't set it, so a
+ *  game that never touched the DB toggle keeps free text rejected. */
+export function chatModeOf(proj: unknown): ChatMode {
+  const mp = (proj as { system?: { multiplayer?: { chatMode?: unknown } } } | null)?.system?.multiplayer;
+  const m = mp && mp.chatMode;
+  return m === "text" ? "text" : m === "presets" ? "presets" : "off";
+}
+
+/** Resolve a `chat` frame to the `say` payload to broadcast, or a rejection. A
+ *  preset always passes (the always-on layer). Free text passes only under
+ *  `chatMode:"text"`, censored — the authority MASKS rather than rejects
+ *  profanity (friendlier, keeps chat flowing). */
+export function resolveSay(
+  proj: unknown,
+  msg: { text?: string; preset?: number },
+): { ok: true; say: { text?: string; preset?: number } } | { ok: false; error: "chat-disabled" } {
+  if (msg.text !== undefined) {
+    if (chatModeOf(proj) !== "text") return { ok: false, error: "chat-disabled" };
+    return { ok: true, say: { text: censorChat(msg.text).clean } };
+  }
+  return { ok: true, say: { preset: msg.preset } };
+}

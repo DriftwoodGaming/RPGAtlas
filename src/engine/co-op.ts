@@ -38,8 +38,10 @@ import { generateRoomCode, normalizeRoomCode, formatRoomCode } from "../shared/n
 import { resetSession, session } from "./net/session.js";
 import { loadOrCreatePassport, exportPassportText, importPassportText } from "./net/passport-store.js";
 import { mpText } from "./mp-i18n.js";
+import { mountSocialUI, unmountSocialUI, type SocialApi } from "./net/social-ui.js";
+import { clearMuted } from "./net/moderation.js";
 import type { PlayerState } from "../shared/sim/players.js";
-import type { ErrorCode } from "../shared/net/protocol.js";
+import type { ErrorCode, ModAction } from "../shared/net/protocol.js";
 
 /** Host a room from an ALREADY-running game (player 0 = G.player). Returns the
  *  room code to share. The host keeps playing exactly as solo; peers join. */
@@ -54,7 +56,9 @@ export function createRoom(name: string): string {
       firePresencePlugins(p);
     },
     onCustom: onCustomMessage, // MP7·C: a client's plugin message → host plugins
+    onReport: handleReport, // MP9·A: the host is the room owner
   });
+  showSocial();
   return code;
 }
 
@@ -77,8 +81,12 @@ export function joinRoom(rawCode: string, name: string): RoomClient | null {
     onParty: onPartyChange,
     onBattle: onBattleEvent,
     onCustom: onCustomMessage,
+    onReport: handleReport,
+    onError: inSessionError,
+    onKick: (c) => { toast(friendlyKick(c)); leaveRelay(); },
   });
   active.client = client;
+  showSocial();
   return client;
 }
 
@@ -277,6 +285,63 @@ function onCustomMessage(msg: { from: number; data: unknown }): void {
   firePlugins("custom", msg);
 }
 
+/* ── MP9·A: social panel + moderation glue ──────────────────────────────────
+   The panel talks to whichever transport is live through this facade (host: the
+   authority; client: the relay/BroadcastChannel). Muting is client-local
+   (moderation.ts); report/kick/ban ride the `mod` frame. */
+
+function mpEmote(id: string): void {
+  if (active.host) active.host.sendEmote(id);
+  else if (active.client) active.client.sendEmote(id);
+}
+function mpSay(payload: { text?: string; preset?: number }): void {
+  if (active.host) active.host.sendChat(payload);
+  else if (active.client) active.client.sendChat(payload);
+}
+function mpMod(action: ModAction, target: number, reason?: string): void {
+  if (active.host) active.host.sendMod(action, target, reason);
+  else if (active.client) active.client.sendMod(action, target, reason);
+}
+
+/** The live roster of OTHER players (the panel's mute/report/kick list). */
+function socialApi(): SocialApi {
+  return {
+    emote: mpEmote,
+    say: mpSay,
+    mod: mpMod,
+    roster: () => {
+      const w = rosterWorld();
+      const out: Array<{ id: number; name: string }> = [];
+      for (const e of w.roster.players.values()) out.push({ id: e.id, name: e.name || "" });
+      return out;
+    },
+  };
+}
+
+/** Show the "Players & Chat" button for the current session. */
+function showSocial(): void {
+  mountSocialUI(socialApi());
+}
+
+/** A report reached me (I'm the room owner / operator) — surface it so I can
+ *  mute, kick, or ban the reported player from the panel. */
+function handleReport(r: { from: number; target: number; name?: string; reason?: string }): void {
+  const w = rosterWorld();
+  const fromE = w.roster.players.get(r.from);
+  const fromName = (fromE && fromE.name) || mpText("someone");
+  const targetE = w.roster.players.get(r.target);
+  const targetName = r.name || (targetE && targetE.name) || ("#" + r.target);
+  toast(mpText("reportInbox", { from: fromName, name: targetName }));
+}
+
+/** In-session (post-welcome) server error → friendly toast. The commonest is a
+ *  non-owner attempting a kick/ban (`not-allowed`). */
+function inSessionError(code: ErrorCode): void {
+  if (code === "not-allowed") toast(mpText("onlyOwner"));
+  else if (code === "rate-limited") toast(mpText("errRateLimited"));
+  // chat-disabled can't reach here (the panel hides free text unless enabled).
+}
+
 /** This tab's own display name, remembered at connect time so atlas.mp.self()
  *  can report it (the roster only stores OTHER players' names). */
 let myName = "";
@@ -408,11 +473,12 @@ function connectRelay(
     onLocal: writeLocalPlayer,
     onPresence: (p) => { if (p.kind === "join") toast(mpText("playerJoined", { name: p.name || mpText("someone") })); firePresencePlugins(p); },
     renderDirective,
-    onError: (c) => { if (!settled) { settled = true; onFail(friendlyError(c)); } },
+    onError: (c) => { if (!settled) { settled = true; onFail(friendlyError(c)); } else inSessionError(c); },
     onKick: (c) => { toast(friendlyKick(c)); leaveRelay(); },
     onParty: onPartyChange,
     onBattle: onBattleEvent,
     onCustom: onCustomMessage,
+    onReport: handleReport,
   });
   active.client = client;
   return client;
@@ -457,12 +523,13 @@ function connectWorld(name: string, url: string, onEntered: () => void, onFail: 
       onLocal: writeLocalPlayer,
       onPresence: (p) => { if (p.kind === "join") toast(mpText("playerJoined", { name: p.name || mpText("someone") })); firePresencePlugins(p); },
       renderDirective,
-      onError: (c) => { if (!settled) { settled = true; onFail(friendlyError(c)); } },
+      onError: (c) => { if (!settled) { settled = true; onFail(friendlyError(c)); } else inSessionError(c); },
       onKick: (c) => { toast(friendlyKick(c)); leaveRelay(); },
       onHandoff: (h) => reconnectWorld(h.url || lastWorldUrl, h.token),
       onParty: onPartyChange,
       onBattle: onBattleEvent,
       onCustom: onCustomMessage,
+      onReport: handleReport,
     });
   })();
 }
@@ -543,6 +610,8 @@ function importPassportFile(onDone?: () => void): void {
 
 /** Tear down the current relay session and return to solo (title). */
 export function leaveRelay(): void {
+  unmountSocialUI();
+  clearMuted();
   if (active.client) { active.client.close(); active.client = null; }
   resetSession();
 }
@@ -585,9 +654,9 @@ export function playTogether(): Promise<boolean> {
   const closeX = mkBtn(mpText("cancel"), false); closeX.style.marginTop = "10px"; closeX.style.background = "transparent"; closeX.style.color = "#9aa6bf";
 
   const setBusy = (busy: boolean): void => { createBtn.disabled = joinBtn.disabled = worldBtn.disabled = busy; };
-  const enter = (roomCode: string, isHost: boolean): void => { status.textContent = ""; back.remove(); onRoomEntered(roomCode, isHost); resolve(true); };
+  const enter = (roomCode: string, isHost: boolean): void => { status.textContent = ""; back.remove(); onRoomEntered(roomCode, isHost); showSocial(); resolve(true); };
   // A world has no code to share; the snapshot already placed the player.
-  const enterWorld = (): void => { status.textContent = ""; back.remove(); toast(mpText("enteredWorld")); resolve(true); };
+  const enterWorld = (): void => { status.textContent = ""; back.remove(); toast(mpText("enteredWorld")); showSocial(); resolve(true); };
 
   createBtn.onclick = (): void => {
     setBusy(true); status.textContent = mpText("creatingRoom");

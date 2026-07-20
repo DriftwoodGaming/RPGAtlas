@@ -20,9 +20,11 @@ import {
   PROTOCOL_VERSION,
   type ClientMessage,
   type JsonValue,
+  type ModAction,
   type ServerMessage,
   type ServerPresence,
 } from "../../shared/net/protocol.js";
+import { resolveSay } from "../../shared/net/chat-filter.js";
 import type { Transport } from "../../shared/net/transport.js";
 import type { World } from "../../shared/sim/world.js";
 import { deliverReply } from "../../shared/sim/directives.js";
@@ -59,6 +61,8 @@ export interface RoomHostOptions {
   /** MP7·C: a client sent a plugin custom message (atlas.mp.sendCustom). The
    *  host's co-op layer dispatches it to the host's own plugins. */
   onCustom?: (msg: { from: number; data: JsonValue }) => void;
+  /** MP9·A: a peer reported another player (the host is the room owner). */
+  onReport?: (r: { from: number; target: number; name?: string; reason?: string }) => void;
 }
 
 export class RoomHost {
@@ -68,6 +72,9 @@ export class RoomHost {
   private readonly opts: RoomHostOptions;
   private readonly server: BroadcastServer;
   private readonly clients = new Map<number, ClientLink>();
+  /** Display names the host (owner) banned (MP9·A). Local co-op is anonymous
+   *  like a friend room, so the ban is name-based. */
+  private readonly bannedNames = new Set<string>();
   private nextId = 1;
   private readonly loopbackSend: World["directives"]["send"];
 
@@ -105,8 +112,14 @@ export class RoomHost {
       const m = msg as ClientMessage;
       if (m.t === "hello") {
         if (pid >= 0) return; // one hello per link
+        const helloName = String(m.name || "").slice(0, 24);
+        if (this.bannedNames.has(helloName.trim().toLowerCase())) {
+          transport.send({ t: "error", code: "not-allowed", fatal: true });
+          transport.close();
+          return;
+        }
         pid = this.nextId++;
-        const name = String(m.name || "Player " + pid).slice(0, 24) || "Player " + pid;
+        const name = helloName || "Player " + pid;
         addPlayer(this.world, pid, name, { charset: this.opts.localCharset });
         this.clients.set(pid, { pid, transport, name });
         transport.send({
@@ -145,13 +158,26 @@ export class RoomHost {
         this.broadcast(pres);
         this.opts.onPresence?.(pres);
       } else if (m.t === "chat") {
+        // Same D4 gate as the relay/world (shared chat policy): presets always
+        // pass; free text only under chatMode:"text", then censored.
+        const r = resolveSay(this.world.proj, { text: m.text, preset: m.preset });
+        if (!r.ok) { transport.send({ t: "error", code: r.error }); return; }
         const e = getPlayer(this.world, pid);
-        if (e) e.say = { text: m.text, preset: m.preset, t: this.world.tick };
+        if (e) e.say = { text: r.say.text, preset: r.say.preset, t: this.world.tick };
         const pres: ServerPresence = {
-          t: "presence", tick: this.world.tick, kind: "say", playerId: pid, text: m.text, preset: m.preset,
+          t: "presence", tick: this.world.tick, kind: "say", playerId: pid, text: r.say.text, preset: r.say.preset,
         };
         this.broadcast(pres);
         this.opts.onPresence?.(pres);
+      } else if (m.t === "mod") {
+        if (m.action === "report") {
+          if (m.target === pid) return;
+          const target = this.clients.get(m.target);
+          this.opts.onReport?.({ from: pid, target: m.target, name: target?.name, reason: m.reason });
+        } else {
+          // A peer is never the owner (the host is) → kick/ban refused.
+          transport.send({ t: "error", code: "not-allowed" });
+        }
       } else if (m.t === "custom") {
         // MP7·C: relay the plugin payload to every OTHER client, and hand it to
         // the host's own plugins. The engine never interprets `data`.
@@ -166,6 +192,44 @@ export class RoomHost {
    *  re-dispatched here. */
   sendCustom(data: JsonValue): void {
     this.broadcast({ t: "custom", from: 0, data });
+  }
+
+  /** MP9·A: the host (player 0) emotes — broadcast the bubble to every peer. */
+  sendEmote(emote: string): void {
+    this.broadcast({ t: "presence", tick: this.world.tick, kind: "emote", playerId: 0, emote });
+  }
+
+  /** MP9·A: the host (player 0) says a preset / free text — same D4 gate. */
+  sendChat(payload: { text?: string; preset?: number }): void {
+    const r = resolveSay(this.world.proj, payload);
+    if (!r.ok) return; // host is owner; nothing to send if chat is off
+    this.broadcast({ t: "presence", tick: this.world.tick, kind: "say", playerId: 0, text: r.say.text, preset: r.say.preset });
+  }
+
+  /** MP9·A: the host IS the room owner, so its moderation applies directly —
+   *  `report` surfaces in the host's own inbox; `kick`/`ban` remove the peer
+   *  (ban also name-blocks a rejoin). */
+  sendMod(action: ModAction, target: number, reason?: string): void {
+    if (action === "report") {
+      const c = this.clients.get(target);
+      this.opts.onReport?.({ from: 0, target, name: c?.name, reason });
+      return;
+    }
+    const c = this.clients.get(target);
+    if (!c) return;
+    if (action === "ban") this.bannedNames.add(c.name.trim().toLowerCase());
+    this.removeClient(target, action === "ban" ? "banned" : "kicked");
+  }
+
+  /** Kick/ban a peer: kick frame, close, drop the entity, announce the leave. */
+  private removeClient(pid: number, code: "kicked" | "banned"): void {
+    const c = this.clients.get(pid);
+    if (!c) return;
+    c.transport.send({ t: "kick", code });
+    c.transport.close();
+    this.clients.delete(pid);
+    removePlayer(this.world, pid);
+    this.broadcast({ t: "presence", tick: this.world.tick, kind: "leave", playerId: pid });
   }
 
   /** Send a frame to every connected client, optionally excluding one. */

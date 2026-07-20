@@ -19,10 +19,12 @@ import {
   type ErrorCode,
   type InputIntent,
   type JsonValue,
+  type ModAction,
   type ServerHandoff,
   type ServerKick,
   type ServerMessage,
   type ServerPresence,
+  type ServerReport,
 } from "../../shared/net/protocol.js";
 import type { Transport } from "../../shared/net/transport.js";
 import type { World } from "../../shared/sim/world.js";
@@ -75,6 +77,9 @@ export interface RelayClientOptions {
   onBattle?: (ev: BattleEvent) => void;
   /** MP7·C: a plugin custom message from another player (works on the relay). */
   onCustom?: (msg: { from: number; data: JsonValue }) => void;
+  /** MP9·A: a player report reached ME (I'm the room owner). The engine shows
+   *  the moderation inbox. */
+  onReport?: (r: { from: number; target: number; name?: string; reason?: string }) => void;
 }
 
 export class RelayClient {
@@ -184,6 +189,10 @@ export class RelayClient {
     } else if (m.t === "custom") {
       // MP7·C: a plugin custom message from another player → the game's plugins.
       this.opts.onCustom?.({ from: m.from, data: m.data });
+    } else if (m.t === "report") {
+      // MP9·A: a report addressed to me (I'm the room owner).
+      const r = m as ServerReport;
+      this.opts.onReport?.({ from: r.from, target: r.target, name: r.name, reason: r.reason });
     }
   }
 
@@ -200,6 +209,13 @@ export class RelayClient {
   /** Say a dev-authored preset phrase (index) or free text (dev opt-in, D4). */
   sendChat(payload: { text?: string; preset?: number }): void {
     this.transport.send({ t: "chat", ...payload });
+  }
+
+  /** MP9·A moderation: report a player, or (room owner) kick/ban them. The
+   *  server enforces owner-only for kick/ban; a non-owner attempt answers
+   *  `not-allowed` (the engine shows friendly copy). */
+  sendMod(action: ModAction, target: number, reason?: string): void {
+    this.transport.send({ t: "mod", action, target, ...(reason ? { reason } : {}) });
   }
 
   /** MP7·C: send a plugin custom message to the room (opaque payload). Works on

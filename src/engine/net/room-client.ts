@@ -17,10 +17,14 @@
 
 import {
   PROTOCOL_VERSION,
+  type ErrorCode,
   type InputIntent,
   type JsonValue,
+  type ModAction,
+  type ServerKick,
   type ServerMessage,
   type ServerPresence,
+  type ServerReport,
 } from "../../shared/net/protocol.js";
 import type { Transport } from "../../shared/net/transport.js";
 import type { World } from "../../shared/sim/world.js";
@@ -61,6 +65,13 @@ export interface RoomClientOptions {
   onBattle?: (ev: BattleEvent) => void;
   /** MP7·C: a plugin custom message from another player in the room. */
   onCustom?: (msg: { from: number; data: JsonValue }) => void;
+  /** MP9·A: a player report reached ME (I'm the room owner). */
+  onReport?: (r: { from: number; target: number; name?: string; reason?: string }) => void;
+  /** MP9·A: an in-session error (e.g. not-allowed / chat-disabled) — parity
+   *  with the relay client so the local co-op path can surface friendly copy. */
+  onError?: (code: ErrorCode) => void;
+  /** MP9·A: the host removed me (kicked / banned). */
+  onKick?: (code: ServerKick["code"]) => void;
 }
 
 export class RoomClient {
@@ -124,6 +135,13 @@ export class RoomClient {
     } else if (m.t === "custom") {
       // MP7·C: a plugin custom message from another player → the game's plugins.
       this.opts.onCustom?.({ from: m.from, data: m.data });
+    } else if (m.t === "report") {
+      const r = m as ServerReport;
+      this.opts.onReport?.({ from: r.from, target: r.target, name: r.name, reason: r.reason });
+    } else if (m.t === "error") {
+      this.opts.onError?.(m.code);
+    } else if (m.t === "kick") {
+      this.opts.onKick?.(m.code);
     }
   }
 
@@ -145,6 +163,12 @@ export class RoomClient {
   /** MP7·C: send a plugin custom message to the room (opaque payload). */
   sendCustom(data: JsonValue): void {
     this.transport.send({ t: "custom", data });
+  }
+
+  /** MP9·A moderation: report a player, or (owner) kick/ban them. The host
+   *  enforces owner-only for kick/ban (a peer gets `not-allowed`). */
+  sendMod(action: ModAction, target: number, reason?: string): void {
+    this.transport.send({ t: "mod", action, target, ...(reason ? { reason } : {}) });
   }
 
   close(): void {

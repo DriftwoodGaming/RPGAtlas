@@ -144,3 +144,57 @@ in the WorldSnapshot with `--data`.
 beacon-moderation 8 · net-protocol +4 · beacon-world +5) · net `test:net`
 **11/11** · both server bundles build + `beacon.mjs --help` evaluates headless.
 No golden touched (server-only + protocol); no `js/` `?v=` touched.
+
+### A3 — Client: mute, social/chat panel, moderation UI, i18n ✅ landed 2026-07-20
+
+The player-facing half: the always-on social layer + the moderation tools,
+mounted only while a session is live (solo byte-identical).
+
+**Chat policy shared (refactor):** `chatModeOf` + `resolveSay` MOVED from
+`server/src/core/chat.ts` to the shared `src/shared/net/chat-filter.ts`, so the
+local co-op HOST (RoomHost) enforces the exact same D4 gate as the relay/world
+without importing `server/`. `server/src/core/chat.ts` re-exports them + keeps
+the server-only `SocialBucket`.
+
+**Client-local mute — `src/engine/net/moderation.ts` (NEW):** a `Set<pid>` with
+`isMuted`/`toggleMute`/`setMuted`/`clearMuted`. Muting is instant and never
+crosses the wire (D6) — it only decides whether a player's bubbles draw on THIS
+device. `render-glue.ts` `drawRemotePresence` now skips a muted player's
+emote/say bubble and resolves a **preset** say to its authored phrase
+(`sayText`) — both changes live INSIDE the remote-player loop, which never runs
+in solo (`remotePlayers` is empty), so the frozen goldens are byte-identical.
+
+**The social panel — `src/engine/net/social-ui.ts` (NEW):** a floating
+"💬 Players & Chat" button (mounted on room/world entry, removed on leave) opens
+an inline-styled panel: an emote palette (always on), the game's authored quick
+phrases (always on), a free-text input (ONLY when `chatMode:"text"`, else the
+plain-language `chatOffNote`), and a player list with instant MUTE, plus REPORT
+(any player) and KICK / BAN. It talks to whichever transport is live through the
+`SocialApi` facade `co-op.ts` supplies (host → the authority; client → the
+relay/BroadcastChannel). No editor.css / no cache-bust (inline styles).
+
+**Transports:** `sendMod(action,target,reason?)` + `onReport` added to
+`RelayClient` and `RoomClient`; `RoomHost` gained `sendEmote`/`sendChat`
+(censored via the shared `resolveSay`)/`sendMod` (the host IS the owner, so it
+moderates directly) and now censors peer chat + refuses a peer's kick/ban
+(`not-allowed`) + name-bans a rejoin. `RoomClient` also gained `onError`/`onKick`
+(parity with the relay so a locally-kicked player gets feedback). `active.ts`
+`ClientLike` gained `sendMod`. `co-op.ts` wires `onReport` (owner inbox toast),
+in-session `onError` (non-owner kick → `onlyOwner` toast), and mounts/unmounts
+the panel (+ `clearMuted` on leave).
+
+**i18n:** 15 new player strings (openSocial, emotesLabel, phrasesLabel,
+typeMessage, sendMsg, muteBtn, unmuteBtn, reportBtn, kickBtn, banBtn,
+reportedToast, reportInbox, onlyOwner, noOthers, chatOffNote) added to EN + all
+10 packs → the mp-i18n parity set is now **58 keys/pack** (parity test still 34
+green).
+
+**Proof:** `tests-unit/moderation.test.ts` (3, mute module) ·
+`tests-unit/coop-moderation.test.ts` (5, BroadcastChannel: chatMode:text masks a
+peer's profanity, chat-off rejects, peer report → host inbox, peer kick →
+not-allowed while the host owner kicks, banned name can't rejoin).
+
+**Gate slice (A3):** root tsc 0 · server tsc Node/CF 0 · eslint 0 · fast
+`test:unit` **1290** (92 files; +8) · i18n parity 34 (58 keys/pack) · Playwright
+goldens byte-identical (render-glue additions are remote-loop-only, never run in
+solo — full suite re-run below). No `js/` `?v=` touched.

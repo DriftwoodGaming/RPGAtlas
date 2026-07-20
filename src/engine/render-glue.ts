@@ -18,6 +18,7 @@ import { ctx } from "./state/engine-context.js";
 import { G } from "./state/game-state.js";
 import { defaultWorld } from "./state/default-world.js";
 import { playersOnMap } from "../shared/sim/players.js";
+import { isMuted } from "./net/moderation.js";
 import { Plugins } from "./plugin-runtime.js";
 import {
   drawMapCombatOverlay,
@@ -276,10 +277,13 @@ function drawRemotePresence(
   for (const rp of remotes) {
     const cx = (ipc(rp.prx, rp.rx) + 0.5) * TILE;
     const headY = ipc(rp.pry, rp.ry) * TILE - 6; // just above the sprite's head
-    // Social bubble (emote / free-text say) — the most recent, if still fresh.
-    const emote = rp.emote && now - rp.emote.t < PRESENCE_BUBBLE_TICKS ? rp.emote.id : null;
-    const say = rp.say && now - rp.say.t < PRESENCE_BUBBLE_TICKS ? rp.say.text : null;
-    const bubble = say || emote; // free text (say) wins over an emote token
+    // Social bubble (emote / say). MP9·A: a muted player's chatter is not drawn
+    // on THIS device (mute is instant + client-local, D4); a preset-say resolves
+    // to its authored phrase. A fresh bubble wins; free text over an emote token.
+    const muted = isMuted(rp.id);
+    const emote = !muted && rp.emote && now - rp.emote.t < PRESENCE_BUBBLE_TICKS ? rp.emote.id : null;
+    const say = !muted && rp.say && now - rp.say.t < PRESENCE_BUBBLE_TICKS ? sayText(rp.say) : null;
+    const bubble = say || emote; // free text / preset (say) wins over an emote token
     if (bubble) drawPresenceBubble(g, cx, headY - 16, String(bubble));
     if (rp.name) {
       g.font = "700 11px " + ((ctx.proj && ctx.proj.system.fontMenu) || "sans-serif");
@@ -292,6 +296,20 @@ function drawRemotePresence(
   }
   g.restore();
   g.globalAlpha = 1;
+}
+
+/** Resolve a `say` overlay to display text: free text as-is, or a preset index
+ *  to its authored phrase (MP9·A — presets now render their bubble). Returns
+ *  null when there's nothing to show. */
+function sayText(say: { text?: string; preset?: number }): string | null {
+  if (say.text != null && say.text !== "") return say.text;
+  if (say.preset != null) {
+    const mp = ctx.proj && ctx.proj.system && (ctx.proj.system as any).multiplayer;
+    const presets = mp && Array.isArray(mp.presets) ? mp.presets : null;
+    const phrase = presets && presets[say.preset];
+    return typeof phrase === "string" && phrase ? phrase : null;
+  }
+  return null;
 }
 
 /** A rounded speech bubble centered at (cx) with its tail bottom at (baseY). */
