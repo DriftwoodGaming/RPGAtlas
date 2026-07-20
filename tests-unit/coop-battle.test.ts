@@ -219,4 +219,16 @@ describe("withdrawal (D-6-4) + outbox (A-9)", () => {
     expect(drained[2].ev).toEqual({ ev: "log", text: "Slime attacks!" });
     expect(drainBattleOutbox(w)).toEqual([]);
   });
+
+  it("MP6·B: an itemUsed event is addressed only to the item's owner (D-6-7)", async () => {
+    const { w } = await partiedWorld(2);
+    // the authority spent P1's item resolving P1's battler command — only P1
+    // hears about it (P1 decrements its own bag), never P2 and never the host.
+    queueBattleEvent(w, [1], { ev: "itemUsed", id: 42 });
+    const drained = drainBattleOutbox(w);
+    expect(drained).toEqual([{ pid: 1, ev: { ev: "itemUsed", id: 42 } }]);
+    // the local player (pid 0) is never queued even if addressed
+    queueBattleEvent(w, [0], { ev: "itemUsed", id: 7 });
+    expect(drainBattleOutbox(w)).toEqual([]);
+  });
 });

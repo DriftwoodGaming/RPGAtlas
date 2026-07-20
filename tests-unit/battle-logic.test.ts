@@ -375,3 +375,103 @@ describe("turn-end troop pages (M3·C, MZ turnEnding)", () => {
     expect(troopPageShouldFire(rt, view(true) as any)).toBe(false); // once per battle
   });
 });
+
+// ============================================================================
+// Project Beacon MP6·B — breadth over a MERGED (multi-participant) battler
+// pool. A shared battle routes luck, action-times, target-rate weighting, and
+// per-participant drops through the exact same pure functions solo does — just
+// over a longer list. These prove the math holds at the co-op pool size (up to
+// 8 battlers, MAX_BATTLE_BATTLERS) and that each participant's draw stream is
+// independent (the draw-conservation order, A-8). No engine/DOM imports.
+// ============================================================================
+
+import { lukEffectRate as luk } from "../src/engine/scenes/battle-logic";
+
+describe("MP6·B merged-pool targeting (weightedTargetIndex over 8 battlers)", () => {
+  // Four participants × two battlers = the max co-op field. Rows alternate so
+  // the 3:1 front/back split is exercised across the whole merged list.
+  const pool = Array.from({ length: 8 }, (_, i) => ({
+    n: i,
+    row: i % 2 ? "back" : "front",
+  }));
+  it("covers every index and keeps front 3× more likely than back", () => {
+    const hit = new Array(8).fill(0);
+    for (let k = 0; k < 8000; k++) hit[weightedTargetIndex(pool, (k + 0.5) / 8000)]++;
+    // every one of the eight merged battlers is reachable
+    expect(hit.every((h) => h > 0)).toBe(true);
+    // a front battler (idx 0) draws ~3× the fire of the neighbouring back one
+    expect(hit[0]).toBeGreaterThan(hit[1] * 2);
+  });
+  it("a per-battler tgr of 0 makes one merged battler untargetable", () => {
+    // silence battler 5 (a back-row remote); it must never be chosen
+    const rate = (b: any) => (b.n === 5 ? 0 : 1);
+    for (let k = 0; k < 500; k++)
+      expect(weightedTargetIndex(pool, k / 500, rate)).not.toBe(5);
+    // a huge tgr on one battler pulls essentially all fire onto it
+    const magnet = (b: any) => (b.n === 6 ? 1000 : 1);
+    expect(weightedTargetIndex(pool, 0.5, magnet)).toBe(6);
+  });
+  it("an all-silenced pool still resolves (never returns -1 for a non-empty list)", () => {
+    const zero = () => 0;
+    const idx = weightedTargetIndex(pool, 0.5, zero);
+    expect(idx).toBe(pool.length - 1); // total weight 0 → the last battler
+  });
+});
+
+describe("MP6·B luck across participants (lukEffectRate)", () => {
+  it("both sides zero (native projects) ⇒ exactly 1 — no cross-participant shift", () => {
+    expect(luk(0, 0)).toBe(1);
+  });
+  it("a higher-luck attacker raises, a higher-luck defender lowers, never below 0", () => {
+    // +50 luck attacker vs 0 → +5%; a remote battler's luck feeds the same gap
+    expect(luk(50, 0)).toBeCloseTo(1.05);
+    expect(luk(0, 50)).toBeCloseTo(0.95);
+    expect(luk(0, 5000)).toBe(0); // clamped, never negative
+    expect(luk(100, 100)).toBe(1); // equal luck cancels
+  });
+});
+
+describe("MP6·B action-times over a full field (extraActionRolls)", () => {
+  it("rolls one draw per row across all eight battlers' pooled rows", () => {
+    let draws = 0;
+    // eight rows (one Action-Times trait per merged battler); alternating
+    // pass/fail against a 50% chance
+    const seq = [0.1, 0.9, 0.2, 0.8, 0.3, 0.7, 0.4, 0.99];
+    const rng = () => seq[draws++];
+    expect(extraActionRolls(new Array(8).fill(50), rng)).toBe(4);
+    expect(draws).toBe(8); // exactly one draw per row, no more
+  });
+});
+
+describe("MP6·B per-participant drops (rollDrops sequences, A-8 order)", () => {
+  // Two defeated enemies, each with two drop rows. In co-op the authority draws
+  // its own loot first, then EACH remote participant re-draws the same rows off
+  // the SAME world stream — one rollDrops per defeated enemy per participant.
+  const enemyA = [{ kind: "item", id: 1, denominator: 2 }];
+  const enemyB = [{ kind: "weapon", id: 3, denominator: 2 }];
+  it("each participant consumes its own draws in join order off one stream", () => {
+    // a single shared cursor stands in for the world RNG; three participants
+    // (host + two remotes) each roll enemyA then enemyB. 12 rows total.
+    const seq = [
+      0.4, 0.4, // host:   A kept (0.8<1), B kept
+      0.6, 0.4, // remote1: A dropped (1.2≥1), B kept
+      0.4, 0.6, // remote2: A kept, B dropped
+    ];
+    let cur = 0;
+    const rng = () => seq[cur++];
+    const draw = () => [...rollDrops(enemyA, 1, rng), ...rollDrops(enemyB, 1, rng)];
+    expect(draw()).toEqual([{ kind: "item", id: 1 }, { kind: "weapon", id: 3 }]); // host
+    expect(draw()).toEqual([{ kind: "weapon", id: 3 }]); // remote1: only B
+    expect(draw()).toEqual([{ kind: "item", id: 1 }]); // remote2: only A
+    expect(cur).toBe(6); // every participant drew exactly its two rows
+  });
+  it("a downed participant draws nothing (no rows rolled ⇒ no draws consumed)", () => {
+    // the scene skips coopVictoryRewards for a downed participant — modelled
+    // here as simply not calling rollDrops: the stream is untouched
+    let cur = 0;
+    const rng = () => { cur++; return 0.4; };
+    // host draws; the downed remote is skipped entirely
+    rollDrops(enemyA, 1, rng);
+    expect(cur).toBe(1); // only the host's single row consumed a draw
+  });
+});

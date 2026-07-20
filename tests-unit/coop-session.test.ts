@@ -161,4 +161,21 @@ describe("MP6·A co-op session over BroadcastChannel", () => {
     await waitFor(() => a.rec.battle.length >= 1);
     expect(b.rec.battle).toEqual([]);
   });
+
+  it("MP6·B: an itemUsed event rides its owner's delta so the client decrements its own bag (D-6-7)", async () => {
+    const room = "COOPD" + Date.now().toString(36);
+    const { world: hostWorld, host } = makeHost(room);
+    const a = makeClient(room, "Ana", acceptInvite);
+    await waitFor(() => a.rec.welcomeId === 1);
+    const b = makeClient(room, "Bo", acceptInvite);
+    await waitFor(() => b.rec.welcomeId === 2);
+
+    // the authority consumed one of Ana's items resolving her battler's command
+    queueBattleEvent(hostWorld, [1], { ev: "itemUsed", id: 9 });
+    host.afterTick();
+    await waitFor(() => a.rec.battle.length > 0);
+    expect(a.rec.battle).toEqual([{ ev: "itemUsed", id: 9 }]);
+    host.afterTick();
+    expect(b.rec.battle).toEqual([]); // Bo's inventory is never touched
+  });
 });

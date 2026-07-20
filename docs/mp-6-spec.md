@@ -1,6 +1,6 @@
 # Phase MP6 Spec — Co-op Battles ("Project Beacon")
 
-**Status:** IN PROGRESS — stage A (Fable) building.
+**Status:** stage A (Fable) landed · stage B (Opus) landed 2026-07-19 — awaiting Fable gate.
 **Authored:** 2026-07-19 by Claude Fable 5, from the MP6 section of
 `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-5-spec.md` + the MP0·C sim-boundary
 contract (`docs/mp-0-spec.md` §C).
@@ -303,4 +303,165 @@ Every new roll is behind `coop` (battle scene) or a party/roster gate (sim):
   refine; natively the rate is 1 everywhere, so this is exact for Atlas-native
   projects.
 
-*(Stage B log lands below when Opus finishes.)*
+---
+
+## Stage B — Breadth: remote battle UI, items across the wire, ally HUD, tests, e2e (Opus, landed 2026-07-19)
+
+Stage A left three arms stubbed for stage B: the remote `battleCmd` client
+auto-guarded, `item` commands resolved to guard (D-6-7), and the host had no
+view of its allies. Stage B fills all three and proves the whole loop with a
+live two-context battle. Nothing here adds a wire kind — the one new
+`BattleEvent` (`itemUsed`) rides the existing opaque `changes.battle` channel.
+
+### What landed
+
+**Remote battle command UI — `src/engine/scenes/directive-renderer.ts`:**
+
+- `renderBattleCmd` replaces the all-guard stub: one `BattleActionCmd` per
+  battler in the round view's `yours`, index-aligned, built with the engine's
+  OWN `showList` list/target windows (the same UI the solo battle uses, so it
+  is instantly kid-familiar). A `!canAct` battler contributes a guard
+  placeholder to keep the reply aligned with `yours` (the authority re-checks
+  and pushes its own "stunned"). Attack → enemy target (a lone enemy needs no
+  pick, mirroring solo `pickTarget`); Skills and Items read scope / revive /
+  effect from the client's OWN copy of the SHARED project (no wire round-trip,
+  D-6-1); ally targeting picks among the client's own battlers by their merged
+  `idx`. The top command menu is `cancellable:false` (submenus loop back on
+  cancel) so the client always yields a command — a shared fight can't hang.
+
+**Items across the wire — D-6-7 resolved (`battle.ts`, `menus.ts`,
+`coop-battle.ts`):**
+
+- `resolveCoopCmd`'s `item` arm resolves the id against the SHARED project
+  (`RA.byId(proj.items,…)`), picks the ally target from the merged pool, and
+  returns the same `{type:"item", item, target}` object the solo UI builds
+  (invalid target / unknown id ⇒ guard, D-6-B-1).
+- The battle item execution site gates BOTH the host-inventory precheck and the
+  decrement on `!actor.coopPid`: a remote-owned battler spends its OWN client
+  inventory, so the host's bag is never touched — `useItemOn` gained a
+  `deductInv` param (default **true** = every classic caller byte-identical),
+  passed `false` only for a remote battler. On a successful use the authority
+  queues `{ev:"itemUsed", id}` addressed to the owner.
+- `BattleEvent` gains `{ev:"itemUsed", id}` (additive JsonValue — not a wire
+  change, D-6-3); the owner's client decrements its own `G.inv` on receipt.
+
+**Remote battle overlay — `src/engine/co-op.ts`:**
+
+- `onBattleEvent` grows from toasts-only into a live overlay: `start` opens an
+  inline-styled log panel (the remote participant's window on the fight running
+  on the host), `round`/`log` stream into it, `itemUsed` decrements the owner's
+  bag, `end` closes it + applies the end frame + toasts the result. The
+  battleCmd command windows stack above it. All inline-styled — no `editor.css`
+  touch, no cache-bust.
+
+**Ally HUD (host side) — `src/engine/scenes/battle.ts` `refreshParty`:**
+
+- A `coop`-gated `coopAllyRowsHtml()` strip appends every remote battler after
+  the host's own `G.party` rows: name + owner, HP/MP/TP bars via the existing
+  `bar()` helper, state tags, and dead/withdrawn (`coopGone`) styling. EVERY
+  DOM line is behind `coop`, so the append never runs in solo and the party
+  markup stays byte-identical (the goldens' proof).
+
+**Breadth tests (+10 vitest → 1145):**
+
+- `tests-unit/battle-logic.test.ts` (+8): `weightedTargetIndex` over an
+  8-battler merged pool (full coverage + the 3:1 front/back split + a
+  per-battler `tgr` of 0/magnet + the all-silenced fallback), `lukEffectRate`
+  across participants, `extraActionRolls` over 8 pooled Action-Times rows, and
+  per-participant `rollDrops` sequences off ONE shared stream in join order
+  (A-8) + a downed participant drawing nothing.
+- `tests-unit/coop-battle.test.ts` (+1): an `itemUsed` event is addressed only
+  to the item's owner; the local player is never queued.
+- `tests-unit/coop-session.test.ts` (+1): `itemUsed` rides its owner's delta
+  over the REAL BroadcastChannel bus; the other client is untouched.
+
+**Two-context battle e2e — `tests-e2e/mp-battle.spec.mjs` (NEW):**
+
+- Two pages of one context (shared bus): host creates a room, client joins,
+  host `partyInvite`s → the client's `choices` modal → "Join!" → both party
+  tables carry `[0,1]`; the host triggers the shared battle; the client's
+  `battleJoin` auto-seats its party, its REAL `battleCmd` UI appears and is
+  driven to victory alongside the host's classic UI; asserts the client saw the
+  mirrored log lines, its end frame applied to its OWN `G` (gold += the win's
+  payout), both battle overlays torn down, and zero page/console errors on
+  either tab. Seeded RNG; **no golden captured**; passes **3× consecutively
+  (serial, `--workers=1`)**.
+
+### Design decisions (stage B)
+
+- **B-1 — The client reads the shared project for scope/effect, not the wire.**
+  The `battleCmd` view carries only per-round state (hp/mp/tp/states/usable
+  flags); skill scope, revive-ness, and item effects come from the client's own
+  copy of the project (D-6-1). The view stays compact and the protocol
+  unchanged.
+- **B-2 — Ally targeting is your-own-party.** `BattleActionCmd.ally` is a merged
+  battler idx, and only the client's OWN battlers carry an idx in the view
+  (`yours[].idx`); other participants' battlers appear name/hp-only (`allies`).
+  So heals/revives/ally-items target your own heroes — kid-simple and
+  idx-addressable without widening the view.
+- **B-3 — The top command menu is non-cancellable.** Matching solo
+  `actorCommand`: the client always returns a command per actable battler
+  (submenus loop back on cancel), so a shared fight can never hang on an
+  indecisive client; non-actable battlers return a guard placeholder to keep
+  the reply index-aligned with `yours`.
+- **B-4 — Items decrement client-side only.** The authority applies the item's
+  effect from the shared project but never touches the host's inventory for a
+  remote battler; the `itemUsed` event lets the owner decrement its own bag.
+  The D-6-1 per-player-inventory line, made real for battle (same-machine trust
+  model of MP6-local; MP8 moves it server-side).
+
+### Deviations / discoveries (stage B)
+
+- **D-6-B-1 (impossible item ⇒ guard, never a free turn).** A remote item
+  command that resolves to an impossible target (revive on a living ally, heal
+  on a fallen one, unknown id) becomes guard in `resolveCoopCmd` — the C3.2c
+  posture, mirroring the solo `useItemOn` buzzer. No draw, no consumption, no
+  `itemUsed`.
+- **D-6-B-2 (the battle e2e triggers via the plugin battle entry, not
+  arm+step).** The spec suggested arming a forced encounter and walking a step;
+  the e2e instead starts the shared battle through the plugin API's battle entry
+  (`window.Atlas.atlas.startBattle`), which routes through the IDENTICAL
+  `Battle.run → openCoopBattle` co-op path. This keeps the two-context proof
+  deterministic and free of tile-walk flake under the real (unfrozen) clock this
+  BroadcastChannel transport requires; arm+step's only co-op-specific addition —
+  the map-callsite game-over suppression (`!Battle.lastShared`) — is a
+  defeat-path concern a victory e2e never touches. The weak encounter (troop
+  900) is an additive `transformProject` fixture: in-memory only, never written
+  to disk, never a golden.
+- **D-6-B-3 (no cross-participant heal targeting).** A consequence of B-2: the
+  view gives no idx for `allies`, so a client can't cross-heal another
+  participant's hero. Cross-party support targeting rides a future view widening
+  (post-2.0 if demanded); intra-party support is complete.
+
+### Draw-conservation audit trail (stage B)
+
+Every stage-B addition is presence-gated or default-preserving:
+
+1. `resolveCoopCmd`'s item arm + the `itemUsed` queue run only inside
+   `collectCoopRound` / behind `a.coopPid && coop` — unreachable when `coop` is
+   null (a solo world has no remote-owned battlers).
+2. The item execution site's new `remote` branch is `!!a.coopPid`: false for
+   every solo/local actor, so the precheck, `useItemOn(…, true)`, and the
+   (absent) `itemUsed` queue are byte-identical to pre-MP6.
+3. `useItemOn`'s `deductInv` defaults true — every existing caller (field menu +
+   local battle) is unchanged; the RNG draws inside it are untouched.
+4. The ally-HUD append and the client overlay never draw RNG and never run in
+   solo (coop null / client-only DOM).
+5. Proof: node determinism hash **46633057** green · Playwright **127/127** with
+   `git diff -- "*.png"` EMPTY (zero golden bytes) · perf 245.36/300.
+
+### Stage B gate snapshot (all green, 2026-07-19)
+
+| Gate | Result |
+|---|---|
+| vitest (test:unit) | **1145** (77 files; +10 over stage A's 1135) — two clean passes |
+| vitest (test:net) | **7** (unchanged — no real-socket surface touched) |
+| node --test | **46** (determinism hash 46633057 green) |
+| Playwright | **127/127** (126 prior + `mp-battle`; goldens byte-identical, `git diff -- "*.png"` empty; perf 245.36/300 vs stage A 250.54 → within ±10%); `mp-battle` **3× consecutive serial** green |
+| root tsc / server tsc | **0 / 0** (server Node + CF both 0) |
+| eslint | **0** — sim wall holds (the coop-battle.ts union extension imports only shared modules) |
+| versions / FV / cache-busts | 1.2.0 · 2 · none (new player strings inline English per D-C5-2 → MP7; overlay + HUD inline-styled, no `?v=` file touched) |
+
+*(MP6 build complete. The MP6 GATE block — Fable — is in
+`docs/MULTIPLAYER_ROADMAP.md` §MP6; the gate records the verdict and tags
+`beacon-6`.)*

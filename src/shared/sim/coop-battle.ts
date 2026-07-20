@@ -62,12 +62,19 @@ export interface SharedBattle {
 }
 
 /** One battle happening, as remote participants' clients hear about it.
- *  Stage A ships start/log/end; stage B adds granular HUD events (additive
- *  JsonValue content — extending this union is not a wire change). */
+ *  Stage A shipped start/log/end/round; stage B adds `itemUsed` — the granular
+ *  event that lets the owner decrement its OWN inventory when the authority
+ *  spends a remote-owned battler's item (D-6-7). All additive JsonValue content
+ *  on the opaque `changes.battle` channel — extending this union is not a wire
+ *  change (D-6-3). */
 export type BattleEvent =
   | { ev: "start"; troopId: number; names: string[] }
   | { ev: "round"; n: number }
   | { ev: "log"; text: string }
+  /** The authority consumed one of THIS participant's items resolving its
+   *  battle command; the client decrements its own `G.inv` on receipt (the
+   *  host never held the item — D-6-7). */
+  | { ev: "itemUsed"; id: number }
   | {
       ev: "end";
       result: "win" | "lose" | "escape";

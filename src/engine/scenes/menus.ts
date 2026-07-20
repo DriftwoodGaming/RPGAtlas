@@ -626,7 +626,12 @@ export interface ItemUseResult {
  *  M3·B: items can also add/remove states, buff/debuff stats, grow stats
  *  permanently, teach skills, and grant TP — all optional fields, so classic
  *  items behave byte-identically (and roll nothing extra). */
-export function useItemOn(it: any, target: any): false | ItemUseResult {
+// `deductInv` gates the inventory decrement (default true = every classic
+// caller unchanged). Project Beacon MP6·B passes false when the authority
+// applies a REMOTE participant's item to a co-op battler: the host never held
+// that item, so its bag must not shrink — the owner's client decrements its own
+// inventory on the itemUsed event (D-6-7).
+export function useItemOn(it: any, target: any, deductInv = true): false | ItemUseResult {
   const fallen = target.hp <= 0;
   // M3·A: %-of-max recovery (hpPct/mpPct) and an imported recovery formula
   // join the flat amounts. The formula evaluates with a = b = target (item
@@ -720,7 +725,7 @@ export function useItemOn(it: any, target: any): false | ItemUseResult {
   }
   if (it.gainTp) target.tp = clamp((Number(target.tp) || 0) + Number(it.gainTp), 0, 100);
   sysSe("heal");
-  addInv("item", it.id, -1);
+  if (deductInv) addInv("item", it.id, -1);
   return out;
 }
 

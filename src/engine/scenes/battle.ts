@@ -311,10 +311,47 @@ export const Battle: any = {
             "</div>",
         )
         .join("");
+      // MP6·B: the ally HUD — the HOST sees the remote participants' battlers
+      // (name + owner, HP/MP bars, dead/withdrawn styling) as an extra strip.
+      // EVERY line here is behind `coop`, so solo party markup is byte-identical
+      // (the append never runs when coop is null). All classes are new markers
+      // over the existing `.brow` styling; the distinctions are inline-styled
+      // (no editor.css touch, no cache-bust).
+      if (coop) partyArea.insertAdjacentHTML("beforeend", coopAllyRowsHtml());
       actorSprs.forEach((w: any, i: any) => {
         const a = G.party[i];
         if (a) w.classList.toggle("dead", a.hp <= 0);
       });
+    }
+    /** The host's view of every remote battler (co-op only; never called in
+     *  solo). `coopGone` = a disconnect-withdrawn owner's battlers (D-6-4). */
+    function coopAllyRowsHtml(): string {
+      if (!coop || !coop.remoteBattlers.length) return "";
+      const rows = coop.remoteBattlers
+        .map((b: any) => {
+          const dim = b.coopGone ? "opacity:.4;" : b.hp <= 0 ? "opacity:.55;" : "";
+          return (
+            '<div class="brow coopally' +
+            (b.hp <= 0 ? " dead" : "") +
+            (b.coopGone ? " gone" : "") +
+            '" style="' + dim + '"><b>' +
+            (rowOf(b) === "back" ? "▽ " : "") +
+            esc(b.name) +
+            "</b> " +
+            '<span style="opacity:.7;font-size:.85em">(' + esc(b.coopName || "friend") + ")</span> " +
+            "HP " + (b.hp | 0) + "/" + bStat(b, "mhp") + " " +
+            bar(b.hp, bStat(b, "mhp"), gaugeColors().hp) +
+            " MP " + (b.mp | 0) + "/" + bStat(b, "mmp") + " " +
+            bar(b.mp, bStat(b, "mmp"), gaugeColors().mp) +
+            (tpActive && proj.system.displayTp
+              ? " TP " + tpOf(b) + " " + bar(tpOf(b), MAX_TP, "#d9a941")
+              : "") +
+            stateTagsHtml(b) +
+            "</div>"
+          );
+        })
+        .join("");
+      return '<div class="coopally-sep" style="opacity:.6;font-size:.8em;margin:4px 0 2px">Your friends</div>' + rows;
     }
     function refreshEnemies() {
       enemies.forEach((en: any, i: any) => {
@@ -1201,7 +1238,24 @@ export const Battle: any = {
         }
         return { type: "skill", actor: a, skill: s };
       }
-      return guard; // `item` rides stage B (D-6-7)
+      // MP6·B (D-6-7): a remote participant's item. The id is resolved against
+      // the SHARED project (the authority's truth); the effect applies through
+      // the ordinary battle item path, but the host's bag is NOT decremented
+      // for a remote-owned battler (gated at the execution site on coopPid) —
+      // the owner's client spends its own inventory on the itemUsed event.
+      if (cmd.type === "item") {
+        const it = RA.byId(proj.items, cmd.id);
+        if (!it) return guard;
+        const pool = it.revive
+          ? party.filter((m: any) => m.hp <= 0 && !m.coopGone)
+          : livingP();
+        const want = cmd.ally != null ? party[cmd.ally] : a;
+        const t = want && pool.includes(want) ? want : it.revive ? pool[0] : a;
+        return t && (it.revive ? t.hp <= 0 : t.hp > 0)
+          ? { type: "item", actor: a, item: it, target: t }
+          : guard;
+      }
+      return guard;
     }
     // ---- troop battle events ----
     const pageRTs = makeTroopPageRTs(troop.pages || []);
@@ -1257,11 +1311,20 @@ export const Battle: any = {
               return;
             }
             if (c.type === "item") {
-              if (invCount("item", c.item.id) <= 0) return;
+              // MP6·B (D-6-7): a remote-owned battler (`coopPid`) spends its
+              // OWN client inventory. The host holds no such item, so skip the
+              // host-bag precheck and DON'T decrement it (useItemOn's deductInv
+              // = false); the owner's client decrements on the itemUsed event.
+              // A solo/local actor keeps the exact classic path (remote false,
+              // deductInv true, no event — no new draw, byte-identical).
+              const remote = !!a.coopPid;
+              if (!remote && invCount("item", c.item.id) <= 0) return;
               actorStep(a);
               const revived = c.item.revive && c.target.hp <= 0;
-              const used = useItemOn(c.item, c.target);
+              const used = useItemOn(c.item, c.target, !remote);
               if (!used) return;
+              if (remote && coop)
+                queueBattleEvent(defaultWorld, [a.coopPid], { ev: "itemUsed", id: c.item.id });
               burst(actorElement(c.target), revived ? "heal" : "item", {
                 count: revived ? 18 : 13,
               });

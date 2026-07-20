@@ -20,8 +20,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { ctx, fns } from "./state/engine-context.js";
-import { G, makeActor } from "./state/game-state.js";
-import { el } from "./util.js";
+import { G, makeActor, addInv } from "./state/game-state.js";
+import { el, esc } from "./util.js";
 import { defaultWorld } from "./state/default-world.js";
 import { applyBattleEnd } from "./scenes/battle-coop.js";
 import type { BattleEvent } from "../shared/sim/coop-battle.js";
@@ -90,17 +90,36 @@ function onPartyChange(change: PartyChange): void {
   }
 }
 
-/** MP6·A: shared-battle events addressed to me. Stage A applies the end
- *  frame (exp / loot / gold / battler write-back — the authority rolled every
- *  draw) and toasts the beats; the in-battle UI (battleCmd rendering, log
- *  HUD) is stage B. */
+/** MP6·B: shared-battle events addressed to me. `start` opens a simple battle
+ *  overlay (the remote participant's window on a fight running on the host);
+ *  `round`/`log` stream into it; `itemUsed` decrements MY OWN inventory (the
+ *  host spent one of my items — D-6-7); `end` applies the end frame (exp / loot
+ *  / gold / battler write-back — the authority rolled every draw), closes the
+ *  overlay and toasts the result. The battleCmd command UI itself renders
+ *  through directive-renderer, on top of this overlay. */
 function onBattleEvent(ev: BattleEvent): void {
   if (ev.ev === "start") {
+    battleOverlay.open(ev.names);
     toast("Battle! Fighting alongside " + ev.names.join(", ") + "!");
     return;
   }
-  if (ev.ev !== "end") return; // round/log feed the stage-B HUD
+  if (ev.ev === "round") {
+    battleOverlay.line("— Round " + ev.n + " —", true);
+    return;
+  }
+  if (ev.ev === "log") {
+    battleOverlay.line(ev.text);
+    return;
+  }
+  if (ev.ev === "itemUsed") {
+    // The authority consumed one of my items resolving my battler's command;
+    // decrement my own bag now (the host never held it).
+    addInv("item", ev.id, -1);
+    return;
+  }
+  if (ev.ev !== "end") return;
   const lines = applyBattleEnd(ev);
+  battleOverlay.close();
   toast(
     ev.result === "win"
       ? "Victory!"
@@ -110,6 +129,47 @@ function onBattleEvent(ev: BattleEvent): void {
   );
   if (lines.length) toast(lines.join("  ·  "));
 }
+
+/** The remote participant's battle overlay: a compact, inline-styled log panel
+ *  (no editor.css touch, no cache-bust). Opened on `start`, fed by `round`/
+ *  `log`, torn down on `end`. The battleCmd command windows stack above it. */
+const battleOverlay = {
+  box: null as HTMLElement | null,
+  logEl: null as HTMLElement | null,
+  open(names: string[]): void {
+    if (!ctx.uiLayer) return;
+    this.close();
+    const box = el("div", "mp-battle-overlay");
+    box.style.cssText =
+      "position:absolute;top:10px;left:50%;transform:translateX(-50%);width:min(88%,420px);" +
+      "background:rgba(20,24,34,0.92);color:#fff;border-radius:12px;padding:10px 14px;z-index:115;" +
+      "font-family:system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,0.45);pointer-events:none;";
+    const title = el("div");
+    title.textContent = "Battle — with " + names.join(", ");
+    title.style.cssText = "font-weight:700;font-size:14px;margin-bottom:6px;text-align:center;";
+    const logEl = el("div", "mp-battle-log");
+    logEl.style.cssText =
+      "font-size:12px;line-height:1.5;max-height:96px;overflow:hidden;opacity:.92;";
+    box.append(title, logEl);
+    ctx.uiLayer.appendChild(box);
+    this.box = box;
+    this.logEl = logEl;
+  },
+  line(text: string, strong = false): void {
+    if (!this.logEl) return;
+    const row = el("div");
+    row.innerHTML = strong ? "<b>" + esc(text) + "</b>" : esc(text);
+    if (strong) row.style.cssText = "margin-top:3px;color:#ffd27a;";
+    this.logEl.appendChild(row);
+    // keep the panel bounded — show the most recent few beats only
+    while (this.logEl.children.length > 6) this.logEl.removeChild(this.logEl.firstChild!);
+  },
+  close(): void {
+    if (this.box) this.box.remove();
+    this.box = null;
+    this.logEl = null;
+  },
+};
 
 /** Client reconstruction from the host's snapshot: build the same map + party
  *  the host has (both tabs share the project), then land on the map. The
