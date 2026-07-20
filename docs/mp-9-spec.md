@@ -4,8 +4,10 @@
 — `beacon-9` + `v2.0.0` NOT tagged.** All numeric/safety gates re-verified PASS;
 the fresh-eyes playthrough fails its co-op-battle leg (D5 unreachable by
 players). See §RELEASE GATE at the end of this file for the full verdict,
-findings F-1…F-5, and the fix fork. Prior: `beacon-8` tagged (MP8 LOAD GATE
-PASS 2026-07-20).
+findings F-1…F-5, and the fix fork. **Driftwood locked fork (a) 2026-07-20
+(roadmap decision D8) → phase MP9·E is active: work order in §MP9·E below,
+kickoff blocks in the roadmap §MP9·E. Tags withheld until the re-gate.**
+Prior: `beacon-8` tagged (MP8 LOAD GATE PASS 2026-07-20).
 
 **Authored:** 2026-07-20 by Claude Opus 4.8, from the MP9 section of
 `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-8-spec.md`.
@@ -486,3 +488,96 @@ Whichever fork: deploy the relay or soften "zero setup" (F-3), fix F-2/F-5,
 rebuild the desktop exe (still embeds the 1.2.0-era build — MP9·D's flag),
 and consider F-4's keepalive. Tags `beacon-9` + `v2.0.0` stay withheld until
 a re-gate passes the playthrough end-to-end.
+
+---
+
+## §MP9·E — work order (fork (a), decision D8; authored by Fable 2026-07-20)
+
+Driftwood locked fork (a): make D5 true online. Four stages; E-stage logs
+append below this section as they land. The guiding fact: the architecture
+already points here — `coop-battle.ts`'s header ("MP8's per-zone runtime
+becomes the server home"), the instanced sim core, the headless party broker,
+and the MP4 free-roam decision were all built FOR this finish.
+
+### Design decisions (locked for the phase; deviations logged per stage)
+
+- **D-9E-1 — Friend rooms become engine worlds, worker-per-room (Node target).**
+  A room is what the roadmap diagram always said: ONE world instance ticking
+  its occupied maps. The engine world already does multi-map ticking in a
+  single instance (MP4 free-roam host); a 2–16 player room needs no per-map
+  zone sharding. So: `beacon.mjs --project X` (room mode) spawns one worker
+  per room hosting one engine world (reuse the MP8 zone-worker + headless-env
+  machinery — `headless-env.ts` must still be imported FIRST, and each worker
+  ADOPTS its `defaultWorld`, the one-engine-world-per-process constraint that
+  makes worker-per-room the shape). Room semantics preserved EXACTLY: room-code
+  capability gate · anonymous hello, never a challenge (D3) · empty-room TTL +
+  resume grace · owner = first player + promotion · name-ban + `not-allowed` ·
+  the shared `resolveSay` chat gate · social bucket. Engine rooms are the
+  DEFAULT for self-hosted Node (the out-of-the-box promise); `--max-rooms N`
+  caps a shared relay's worker budget (friendly "relay is full" error beyond
+  it). **CF DO rooms stay player-layer in 2.0** (the engine slice is proven in
+  plain Node workers; workerd compat for it is unproven — documented honestly
+  in Hosting-a-World, deferred as D-9E-D1). The Node relay is the reference
+  deployment for room battles.
+- **D-9E-2 — Headless battle runner (E1, the Fable core).** New
+  `src/engine/net/battle-runtime.ts` beside zone-event-runtime, same
+  re-implementation discipline (pure logic re-implemented verbatim-semantics;
+  REAL shared helpers imported, never the scene): the turn loop from
+  `battle.ts` driven headlessly — troop init from participants' `battleJoin`
+  loadouts (`battle-coop.ts` makeActor rebuild path), round loop = collect
+  per-participant `battleCmd` directives (the EXISTING coop-battle.ts broker:
+  deadlines, AFK all-guard, withdrawal, outbox) → resolve actions with
+  `battle-logic.ts` + the game-state helpers → fan out battle events → end
+  frames + A-8 reward order (authority classic sequence first, then
+  per-participant `rollDrops` behind the coop gate). The zone runtime's
+  `Battle: { run: async () => "win" }` stub is replaced by the runner;
+  `lastShared` semantics preserved. **N=1 participants = the solo instanced
+  battle server-side** — this also un-stubs solo battles in `--engine-events`
+  worlds (today auto-"win"). RNG: the zone world's seeded stream (a NEW
+  consumer — legal: no solo-loopback stream is shared with it; the frozen
+  goldens never run this path). Timed schedulers (ATB/CTB) stay out per the
+  deferred ledger — turn-based only, as MP6 shipped. Vitest: a headless battle
+  matrix (win/loss/escape · items with D-6-7 itemUsed · AFK all-guard ·
+  withdrawal mid-round · N=1 solo · reward split) + determinism hash guard.
+- **D-9E-3 — Team Up UI (E3).** `SocialApi` gains `invite(pid)` /
+  `leaveParty()`; the social-panel player row gains **Team Up** (and a
+  **Leave Team** control in the panel header while partied). Implementation =
+  exactly what the dev hook does today: send the `partyInvite`/`partyLeave`
+  intent through the active client — the sim validates authoritatively
+  (self/ghost/partied/full all already rejected), the consent `choices`
+  directive + toasts already exist end-to-end. Works on every transport that
+  routes party intents (local co-op now; rooms/worlds after E1/E2). New i18n
+  keys (teamUpBtn, leaveTeamBtn, + any toast) ×11 packs; mp-i18n parity test
+  updated; DB field labels stay exempt.
+- **D-9E-4 — Party scope in worlds.** Parties + shared battles are supported
+  within one zone (one map) in 2.0; the leader-transfer party-follow ACROSS
+  worker zones is deferred post-2.0 (D-9E-D2, next to D-8-7's multi-DO
+  sharding). Friend rooms are unaffected — a room is ONE world, transfers
+  inside it keep A-2 follow semantics.
+- **D-9E-5 — Client keepalive (F-4).** Additive protocol-v1 client message
+  `{ t: "ping" }` (browsers cannot send WS protocol pings): client sends every
+  ~20 s from a plain interval; server treats it as liveness (bumps the idle
+  clock), never rebroadcasts, normal token-bucket cost. Backgrounded-tab
+  interval throttling (1/min) still beats the 45 s reaper? NO — 60 s > 45 s;
+  so ALSO bump the server idle window to 90 s (2 missed throttled pings) —
+  config default change, documented. Resume-grace math re-checked in E3.
+- **D-9E-6 — Docs to the new truth (E3).** Making-Your-Game-Multiplayer:
+  battles/parties section states plainly where it works (friend rooms +
+  `--engine-events` worlds on Node; CF DO rooms walk/chat-only for now).
+  Online-Safety F-5: "blocks that passport (the player's game key)" wording.
+  Relay copy F-3: "zero setup once the free relay is live" + the self-host
+  one-liner front-and-center until then; `DEFAULT_RELAY_URL` unchanged
+  (deploying it stays Driftwood's operator step, still flagged).
+- **E4 — Proof + packaging.** New `tests-e2e/mp-relay-battle.spec.mjs`: real
+  `beacon.mjs` child process (engine rooms), two REAL browser contexts, REAL
+  UI end-to-end — Play Together → Create/Join by code → 💬 → **Team Up** →
+  consent "Join!" → forced encounter (armEncounter dev hook stays acceptable
+  for determinism, per the mp-battle precedent — but the INVITE must go
+  through the panel button) → shared battle → both end frames; 3× consecutive
+  --workers=1. Desktop exe rebuild (`npm run tauri:build` — predefined-window
+  trap holds). Docs-site rebuild. Then hand the unchanged MP9 RELEASE GATE
+  block to a fresh Fable conversation; only the re-gate tags.
+
+### Stage log (append as stages land)
+
+- (none yet — E1 kickoff block lives in the roadmap §MP9·E)

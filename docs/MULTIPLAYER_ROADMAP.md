@@ -15,7 +15,11 @@ battles run only on the local BroadcastChannel transport whose sole entries are 
 shipped relay/world servers contain zero party/battle code (party intents silently dropped, `Battle.run`
 stubbed to auto-"win" per D-8-6) — and the default relay `beacon.rpgatlas.app` does not resolve in DNS.
 Full findings F-1…F-5 + the fix fork for Driftwood: MP9 row below + `docs/mp-9-spec.md` §RELEASE GATE.
-Next: MP9·E fix phase (Driftwood picks the fork), then re-run this gate.
+**Driftwood picked fork (a) 2026-07-20 (decision D8): make D5 true online — server-side parties +
+shared battles.** Phase **MP9·E** (section below; work order in `docs/mp-9-spec.md` §MP9·E) is now the
+active phase: E1 headless battle runner (Fable) · E2 rooms-as-engine-worlds (Opus) · E3 Team Up UI +
+honesty fixes (Opus) · E4 relay-battle e2e + exe rebuild → then RE-RUN the MP9 RELEASE gate (fresh
+Fable conversation, same gate block). Tags stay withheld until the re-gate passes.
 
 ---
 
@@ -30,6 +34,7 @@ Next: MP9·E fix phase (Driftwood picks the fork), then re-run this gate.
 | D5 | Co-op battles | **In 2.0.** Friends fight side-by-side in one shared battle (phase MP6). It is the heart of the promise. |
 | D6 | Privacy | **No player ever learns another player's IP.** No P2P, no WebRTC, no STUN — all traffic is TLS WebSocket client↔server only. Presence messages carry display name + entity state, nothing else. See "Kid safety & privacy" below. |
 | D7 | Compatibility | Single-player stays **byte-identical** until a game opts in. Every phase lands on main behind the project flag / dev flags; the frozen pixel goldens are the regression gate at every phase. FORMAT_VERSION stays 2 (all project additions are additive with `migrateProject` backfill). Plugin API gains additive net surface — that is the 1.x→2.0 unfreeze. |
+| D8 | MP9 gate NO-GO remedy (locked with Driftwood 2026-07-20) | **Fork (a): make D5 true online.** Server-side parties + shared battles via the engine-zone runtime; friend rooms become engine worlds (worker-per-room); player-facing Team Up UI. Re-scope (b) and same-device-only (c) REJECTED. 2.0 does not tag until the RELEASE gate's playthrough passes end-to-end through the shipped UI. |
 
 ---
 
@@ -595,6 +600,75 @@ Do MP9 stage-by-stage (A chat+moderation · B packaging+safety docs · C showcas
 Project Beacon — MP9 RELEASE GATE (Fable). Read docs/MULTIPLAYER_ROADMAP.md (ALL) + every docs/mp-N-spec.md.
 Independently re-verify every phase gate (full vitest/node/cargo/Playwright/eslint/i18n/load-harness smoke), run the end-to-end safety checklist (chat off by default, filter/mute/report/kick, no-IP audit, room-code entropy, parent page accuracy), verify version consistency across the 7 sites + cache-busts + FORMAT_VERSION 2, and do the fresh-eyes playthrough (room → join → co-op battle → world, <60s to first join).
 Sign the verdict in the roadmap header, tag beacon-9 + v2.0.0, push with tags, update the Beacon memory file, and end with a summary for Driftwood.
+```
+
+---
+
+### MP9·E — Make D5 true online: server battles, engine rooms, Team Up UI (Fable E1 · Opus E2–E4 · Fable RE-GATE)
+
+The fork-(a) remedy for the MP9 release gate's F-1 (decision D8). Full design
+rationale + per-stage work order: `docs/mp-9-spec.md` §MP9·E. The architecture
+was always pointed here — `coop-battle.ts`'s own header says "MP8's per-zone
+runtime becomes the server home" for the battle math; this phase finishes that
+sentence, then makes the invite reachable by a real player.
+
+- **E1 (Fable) — Headless shared-battle runner.** In the engine-zone runtime
+  (`src/engine/net/zone-event-runtime.ts` + a NEW `battle-runtime.ts` sibling):
+  route the party intents (`partyInvite`/`partyLeave` → `src/shared/sim/party.ts`,
+  which is already headless and already emits the consent `choices` directive),
+  and replace the `Battle: { run: async () => "win" }` stub (D-8-6) with a real
+  headless turn-loop driver re-implemented from `battle.ts`'s pure slice (the
+  zone-event-runtime pattern), driving the EXISTING `coop-battle.ts` broker
+  (battleJoin loadouts → seating → per-round `battleCmd` directives with the
+  AFK all-guard deadline → battle-event outbox → per-participant end frames +
+  `battle-coop.ts` reward semantics, A-8 order). N=1 participants = the solo
+  instanced battle, server-side — this also un-stubs solo battles in
+  `--engine-events` worlds (today they silently auto-"win"). Solo loopback play
+  never touches this path (goldens stay byte-identical). Headless battle vitest
+  matrix; determinism hash must hold.
+- **E2 (Opus) — Friend rooms become engine worlds.** Worker-per-room: each
+  relay room hosts ONE full engine world in its own worker (the MP4 free-roam
+  host already ticks all occupied maps in one instance — no per-map zone
+  sharding for a 2–16 player room), reusing the MP8 worker + headless-env
+  machinery. Room semantics preserved exactly: room-code capability gate,
+  anonymous hello (no challenge), empty-room TTL, resume grace, owner
+  moderation + name-ban, chat gate. Self-hosted `beacon.mjs --project` defaults
+  engine rooms ON (the out-of-the-box promise); `--max-rooms` caps a shared
+  relay's worker budget. Net e2e: socketed room battle round-trip.
+- **E3 (Opus) — Team Up UI + honesty fixes.** Social-panel player rows gain
+  **Team Up / Leave Team** (party verbs over the existing intent channel — the
+  sim validates authoritatively, so the button is safe on every transport);
+  invite toast + consent prompt already exist. i18n ×11 + parity. F-4: client
+  WS keepalive ping (~20 s) so a briefly-backgrounded tab isn't idle-reaped.
+  F-2/F-5 + relay copy: docs updated to the NEW truth (battles online in rooms
+  + engine worlds), passport-ban wording fixed, "zero setup" softened until the
+  relay is deployed (F-3 operator step stays flagged).
+- **E4 (Opus) — Proof + packaging.** Playwright two-browser RELAY battle e2e:
+  real server child process, real UI end-to-end (Play Together → join by code →
+  Team Up button → consent → shared battle → both end frames) 3× consecutive.
+  Desktop exe rebuild (`npm run tauri:build`, still 1.2.0-era). Docs-site
+  rebuild. THEN: paste the MP9 RELEASE GATE block into a fresh Fable
+  conversation — the re-gate re-runs everything including the playthrough, and
+  only IT tags `beacon-9` + `v2.0.0`.
+
+**Gates (every stage):** template gates · goldens byte-identical (`git diff
+beacon-8..HEAD -- "*.png"` empty) · determinism hash 46633057 · net suite ×3 ·
+no `js/` touched without its `?v=` bump. E-stage logs append to
+`docs/mp-9-spec.md` §MP9·E.
+
+**E1 BUILD kickoff (Fable, new conversation):**
+```
+Continue Project Beacon — Phase MP9·E stage E1: Headless Shared-Battle Runner (fork (a), decision D8).
+Model: Fable. Read docs/MULTIPLAYER_ROADMAP.md (header + MP9 + MP9·E) + docs/mp-9-spec.md (§RELEASE GATE findings + §MP9·E work order) first, then src/engine/net/zone-event-runtime.ts (the Battle stub + the re-implementation pattern), src/shared/sim/coop-battle.ts + party.ts (the headless broker you drive), src/engine/scenes/battle-coop.ts (reward semantics), battle-logic.ts (pure math), battle.ts (the turn loop you re-implement headlessly).
+Prior state: MP9 RELEASE gate NO-GO (F-1); fc97cc7 + the MP9·E plan are on main; nothing E1 exists yet.
+Build: party-intent routing in engine zones + the headless battle runner (co-op AND N=1 solo) per the §MP9·E work order. Commit+push per sub-stage, log in docs/mp-9-spec.md §MP9·E, keep goldens byte-identical + hash 46633057, end with the E2 BUILD block.
+```
+
+**E2/E3/E4 BUILD kickoff (Opus, new conversation each; run in order):**
+```
+Continue Project Beacon — Phase MP9·E stage E<2|3|4> (fork (a), decision D8).
+Model: Opus. Read docs/MULTIPLAYER_ROADMAP.md (MP9·E) + docs/mp-9-spec.md (§MP9·E work order + the E-stage log so far).
+Build the stage per the §MP9·E work order (E2 rooms-as-engine-worlds · E3 Team Up UI + i18n + keepalive + docs honesty · E4 relay-battle e2e + exe rebuild + docs-site). Commit+push per sub-stage, log deviations in docs/mp-9-spec.md §MP9·E, goldens byte-identical, net ×3 where sockets are touched. E4 ends by handing the MP9 RELEASE GATE block (unchanged, from §MP9) to a fresh Fable conversation — do NOT tag.
 ```
 
 ---
