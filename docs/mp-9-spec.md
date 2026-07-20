@@ -580,4 +580,104 @@ and the MP4 free-roam decision were all built FOR this finish.
 
 ### Stage log (append as stages land)
 
-- (none yet — E1 kickoff block lives in the roadmap §MP9·E)
+#### E1 — Headless Shared-Battle Runner (Fable, 2026-07-20)
+
+Built per D-9E-2 in two sub-stages; all gates re-run green (numbers at the end).
+
+**E1·a — party-intent routing + zone plumbing** (`src/shared/net/zone-runtime.ts`,
+`server/src/core/zone.ts`):
+
+- `ZoneRuntime` gains two OPTIONAL methods (additive seam — runtime fakes keep
+  compiling): `onPartyIntent(pid, intent)` and `onLeave(pid)`. The zone calls
+  them only when present; a runtime-less (player-layer) zone stays
+  byte-identical and still silently ignores party verbs — honest: a walk-only
+  zone has no battles for a party to fight.
+- `Zone.frame` routes `partyInvite`/`partyLeave` (the §C5 intents the release
+  gate proved silently dropped — F-1) to the runtime. `Zone.remove` (disconnect,
+  reap, AND transfer) calls `onLeave` before the entity goes.
+- The zone broadcast drains the two MP6 channels the RoomHost has always
+  drained: the party table rides `changes.party` when membership changed (an
+  EMPTY table still rides — the last party dissolving must reach clients), and
+  each member's queued battle events ride `changes.battle` on a per-player
+  frame (members without events keep sharing one encoded frame — the AOI/chunk
+  economy is untouched). Snapshots (join/resume/post-transfer) carry the live
+  party table like the RoomHost's late-joiner snapshot. The client side needed
+  ZERO changes — relay-client already applies `snap.party`/`changes.party`/
+  `changes.battle`, and directive-renderer already auto-answers `battleJoin`
+  and renders the full `battleCmd` command UI (MP6·B shipped it; it was simply
+  unreachable over a socket until now).
+- **Latent MP8 bug fixed in passing:** `autoResolveDirectivesFor` had zero
+  server callers — a player who disconnected mid-directive (e.g. an open Show
+  Message) left the interpreter suspended and the zone's blocking flag stuck
+  forever once the reaper removed them. `onLeave`'s C3.4 sweep (withdraw →
+  leaveParty → auto-resolve) closes it for engine zones.
+
+**E1·b — the runner** (`src/engine/net/battle-runtime.ts`, ~1150 lines, wired
+into `zone-event-runtime.ts` replacing `Battle: { run: async () => "win" }`):
+
+- Same discipline as zone-event-runtime: the turn loop, resolution core,
+  states/buffs/TP machinery, enemy AI and reward sequence of `scenes/battle.ts`
+  re-implemented with verbatim semantics (every say line preserved as a `log`
+  battle event; FX/audio/DOM dropped); REAL helpers imported, never the scene —
+  `battle-logic.ts` math, `formula.ts` MZ pipeline, game-state derivations
+  (`param`/`makeActor`/trait carriers), the `coop-battle.ts` broker
+  (deadlines, AFK all-guard, withdrawal, outbox), `party.ts` gates. The
+  `useItemOn` pure slice is re-implemented headless (menus.ts is DOM-coupled);
+  the in-troop command bridge (RM 331–340 + Change Enemy TP, incl. forceAction
+  and abort) is live during battles through the EngineServices getters.
+- **The all-remote posture** (the deviation from the MP6 client-authority
+  bridge, where the trigger IS the local scene): the TRIGGER contributes its
+  loadout over `battleJoin` and answers `battleCmd` rounds like everyone else;
+  the trigger draws victory drops FIRST then join order (A-8's "authority
+  classic sequence" seat); EVERY item spend emits `itemUsed` to its owner
+  (D-6-7 generalizes — the server holds no bags, so there is never a host-bag
+  decrement or precheck); rewards/EXP/write-back reach every participant
+  through their own end frame (`applyBattleEnd` client-side, unchanged).
+- **N=1 = the solo instanced battle server-side**: a one-entry participant
+  list through the same runner/broker (slots = the full loadout cap). This
+  un-stubs solo battles in `--engine-events` worlds. Non-partied neighbors are
+  never pulled in (presence gate #1 intact).
+- Locked decisions:
+  - **D-9E-E1-1** — a server battle NEVER game-overs: defeat revives every
+    battler at 1 HP (A-7 extended to N=1 — a persistent world has no game-over
+    flow) and `Battle.lastShared` reports true for every runner-hosted battle,
+    so the combat command's game-over branch is never taken server-side;
+    authored onLose branches still run.
+  - **D-9E-E1-2** — a WORLD-context battle command (autorun/parallel, no acting
+    player) resolves "win" without fighting — the narrowed remainder of D-8-6
+    (it has no subject to seat). Proven by test: the event continues past it.
+  - **D-9E-E1-3** — troop battle-pages and skill common events run under the
+    TRIGGER's interpreter origin (the scene's `new Interp(null)` binds the one
+    solo player; the trigger is that player's server equivalent), so their
+    modal directives reach a real screen instead of hanging on pid 0.
+  - Turn-based only (D-9E-2); no preemptive/surprise (event battles never had
+    them); RNG = the zone world's stream (new consumer, no solo stream shared).
+- Honest limits (carried forward, not new): quest kill-credit
+  (`onEnemyKilled`) and battle-failure notes are guarded no-ops server-side
+  (the quest runtime is still the D-8-6 stub slice); grow/learn effects on
+  battlers act in-battle but don't survive the end frame (the MP6 wire shape —
+  same on client co-op remotes); a round's log events resolve instantly
+  (pacing = the battleCmd round-trips; the client overlay shows each round as
+  a burst); while a battle (or any blocking event) runs, other players in the
+  zone cannot START new events (the pre-existing §A2 one-blocking-run
+  semantic — movement of non-participants is unaffected); a disconnected
+  TRIGGER is not withdrawable (D-6-4 pins the trigger) — their pendings
+  escape-resolve to guards so rounds keep terminating and the battle plays
+  out; Shop stays stubbed (the D-8-6 remainder for MP9·E is battles only).
+
+**Tests** (`tests-unit/battle-runtime.test.ts`, 12, fast pool, through a REAL
+zone + real interpreter + wire-decoded frames): N=1 win with rewards ·
+determinism (same seed + replies ⇒ byte-identical event streams) · loss with
+A-7 1-HP revive · escape via escapeBattle skill · item heal + `itemUsed` ·
+AFK all-guard (real 1800-tick deadline) · co-op N=2 (invite intent → consent
+choices → both battleJoin → shared fight → both end frames, full rewards +
+per-participant drops each) · withdrawal mid-battle (no hang, no end frame for
+the leaver, party dissolved on exit) · world-context auto-win · partyLeave
+empty-table broadcast · snapshot party table · unpartied-neighbor isolation.
+
+**Gates (E1):** fast `test:unit` **1302 / 93 files** (was 1290/92) · net
+**11 × 3 consecutive** · node --test **48/48** (determinism golden 46633057
+re-verified live) · cargo **26** · root tsc 0 · server tsc Node + CF 0 ·
+eslint 0 · both server bundles build, `beacon.mjs --help` evaluates headless ·
+Playwright **130/130**, `git diff beacon-8..HEAD -- "*.png"` EMPTY (solo
+goldens byte-identical) · no `js/` touched (no cache-bust due).
