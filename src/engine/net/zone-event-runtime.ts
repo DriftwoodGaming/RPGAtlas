@@ -63,8 +63,12 @@ import {
   participantsOf,
   beginBlocking,
   endBlocking,
+  autoResolveDirectivesFor,
   type InterpOrigin,
 } from "../../shared/sim/directives.js";
+import { leaveParty, requestPartyInvite } from "../../shared/sim/party.js";
+import { withdrawParticipant } from "../../shared/sim/coop-battle.js";
+import { createHeadlessBattle } from "./battle-runtime.js";
 import { pumpTickTimers, waitTicks, tickTweenTicks } from "../../shared/sim/timers.js";
 import { DIR_OFFSET, isPassable, type MapCollision } from "../../shared/sim/collision.js";
 import type { JsonValue, PlayerId } from "../../shared/net/protocol.js";
@@ -402,6 +406,11 @@ export function createZoneEventRuntime(rtx: ZoneRuntimeContext): ZoneRuntime {
   /* ── the injected service surface (headless EngineServices) ─────────────── */
 
   const presentation = createPresentationPort(world);
+  // MP9·E (D-9E-2): the headless shared-battle runner replaces the D-8-6
+  // Battle stub — co-op AND N=1 solo battles run server-side. The runner reads
+  // the acting player lazily (the closure resolves at Battle.run time, inside
+  // a player-origin blocking run).
+  const battleSvc = createHeadlessBattle(world, () => currentActorPid);
   const noop = (): void => {};
   const asyncNoop = async (): Promise<void> => {};
   const questsStub: any = {
@@ -448,18 +457,21 @@ export function createZoneEventRuntime(rtx: ZoneRuntimeContext): ZoneRuntime {
     scriptApi,
     Quests: questsStub,
     // headless no-ops: a server renders nothing, plays no audio, runs no
-    // battles/shops/menus this slice (deviation D-8-6). Present so the audited
-    // command handlers never throw on a missing service.
+    // shops/menus this slice (deviation D-8-6, battles un-stubbed at MP9·E).
+    // Present so the audited command handlers never throw on a missing service.
     showMessage: asyncNoop,
     applyWindowTone: noop, locationInfo: () => 0,
     vehicleState: () => null, tryVehicleAction: noop, setMapParallax: noop,
     refreshPlayerCharset: noop, syncFollowers: noop,
     saveLoadMenu: asyncNoop, gameOver: asyncNoop, toTitle: asyncNoop, autosaveNow: noop,
-    Battle: { run: async () => "win", lastShared: false }, Shop: { open: asyncNoop },
+    // MP9·E (D-9E-2): the REAL headless battle runner (battle-runtime.ts).
+    Battle: battleSvc.Battle, Shop: { open: asyncNoop },
     playMapAnimation: noop, AudioDeck: audioStub, Sfx: audioStub, Music: audioStub,
     wireShopGoods: () => [], applyShopTranscript: noop,
-    get battleAddEnemyTp() { return undefined; },
-    get battleEnemyOps() { return undefined; },
+    // The in-troop command bridge (RM 331–340 + Change Enemy TP): live while a
+    // headless battle runs, undefined outside — the fns-bridge semantics.
+    get battleAddEnemyTp() { return battleSvc.addEnemyTp; },
+    get battleEnemyOps() { return battleSvc.enemyOps; },
   };
   initInterpServices(EngineServices);
 
@@ -612,6 +624,31 @@ export function createZoneEventRuntime(rtx: ZoneRuntimeContext): ZoneRuntime {
       } else if (key.startsWith("var:")) {
         if (typeof value === "number") shVar.set(key.slice(4), value);
       }
+    },
+
+    onPartyIntent(pid: PlayerId, intent): void {
+      // MP9·E (the F-1 fix): the same dispatcher shape as the local host's
+      // handlePartyIntent (scenes/map.ts), minus toasts — clients toast off the
+      // party table the zone broadcasts (changes.party). The sim core validates
+      // authoritatively: bad targets / full parties never emit an invite, and
+      // the consent question rides the ordinary `choices` directive.
+      if (intent.k === "partyInvite") {
+        const e = world.roster.players.get(pid) as { name?: string } | undefined;
+        void requestPartyInvite(world, pid, intent.target, (e && e.name) || "A friend");
+      } else {
+        leaveParty(world, pid);
+      }
+    },
+
+    onLeave(pid: PlayerId): void {
+      // Withdraw from a live shared battle first (D-6-4 — releases their block
+      // and auto-resolves their battle pendings), then dissolve party
+      // membership (one-zone party scope, D-9E-4 — a transfer or disconnect
+      // leaves the team), then sweep any remaining pendings (C3.4) so no
+      // interpreter can hang on the absent player.
+      withdrawParticipant(world, pid);
+      leaveParty(world, pid);
+      autoResolveDirectivesFor(world, pid);
     },
 
     stop(): void {
