@@ -117,3 +117,88 @@ reads.
 - No `editor.css` / `patch-notes.js` change (the tab reuses existing `.dbform` /
   `field` / `row` chrome; inline styles only). Version stays **1.2.0**;
   FORMAT_VERSION stays **2**.
+
+---
+
+## Stage B — Event commands & conditional operands (Opus, landed 2026-07-19)
+
+Four additive authoring surfaces, each **solo-inert** (a command that never uses
+the new field runs the exact pre-MP7 path → goldens byte-identical, determinism
+hash **46633057** unchanged). Full multi-player event effects over the relay ride
+MP8's server-run events (D-7-0); MP7·B is the authoring + solo-correct +
+headless semantics, exactly how MP3/MP4 built structure ahead of the runtime.
+
+### What landed
+
+**Wait for All Players (`waitPlayers`):**
+
+- `src/engine/interpreter/commands/flow.ts` — a co-op sync barrier: solo
+  (`mpOnline()` false) returns **instantly**; online it polls every 6 world ticks
+  until every roster peer has gathered on the event's map (`mpAllOnMap`), or a
+  `timeout` (seconds, default 10, capped 60) releases it so one wandering friend
+  can't freeze the event forever.
+- `command-defs.ts` — the "Wait for All Players" command def (timeout field,
+  summary, help). Pickable in the command picker (CMD_DEFS auto-lists).
+
+**Show Message To (trigger / everyone):**
+
+- `command-defs.ts` — the `text` form gains a "Show to" select; stored as
+  `to:"all"` only when Everyone (absent = the classic single message).
+- `flow.ts` — the `text` handler passes `to:"all"` into the message directive.
+- `src/shared/sim/directives.ts` — `roomPlayersOf(world)` (`[local, ...peers]`)
+  + the presentation port's `message` broadcasts a `to:"all"` message to every
+  OTHER room player **fire-and-forget** (their client dismisses its own copy; a
+  disconnect is swept by `autoResolveDirectivesFor`) and awaits **only the
+  origin's reply** — so the event never hangs on an absent peer. Solo has no
+  peers ⇒ the broadcast collapses to the single local message.
+
+**Per-player vs world switch scope:**
+
+- `command-defs.ts` — the `switch` command AND the `if`-switch condition gain a
+  Scope select (World shared / This player); stored as `scope:"player"` only when
+  per-player (world scope keeps the pre-MP7 shape).
+- `state.ts` — the `switch` handler writes a per-player switch to the origin
+  player's own namespace (`G.pSwitches[pid][id]`); world scope is unchanged.
+- `interp.ts` — `testCond` reads the origin player's `pSwitches` for a
+  `scope:"player"` switch condition.
+- `world.ts` (`createInitialGameState`) + `title.ts` (`newGame`) + `save.ts`
+  (build/apply) — `G.pSwitches` initialized `{}`, reset on New Game, and
+  round-tripped in saves (old saves load `{}`, the wallet/vehicles precedent).
+  The determinism hash excludes switches, so the empty namespace is inert.
+
+**Is Online / Player Count conditions:**
+
+- `command-defs.ts` — two new `if` operands ("Playing Online" boolean, "Player
+  Count" numeric with a comparator).
+- `interp.ts` `testCond` — `online` reads `EngineServices.mpOnline()` (solo
+  false), `playerCount` reads `EngineServices.mpPlayerCount()` (solo 1).
+- `boot.ts` — `EngineServices.mpOnline` / `mpPlayerCount` / `mpAllOnMap`, reading
+  `active` (host/client refs) + the authority world's roster. All three are inert
+  in solo (no room ⇒ offline, count 1, empty roster ⇒ everyone trivially "on the
+  map" so Wait for All Players returns at once).
+
+### Tests (+ new)
+
+- `tests-unit/directives-broadcast.test.ts` (NEW, +5 vitest): `roomPlayersOf`
+  (solo `[0]`; local + peers), and the `to:"all"` broadcast — solo → single
+  message, co-op → reaches every room player and awaits only the origin (silent
+  peers leave their fire-and-forget copies pending, the event resolves), and a
+  plain message carries no broadcast flag.
+- `tests/mp-commands.test.js` (NEW, +1 node → 48): the real interpreter registry
+  + `Interp.testCond` (esbuild-bundled): switch scope player/world isolation,
+  per-player switch read, online true/false, playerCount comparator, waitPlayers
+  solo-instant + bounded online barrier + timeout release, text `to:"all"` flag.
+- `tests-unit/sim-world.test.ts` — the boot-time G shape assertion gains
+  `pSwitches: {}`.
+
+### Draw-conservation / byte-identity note (stage B)
+
+No new RNG draw. Every new field is absent on existing commands (`scope`, `to`,
+the two new operands, `pSwitches`), so migrated projects run the identical code
+path; the determinism canary **46633057** is re-verified green after the
+`createInitialGameState` addition (the hash excludes switches/pSwitches).
+
+### Cache-busts / versions (stage B)
+
+Pure `src/` (TS) + tests — **no `js/` file, no `?v=` bump**. Version 1.2.0;
+FORMAT_VERSION 2.

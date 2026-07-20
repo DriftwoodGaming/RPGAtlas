@@ -97,6 +97,8 @@ function buildSavePayload(): any {
       switches: G.switches,
       vars: G.vars,
       selfSw: G.selfSw,
+      // Per-player switches (Beacon MP7·B). Old saves lack it → {} on load.
+      pSwitches: G.pSwitches || {},
       quests: G.quests,
       party: G.party,
       inv: G.inv,
@@ -143,6 +145,7 @@ async function applySave(d: any): Promise<void> {
   G.switches = d.switches || {};
   G.vars = d.vars || {};
   G.selfSw = d.selfSw || {};
+  G.pSwitches = d.pSwitches || {}; // Beacon MP7·B (absent in old saves)
   G.quests = d.quests || {};
   G.party = d.party || [];
   G.inv = d.inv || { item: {}, weapon: {}, armor: {} };

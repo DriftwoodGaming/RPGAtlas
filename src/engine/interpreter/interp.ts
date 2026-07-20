@@ -179,6 +179,12 @@ export class Interp {
     const cmp = (a: any, b: any, op: any) => compareVariable(a, b, op);
     switch (cond.kind) {
       case "switch":
+        if (cond.scope === "player") {
+          // MP7·B per-player switch read (origin player's own namespace).
+          const pid = (this.origin && this.origin.playerId) || 0;
+          const bucket = G.pSwitches && G.pSwitches[pid];
+          return !!(bucket && bucket[cond.id]) === (cond.val !== false);
+        }
         return !!G.switches[cond.id] === (cond.val !== false);
       case "var":
         return cmp(G.vars[cond.id] || 0, cond.val, cond.cmp || ">=");
@@ -218,6 +224,14 @@ export class Interp {
         if (cond.check === "weapon") return actor.weaponId === cond.itemId;
         if (cond.check === "armor") return actor.armorId === cond.itemId;
         return true;
+      }
+      case "online":
+        // MP7·B: true when this game is in a multiplayer room. Solo ⇒ false.
+        return !!(EngineServices && EngineServices.mpOnline && EngineServices.mpOnline()) === (cond.val !== false);
+      case "playerCount": {
+        // MP7·B: how many players share the room (self included). Solo ⇒ 1.
+        const n = EngineServices && EngineServices.mpPlayerCount ? EngineServices.mpPlayerCount() : 1;
+        return cmp(n, cond.val, cond.cmp || ">=");
       }
       default:
         return true;

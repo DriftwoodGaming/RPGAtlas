@@ -103,6 +103,16 @@ export function participantsOf(world: World, origin?: InterpOrigin | null): numb
   return origin && origin.playerId != null ? [origin.playerId] : [DEFAULT_PLAYER];
 }
 
+/** Every player currently in the room: the local player (0) plus every roster
+ *  peer. Used by MP7·B "Show Message To → Everyone" to broadcast a directive to
+ *  the whole room. Solo ⇒ just `[0]` (empty roster), so a broadcast collapses to
+ *  the single local message — byte-identical. */
+export function roomPlayersOf(world: World): number[] {
+  const out = [world.roster ? world.roster.local : DEFAULT_PLAYER];
+  if (world.roster) for (const id of world.roster.players.keys()) out.push(id);
+  return out;
+}
+
 /** Pause exactly these players (a blocking interpreter started). */
 export function beginBlocking(world: World, participants: number[]): void {
   for (const id of participants) world.blocking.add(id);
@@ -339,7 +349,7 @@ export interface PresentationPort {
   readonly localEcho: boolean;
   message(
     origin: InterpOrigin | undefined,
-    d: Omit<Extract<Directive, { kind: "message" }>, "kind">,
+    d: Omit<Extract<Directive, { kind: "message" }>, "kind"> & { to?: "trigger" | "all" },
   ): Promise<void>;
   /** Resolves to the chosen option index, or -1 when canceled (only possible
    *  when the directive is cancelable). */
@@ -393,7 +403,20 @@ export function createPresentationPort(world: World): PresentationPort {
       return world.directives.localEcho;
     },
     async message(origin, d) {
-      await ask(origin, { kind: "message", ...d });
+      // MP7·B "Show Message To → Everyone": also emit the message to every OTHER
+      // room player, fire-and-forget (their client dismisses its own copy; a
+      // disconnect is swept by autoResolveDirectivesFor), then await only the
+      // origin's reply — so the event never hangs on an absent peer. Solo has no
+      // peers, so this collapses to the single local message (byte-identical).
+      const { to, ...rest } = d;
+      if (to === "all") {
+        const originPid = origin && origin.playerId != null ? origin.playerId : DEFAULT_PLAYER;
+        for (const pid of roomPlayersOf(world)) {
+          if (pid === originPid) continue;
+          void emitDirective(world, pid, { kind: "message", ...rest });
+        }
+      }
+      await ask(origin, { kind: "message", ...rest });
     },
     async choices(origin, d) {
       const r = await ask(origin, { kind: "choices", ...d });

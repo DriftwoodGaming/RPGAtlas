@@ -133,6 +133,17 @@ const EngineServices: any = {
   // map-feature commands (M4·A): vehicles + parallax swap
   vehicleState, tryVehicleAction, setMapParallax,
   getProj: () => ctx.proj,
+  // Multiplayer state for event commands/conditions (Project Beacon MP7·B).
+  // All three are inert in solo: no room ⇒ mpOnline false, one player, and an
+  // empty roster ⇒ every peer trivially "on the map" (so Wait for All Players
+  // returns instantly). Reads `active` (host/client refs) + the authority
+  // world's roster; never draws RNG, never renders.
+  mpOnline: () => !!(active.host || active.client),
+  mpPlayerCount: () => 1 + soloHost.world.roster.players.size,
+  mpAllOnMap: (mapId: number) => {
+    for (const p of soloHost.world.roster.players.values()) if (p.mapId !== mapId) return false;
+    return true;
+  },
   // quests
   Quests,
   // scripting

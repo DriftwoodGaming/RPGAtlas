@@ -99,9 +99,9 @@ import { openLocationPicker } from "./location-picker";
       return obj ? (obj.label || obj.kind || ("Objective " + (objIndex + 1))) : ("Objective " + (objIndex + 1));
     };
     switch (c.t) {
-      case "text": return "Text" + (c.name ? " [" + c.name + "]" : "") + (c.face ? " (face)" : "") + ": " + c.text.split("\n")[0].slice(0, 42);
+      case "text": return "Text" + (c.name ? " [" + c.name + "]" : "") + (c.face ? " (face)" : "") + (c.to === "all" ? " → everyone" : "") + ": " + c.text.split("\n")[0].slice(0, 42);
       case "choices": return "Show Choices: " + c.options.join(" / ");
-      case "switch": return "Switch " + swName(c.id) + " = " + (c.val ? "ON" : "OFF");
+      case "switch": return "Switch " + swName(c.id) + " = " + (c.val ? "ON" : "OFF") + (c.scope === "player" ? " (per-player)" : "");
       case "selfsw": return "Self-Switch " + c.key + " = " + (c.val ? "ON" : "OFF");
       case "var": return "Variable " + varName(c.id) + " " + (c.op === "set" ? "=" : c.op === "add" ? "+=" : c.op === "sub" ? "−=" : "= rnd") + " " + c.val + (c.op === "rnd" ? ".." + (c.val2 || c.val) : "");
       case "if": {
@@ -113,6 +113,8 @@ import { openLocationPicker } from "./location-picker";
           : k === "item" ? "Has " + dbName(c.cond.itemKind === "weapon" ? S.proj.weapons : c.cond.itemKind === "armor" ? S.proj.armors : S.proj.items, c.cond.id)
           : k === "region" ? "Player in region " + (c.cond.id || 0)
           : k === "time" ? "Clock is " + (c.cond.from || 0) + ":00–" + (c.cond.to || 0) + ":00"
+          : k === "online" ? "Playing online is " + (c.cond.val === false ? "OFF" : "ON")
+          : k === "playerCount" ? "Player count " + (c.cond.cmp || ">=") + " " + (c.cond.val || 0)
           : k === "mzScript" ? "Script: " + (c.cond.code || "").split("\n")[0].slice(0, 38)
           : (c.cond.currencyId > 1 ? currencyLabel(c.cond.currencyId) : "Gold") + " " + (c.cond.cmp || ">=") + " " + c.cond.val;
         return "If " + d;
@@ -134,6 +136,7 @@ import { openLocationPicker } from "./location-picker";
       case "battle": return "Battle: " + dbName(S.proj.troops, c.troopId) + (c.escape === false ? " (no escape)" : "") + (c.lose ? " (lose allowed)" : "");
       case "shop": return "Open Shop (" + (c.goods || []).length + " goods" + (c.currencyId > 1 ? ", " + currencyLabel(c.currencyId) : "") + ")";
       case "wait": return "Wait " + c.frames + " frames";
+      case "waitPlayers": return "Wait for All Players (" + (c.timeout == null ? 10 : c.timeout) + "s)";
       case "se": return "Sound: " + c.name + (c.pitch && c.pitch !== 1 ? " (pitch " + Math.round(c.pitch * 100) + "%)" : "");
       case "music": return "Music: " + c.theme;
       // --- Streamed-audio channels (Project Compass M4·B) ---
@@ -244,7 +247,7 @@ import { openLocationPicker } from "./location-picker";
   export const CMD_DEFS: any[] = [
     { t: "text", label: "Show Text", make: () => ({ t: "text", name: "", face: "", text: "" }),
       form(c: any, box: any) {
-        const w = { name: c.name, face: c.face || "", text: c.text, background: c.background || 0, position: c.position == null ? 2 : c.position };
+        const w = { name: c.name, face: c.face || "", text: c.text, background: c.background || 0, position: c.position == null ? 2 : c.position, to: c.to === "all" ? "all" : "trigger" };
         const preview = h("span", { class: "char-preview" });
         function redrawFace() {
           preview.innerHTML = "";
@@ -258,6 +261,10 @@ import { openLocationPicker } from "./location-picker";
         box.appendChild(row(
           field("Window", sel(w, "background", [{ v: 0, l: "Window" }, { v: 1, l: "Dim" }, { v: 2, l: "Transparent" }])),
           field("Position", sel(w, "position", [{ v: 0, l: "Top" }, { v: 1, l: "Middle" }, { v: 2, l: "Bottom" }]))));
+        // MP7·B "Show to": which players see this message (online games only).
+        const toOpts: any = [{ v: "trigger", l: "This player (whoever triggered it)" }, { v: "all", l: "Everyone in the room" }];
+        toOpts.stringValues = true;
+        box.appendChild(row(field("Show to", sel(w, "to", toOpts))));
         box.appendChild(textCodesHelp());
         redrawFace();
         return () => {
@@ -266,6 +273,7 @@ import { openLocationPicker } from "./location-picker";
           if (bg) c.background = bg; else delete c.background;
           const pos = Number(w.position);
           if (pos !== 2) c.position = pos; else delete c.position;
+          if (w.to === "all") c.to = "all"; else delete c.to;
         };
       } },
     { t: "choices", label: "Show Choices", make: () => ({ t: "choices", options: ["Yes", "No"], branches: [[], []] }),
@@ -288,7 +296,13 @@ import { openLocationPicker } from "./location-picker";
         function redraw() {
           sub.innerHTML = "";
           if (w.kind === "switch") {
-            sub.appendChild(row(field("Switch", sel(w, "id", switchOpts())), field("Is", sel(w, "val", [{ v: "true", l: "ON" }, { v: "false", l: "OFF" }]))));
+            // MP7·B: a switch condition can read the shared switch (World) or the
+            // triggering player's own copy (This player).
+            if (w.scope !== "player") w.scope = "world";
+            const csOpts: any = [{ v: "world", l: "World (shared)" }, { v: "player", l: "This player" }];
+            csOpts.stringValues = true;
+            sub.appendChild(row(field("Switch", sel(w, "id", switchOpts())), field("Is", sel(w, "val", [{ v: "true", l: "ON" }, { v: "false", l: "OFF" }])),
+              field("Scope", sel(w, "scope", csOpts))));
           } else if (w.kind === "var") {
             sub.appendChild(row(field("Variable", sel(w, "id", varOpts())),
               field("Cmp", sel(w, "cmp", cmpOpts())),
@@ -340,6 +354,18 @@ import { openLocationPicker } from "./location-picker";
           } else if (w.kind === "time") {
             sub.appendChild(row(field("From hour (0–24)", nIn(w, "from", 0, 24)),
               field("Until hour (wraps past midnight)", nIn(w, "to", 0, 24))));
+          } else if (w.kind === "online") {
+            // MP7·B: is this game currently playing online (in a room)?
+            sub.appendChild(row(field("Playing online is", sel(w, "val", [{ v: "true", l: "ON (in a room)" }, { v: "false", l: "OFF (single-player)" }]))));
+            sub.appendChild(h("div", { class: "dim" }, "True while friends are playing together in a room; false in a normal single-player game."));
+          } else if (w.kind === "playerCount") {
+            // MP7·B: how many players share the room (yourself included; 1 in solo).
+            // Coerce the cloned value to a number (the shared `val` may arrive as
+            // a switch's boolean when the author flips kinds without editing it).
+            if (typeof w.val !== "number") w.val = 2;
+            sub.appendChild(row(field("Players in room", nIn(w, "val", 1, 16)),
+              field("Compare", sel(w, "cmp", cmpOpts()))));
+            sub.appendChild(h("div", { class: "dim" }, "Counts everyone in the room including this player. A single-player game always has 1."));
           } else {
             if (w.currencyId == null) w.currencyId = 1;
             sub.appendChild(row(field("Currency", sel(w, "currencyId", currencyOpts())),
@@ -349,7 +375,8 @@ import { openLocationPicker } from "./location-picker";
         box.appendChild(field("Condition type", sel(w, "kind", [
           { v: "switch", l: "Switch" }, { v: "var", l: "Variable" }, { v: "selfsw", l: "Self-Switch" },
           { v: "quest", l: "Quest Status" }, { v: "item", l: "Has item" }, { v: "gold", l: "Gold" }, { v: "actor", l: "Actor" },
-          { v: "region", l: "Player Region" }, { v: "time", l: "Time of Day" }
+          { v: "region", l: "Player Region" }, { v: "time", l: "Time of Day" },
+          { v: "online", l: "Playing Online" }, { v: "playerCount", l: "Player Count" }
         ], redraw)));
         if (w.kind === "item" && !w.itemKind) w.itemKind = "item";
         if (w.kind === "selfsw" && !w.key) w.key = "A";
@@ -365,6 +392,9 @@ import { openLocationPicker } from "./location-picker";
           // Only gold conditions keep a currencyId, and only for wallet ids —
           // classic-gold conditions stay in their pre-wallet shape.
           if (w.kind !== "gold" || Number(w.currencyId) <= 1) delete w.currencyId;
+          // MP7·B: a switch condition keeps `scope` only when per-player, so
+          // world-scope switch conditions stay byte-identical to pre-MP7.
+          if (w.kind !== "switch" || w.scope !== "player") delete w.scope;
           c.cond = w;
           if (!c.then) c.then = [];
           if (!c.else) c.else = [];
@@ -438,9 +468,16 @@ import { openLocationPicker } from "./location-picker";
       } },
     { t: "switch", label: "Control Switch", make: () => ({ t: "switch", id: 1, val: true }),
       form(c: any, box: any) {
-        const w = { id: c.id, val: String(c.val) };
-        box.appendChild(row(field("Switch", sel(w, "id", switchOpts())), field("Set", sel(w, "val", [{ v: "true", l: "ON" }, { v: "false", l: "OFF" }]))));
-        return () => { c.id = w.id; c.val = w.val === "true"; };
+        // MP7·B scope: "world" (shared, the classic default) vs "player"
+        // (each player carries their own copy). Stored only when "player" so
+        // existing switch commands stay byte-identical.
+        const w = { id: c.id, val: String(c.val), scope: c.scope === "player" ? "player" : "world" };
+        const scopeOpts: any = [{ v: "world", l: "World (shared)" }, { v: "player", l: "This player" }];
+        scopeOpts.stringValues = true;
+        box.appendChild(row(field("Switch", sel(w, "id", switchOpts())), field("Set", sel(w, "val", [{ v: "true", l: "ON" }, { v: "false", l: "OFF" }])),
+          field("Scope", sel(w, "scope", scopeOpts))));
+        box.appendChild(h("div", { class: "dim" }, "World = one switch everyone shares (the normal kind). This player = each player has their own copy (online games only)."));
+        return () => { c.id = w.id; c.val = w.val === "true"; if (w.scope === "player") c.scope = "player"; else delete c.scope; };
       } },
     { t: "selfsw", label: "Control Self-Switch", make: () => ({ t: "selfsw", key: "A", val: true }),
       form(c: any, box: any) {
@@ -664,6 +701,14 @@ import { openLocationPicker } from "./location-picker";
         const w = { frames: c.frames };
         box.appendChild(field("Frames (60 = 1 second)", nIn(w, "frames", 1, 6000)));
         return () => Object.assign(c, w);
+      } },
+    // MP7·B: co-op sync barrier. Instant in single-player.
+    { t: "waitPlayers", label: "Wait for All Players", make: () => ({ t: "waitPlayers", timeout: 10 }),
+      form(c: any, box: any) {
+        const w = { timeout: c.timeout == null ? 10 : c.timeout };
+        box.appendChild(field("Give up after (seconds)", nIn(w, "timeout", 1, 60)));
+        box.appendChild(h("div", { class: "dim" }, "Online games: pauses here until every other player has reached this event's map, or the time runs out. In a single-player game this does nothing and the event just keeps going."));
+        return () => { c.timeout = Math.max(1, Math.min(60, Number(w.timeout) || 10)); };
       } },
     { t: "se", label: "Play Sound", make: () => ({ t: "se", name: "ok" }),
       form(c: any, box: any) {

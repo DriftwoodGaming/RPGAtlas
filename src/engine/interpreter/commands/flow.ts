@@ -23,6 +23,10 @@ export function registerFlowCommands(): void {
     const d: any = { text: c.text, speaker: c.name, portrait: c.face };
     if (c.background != null) d.background = MESSAGE_BG_NAMES[Number(c.background) || 0] || "window";
     if (c.position != null) d.pos = MESSAGE_POS_NAMES[Number(c.position)] || "bottom";
+    // MP7·B "Show Message To": `to:"all"` broadcasts the message to every player
+    // in the room (fire-and-forget to peers, awaits only the trigger). Absent /
+    // "trigger" is the classic single-player message — byte-identical in solo.
+    if (c.to === "all") d.to = "all";
     await services.presentation.message(interp.origin, d);
   });
 
@@ -121,6 +125,26 @@ export function registerFlowCommands(): void {
 
   registerCommand("wait", async (c: any, { services }: InterpContext) => {
     await services.waitFrames(c.frames || 30);
+  });
+
+  // ---- Wait for All Players (Project Beacon MP7·B) ----
+  // A co-op sync barrier: pause the event until every other player in the room
+  // has gathered on this event's map, or until a timeout (so one wandering
+  // friend can't freeze the event forever). SOLO IS INSTANT — `mpOnline()` is
+  // false with an empty roster, so the command returns immediately and existing
+  // events are byte-identical. `timeout` is in seconds (default 10, capped 60);
+  // the barrier polls every 6 world ticks. Full ready-signal semantics ride
+  // MP8's server-run events (D-7-0); this is the authoring surface + the honest
+  // "everyone's on the map" barrier the local-authority path can already prove.
+  registerCommand("waitPlayers", async (c: any, { state, services }: InterpContext) => {
+    if (!services.mpOnline || !services.mpOnline()) return;
+    const secs = Math.max(1, Math.min(60, Number(c.timeout) || 10));
+    const maxTicks = Math.round(secs * 60);
+    let t = 0;
+    while (t < maxTicks && !services.mpAllOnMap(state.mapId)) {
+      await services.waitFrames(6);
+      t += 6;
+    }
   });
 
   registerCommand("script", async (c: any, { interp, services }: InterpContext) => {

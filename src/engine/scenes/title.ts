@@ -30,6 +30,7 @@ export async function newGame(start?: { mapId: number; x: number; y: number }): 
   G.switches = {};
   G.vars = {};
   G.selfSw = {};
+  G.pSwitches = {}; // per-player switches (Beacon MP7·B); empty ⇒ inert
   G.quests = {};
   G.gold = ctx.proj.system.startGold || 0;
   G.wallet = {}; // extra-currency balances all start at zero

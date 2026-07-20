@@ -9,8 +9,18 @@
 import { registerCommand, type InterpContext } from "../registry.js";
 
 export function registerStateCommands(): void {
-  registerCommand("switch", (c: any, { state, services }: InterpContext) => {
-    state.switches[c.id] = !!c.val;
+  registerCommand("switch", (c: any, { interp, state, services }: InterpContext) => {
+    if (c.scope === "player") {
+      // MP7·B per-player switch: stored on this event's ORIGIN player's own
+      // namespace (`G.pSwitches[pid]`), so each player carries their own copy.
+      // Solo ⇒ pid 0, one namespace; a world/event that never sets scope:"player"
+      // never touches pSwitches, so existing projects are byte-identical.
+      const pid = (interp.origin && interp.origin.playerId) || 0;
+      const store = state.pSwitches || (state.pSwitches = {});
+      (store[pid] || (store[pid] = {}))[c.id] = !!c.val;
+    } else {
+      state.switches[c.id] = !!c.val;
+    }
     services.refreshAllPages();
     services.evaluateQuestFailures();
   });

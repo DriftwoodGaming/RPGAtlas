@@ -35,6 +35,9 @@ export function createInitialGameState(): any {
     switches: {},
     vars: {},
     selfSw: {},
+    // Per-player switches (Beacon MP7·B): { [playerId]: { [switchId]: bool } }.
+    // Empty ⇒ inert; only the scope:"player" switch command ever writes here.
+    pSwitches: {},
     quests: {},
     party: [],
     inv: { item: {}, weapon: {}, armor: {} },
