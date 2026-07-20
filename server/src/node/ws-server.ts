@@ -147,7 +147,25 @@ export function startNodeWorldServer(opts: NodeWorldOptions): Promise<NodeWorldH
     world.accept(wrapSocket(ws, sourceOf(req, !!opts.trustProxy)));
   });
 
-  const tickTimer = setInterval(() => world.tickZones(), TICK_MS);
+  // Drift-compensated 60 Hz for in-process zones: Windows quantizes a
+  // 16.7 ms setInterval to ~31 ms, which would halve the sim rate (the same
+  // fix zone-worker.ts carries for worker zones). Each firing advances the
+  // sim by the wall time actually elapsed, capped so a stall can't spiral.
+  let last = Date.now();
+  let acc = 0;
+  const tickTimer = setInterval(() => {
+    const now = Date.now();
+    acc += now - last;
+    last = now;
+    let n = Math.floor(acc / TICK_MS);
+    if (n > 30) {
+      acc = 0;
+      n = 30;
+    } else {
+      acc -= n * TICK_MS;
+    }
+    while (n-- > 0) world.tickZones();
+  }, 8);
   const sweepTimer = setInterval(() => world.sweep(), SWEEP_MS);
   if (typeof tickTimer.unref === "function") tickTimer.unref();
   if (typeof sweepTimer.unref === "function") sweepTimer.unref();
