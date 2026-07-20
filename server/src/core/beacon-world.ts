@@ -555,6 +555,9 @@ export class BeaconWorld {
   }
 
   private route(st: ConnState, msg: ClientMessage): void {
+    // Keepalive (F-4/D-9E-5): liveness only. onFrame already bumped
+    // st.lastActivity; a ping is never rebroadcast and is valid in any phase.
+    if (msg.t === "ping") return;
     if (st.phase === "in-world") {
       if (msg.t === "mod") {
         // Moderation is world-level (the zone doesn't know operators). A world

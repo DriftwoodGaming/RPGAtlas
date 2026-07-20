@@ -321,6 +321,13 @@ export type ClientCustom = { t: "custom"; data: JsonValue };
  *  NOT here — it is instant + client-local, so it never crosses the wire. */
 export type ClientMod = { t: "mod"; action: ModAction; target: PlayerId; reason?: string };
 export type ModAction = "kick" | "ban" | "report";
+/** Application-level keepalive (Beacon MP9·E, F-4/D-9E-5). Browsers can't send
+ *  WebSocket protocol pings, so a connected client sends this tiny frame on a
+ *  plain interval (~20 s). The server treats ANY frame as liveness (bumps the
+ *  idle clock) and this one carries nothing to act on — it is never
+ *  rebroadcast, and it costs one normal message token like any other frame.
+ *  Additive within protocol v1 (a new `t`, no shape change → no version bump). */
+export type ClientPing = { t: "ping" };
 
 export type ClientMessage =
   | ClientHello
@@ -331,7 +338,8 @@ export type ClientMessage =
   | ClientEmote
   | ClientChat
   | ClientCustom
-  | ClientMod;
+  | ClientMod
+  | ClientPing;
 
 /* ── Server → client messages ──────────────────────────────────────────── */
 
@@ -748,6 +756,10 @@ export function decodeClientMessage(text: string): DecodeResult<ClientMessage> {
       if (!MOD_ACTIONS.includes(m.action as (typeof MOD_ACTIONS)[number])) return fail("mod: bad action");
       if (!isUint(m.target)) return fail("mod: bad target");
       if (m.reason !== undefined && !isText(m.reason, MAX_REPORT_LEN)) return fail("mod: bad reason");
+      break;
+    case "ping":
+      // Keepalive (F-4): no fields to validate. onFrame already bumped the
+      // connection's idle clock; the server routes it as a liveness no-op.
       break;
     default:
       return fail(`unknown client message type "${m.t}"`);

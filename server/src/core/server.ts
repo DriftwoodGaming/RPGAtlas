@@ -192,6 +192,10 @@ export class BeaconServer {
   }
 
   private route(st: ConnState, msg: ClientMessage): void {
+    // Keepalive (F-4/D-9E-5): liveness only. onFrame already bumped
+    // st.lastActivity before routing; a ping is never rebroadcast and is valid
+    // in any phase, so it never counts as a malformed pre-hello frame.
+    if (msg.t === "ping") return;
     // In a room: only in-room frames are meaningful; hello/join/resume there are
     // protocol errors (already in a room).
     if (st.phase === "in-room") {

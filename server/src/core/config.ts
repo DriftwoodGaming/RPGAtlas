@@ -31,7 +31,12 @@ export interface BeaconLimits {
    *  (empty rooms must not accumulate — roadmap safety rule 2). */
   emptyRoomTtlMs: number;
   /** Idle-connection timeout (ms): a link that sends nothing (not even the
-   *  handshake) for this long is closed, so half-open sockets don't pile up. */
+   *  handshake) for this long is closed, so half-open sockets don't pile up.
+   *  MP9·E (F-4/D-9E-5) widened the default from 45 s to 90 s: a live client now
+   *  sends a `{t:"ping"}` keepalive every ~20 s, but a BACKGROUNDED browser tab
+   *  throttles timers to ~1/min, so 90 s clears two throttled pings before a
+   *  briefly-inactive tab is reaped. This stays well under resumeGraceMs's
+   *  independent budget (a DISCONNECTED slot's hold), so the two are unrelated. */
   idleTimeoutMs: number;
 }
 
@@ -45,7 +50,7 @@ export const DEFAULT_LIMITS: BeaconLimits = {
   maxFrameBytes: 16 * 1024,
   resumeGraceMs: 30_000,
   emptyRoomTtlMs: 60_000,
-  idleTimeoutMs: 45_000,
+  idleTimeoutMs: 90_000, // MP9·E F-4: room for a throttled backgrounded tab's keepalive
 };
 
 /** MP8·A world-mode knobs (persistent worlds: zones + AOI + passports), on

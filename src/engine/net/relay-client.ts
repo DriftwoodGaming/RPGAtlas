@@ -36,6 +36,11 @@ import type { RoomSnapshot } from "./room-client.js";
 import type { DirectiveRenderer } from "./client-session.js";
 import { session } from "./session.js";
 
+/** F-4 (D-9E-5): how often a connected client sends its keepalive ping. Well
+ *  under the server's 90 s idle window even when a backgrounded tab throttles
+ *  the interval to ~1/min. */
+const KEEPALIVE_MS = 20_000;
+
 export interface RelayClientOptions {
   /** This client's display name (sent in `hello`). */
   name: string;
@@ -90,6 +95,7 @@ export class RelayClient {
   resumeToken = "";
   private readonly opts: RelayClientOptions;
   private seq = 0;
+  private keepalive: ReturnType<typeof setInterval> | null = null;
 
   constructor(world: World, transport: Transport, opts: RelayClientOptions) {
     this.world = world;
@@ -107,6 +113,20 @@ export class RelayClient {
       this.transport.send({ t: "hello", proto: PROTOCOL_VERSION, name: opts.name });
       this.sendEntry();
     }
+    this.startKeepalive();
+  }
+
+  /** F-4 (D-9E-5): browsers can't send WebSocket protocol pings, so we send a
+   *  tiny application-level {t:"ping"} on a plain interval. The server treats
+   *  any frame as liveness and ignores this one's payload (it is never
+   *  rebroadcast); the transport buffers it until the socket opens. Cleared on
+   *  close(); unref'd so it never keeps a Node test process alive on its own. */
+  private startKeepalive(): void {
+    if (typeof setInterval !== "function") return;
+    this.keepalive = setInterval(() => {
+      try { this.transport.send({ t: "ping" }); } catch { /* socket gone; close() clears the timer */ }
+    }, KEEPALIVE_MS);
+    (this.keepalive as { unref?: () => void }).unref?.();
   }
 
   /** Send `join` (fresh — codeless creates / a world's single room) or
@@ -225,6 +245,7 @@ export class RelayClient {
   }
 
   close(): void {
+    if (this.keepalive) { clearInterval(this.keepalive); this.keepalive = null; }
     this.transport.close();
   }
 }

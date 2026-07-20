@@ -116,6 +116,13 @@ describe("client→server round-trips (every union arm is wire-safe)", () => {
     roundTripClient({ t: "custom", data: null });
     roundTripClient({ t: "custom", data: [1, 2, { deep: true }] });
   });
+
+  it("MP9·E keepalive: a bare ping round-trips (F-4 liveness frame)", () => {
+    roundTripClient({ t: "ping" });
+    // Forward-compat: an extra field on a ping is accepted (additive within v1).
+    const r = decodeClientMessage(JSON.stringify({ t: "ping", nonce: 7 }));
+    expect(r.ok).toBe(true);
+  });
 });
 
 describe("server→client round-trips (every union arm is wire-safe)", () => {

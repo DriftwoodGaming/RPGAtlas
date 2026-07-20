@@ -256,6 +256,29 @@ describe("MP5 presence, resume, expiry", () => {
     server.sweep();
     expect(server.roomCount).toBe(0); // expired
   });
+
+  it("MP9·E F-4: a keepalive ping is liveness only — no error, no rebroadcast, staves off the idle reaper", () => {
+    const ref = { now: 1000 };
+    const { server } = makeServer(ref, { idleTimeoutMs: 90_000 });
+    const { conn, code } = createRoom(server, "Ana");
+    const bob = joinRoom(server, code, "Bob");
+    const bobBefore = bob.frames().length;
+
+    // Accepted in-room, no error, connection stays open, nothing rebroadcast.
+    conn.recv({ t: "ping" });
+    expect(conn.last("error")).toBeUndefined();
+    expect(conn.isOpen).toBe(true);
+    expect(bob.frames().length).toBe(bobBefore);
+
+    // A ping every 20 s keeps the link past the 90 s idle window…
+    for (let i = 0; i < 10; i++) { ref.now += 20_000; conn.recv({ t: "ping" }); server.sweep(); }
+    expect(conn.isOpen).toBe(true);
+
+    // …but silence past the window reaps it (the pre-existing idle behavior).
+    ref.now += 100_000;
+    server.sweep();
+    expect(conn.isOpen).toBe(false);
+  });
 });
 
 describe("MP5·D hardening", () => {
