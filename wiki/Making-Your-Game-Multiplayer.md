@@ -27,14 +27,21 @@ node scripts/build-coop-demo.mjs      # writes Atlas_Quest_Coop.json
 
 **Host a demo room** two ways:
 
-- **Easiest — the free relay.** Just open the demo game and pick **Play Together ▸ Create
-  Room**; you get a code to share. Friends pick **Join a Room** and type it. Nothing to run.
-- **Your own server.** Point a Beacon server at the demo project and share its address:
+- **Run your own play server** *(works today).* Build the Beacon server and point it at the
+  demo project — friend rooms run the full game engine by default, so co-op battles work out
+  of the box:
 
   ```
   cd server && npm install && npm run build
   node dist/beacon.mjs --project ../Atlas_Quest_Coop.json --port 8787
   ```
+
+  Put your server's `wss://` address in **Database ▸ Multiplayer ▸ Play server address** (or
+  launch the game with `?relay=wss://…`), then pick **Play Together ▸ Create Room** for a code
+  to share.
+- **Driftwood's free relay** *(once it's live).* When the hosted relay is deployed you won't
+  run anything at all — just **Play Together ▸ Create Room** for a code, and friends **Join a
+  Room**. Until then, use your own server above.
 
 Either way, the flow is: **Play Together → Create Room** (share the code) → a friend picks
 **Join a Room** and enters it. You're both on the shore in seconds. See
@@ -83,9 +90,10 @@ default:
 
 **In-game, players get a "💬 Players & Chat" button** whenever they're online. It opens a small
 panel with the emotes, your preset phrases, a chat box (only if you turned on free-text), and
-a list of everyone in the room. Next to each player are **Mute** (instant and private — it
-only affects that player's own screen), **Report** (flags them to the room owner), and, for
-the room owner, **Kick** and **Ban**.
+a list of everyone in the room. Next to each player are **Team Up** (invite them to your party —
+see below), **Mute** (instant and private — it only affects that player's own screen), **Report**
+(flags them to the room owner), and, for the room owner, **Kick** and **Ban**. Once you're in a
+party, **Leave Team** appears at the top of the panel.
 
 > **About the bad-word filter — read honestly.** It's a helpful courtesy, not a guarantee. It
 > catches the common cases (rude words, simple disguises like `sh1t`, stretched words like
@@ -142,13 +150,27 @@ And two new **Conditional Branch** checks:
 
 ## Party up and fight together
 
-Two players who are near each other can **team up**: one invites, the other accepts a friendly
-"NAME wants to team up!" prompt. Party members follow their leader through map changes, and when
-one of them starts a battle, nearby party members **join the same fight**. Everyone picks
-commands for their own heroes; loot and experience go to each player's own party. Nobody's
-game ends because a shared fight went badly — everyone just gets back up.
+Two players who are near each other can **team up**. Open the **💬 Players & Chat** panel, find
+your friend in the list, and tap **Team Up**; they get a friendly "NAME wants to team up!" prompt
+and tap **Join!** to accept. Leave any time with **Leave Team** at the top of the panel. Party
+members follow their leader through map changes, and when one of them starts a battle, nearby
+party members **join the same fight**. Everyone picks commands for their own heroes; loot and
+experience go to each player's own party. Nobody's game ends because a shared fight went badly —
+everyone just gets back up.
 
 A player who isn't in a party gets their **own** private battle, exactly as in a normal game.
+
+> **Where co-op battles run — honestly.** A shared battle is the game engine running the fight
+> on the server, so parties and battles work wherever the server runs your game's events:
+> - **Friend rooms on a Beacon server** (`node dist/beacon.mjs --project …`) — **on by default.**
+>   Every room is a full engine world, so Team Up and shared battles work out of the box. (Add
+>   `--no-engine-rooms` for the lighter walk-and-emote rooms with no battles.)
+> - **Persistent worlds** with authored events turned on (`--engine-events` — see
+>   **[Hosting a World](Hosting-a-World)**).
+> - **Driftwood's free relay** runs engine rooms too — **once it's deployed** (see *Play server
+>   address* above). Until then, host your own with the one-liner in the demo section.
+> - **Cloudflare-hosted rooms** are walk-and-chat only for now; parties and battles need the
+>   Node server. A temporary limit we'll close after 2.0.
 
 ---
 

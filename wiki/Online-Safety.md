@@ -29,8 +29,8 @@ room, joins a friend's room with a short code, or connects to a world by address
   over a secure `wss://` (encrypted) link — the same kind of secure connection a bank website
   uses. There is no peer-to-peer, so **no player ever learns another player's IP address or
   location.**
-- Friends in a **room** all connect to a shared **relay** server. Driftwood runs a free one
-  that's the default; a game's creator can point at their own server instead.
+- Friends in a **room** all connect to a shared **relay** server — either one the game's
+  creator runs themselves, or Driftwood's free relay (the default, once it's available).
 - A **world** (a bigger, persistent server) is one that a creator runs and controls.
 
 ---
@@ -111,8 +111,10 @@ on the default** (emotes + preset phrases). Then there is no free typing to worr
 
 A creator who runs their own **world server** keeps everything above, plus durable tools:
 
-- They can **block a player's passport**, which keeps that specific device from rejoining —
-  even across restarts.
+- They can **block a player's passport** — the random key that identifies that player. The
+  blocked key can't rejoin, even across restarts. (Because the passport lives on the player's
+  own device, a determined player could start over with a brand-new one — but only by wiping
+  their old key and losing all of that world's progress, which is a real deterrent.)
 - The server saves each player's position and game progress, keyed by that random passport
   key. **No personal information is stored** — just "this key was last here, with this
   progress." (See **[Hosting a World](Hosting-a-World)** for the technical details.)

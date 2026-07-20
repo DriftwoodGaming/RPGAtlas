@@ -1,9 +1,10 @@
 # Hosting a World
 
-Most games only need the free **Play Together** rooms — friends share a code and play, with
-zero setup (see **[Making Your Game Multiplayer](Making-Your-Game-Multiplayer)**). But if you
-dream bigger — a persistent world with lots of players on a server *you* control — RPGAtlas
-ships an open-source server you can run yourself.
+Most games only need the friend-room **Play Together** flow — friends share a code and play
+(see **[Making Your Game Multiplayer](Making-Your-Game-Multiplayer)**). That runs on a Beacon
+server: Driftwood's free relay once it's live, or one you start yourself in a single command.
+But if you dream bigger — a persistent world with lots of players on a server *you* control —
+RPGAtlas ships an open-source server you can run yourself.
 
 This page explains the two ways games connect, how to run your own server, and exactly what
 crosses the network (the part to show a parent or teacher).
@@ -14,12 +15,13 @@ crosses the network (the part to show a parent or teacher).
 
 **Friend rooms (the easy way).** A player picks **Play Together ▸ Create Room** and gets a
 code. Friends **Join a Room** with that code. Behind the scenes they all connect to a shared
-**relay** — Driftwood runs a free one, and it's the default. Nothing to install, nothing to
-configure. This is the right choice for almost everyone.
+**relay** — Driftwood's free relay is the default (once it's deployed), or point at one you
+run yourself. On a Node Beacon server every room is a **full engine world by default**, so
+parties and co-op battles work out of the box. This is the right choice for almost everyone.
 
 **Your own world (the powerful way).** You run the **Beacon server** yourself and point your
-game at it. Now *you* own the world: it can hold far more players, and (in a later Beacon
-phase) persist as a living place people return to. This is for ambitious creators.
+game at it. Now *you* own the world: it can hold far more players and persist as a living place
+people return to (with `--data`, below). This is for ambitious creators.
 
 To use your own server, put its address in **Database ▸ Multiplayer ▸ Play server address**.
 It must start with `wss://` (a secure connection).
@@ -48,6 +50,11 @@ Your game connects to `wss://your-machine-address:8787`. Useful flags:
 - `--port <n>` — the port to listen on.
 - `--max-players <n>` — a ceiling on room size (your game's own setting can only make rooms
   *smaller*, never bigger than this).
+- `--max-rooms <n>` — how many rooms this server holds at once (default 1000). Each engine room
+  is one worker, so this is also the worker budget; a create past it is refused and the player
+  sees a friendly "the play server is full" message.
+- `--no-engine-rooms` — make friend rooms the lighter **walk-and-chat** kind (no server-side
+  events or battles). Engine rooms — with co-op parties and shared battles — are the default.
 
 ### Running a persistent WORLD (not just friend rooms)
 
@@ -84,6 +91,11 @@ npx wrangler deploy
 
 The live deploy runs in **your** Cloudflare account (Driftwood never sees it). Your game
 connects to your `wss://…workers.dev` address.
+
+> **Co-op battles need the Node server for now.** Cloudflare rooms run the walk-and-chat layer;
+> the engine rooms above — parties and shared battles — run on the Node target today. If your
+> game leans on co-op battles, host the Node server; bringing engine rooms to Cloudflare is a
+> post-2.0 step.
 
 > The server shares the exact same world code the game uses — the same movement, collision,
 > and rules — so what runs on your server behaves like what runs in the editor.

@@ -39,9 +39,9 @@ byte-for-byte the same as before.
 
 Two things to double-check before you ship a multiplayer game:
 
-- **Play server address.** Blank = Driftwood's free relay (friend rooms, zero setup — the right
-  choice for most games). Point it at your own `wss://` server only if you run a world (see
-  **[Hosting a World](Hosting-a-World)**).
+- **Play server address.** Blank = Driftwood's free relay (friend rooms — zero setup once it's
+  live; until then, or any time, point it at a Beacon server you run yourself). Fill in your own
+  `wss://` address to use your server or a world (see **[Hosting a World](Hosting-a-World)**).
 - **Chat mode.** It's off by default (emotes + preset phrases). Turn on free-text only if you're
   comfortable with players typing — it's filtered, with mute/report/kick built in. For a page to
   show a parent or teacher, see **[Online Safety](Online-Safety)**.

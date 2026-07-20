@@ -454,6 +454,12 @@ function friendlyError(code: ErrorCode | "offline"): string {
       return mpText("errAuthFailed");
     case "offline":
       return mpText("errOffline");
+    case "internal":
+      // MP9·E (E3, carrying E2's D-9E-E2 deviation): a shared relay refuses a
+      // room CREATE past `--max-rooms` with `internal` (the cap is enforced
+      // server-side). For a kid that reads as "the play server is full" — the
+      // dominant cause and the right guidance ("try again in a little while").
+      return mpText("errRelayFull");
     default:
       return mpText("errGeneric");
   }
