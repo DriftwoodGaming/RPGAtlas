@@ -381,3 +381,34 @@ describe("MP6·A additive arms (party verbs + co-op battle directives)", () => {
     rejectClient({ t: "reply", id: 10, value: { kind: "battleCmd", cmds: [{ type: "dance" }] } }, /unknown cmd type/);
   });
 });
+
+describe("MP8·A additive arms (passport hello + challenge + handoff)", () => {
+  it("hello with passport pub/sig round-trips; junk pub/sig rejects", () => {
+    const pub = "A".repeat(88); // raw P-256 point, base64url ≈ 88 chars
+    const sig = "B".repeat(96);
+    roundTripClient({ t: "hello", proto: 1, name: "Riko", pub, sig });
+    roundTripClient({ t: "hello", proto: 1, name: "Riko" }); // classic anonymous hello unchanged
+    rejectClient({ t: "hello", proto: 1, name: "Riko", pub: "not base64url!" }, /bad pub/);
+    rejectClient({ t: "hello", proto: 1, name: "Riko", pub: "short" }, /bad pub/);
+    rejectClient({ t: "hello", proto: 1, name: "Riko", pub, sig: "x".repeat(1000) }, /bad sig/);
+  });
+
+  it("challenge round-trips; junk nonce rejects", () => {
+    roundTripServer({ t: "challenge", nonce: "N".repeat(32) });
+    rejectServer({ t: "challenge", nonce: "" }, /bad nonce/);
+    rejectServer({ t: "challenge", nonce: "!!" }, /bad nonce/);
+    rejectServer({ t: "challenge" }, /bad nonce/);
+  });
+
+  it("handoff round-trips (with and without url); junk rejects", () => {
+    roundTripServer({ t: "handoff", mapId: 7, token: TOKEN });
+    roundTripServer({ t: "handoff", mapId: 7, token: TOKEN, url: "wss://zones.example/rt?zone=7" });
+    rejectServer({ t: "handoff", mapId: -1, token: TOKEN }, /bad mapId/);
+    rejectServer({ t: "handoff", mapId: 7, token: "nope" }, /bad token/);
+    rejectServer({ t: "handoff", mapId: 7, token: TOKEN, url: "x" }, /bad url/);
+  });
+
+  it("auth-failed is a valid error code", () => {
+    roundTripServer({ t: "error", code: "auth-failed", fatal: true });
+  });
+});

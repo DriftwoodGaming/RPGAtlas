@@ -16,7 +16,11 @@
    a newer version" message (client copy, MP5·C).
    Player-facing identity note (D3/D6): a player is a server-assigned numeric
    id plus a display name — nothing else identifies them on the wire. Passport
-   public keys (MP8) will arrive as additive optional fields.
+   public keys (MP8·A) arrive as the additive optional `pub`/`sig` fields on
+   `hello`, answered to a world server's `challenge` — friend rooms never send
+   a challenge and stay fully anonymous (D3). A passport public key is a
+   device-local keypair's public half (no PII by construction, see
+   src/shared/net/passport.ts).
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
 
 import { isCanonicalRoomCode } from "./room-code";
@@ -274,8 +278,13 @@ export type DirectiveReplyValue =
 
 /* ── Client → server messages ──────────────────────────────────────────── */
 
-/** First frame on any connection: protocol handshake + display name. */
-export type ClientHello = { t: "hello"; proto: number; name: string };
+/** First frame on any connection: protocol handshake + display name.
+ *  MP8·A additive passport fields (world servers only): `pub` is the client's
+ *  passport public key (raw P-256 point, base64url) and `sig` its ECDSA-SHA256
+ *  signature over the server's `challenge` nonce (domain-separated — see
+ *  passport.ts signChallenge). A friend-room relay sends no challenge and
+ *  ignores both fields; a world server requires them (else `auth-failed`). */
+export type ClientHello = { t: "hello"; proto: number; name: string; pub?: string; sig?: string };
 /** Join a room by code, or — with `code` omitted — create a fresh room and
  *  become its owner. `code` must be canonical (client normalizes user typing
  *  via normalizeRoomCode before sending). */
@@ -357,6 +366,18 @@ export type ServerError = { t: "error"; code: ErrorCode; fatal?: boolean; detail
  *  MP7·C). `from` is the sender's player id; `data` is their opaque payload.
  *  Only the game's plugins interpret `data`. */
 export type ServerCustom = { t: "custom"; from: PlayerId; data: JsonValue };
+/** MP8·A (world servers only): sent immediately on connect, BEFORE the client's
+ *  `hello`. The client answers by signing `nonce` with its passport key and
+ *  carrying `pub`+`sig` on the hello. Friend-room relays never send this —
+ *  a client that never receives a challenge sends the classic anonymous hello. */
+export type ServerChallenge = { t: "challenge"; nonce: string };
+/** MP8·A cross-zone handoff for socket-per-zone targets (the Cloudflare DO
+ *  world, stage B): the player's map transfer lands in a zone hosted by a
+ *  DIFFERENT socket endpoint, so the server tells the client to reconnect —
+ *  `resume` with `token` at `url` (absent = same endpoint, new zone picks up
+ *  the session). The Node gateway target transfers zones server-side and sends
+ *  a fresh `snapshot` instead (no handoff frame, the socket never moves). */
+export type ServerHandoff = { t: "handoff"; mapId: number; token: string; url?: string };
 
 export type ErrorCode =
   | "proto-mismatch"
@@ -368,6 +389,7 @@ export type ErrorCode =
   | "chat-disabled"
   | "rate-limited"
   | "malformed"
+  | "auth-failed"
   | "internal";
 
 export type ServerMessage =
@@ -378,7 +400,9 @@ export type ServerMessage =
   | ServerPresence
   | ServerKick
   | ServerError
-  | ServerCustom;
+  | ServerCustom
+  | ServerChallenge
+  | ServerHandoff;
 
 /* ── Codec ─────────────────────────────────────────────────────────────── */
 
@@ -406,6 +430,9 @@ const isDir = (v: unknown): v is Dir =>
   v === "up" || v === "down" || v === "left" || v === "right";
 const isResumeToken = (v: unknown): v is string =>
   typeof v === "string" && /^[A-Za-z0-9_-]{16,128}$/.test(v);
+/** base64url text within [min, max] chars (passport pub/sig, challenge nonce). */
+const isB64url = (v: unknown, min: number, max: number): v is string =>
+  typeof v === "string" && v.length >= min && v.length <= max && /^[A-Za-z0-9_-]+$/.test(v);
 const isItemType = (v: unknown): v is "item" | "weapon" | "armor" =>
   v === "item" || v === "weapon" || v === "armor";
 
@@ -622,6 +649,7 @@ const ERROR_CODES: readonly ErrorCode[] = [
   "chat-disabled",
   "rate-limited",
   "malformed",
+  "auth-failed",
   "internal",
 ];
 const PRESENCE_KINDS = ["join", "leave", "emote", "say"] as const;
@@ -649,6 +677,11 @@ export function decodeClientMessage(text: string): DecodeResult<ClientMessage> {
     case "hello":
       if (!isUint(m.proto)) return fail("hello: bad proto");
       if (!isText(m.name, MAX_NAME_LEN)) return fail("hello: bad name");
+      // MP8·A passport fields (additive; world servers require them, friend
+      // rooms ignore them). Structural only — signature semantics are the
+      // server's job (verifyChallenge).
+      if (m.pub !== undefined && !isB64url(m.pub, 40, 200)) return fail("hello: bad pub");
+      if (m.sig !== undefined && !isB64url(m.sig, 40, 200)) return fail("hello: bad sig");
       break;
     case "join":
       if (m.code !== undefined && !(typeof m.code === "string" && isCanonicalRoomCode(m.code)))
@@ -747,6 +780,15 @@ export function decodeServerMessage(text: string): DecodeResult<ServerMessage> {
     case "custom":
       if (!isUint(m.from)) return fail("custom: bad from");
       if (!("data" in m)) return fail("custom: missing data");
+      break;
+    case "challenge":
+      if (!isB64url(m.nonce, 16, 128)) return fail("challenge: bad nonce");
+      break;
+    case "handoff":
+      if (!isUint(m.mapId)) return fail("handoff: bad mapId");
+      if (!isResumeToken(m.token)) return fail("handoff: bad token");
+      if (m.url !== undefined && !(typeof m.url === "string" && m.url.length >= 6 && m.url.length <= 512))
+        return fail("handoff: bad url");
       break;
     default:
       return fail(`unknown server message type "${m.t}"`);
