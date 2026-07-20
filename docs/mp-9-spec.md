@@ -244,3 +244,38 @@ spec drives the real relay "Play Together" flow in the BUILT player and is green
 **Gate slice (B):** docs + docs-site only (no code, no tests, no `js/`
 touched); the vite production build with MP9 is green (Playwright webServer +
 mp-relay). Wiki/docs-site are the deliverable.
+
+---
+
+## Stage C — showcase: Driftwood Shore co-op demo (Opus) ✅ landed 2026-07-20
+
+A ready-made co-op scenario so a creator can *see* Play Together before building
+their own — the Atlas Quest showcase turned into a beach meet-up on **Driftwood
+Shore** (map 4), built the **derived-project** way so **no map layout is edited**
+(the frozen pixel goldens are untouched — the roadmap's "don't edit frozen
+map 1" rule, honored by deriving a whole project, not a map).
+
+- **`scripts/coop-demo-config.mjs` (NEW):** `applyCoopDemo(project)` — the single
+  SHARED transform (Node + browser) so the built demo file and the e2e can't
+  drift. It sets ONLY `system` fields: title, start on Driftwood Shore (map 4,
+  tile 5,6 — the showcase's own known-good shore tile), and
+  `system.multiplayer` = enabled · 8 players · `chatMode:"presets"` (the SAFE
+  default: emotes + preset phrases, no free typing) · 8 kid-friendly co-op
+  presets · a shore spawn so joiners land together. `COOP_DEMO_PRESETS` exported.
+- **`scripts/build-coop-demo.mjs` (NEW):** derives `Atlas_Quest_Coop.json` from
+  `Atlas_Quest.json` via the shared transform (committed, ready-to-host; rerun
+  after editing the showcase). Prints the one-command host line.
+- **Hosted demo room flow — `wiki/Making-Your-Game-Multiplayer.md` "Try the
+  co-op demo first":** two ways to host (the free relay = zero setup, or
+  `node dist/beacon.mjs --project ../Atlas_Quest_Coop.json`), then Play Together
+  → Create Room → share code → friend Joins → both on the shore. docs-site
+  rebuilt (28 pages).
+- **`tests-e2e/coop-demo.spec.mjs` (NEW, +2 → Playwright 130):** the showcase
+  loaded through the real pipeline with `applyCoopDemo` — the title offers "Play
+  Together" (a solo game doesn't), a New Game lands on **Driftwood Shore**, and
+  Play Together opens the Create / Join room flow. Additive; no golden touched
+  (multiplayer is gated, absent in the frozen fixtures).
+
+**Gate slice (C):** eslint 0 (new script/config/spec) · **Playwright coop-demo
+2/2** (full suite → 130) · Atlas_Quest_Coop.json builds; maps identical to the
+source (`[1,2,3,4,5]`). No `js/` `?v=` touched; no map layout edited.

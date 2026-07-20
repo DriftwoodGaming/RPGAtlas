@@ -13,6 +13,35 @@ commands. When you're ready to run a big persistent world for lots of players, s
 
 ---
 
+## Try the co-op demo first
+
+RPGAtlas ships a ready-made co-op scenario so you can *see* Play Together before you build
+your own. It's the Atlas Quest showcase set up as a beach meet-up on **Driftwood Shore** —
+friends spawn together, wave, use preset phrases, party up, and explore.
+
+Generate the demo project (it's derived from the sample game — no map is edited):
+
+```
+node scripts/build-coop-demo.mjs      # writes Atlas_Quest_Coop.json
+```
+
+**Host a demo room** two ways:
+
+- **Easiest — the free relay.** Just open the demo game and pick **Play Together ▸ Create
+  Room**; you get a code to share. Friends pick **Join a Room** and type it. Nothing to run.
+- **Your own server.** Point a Beacon server at the demo project and share its address:
+
+  ```
+  cd server && npm install && npm run build
+  node dist/beacon.mjs --project ../Atlas_Quest_Coop.json --port 8787
+  ```
+
+Either way, the flow is: **Play Together → Create Room** (share the code) → a friend picks
+**Join a Room** and enters it. You're both on the shore in seconds. See
+**[Hosting a World](Hosting-a-World)** for a bigger, persistent world.
+
+---
+
 ## Turn it on
 
 1. Open **Database** (the 🗄 button, or the Game menu).

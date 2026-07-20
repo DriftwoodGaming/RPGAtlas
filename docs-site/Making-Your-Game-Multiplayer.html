@@ -29,6 +29,15 @@
 <p>This page shows you how to switch it on, set it up safely, and use the new online event commands. When you're ready to run a big persistent world for lots of players, see <strong><a href="Hosting-a-World.html">Hosting a World</a></strong>.</p>
 <blockquote><p><strong>Single-player is untouched.</strong> Until you tick the box below, your game plays exactly as before. Turning multiplayer on never changes how the game looks or feels offline.</p></blockquote>
 <hr>
+<h2 id="try-the-co-op-demo-first">Try the co-op demo first</h2>
+<p>RPGAtlas ships a ready-made co-op scenario so you can <em>see</em> Play Together before you build your own. It's the Atlas Quest showcase set up as a beach meet-up on <strong>Driftwood Shore</strong> — friends spawn together, wave, use preset phrases, party up, and explore.</p>
+<p>Generate the demo project (it's derived from the sample game — no map is edited):</p>
+<pre><code>node scripts/build-coop-demo.mjs      # writes Atlas_Quest_Coop.json</code></pre>
+<p><strong>Host a demo room</strong> two ways:</p>
+<ul><li><strong>Easiest — the free relay.</strong> Just open the demo game and pick <strong>Play Together ▸ Create Room</strong>; you get a code to share. Friends pick <strong>Join a Room</strong> and type it. Nothing to run.</li><li><strong>Your own server.</strong> Point a Beacon server at the demo project and share its address:</li></ul>
+<p>``<code> cd server &amp;&amp; npm install &amp;&amp; npm run build node dist/beacon.mjs --project ../Atlas_Quest_Coop.json --port 8787 </code>``</p>
+<p>Either way, the flow is: <strong>Play Together → Create Room</strong> (share the code) → a friend picks <strong>Join a Room</strong> and enters it. You're both on the shore in seconds. See <strong><a href="Hosting-a-World.html">Hosting a World</a></strong> for a bigger, persistent world.</p>
+<hr>
 <h2 id="turn-it-on">Turn it on</h2>
 <ol><li>Open <strong>Database</strong> (the 🗄 button, or the Game menu).</li><li>Click the <strong>Multiplayer</strong> tab.</li><li>Tick <strong>Enable Play Together</strong>.</li></ol>
 <p>That's it. Now, when someone opens your game, the title screen shows a <strong>Play Together</strong> button. They type a name and either <strong>Create Room</strong> (which gives them a code to share) or <strong>Join a Room</strong> (by typing a friend's code).</p>
