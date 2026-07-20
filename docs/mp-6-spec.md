@@ -1,6 +1,6 @@
 # Phase MP6 Spec — Co-op Battles ("Project Beacon")
 
-**Status:** stage A (Fable) landed · stage B (Opus) landed 2026-07-19 — awaiting Fable gate.
+**Status:** ✅ **PHASE COMPLETE — Fable gate PASS 2026-07-19, tag `beacon-6`** (verdict at the bottom of this file). Stage A (Fable) + stage B (Opus) landed 2026-07-19.
 **Authored:** 2026-07-19 by Claude Fable 5, from the MP6 section of
 `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-5-spec.md` + the MP0·C sim-boundary
 contract (`docs/mp-0-spec.md` §C).
@@ -478,3 +478,100 @@ Draw-conservation audit (THE battle contract): enumerate every rnd()/rndf() call
 Semantics review against the spec: A-6 collective escape, A-7 defeat-revive + suppressed game-over, A-8 per-participant rewards AFTER the classic sequence in join order, A-10 participants-only blocking, D-6-1 per-player parties/loadouts/end-frames. Confirm the deferrals as intended boundaries: D-6-0 (relay battles → MP8·A), D-6-5 (relay drops party intents), D-6-6 (co-op is turn-based; ATB/CTB + idle-poll redesign → MP8), D-6-8 (raw-EXP co-op), D-6-B-3 (cross-participant ally targeting → post-2.0 ledger).
 Record the verdict here + the roadmap status table, tag beacon-6, push with tags, and end with the MP7 BUILD hand-off block.
 ```
+
+### VERDICT — ✅ PASS (Fable gate, 2026-07-19) — tag `beacon-6`
+
+Every gate independently re-run this conversation; every audit item verified
+in code, not from the stage logs.
+
+**Template gates (all green):**
+
+| Gate | Result |
+|---|---|
+| vitest (test:unit) | **1145** (77 files) |
+| vitest (test:net) | **7** (isolated serial; no real-socket surface touched by MP6) |
+| node --test | **46** — determinism hash **46633057** re-computed live by sim-headless-boot; battle-index (the verbatim-enemies pin) green |
+| cargo | **26** (Rust untouched by MP6, per the diff) |
+| tsc | root **0** · server Node **0** · server CF **0** |
+| eslint | **0** — sim wall proven to FIRE on a probe engine import into `sim/party.ts` (no-restricted-imports, exit 1; probe reverted, tree clean) |
+| Playwright | **127/127** · perf **242.77/300** (stage B 245.36 → −1.1%, within ±10%) |
+| Solo-battle byte-identity | `git diff beacon-5..HEAD -- "*.png"` **EMPTY** |
+| Flake bar | `mp-battle.spec.mjs` **3× consecutive green, --workers=1** |
+| Versions / FV / cache-busts | 1.2.0 · FORMAT_VERSION 2 · none (the whole diff is 16 src files + tests + docs — no `?v=` file touched) |
+
+**Draw-conservation audit (THE battle contract) — CLEAN.** The complete
+added draw surface since beacon-5 is three sites, each verified:
+
+1. TP-init pool `G.party` → `party` (battle.ts): in solo `party === G.party`
+   **by reference** (the ternary's null arm), so the loop, order, and draws
+   are byte-identical. The only other `party`-widened readers (agility sort,
+   enemy AI `partyLevel`, targeting/substitute/party-ability pools, pickAlly)
+   are the same by-reference argument.
+2. `coopVictoryRewards` (battle-coop.ts): per-participant `rollDrops` off the
+   battle's own `rndf`, called behind `if (coop)` AFTER the authority's
+   classic reward sequence (A-8 order), trigger skipped, downed/withdrawn
+   participants draw nothing.
+3. The item execution site: gated on `!!a.coopPid` — false for every
+   solo/local actor, so precheck + `useItemOn(…, true)` + no event is the
+   exact classic path.
+
+`coop` itself requires `isCoopHost()` (host mode + live peers) AND
+`openSharedBattle` (party + proximity → ≥2 participants) AND a non-empty
+loadout collection with ≥1 rebuilt battler — three nested nulls between a
+solo world and any MP6 branch.
+
+**Invariants verified:** verbatim enemies statement untouched (context-only
+in the diff; battle-index green) · `useItemOn` `deductInv` defaults true and
+the decrement is the ONLY gated line — both classic callsites unchanged ·
+`Battle.lastShared` set only under `coop`, reset per run, checked at BOTH
+game-over callsites (combat.ts `!services.Battle.lastShared`, stub-safe for
+node tests; map.ts encounter `!fns.Battle.lastShared`) · blocking: battles
+add REMOTE pids only (trigger excluded from `remotePids`), released
+per-pid on sit-out (collectLoadouts) and withdrawal (withdrawParticipant)
+and collectively at close, with `finishCoopBattle` in the scene's `finally`
+so an exception still releases; no event-owned bit can collide in MP6
+because interpreter origins are only `{playerId: 0}` / world-context →
+DEFAULT_PLAYER (verified by grep — remote event origination is MP8) ·
+validation: three layers each reject their own garbage (protocol structural
+`checkLoadouts`/`checkBattleCmds`/`checkDirective`/`checkIntent`, all-uint;
+directives.ts semantic caps incl. `cmds.length ≤ yours.length`; battle.ts
+`resolveCoopCmd` live-state fallback-to-guard, D-6-B-1's revive/living
+re-check included).
+
+**Semantics review — conforms:** A-6 (remote escape feeds ONE collective
+`tryEscape` over the merged pool; failed local escape voids the co-op round
+via `coopTurnLost`; failed collective escape voids all commands, enemies
+act) · A-7 (1-HP revive under `coop`, result still `"lose"`, suppression at
+both callsites) · A-8 (rewards after the classic sequence, `activeParticipants`
+order = trigger-first join order; full EXP/gold each; end frames via
+`queueBattleEvent` per addressee, local player never queued) · A-10
+(participants-only; `applyRemoteIntent` blocking gate inert pre-MP6) ·
+D-6-1 (loadouts from each client's own `G.party`, rebuilt from the SHARED
+project via `makeActor` + clamps; end frames applied to each client's own
+`G` with zero client draws; items decrement owner-side only, B-4).
+
+**Deferrals CONFIRMED as intended boundaries:** D-6-0 (battles on the
+MP4-local authority; relay battles → MP8·A — `server/` untouched by MP6),
+D-6-5 (party intents decode fuzz-safely, MP5 `translateIntent` drops them),
+D-6-6 (co-op forces `battleSystem = "turn"`; ATB/CTB idle-poll redesign
+belongs to MP8's headless battles), D-6-8 (raw-EXP co-op; exact for
+Atlas-native rate-1 projects), D-6-B-3 (allies carry no idx in the view;
+cross-participant support targeting → post-2.0 ledger).
+
+**Non-blocking forward notes (for MP8·A):**
+
+1. `world.blocking` is a plain per-player Set, not a refcount. Safe in MP6
+   (only battles ever block remote pids). When MP8 adds remote event
+   ORIGINATION, an event-owned block and a battle block can land on the same
+   remote pid and the first teardown clears both — refcount it or exclude
+   battle/event overlap in the per-zone runtime.
+2. `battleCmd`'s `ally` is any uint merged idx at the wire; the UI can only
+   target your own battlers (B-2), but a hand-crafted reply could cross-heal
+   another participant's (or the host's) battler. Benign — help-only, no
+   draw deviation, no crash — under the MP6-local same-machine trust model;
+   tighten to own-battler idx server-side when MP8 moves loadouts into
+   passport-keyed player records.
+3. `applyBattleEnd` writes battler frames back by loadout order = the front
+   of `G.party` at end time; a client reordering its own party mid-battle
+   (formation) would land hp/mp on a sibling actor of the same player.
+   Same trust model; MP8's server-side loadouts key by actorId anyway.
