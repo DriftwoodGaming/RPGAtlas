@@ -128,9 +128,21 @@ export class BeaconRoom {
     return this.members.size === 0;
   }
 
+  /** Effective room capacity (MP7·A). The project may author a smaller cap
+   *  (`system.multiplayer.maxPlayers`); it can only ever LOWER the ceiling, so
+   *  the operator's `maxPlayersPerRoom` stays the authoritative maximum (a
+   *  hostile project can't inflate capacity). Absent/invalid ⇒ the operator
+   *  limit, byte-identical to MP5. */
+  get capacity(): number {
+    const cap = this.limits.maxPlayersPerRoom;
+    const sys = (this.world.proj as { system?: { multiplayer?: { maxPlayers?: number } } } | null)?.system;
+    const authored = sys && sys.multiplayer ? Number(sys.multiplayer.maxPlayers) : 0;
+    return authored >= 2 ? Math.min(cap, Math.floor(authored)) : cap;
+  }
+
   /** Room is full for a NEW player (resumes don't count against this). */
   get isFull(): boolean {
-    return this.members.size >= this.limits.maxPlayersPerRoom;
+    return this.members.size >= this.capacity;
   }
 
   /** The member whose slot this connection currently drives, if any. */

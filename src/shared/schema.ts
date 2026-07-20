@@ -280,6 +280,36 @@ export interface SystemData {
     armor?: boolean;
     keyItem?: boolean;
   };
+  /** Online multiplayer (Project Beacon MP7·A, backfilled by
+   *  RA.normalizeMultiplayer at every load boundary). Inert at its default —
+   *  `enabled:false` keeps the game byte-identical (no "Play Together" entry).
+   *  `relayUrl:""` ⇒ the built-in Driftwood relay. `chatMode` follows D4
+   *  (emotes + presets always on; free text off by default). `spawns` maps a
+   *  mapId to where joining players appear (absent ⇒ the project start). */
+  multiplayer?: MultiplayerConfig;
+}
+
+/** Per-map spawn placement for joining players (Beacon MP7·A). */
+export interface MultiplayerSpawn {
+  x: number;
+  y: number;
+  dir: Dir;
+}
+
+/** A project's online-multiplayer settings (Beacon MP7·A). */
+export interface MultiplayerConfig {
+  enabled: boolean;
+  /** Room capacity for a friend room (2–16). */
+  maxPlayers: number;
+  /** Relay server override; "" = the built-in Driftwood relay. */
+  relayUrl: string;
+  /** Communication mode (D4): "off" = emotes+presets only, "presets" = same
+   *  (reserved for future preset-only nuance), "text" = filtered free text. */
+  chatMode: "off" | "presets" | "text";
+  /** Author-written preset phrases (the always-on preset layer, D4). */
+  presets: string[];
+  /** mapId -> spawn point for joining players on that map. */
+  spawns: Record<number, MultiplayerSpawn>;
 }
 
 /** One vehicle's charset + starting placement (Phase 5 Stage C). */

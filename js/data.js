@@ -250,6 +250,46 @@ const RA = {
     return o;
   },
   defaultMusic() { return { title: "title", battle: "battle" }; },
+  // Online multiplayer settings (Project Beacon MP7·A). Additive + inert at its
+  // default: `enabled:false` keeps `multiplayerEnabled()` false, so a project
+  // that never opts in renders byte-identically (no "Play Together" title entry,
+  // no wire activity). `relayUrl:""` means "use the built-in Driftwood relay".
+  // `chatMode` follows D4: emotes + author presets are always on; free text is
+  // OFF by default and only enabled deliberately. `spawns` maps a mapId to where
+  // joining players appear on that map (blank ⇒ the project start position).
+  DEFAULT_MAX_PLAYERS: 4,
+  MP_CHAT_MODES: ["off", "presets", "text"],
+  defaultMultiplayer() {
+    return { enabled: false, maxPlayers: RA.DEFAULT_MAX_PLAYERS, relayUrl: "", chatMode: "off", presets: [], spawns: {} };
+  },
+  // Validate/clamp a multiplayer blob to the default shape. Idempotent, so it is
+  // safe to run at every load boundary (migrateProject). Unknown fields are
+  // dropped; every field falls back to its inert default.
+  normalizeMultiplayer(value) {
+    const base = RA.defaultMultiplayer();
+    const src = value && typeof value === "object" ? value : {};
+    base.enabled = src.enabled === true;
+    base.maxPlayers = Math.max(2, Math.min(16, Math.floor(Number(src.maxPlayers) || RA.DEFAULT_MAX_PLAYERS)));
+    base.relayUrl = typeof src.relayUrl === "string" ? src.relayUrl.slice(0, 256) : "";
+    base.chatMode = RA.MP_CHAT_MODES.includes(src.chatMode) ? src.chatMode : "off";
+    base.presets = Array.isArray(src.presets)
+      ? src.presets.map((s) => String(s == null ? "" : s).trim().slice(0, 60)).filter(Boolean).slice(0, 24)
+      : [];
+    base.spawns = {};
+    const spawns = src.spawns && typeof src.spawns === "object" ? src.spawns : {};
+    const DIRS = ["down", "left", "right", "up"];
+    for (const key of Object.keys(spawns)) {
+      const id = Math.floor(Number(key));
+      const sp = spawns[key];
+      if (!Number.isInteger(id) || id < 0 || !sp || typeof sp !== "object") continue;
+      base.spawns[id] = {
+        x: Math.max(0, Math.min(999, Math.floor(Number(sp.x) || 0))),
+        y: Math.max(0, Math.min(999, Math.floor(Number(sp.y) || 0))),
+        dir: DIRS.includes(sp.dir) ? sp.dir : "down",
+      };
+    }
+    return base;
+  },
   defaultActionCombat() {
     return {
       enabled: false,
@@ -876,6 +916,11 @@ const RA = {
     for (const k of Object.keys(defTypes)) {
       if (!Array.isArray(p.system.types[k]) || !p.system.types[k].length) p.system.types[k] = defTypes[k];
     }
+    // Online multiplayer settings (Project Beacon MP7·A). Normalized at every
+    // load boundary (already-current v2 projects and MZ/MV imports gain the
+    // block after they were saved). Inert at its default — `enabled:false` keeps
+    // the game byte-identical until an author turns multiplayer on in the DB.
+    p.system.multiplayer = RA.normalizeMultiplayer(p.system.multiplayer);
     p.meta.formatVersion = RA.FORMAT_VERSION;
     return p;
   },

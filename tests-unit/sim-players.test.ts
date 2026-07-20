@@ -66,6 +66,30 @@ describe("resolveSpawn", () => {
     const w = createWorld();
     expect(resolveSpawn(w)).toEqual({ mapId: 0, x: 0, y: 0, dir: 0, charset: "" });
   });
+
+  // MP7·A: an authored per-map spawn point places joining players on that map.
+  const MP_PROJ = {
+    system: {
+      startMapId: 3, startX: 7, startY: 9, startDir: "left",
+      multiplayer: { spawns: { 3: { x: 12, y: 4, dir: "up" } } },
+    },
+  };
+
+  it("uses the map's authored multiplayer spawn point when present", () => {
+    const w = createWorld(MP_PROJ);
+    // resolves to the start map (3) → its authored spawn overrides start x/y/dir
+    expect(resolveSpawn(w)).toEqual({ mapId: 3, x: 12, y: 4, dir: 3, charset: "" });
+  });
+
+  it("falls back to the project start on maps without a spawn point", () => {
+    const w = createWorld(MP_PROJ);
+    expect(resolveSpawn(w, { mapId: 8 })).toEqual({ mapId: 8, x: 7, y: 9, dir: 1, charset: "" });
+  });
+
+  it("explicit x/y/dir still win over an authored spawn point", () => {
+    const w = createWorld(MP_PROJ);
+    expect(resolveSpawn(w, { x: 1, y: 1, dir: "down" })).toEqual({ mapId: 3, x: 1, y: 1, dir: 0, charset: "" });
+  });
 });
 
 describe("addPlayer / removePlayer / getPlayer", () => {

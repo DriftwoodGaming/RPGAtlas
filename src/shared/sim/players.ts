@@ -110,14 +110,22 @@ export function gridDirOf(dir: unknown): number {
 
 /** Resolve a spawn against the world's project start defaults. Pure — no map
  *  load, no collision check (the caller places the entity; movement re-validates
- *  every step). A missing project (bare test world) yields origin/down. */
+ *  every step). A missing project (bare test world) yields origin/down.
+ *
+ *  MP7·A: when the resolved map has an authored multiplayer spawn point
+ *  (`system.multiplayer.spawns[mapId]`) and the caller didn't pin x/y/dir, the
+ *  spawn point overrides the project start. Absent (or an unmigrated project)
+ *  falls straight through to the start position — byte-identical to pre-MP7. */
 export function resolveSpawn(world: World, spawn: Spawn = {}): Required<Spawn> {
   const sys = (world.proj && world.proj.system) || {};
+  const mapId = spawn.mapId != null ? spawn.mapId : Number(sys.startMapId) || 0;
+  const mp = sys.multiplayer as { spawns?: Record<number, { x?: number; y?: number; dir?: unknown }> } | undefined;
+  const point = mp && mp.spawns ? mp.spawns[mapId] : undefined;
   return {
-    mapId: spawn.mapId != null ? spawn.mapId : Number(sys.startMapId) || 0,
-    x: spawn.x != null ? spawn.x : Number(sys.startX) || 0,
-    y: spawn.y != null ? spawn.y : Number(sys.startY) || 0,
-    dir: spawn.dir != null ? gridDirOf(spawn.dir) : gridDirOf(sys.startDir),
+    mapId,
+    x: spawn.x != null ? spawn.x : point && point.x != null ? Number(point.x) : Number(sys.startX) || 0,
+    y: spawn.y != null ? spawn.y : point && point.y != null ? Number(point.y) : Number(sys.startY) || 0,
+    dir: spawn.dir != null ? gridDirOf(spawn.dir) : point && point.dir != null ? gridDirOf(point.dir) : gridDirOf(sys.startDir),
     charset: spawn.charset != null ? spawn.charset : "",
   };
 }

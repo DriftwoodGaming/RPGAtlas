@@ -22,6 +22,7 @@ import { questsTab } from "./quests-tab";
 import { animationsTab } from "./animations-tab";
 import { tilesetTab } from "./tilesets-tab";
 import { typesTab, nameListTab } from "./types-tab";
+import { multiplayerTab } from "./multiplayer-tab";
 
 function dbTabs() {
   return [
@@ -41,6 +42,7 @@ function dbTabs() {
     { label: "States", build: statesTab },
     { label: "Tilesets", build: () => tilesetTab() },
     { label: "Types", build: () => typesTab() },
+    { label: "Multiplayer", build: multiplayerTab },
     { label: "Switches", build: () => nameListTab("switches", "S", RA.MAX_SWITCHES) },
     { label: "Variables", build: () => nameListTab("variables", "V", RA.MAX_VARIABLES) },
   ];

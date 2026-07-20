@@ -124,6 +124,24 @@ describe("MP5 BeaconServer lifecycle", () => {
     expect(full.last("error")?.code).toBe("room-full");
   });
 
+  // MP7·A: the project may author a SMALLER room cap; it only lowers capacity.
+  it("project multiplayer.maxPlayers caps the room below the server ceiling", () => {
+    const project = { ...PROJECT, system: { ...PROJECT.system, multiplayer: { enabled: true, maxPlayers: 2 } } };
+    const server = new BeaconServer({ project, clock: clockAt({ now: 1000 }), seed: 1 }); // server ceiling default 16
+    const { code } = createRoom(server, "Ana");
+    joinRoom(server, code, "Bo"); // 2nd ok
+    const third = joinRoom(server, code, "Cy");
+    expect(third.last("error")?.code).toBe("room-full");
+  });
+
+  it("an authored maxPlayers can never EXCEED the operator's ceiling", () => {
+    const project = { ...PROJECT, system: { ...PROJECT.system, multiplayer: { enabled: true, maxPlayers: 8 } } };
+    const server = new BeaconServer({ project, clock: clockAt({ now: 1000 }), seed: 1, limits: { maxPlayersPerRoom: 1 } });
+    const { code } = createRoom(server, "Ana");
+    const second = joinRoom(server, code, "Bo");
+    expect(second.last("error")?.code).toBe("room-full");
+  });
+
   it("proto mismatch is fatal", () => {
     const { server } = makeServer();
     const conn = new MockConn();
