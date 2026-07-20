@@ -289,13 +289,14 @@ interface WorldStore {
 - **Cloudflare:** directory DO storage holds world + records (records are
   small; DO storage is SQLite-backed and transactional); each zone DO stores
   its own ZoneSnapshot → hibernation/eviction restores instead of resetting.
-- **Node:** ❓ **THE MP8 BRANCH POINT** (asked before stage B): the zero-dep
-  default. (a) JSON snapshot files with atomic rename (works on any Node
-  ≥ 18, human-readable, plenty at this scale — a 1000-player world's records
-  are ~1 MB); (b) `node:sqlite` (single crash-safe file, but requires
-  Node ≥ 22.5 — the dev box runs 20.17); (c) native better-sqlite3 (rejected:
-  breaks the zero-dep one-command deploy). Either way the adapter interface
-  above ships, so the answer only picks the default implementation.
+- **Node:** ❓ **THE MP8 BRANCH POINT — ANSWERED 2026-07-20 (Driftwood):
+  JSON snapshot files** (the recommended option). Zero-dep, atomic-rename
+  writes, works on any Node ≥ 20, human-readable; plenty at this scale (a
+  1000-player world's records are ~1 MB). Rejected alternatives for the
+  default: `node:sqlite` (requires Node ≥ 22.5 — the dev box runs 20.17 and
+  self-hosters shouldn't need an upgrade), native better-sqlite3 (breaks the
+  zero-dep one-command deploy). The adapter interface ships regardless, so a
+  SQLite adapter can slot in later without touching the directory.
 - Load-gate criterion ("kill a zone, restore, state intact") = a stage-B e2e
   against the adapter.
 
@@ -374,9 +375,10 @@ Per the roadmap MP8·B + the stage-A deviations, in rough order:
    behavior byte-identical (this runs only in world zones). Carry the MP6
    notes: `world.blocking` refcount vs battle/event overlap; ally-idx
    cross-target tightening with passport loadouts; loadout-order writeback.
-2. **Persistence** per Driftwood's branch-point answer (§A5): the
-   `WorldStore` adapter + Node default + CF DO storage; flush cadences;
-   kill-a-zone/restore e2e (the load-gate criterion).
+2. **Persistence** per the answered branch point (§A5 — **JSON snapshot
+   files** as the Node default): the `WorldStore` adapter + atomic-rename
+   file store + CF DO storage; flush cadences; kill-a-zone/restore e2e (the
+   load-gate criterion).
 3. **CF DO world target (D-8-1):** zone DO + directory DO, `handoff`
    reconnect flow, drift-compensated DO tick driver, hibernation restore
    from ZoneSnapshots.
