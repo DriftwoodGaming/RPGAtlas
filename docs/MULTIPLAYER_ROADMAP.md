@@ -17,15 +17,19 @@ stubbed to auto-"win" per D-8-6) — and the default relay `beacon.rpgatlas.app`
 Full findings F-1…F-5 + the fix fork for Driftwood: MP9 row below + `docs/mp-9-spec.md` §RELEASE GATE.
 **Driftwood picked fork (a) 2026-07-20 (decision D8): make D5 true online — server-side parties +
 shared battles.** Phase **MP9·E** (section below; work order in `docs/mp-9-spec.md` §MP9·E) is now the
-active phase: **E1 headless battle runner (Fable) ✅ · E2 rooms-as-engine-worlds (Opus) ✅** · E3 Team Up
-UI + honesty fixes (Opus) · E4 relay-battle e2e + exe rebuild → then RE-RUN the MP9 RELEASE gate (fresh
-Fable conversation, same gate block). Tags stay withheld until the re-gate passes. **E2 landed 2026-07-20
-(commits `d63d22d` in-process core + `fe62920` worker-per-room): friend rooms now delegate their whole
-sim to a per-room engine world — the F-1 co-op battle is reachable over the relay (join by code → Team Up
-intent → shared battle → both end frames, proven in-process AND in a real worker thread); `beacon.mjs
---project` defaults engine rooms ON, `--no-engine-rooms` opts back to MP5 walk/chat rooms, `--max-rooms`
-caps the worker budget; CF DO rooms stay player-layer (D-9E-D1). The Team Up BUTTON + i18n + F-4 keepalive
-+ honesty-docs are E3; E2 wired the intent channel the button drives.
+active phase: **E1 headless battle runner (Fable) ✅ · E2 rooms-as-engine-worlds (Opus) ✅ · E3 Team Up
+UI + honesty fixes (Opus) ✅** · E4 relay-battle e2e + exe rebuild → then RE-RUN the MP9 RELEASE gate (fresh
+Fable conversation, same gate block). Tags stay withheld until the re-gate passes. **E3 landed 2026-07-20
+(commits `3bc0993` Team Up UI + `59a1efc` keepalive + `f87ffc5` honesty docs + `a01b14c` de-flake): the
+social panel gained per-player **Team Up** + header **Leave Team** (SocialApi.invite/leaveParty over the
+§C5 intent E2 wired — the button IS the proven dev-hook path, sim-validated, so F-1 is now player-reachable
+end to end); F-4 client `{t:"ping"}` keepalive (~20 s) + server idle 45→90 s so a backgrounded tab isn't
+reaped; F-2/F-3/F-5 docs corrected to the new truth (battles online in Node rooms + `--engine-events`
+worlds; per-passport bans; "zero setup" softened until the relay deploys) + the E2 relay-full copy. Gates
+all green, goldens byte-identical, no `js/` touched, version still 2.0.0 (only the re-gate tags). **E2 had
+landed (commits `d63d22d` in-process core + `fe62920` worker-per-room): friend rooms delegate their whole
+sim to a per-room engine world; `beacon.mjs --project` defaults engine rooms ON, `--no-engine-rooms` opts
+back to MP5 walk/chat rooms, `--max-rooms` caps the worker budget; CF DO rooms stay player-layer (D-9E-D1).
 
 ---
 

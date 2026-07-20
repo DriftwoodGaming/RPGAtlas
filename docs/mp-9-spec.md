@@ -773,3 +773,117 @@ server tsc Node + CF 0 · eslint 0 · all **three** server bundles build
 (`dist/room-worker.mjs` new), `beacon.mjs --help` evaluates headless ·
 Playwright **130/130** (perf 254.25/300), `git diff beacon-8..HEAD -- "*.png"`
 EMPTY (solo goldens byte-identical) · E2 touched no `js/` (no cache-bust due).
+
+#### E3 — Team Up UI + honesty fixes (Opus, 2026-07-20)
+
+Built per D-9E-3 / D-9E-5 / D-9E-6 in three committed+pushed sub-stages, plus a
+fourth de-flake fix the gate surfaced. The button E2 wired the channel for is now
+on the panel; the release-gate F-2/F-4/F-5 doc + keepalive findings are closed.
+
+**E3·a — Team Up / Leave Team UI** (`src/engine/net/social-ui.ts`,
+`src/engine/co-op.ts`, `src/engine/mp-i18n.ts`; commit `3bc0993`):
+
+- `SocialApi` gains `invite(pid)` / `leaveParty()` / `party()`. co-op.ts sends
+  the `{k:"partyInvite"|"partyLeave"}` §C5 intent through `active.client`
+  (relay/room) or the loopback `soloClient` (local BroadcastChannel host) — byte
+  for byte what the RPGATLAS_MP dev hook did (F-1's proven path), now behind a
+  button. The sim validates authoritatively (self / ghost / already-partied /
+  full all rejected), so the button is safe on every transport.
+- social-ui.ts: each OTHER-player row gains a **Team Up** button (hidden for
+  players already on my team, who get a 🤝 mark read from the client party
+  mirror); the panel header gains **Leave Team** while partied. Inline-styled
+  like the rest of the panel (no editor.css, no cache-bust). The invite fires an
+  `inviteSentToast`; Leave Team closes the panel so a reopen reads fresh state
+  (party changes are async — they land via `applyPartyTable`/the host tick, then
+  the existing `youLeftParty`/`friendJoinedParty` toasts fire).
+- mp-i18n: `teamUpBtn` / `leaveTeamBtn` / `inviteSentToast` (+ `errRelayFull`,
+  wired in E3·c) across all 11 packs; the parity gate auto-covers them and the
+  mpText test pins the EN copy.
+
+**E3·b — client WS keepalive + idle window** (`src/shared/net/protocol.ts`,
+`src/engine/net/relay-client.ts`, `server/src/core/{config,server,beacon-world}.ts`;
+commit `59a1efc`):
+
+- Additive `ClientPing = {t:"ping"}` (a new `t`, no shape change → PROTOCOL_VERSION
+  stays 1); the strict decoder accepts it with no fields, extras tolerated per the
+  v1 additive rule. net-protocol round-trip + extra-field test added.
+- RelayClient sends `{t:"ping"}` every ~20 s from a plain unref'd interval,
+  cleared on `close()`. RoomClient/BroadcastChannel (same-machine) needs none.
+- Both server routers (`server.ts` room, `beacon-world.ts` world) treat a ping as
+  liveness ONLY: `onFrame` already bumped `lastActivity` before routing, so
+  `route()` returns immediately — never rebroadcast, valid in any phase (so a
+  pre-hello ping never counts as malformed), one normal message token.
+- `idleTimeoutMs` default **45 s → 90 s** (D-9E-5): a backgrounded tab throttles
+  timers to ~1/min, so 90 s clears two throttled pings before reaping. Independent
+  of `resumeGraceMs` (30 s, a DISCONNECTED slot's hold) and `emptyRoomTtlMs`
+  (60 s) — re-checked, unchanged. beacon-server test proves a ping is
+  no-error / no-rebroadcast and staves off the 90 s reaper while silence still
+  reaps.
+
+**E3·c — honesty docs + relay-full copy** (`wiki/*.md`, `docs-site/*.html`,
+`src/engine/co-op.ts`; commit `f87ffc5`):
+
+- **F-2** (Making-Your-Game-Multiplayer): the "Party up and fight together"
+  section was transport-silent. It now documents the Team Up / Leave Team flow AND
+  states plainly WHERE co-op battles run — Node Beacon friend rooms (engine rooms
+  ON by default, E2), `--engine-events` worlds, the free relay once deployed, and
+  Cloudflare rooms as walk/chat-only for now (D-9E-D1). The panel + demo sections
+  were updated to the new truth (self-host-first, honest join steps).
+- **F-5** (Online-Safety): a world ban is per-PASSPORT (the player's game key),
+  not per-device; wording fixed, with the honest "wipe = fresh identity at the
+  cost of all progress" deterrent stated.
+- **F-3** (Making- / Hosting- / Publishing-): "zero setup" / "nothing to run"
+  softened to "once the free relay is live" with the self-host one-liner
+  front-and-centre. `DEFAULT_RELAY_URL` unchanged (deploy stays Driftwood's
+  operator step, still flagged).
+- Hosting-a-World also documents `--max-rooms` / `--no-engine-rooms`, corrects the
+  stale "later phase" persistence note (ships now with `--data`), and flags the CF
+  co-op limit. docs-site rebuilt (28 pages, only the 4 edited pages changed).
+- **relay-full copy** (E2's D-9E-E2 deviation closed): co-op.ts `friendlyError`
+  maps the server's `internal` room-cap refusal (a CREATE past `--max-rooms`) to
+  the new `errRelayFull` string. Kept the server-side `internal` refusal — no new
+  protocol code, exactly the E2 deviation's plan.
+
+**E3 de-flake** (`tests-unit/{beacon-world,world-persistence,relay-client-world}.test.ts`;
+commit `a01b14c`): the gate surfaced a PRE-EXISTING load flake unrelated to E3 —
+the fast-pool world tests waited a FIXED count of `setTimeout(0)` macrotasks for
+the REAL async ECDSA passport verify, which loses the race intermittently (~40 %
+for the 2-flush `joinWorld` helper, observed failing across DIFFERENT tests
+run-to-run, always at the "no welcome yet" check) under full-suite parallelism.
+Replaced with a bounded `waitFor(pred, tries=100)` poll for the actual terminal
+frame (welcome / error / kick); resume/steal now send hello+resume back-to-back
+and poll (the auth queue already orders them). Negative assertions
+(welcome-undefined, auth-failed) unchanged — they poll for the error/kick frame.
+Behavior-preserving, test-only; **10/10 consecutive clean full-suite runs** after
+the fix, vs intermittent single-test failures before.
+
+**Locked decisions:**
+
+- **D-9E-E3-1** — the Team Up button IS the dev hook. It sends the identical §C5
+  party intent through the same client the E1/E2 tests drove; the sim is the sole
+  authority, so no client-side party validation was added (the button is "safe on
+  every transport" by construction, and unreachable in solo — the panel mounts
+  only in a live MP session, so the frozen goldens never see it).
+- **D-9E-E3-2** — Team Up shows per OTHER-player row and hides for current
+  teammates (🤝 mark); Leave Team lives in the panel header. Membership is read
+  from the client mirror (`partyOf(rosterWorld(), local)`), so it reflects host
+  authority (`soloHost.world`) or relay delta (`applyPartyTable`) identically.
+- **D-9E-E3-3** — keepalive is a RelayClient (socket) concern only; the idle
+  window widened globally via the shared `idleTimeoutMs` default (rooms AND
+  world), and a ping is liveness-only in every server phase.
+
+**Client/CF untouched semantics:** the wire is additive-only (`ClientPing`); no
+snapshot/delta shape changed; `cf/worker.ts` still builds player-layer rooms
+(D-9E-D1 stands — CF DO rooms are walk/chat only, documented honestly).
+
+**Gates (E3):** fast `test:unit` **1308 / 94 files** (was 1306/94; +net-protocol
+ping +beacon-server ping; **10× consecutive clean** after the de-flake) · net
+**12 × 3 consecutive** · node --test **48/48** (determinism golden **46633057**
+re-computed live) · cargo **26** · root tsc 0 · server tsc Node + CF 0 · eslint 0 ·
+mp-i18n parity **34** (62 keys/pack, was 58) · Playwright **130/130** (perf
+225.92/300), `git diff beacon-8..HEAD -- "*.png"` **EMPTY** (solo goldens
+byte-identical) · all three server bundles build, `beacon.mjs --help` headless ·
+docs-site 28 pages · E3 touched no `js/` (no cache-bust due) · version **2.0.0**
+unchanged (only the re-gate tags). **NEXT: E4** (relay-battle Playwright e2e +
+exe rebuild + docs-site refresh), then hand the unchanged MP9 RELEASE GATE block
+to a fresh Fable conversation.
