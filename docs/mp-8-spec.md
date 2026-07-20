@@ -522,9 +522,17 @@ and **no binary/delta encoding is demanded** (37 KB/s/client peak stands; the
 one WITH the per-zone event runtime (interpreter + NPC motion make zones
 CPU-heavier) — that rides item 1, and is called out again in the hand-off.
 
-**Gate slice (B·5):** root tsc 0 · server tsc Node/CF 0 · eslint 0 · **net
-suite 10/10** (beacon-ws 2 · relay-client 4 · beacon-load 1 · zone-worker 1 ·
-world-smoke 2) · bench runs clean at 50/200/1000. No golden or `js/?v=` touched.
+**Gate slice (B·5):** root tsc 0 · server tsc Node/CF 0 · eslint 0 · **vitest
+`test:unit` 1234 → 1232 after moving world-smoke to net-only** (world-persistence
++5 over beacon-7's 1227; world-smoke is real-socket so it's excluded from the
+fast pool in BOTH configs, per the MP5 rule) · **net suite 10/10** (beacon-ws 2 ·
+relay-client 4 · beacon-load 1 · zone-worker 1 · world-smoke 2) · bench runs
+clean at 50/200/1000. No golden or `js/?v=` touched.
+
+*(Full-suite counts for the eventual load gate: fast `test:unit` = **1232**
+[84 files], net `test:net` = **10** [5 files]. node --test, cargo, Playwright,
+i18n parity all UNTOUCHED by the server-only B·2/B·5 work — the Fable load gate
+re-runs them from scratch.)*
 
 ### Remaining stage-B work (hand-off — items 1, 3, 4, 6)
 
