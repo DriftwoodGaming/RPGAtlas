@@ -43,6 +43,9 @@ export const MAX_SERVER_MESSAGE_BYTES = 4 * 1024 * 1024;
 export const MAX_NAME_LEN = 24;
 /** Free-text / preset-say chat length cap (D4 also rate-limits). */
 export const MAX_CHAT_LEN = 200;
+/** Optional free-text reason on a `report` (MP9·A moderation). Short — it is a
+ *  hint for the room owner / world operator, never shown to the reported player. */
+export const MAX_REPORT_LEN = 120;
 /** Emote-id length cap. */
 export const MAX_EMOTE_LEN = 32;
 /** Name-input directive replies (actor renames) may exceed display-name len. */
@@ -309,6 +312,15 @@ export type ClientChat = { t: "chat"; text?: string; preset?: number };
  *  world sim), so it works over both the local co-op bus and the relay. Size is
  *  bounded by the client frame byte cap; rate-limited by the message bucket. */
 export type ClientCustom = { t: "custom"; data: JsonValue };
+/** Moderation request (Beacon MP9·A, D4/D6). `report` is available to any
+ *  player and routes to the room owner + world-operator log; `kick`/`ban` are
+ *  owner-only in a friend room (the server enforces — a non-owner gets
+ *  `not-allowed`) and operator-only in a world (clients can only `report`; the
+ *  operator bans by passport via the CLI). `target` is the offending player's
+ *  id; `reason` is an optional short hint (never shown to the target). Mute is
+ *  NOT here — it is instant + client-local, so it never crosses the wire. */
+export type ClientMod = { t: "mod"; action: ModAction; target: PlayerId; reason?: string };
+export type ModAction = "kick" | "ban" | "report";
 
 export type ClientMessage =
   | ClientHello
@@ -318,7 +330,8 @@ export type ClientMessage =
   | ClientReply
   | ClientEmote
   | ClientChat
-  | ClientCustom;
+  | ClientCustom
+  | ClientMod;
 
 /* ── Server → client messages ──────────────────────────────────────────── */
 
@@ -368,6 +381,12 @@ export type ServerError = { t: "error"; code: ErrorCode; fatal?: boolean; detail
  *  MP7·C). `from` is the sender's player id; `data` is their opaque payload.
  *  Only the game's plugins interpret `data`. */
 export type ServerCustom = { t: "custom"; from: PlayerId; data: JsonValue };
+/** A player report delivered to the room owner (Beacon MP9·A). `from` is the
+ *  reporter, `target` the reported player, `name` the reported player's display
+ *  name (a convenience for the owner's inbox — already public via presence),
+ *  `reason` the optional hint. Carries no IP / no PII (D6): a report is exactly
+ *  the two public player ids + name + an optional owner-authored-ish hint. */
+export type ServerReport = { t: "report"; from: PlayerId; target: PlayerId; name?: string; reason?: string };
 /** MP8·A (world servers only): sent immediately on connect, BEFORE the client's
  *  `hello`. The client answers by signing `nonce` with its passport key and
  *  carrying `pub`+`sig` on the hello. Friend-room relays never send this —
@@ -389,6 +408,7 @@ export type ErrorCode =
   | "not-in-room"
   | "already-in-room"
   | "chat-disabled"
+  | "not-allowed"
   | "rate-limited"
   | "malformed"
   | "auth-failed"
@@ -404,7 +424,8 @@ export type ServerMessage =
   | ServerError
   | ServerCustom
   | ServerChallenge
-  | ServerHandoff;
+  | ServerHandoff
+  | ServerReport;
 
 /* ── Codec ─────────────────────────────────────────────────────────────── */
 
@@ -649,11 +670,13 @@ const ERROR_CODES: readonly ErrorCode[] = [
   "not-in-room",
   "already-in-room",
   "chat-disabled",
+  "not-allowed",
   "rate-limited",
   "malformed",
   "auth-failed",
   "internal",
 ];
+const MOD_ACTIONS = ["kick", "ban", "report"] as const;
 const PRESENCE_KINDS = ["join", "leave", "emote", "say"] as const;
 
 function parseRoot(text: string, cap: number): DecodeResult<Record<string, unknown>> {
@@ -721,6 +744,11 @@ export function decodeClientMessage(text: string): DecodeResult<ClientMessage> {
       // whole contract — the engine never interprets it, only plugins do.
       if (!("data" in m)) return fail("custom: missing data");
       break;
+    case "mod":
+      if (!MOD_ACTIONS.includes(m.action as (typeof MOD_ACTIONS)[number])) return fail("mod: bad action");
+      if (!isUint(m.target)) return fail("mod: bad target");
+      if (m.reason !== undefined && !isText(m.reason, MAX_REPORT_LEN)) return fail("mod: bad reason");
+      break;
     default:
       return fail(`unknown client message type "${m.t}"`);
   }
@@ -782,6 +810,12 @@ export function decodeServerMessage(text: string): DecodeResult<ServerMessage> {
     case "custom":
       if (!isUint(m.from)) return fail("custom: bad from");
       if (!("data" in m)) return fail("custom: missing data");
+      break;
+    case "report":
+      if (!isUint(m.from)) return fail("report: bad from");
+      if (!isUint(m.target)) return fail("report: bad target");
+      if (m.name !== undefined && !isText(m.name, MAX_NAME_LEN)) return fail("report: bad name");
+      if (m.reason !== undefined && !isText(m.reason, MAX_REPORT_LEN)) return fail("report: bad reason");
       break;
     case "challenge":
       if (!isB64url(m.nonce, 16, 128)) return fail("challenge: bad nonce");

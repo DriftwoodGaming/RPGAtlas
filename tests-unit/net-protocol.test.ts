@@ -412,3 +412,30 @@ describe("MP8·A additive arms (passport hello + challenge + handoff)", () => {
     roundTripServer({ t: "error", code: "auth-failed", fatal: true });
   });
 });
+
+describe("MP9·A additive arms (moderation: mod + report + not-allowed)", () => {
+  it("client mod (kick/ban/report, with and without reason) round-trips", () => {
+    roundTripClient({ t: "mod", action: "kick", target: 3 });
+    roundTripClient({ t: "mod", action: "ban", target: 4 });
+    roundTripClient({ t: "mod", action: "report", target: 5, reason: "being mean" });
+  });
+
+  it("mod rejects a bad action, target, or oversized reason", () => {
+    rejectClient({ t: "mod", action: "nuke", target: 1 }, /bad action/);
+    rejectClient({ t: "mod", action: "kick", target: -1 }, /bad target/);
+    rejectClient({ t: "mod", action: "kick", target: 2.5 }, /bad target/);
+    rejectClient({ t: "mod", action: "report", target: 1, reason: "x".repeat(200) }, /bad reason/);
+  });
+
+  it("server report (owner inbox) round-trips; junk rejects", () => {
+    roundTripServer({ t: "report", from: 2, target: 3 });
+    roundTripServer({ t: "report", from: 2, target: 3, name: "Griefer", reason: "spam" });
+    rejectServer({ t: "report", from: -1, target: 3 }, /bad from/);
+    rejectServer({ t: "report", from: 2, target: "x" }, /bad target/);
+    rejectServer({ t: "report", from: 2, target: 3, name: "x".repeat(MAX_NAME_LEN + 1) }, /bad name/);
+  });
+
+  it("not-allowed is a valid error code", () => {
+    roundTripServer({ t: "error", code: "not-allowed" });
+  });
+});
