@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Online Safety (for Parents & Teachers) — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="Your-Game-Is-a-Folder.html">Your Game Is a Folder</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li><li><a href="Coming-from-RPG-Maker.html">Coming from RPG Maker</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Advanced-Map-Editor.html">Advanced Map Editor</a></li><li><a href="Events.html">Events</a></li><li><a href="Dialogue-and-Cutscenes.html">Dialogue & Cutscenes</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="Adding-Your-Own-Art-and-Music.html">Adding Your Own Art and Music</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Play together (online)</strong></p>
+<ul><li><a href="Making-Your-Game-Multiplayer.html">Making Your Game Multiplayer</a></li><li><a href="Hosting-a-World.html">Hosting a World</a></li><li><a class="active" href="Online-Safety.html">Online Safety (Parents & Teachers)</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="online-safety-for-parents-teachers">Online Safety (for Parents & Teachers)</h1>
+<p>RPGAtlas games can let friends play together online. This page explains — in plain language — exactly what that means, what connects to what, and what information is (and isn't) collected. It's written to be read by a parent, guardian, or teacher, and it's short on purpose.</p>
+<p><strong>The one-sentence version:</strong> players connect only to a game server (never to each other), no accounts or emails or personal information are ever collected, and free-text chat is <strong>off unless a game's creator turns it on</strong> — with instant muting and reporting built in.</p>
+<hr>
+<h2 id="is-online-play-even-on">Is online play even on?</h2>
+<p>For most games, <strong>no</strong> — a game is single-player until its creator ticks a box. If a game never turned on "Play Together," there is nothing online to worry about: it plays entirely on the device, offline.</p>
+<p>When a game <em>does</em> have Play Together, a <strong>Play Together</strong> button appears on its title screen. A player types a display name (whatever they like — a nickname is fine) and either creates a room, joins a friend's room with a short code, or connects to a world by address.</p>
+<hr>
+<h2 id="what-connects-to-what">What connects to what</h2>
+<ul><li><strong>Players never connect to each other.</strong> Every player connects only to a <strong>game server</strong>, over a secure <code>wss://</code> (encrypted) link — the same kind of secure connection a bank website uses. There is no peer-to-peer, so <strong>no player ever learns another player's IP address or location.</strong></li><li>Friends in a <strong>room</strong> all connect to a shared <strong>relay</strong> server. Driftwood runs a free one that's the default; a game's creator can point at their own server instead.</li><li>A <strong>world</strong> (a bigger, persistent server) is one that a creator runs and controls.</li></ul>
+<hr>
+<h2 id="what-information-is-collected">What information is collected</h2>
+<p><strong>None of the usual stuff.</strong> Specifically:</p>
+<ul><li><strong>No accounts.</strong> Nobody signs up. There is no username-and-password.</li><li><strong>No email address.</strong> Ever. It's never asked for.</li><li><strong>No personal information.</strong> A player is only a <strong>display name</strong> they choose. That's the whole identity in a friend room.</li><li>For a <strong>world</strong>, a device also creates a <strong>passport</strong> — a small security key stored on the device so the same player is recognised when they come back. <strong>It contains no personal information</strong> (no name-beyond-the-nickname, no email, no location, nothing about the person). It's a random cryptographic key, like a house key that only fits one lock.</li></ul>
+<p><strong>What actually travels over the network</strong> is only: the player's display name, where their character is standing on the map, and the emotes / phrases (or, if the creator enabled it, filtered chat) they choose to send. Never an address, never a browsing history, never anything private.</p>
+<p>The <strong>free relay</strong> keeps a player's network address (IP) only briefly and only to stop abuse (like blocking someone who floods it) — it is never shown to anyone and never stored long-term. A self-hosted server is run by the creator, on their own machine or account.</p>
+<hr>
+<h2 id="room-codes-are-private">Room codes are private</h2>
+<ul><li>Room codes are <strong>long and unguessable</strong>, and join attempts are rate-limited, so nobody stumbles into a room by luck.</li><li>There is <strong>no public list of rooms</strong> — you play with the people you <em>give</em> your code to.</li><li><strong>Empty rooms disappear</strong> on their own, so nothing lingers.</li></ul>
+<hr>
+<h2 id="chat-off-by-default-and-honest-about-the-filter">Chat: off by default, and honest about the filter</h2>
+<p>How players talk to each other is a <strong>safety setting the game's creator chooses</strong>:</p>
+<ul><li><strong>Emotes + preset phrases only</strong> — the default, and the safest. Players tap emotes (👋 👍 ❤️) and ready-made phrases the creator wrote ("Follow me!", "Need healing!"). <strong>No free typing at all.</strong> Ideal for younger players.</li><li><strong>Filtered free-text chat</strong> — players can also type short messages. These are run through a bad-word filter.</li></ul>
+<p><strong>Please read this about the filter, honestly:</strong> a word-list filter is a helpful courtesy, <strong>not</strong> a guarantee. It catches the common cases (rude words, simple disguises like <code>sh1t</code>, stretched-out words like <code>fuuuck</code>), and it works best in English with a decent effort in Spanish, French, German, Portuguese, and Italian. It does <strong>not</strong> catch every creative spelling, brand-new slang, or messages in other alphabets. That's why the <em>real</em> safety tools don't rely on the filter at all:</p>
+<ul><li><strong>Mute</strong> is instant and private. Any player can mute anyone with one tap — that person's messages and emotes simply stop appearing on their screen. It happens entirely on the device; the muted person is never told.</li><li><strong>Report</strong> lets any player flag someone to the person running the room or world.</li><li><strong>Kick / block</strong> — the person who created a room (the "owner"), and the operator of a world, can remove a disruptive player.</li></ul>
+<p>If you're setting up a game for young children, the simplest safe choice is to <strong>leave chat on the default</strong> (emotes + preset phrases). Then there is no free typing to worry about.</p>
+<hr>
+<h2 id="the-tools-at-a-glance">The tools, at a glance</h2>
+<table><thead><tr><th>Anyone can…</th><th>A room owner / world operator can…</th></tr></thead><tbody><tr><td><strong>Mute</strong> any player instantly (private, on-device)</td><td><strong>Kick</strong> a disruptive player from the room</td></tr><tr><td><strong>Report</strong> a player to the owner/operator</td><td><strong>Block</strong> a player (in a world, durably, by their passport)</td></tr><tr><td>Turn off chat by not turning it on</td><td>Review reports and run moderation commands</td></tr></tbody></table>
+<hr>
+<h2 id="for-a-self-hosted-world">For a self-hosted world</h2>
+<p>A creator who runs their own <strong>world server</strong> keeps everything above, plus durable tools:</p>
+<ul><li>They can <strong>block a player's passport</strong>, which keeps that specific device from rejoining — even across restarts.</li><li>The server saves each player's position and game progress, keyed by that random passport key. <strong>No personal information is stored</strong> — just "this key was last here, with this progress." (See <strong><a href="Hosting-a-World.html">Hosting a World</a></strong> for the technical details.)</li></ul>
+<hr>
+<h2 id="a-quick-checklist-for-a-parent-or-teacher">A quick checklist for a parent or teacher</h2>
+<ol><li><strong>Is online play even on?</strong> If there's no "Play Together" button, it's single-player — nothing to set up.</li><li><strong>Who can they play with?</strong> Only people they share a room code (or a server address) with. There's no public matchmaking or stranger lobby.</li><li><strong>Can they type freely to others?</strong> Only if the game's creator enabled free-text chat. If you're unsure, the safest choice is emotes + preset phrases.</li><li><strong>What if someone is unkind?</strong> The child can mute them instantly and report them; the room owner can remove them.</li><li><strong>What's collected?</strong> No account, no email, no personal information — a chosen display name and (for worlds) a random device key with nothing personal in it.</li></ol>
+<hr>
+<p><em>Related: <strong><a href="Making-Your-Game-Multiplayer.html">Making Your Game Multiplayer</a></strong> · <strong><a href="Hosting-a-World.html">Hosting a World</a></strong>.</em></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

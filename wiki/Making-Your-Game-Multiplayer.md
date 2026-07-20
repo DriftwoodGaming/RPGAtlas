@@ -52,6 +52,19 @@ default:
 
 > Whatever you choose, emotes and your preset phrases always work.
 
+**In-game, players get a "💬 Players & Chat" button** whenever they're online. It opens a small
+panel with the emotes, your preset phrases, a chat box (only if you turned on free-text), and
+a list of everyone in the room. Next to each player are **Mute** (instant and private — it
+only affects that player's own screen), **Report** (flags them to the room owner), and, for
+the room owner, **Kick** and **Ban**.
+
+> **About the bad-word filter — read honestly.** It's a helpful courtesy, not a guarantee. It
+> catches the common cases (rude words, simple disguises like `sh1t`, stretched words like
+> `fuuuck`), best in English and with a good effort in Spanish, French, German, Portuguese,
+> and Italian. It does **not** catch every creative spelling or other alphabets. The tools
+> that actually keep a room safe are **mute**, **report**, and the owner's **kick/ban** — see
+> **[Online Safety](Online-Safety)** for the parent/teacher version.
+
 ### Preset phrases
 
 Write short things players can say with one tap — one per line. For example:
@@ -92,9 +105,9 @@ And two new **Conditional Branch** checks:
 - **Player Count** — how many players share the room (yourself included). Use it for
   "open the gate when 3 players are here."
 
-> These build the *authoring* side of online events. Full online event effects run once your
-> game is on a world server that runs events (a later Beacon phase) — but everything you set up
-> now is ready and works today in local co-op testing.
+> These work in local co-op today, and they run for real on a **world server** with authored
+> events turned on (`--engine-events` — see **[Hosting a World](Hosting-a-World)**): NPCs,
+> cutscenes, and triggers run on the server so every player sees the same living world.
 
 ---
 
@@ -121,9 +134,12 @@ RPGAtlas multiplayer was built for kids first:
   your code with. Empty rooms disappear on their own.
 - **Free-text chat is off by default** and only exists if *you* turn it on. Even then, it's
   filtered, and every player can mute and report.
+- **Room owners can kick and ban.** The player who created a room can remove a disruptive
+  player from it. (Running a whole world? You get durable, passport-based blocking and an
+  operator console — see **[Hosting a World](Hosting-a-World)**.)
 
 For a plain-language page you can show a parent or teacher, and the full privacy details, see
-**[Hosting a World](Hosting-a-World)**.
+**[Online Safety (Parents & Teachers)](Online-Safety)**.
 
 ---
 

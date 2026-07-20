@@ -17,7 +17,7 @@
 <p><strong>Building your world</strong></p>
 <ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Advanced-Map-Editor.html">Advanced Map Editor</a></li><li><a href="Events.html">Events</a></li><li><a href="Dialogue-and-Cutscenes.html">Dialogue & Cutscenes</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="Adding-Your-Own-Art-and-Music.html">Adding Your Own Art and Music</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
 <p><strong>Play together (online)</strong></p>
-<ul><li><a href="Making-Your-Game-Multiplayer.html">Making Your Game Multiplayer</a></li><li><a href="Hosting-a-World.html">Hosting a World</a></li></ul>
+<ul><li><a href="Making-Your-Game-Multiplayer.html">Making Your Game Multiplayer</a></li><li><a href="Hosting-a-World.html">Hosting a World</a></li><li><a href="Online-Safety.html">Online Safety (Parents & Teachers)</a></li></ul>
 <p><strong>Polish & ship</strong></p>
 <ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a class="active" href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
 <p><strong>Reference</strong></p>
@@ -34,6 +34,11 @@
 <hr>
 <h2 id="what-players-experience">What players experience</h2>
 <ul><li>They <strong>don't install anything</strong> beyond having a modern browser (the EXE just opens their default one).</li><li><strong>Save slots</strong> (the game has three) are stored in the <strong>player's own browser</strong>. Saves are per browser/computer — that's normal for browser games.</li><li>Nothing phones home; the game runs entirely on their machine.</li></ul>
+<hr>
+<h2 id="multiplayer-games">Multiplayer games</h2>
+<p>If you turned on <strong>Play Together</strong> (Database ▸ Multiplayer), every export — the web/itch PWA zip, the Standalone HTML, and the native EXE — <strong>carries it automatically</strong>. Players get the <strong>Play Together</strong> button on the title screen; a single-player game (the default) never shows it and is byte-for-byte the same as before.</p>
+<p>Two things to double-check before you ship a multiplayer game:</p>
+<ul><li><strong>Play server address.</strong> Blank = Driftwood's free relay (friend rooms, zero setup — the right choice for most games). Point it at your own <code>wss://</code> server only if you run a world (see <strong><a href="Hosting-a-World.html">Hosting a World</a></strong>).</li><li><strong>Chat mode.</strong> It's off by default (emotes + preset phrases). Turn on free-text only if you're comfortable with players typing — it's filtered, with mute/report/kick built in. For a page to show a parent or teacher, see <strong><a href="Online-Safety.html">Online Safety</a></strong>.</li></ul>
 <hr>
 <h2 id="the-unsigned-exe-warning">The unsigned-EXE warning</h2>
 <p>The exported Windows launcher is <strong>unsigned</strong> (code-signing certificates cost money). Windows SmartScreen may show a security warning for downloaded builds — players click <strong>More info ▸ Run anyway</strong>. If that worries your audience, the <strong>Standalone HTML</strong> export sidesteps it entirely.</p>

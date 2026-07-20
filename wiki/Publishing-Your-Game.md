@@ -30,6 +30,24 @@ stays as small as possible.
 
 ---
 
+## Multiplayer games
+
+If you turned on **Play Together** (Database ▸ Multiplayer), every export — the web/itch PWA zip,
+the Standalone HTML, and the native EXE — **carries it automatically**. Players get the **Play
+Together** button on the title screen; a single-player game (the default) never shows it and is
+byte-for-byte the same as before.
+
+Two things to double-check before you ship a multiplayer game:
+
+- **Play server address.** Blank = Driftwood's free relay (friend rooms, zero setup — the right
+  choice for most games). Point it at your own `wss://` server only if you run a world (see
+  **[Hosting a World](Hosting-a-World)**).
+- **Chat mode.** It's off by default (emotes + preset phrases). Turn on free-text only if you're
+  comfortable with players typing — it's filtered, with mute/report/kick built in. For a page to
+  show a parent or teacher, see **[Online Safety](Online-Safety)**.
+
+---
+
 ## The unsigned-EXE warning
 
 The exported Windows launcher is **unsigned** (code-signing certificates cost money). Windows

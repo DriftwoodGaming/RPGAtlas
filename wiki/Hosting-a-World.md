@@ -49,6 +49,28 @@ Your game connects to `wss://your-machine-address:8787`. Useful flags:
 - `--max-players <n>` — a ceiling on room size (your game's own setting can only make rooms
   *smaller*, never bigger than this).
 
+### Running a persistent WORLD (not just friend rooms)
+
+Add `--world` to run one big shared world (with device passports) instead of code-based
+friend rooms:
+
+```
+node dist/beacon.mjs --project path/to/game.rpgatlas --world --data ./world-data
+```
+
+- `--world` — one shared, persistent world instead of many code rooms. Players sign in with a
+  **passport** (a key their device makes automatically — no signup).
+- `--data <dir>` — save the world (player positions, progress, world state) to plain JSON
+  files in `<dir>`, so players return to where they left off after a restart. Leave it off for
+  a memory-only world that resets when you stop the server.
+- `--engine-events` — run authored **NPCs, cutscenes, and triggers** on the server, so every
+  player shares the same living world. Add `--zone-workers` for a multi-map world (one map per
+  worker thread).
+
+The crash-loss budget is small and honest: with `--data`, at most ~30 seconds of world state
+and player movement can be lost in a hard crash (the server saves every 30 seconds and on a
+clean shutdown).
+
 ### Option 2 — Cloudflare (free tier, no server to babysit)
 
 Beacon also runs on **Cloudflare Durable Objects** — one room per object, with hibernation so
@@ -75,7 +97,11 @@ This is the part worth reading carefully, and worth showing a parent or teacher.
 - **No player-to-player connections.** Every player connects only to the server, over a secure
   `wss://` link. No player ever learns another player's address or location.
 - **No accounts, no email, no personal information.** A player is only ever a **display name**
-  and a **room code**. That's the whole identity.
+  and a **room code**. In a persistent world, a device also makes a **passport** — a random
+  key stored on the device so the same player is recognised on return. It contains **nothing
+  personal** (no name beyond the nickname, no email, no location). Its file is the same trust
+  tier as a save file: keep it, and you can carry your world identity to another device
+  (**Play Together ▸ Save / Load Passport**).
 - **Room codes are unguessable.** They're long enough that guessing one is hopeless, and join
   attempts are rate-limited. There is **no public list of rooms** — you play with people you
   give your code to.
@@ -86,7 +112,11 @@ This is the part worth reading carefully, and worth showing a parent or teacher.
 - **The free relay** keeps a player's network address only briefly, and only to stop abuse —
   never shown to anyone, never stored long-term.
 - **Chat is off by default.** Free-text chat exists only if a game's creator turns it on, and
-  even then it's filtered with mute and report built in.
+  even then it's filtered with mute and report built in. (The filter is a best-effort courtesy,
+  not a guarantee — the real tools are mute, report, and kick/ban.)
+
+> **Show a parent or teacher:** **[Online Safety (Parents & Teachers)](Online-Safety)** is a
+> short, plain-language version of this section.
 
 ---
 
@@ -94,9 +124,25 @@ This is the part worth reading carefully, and worth showing a parent or teacher.
 
 When you host a world, you have the tools to keep it friendly:
 
-- **Room owners** can remove a disruptive player from their room.
-- **World operators** (you) can block a player from a world.
-- **Every player** can mute anyone instantly, and report a problem.
+- **Every player** can **mute** anyone instantly (private, on their own screen) and **report**
+  a problem to you.
+- **Room owners** (in friend-room mode) can **kick** and **ban** a disruptive player from
+  their room from the in-game "💬 Players & Chat" panel.
+- **World operators** (you) moderate from the **server console** — the terminal where the
+  server runs. In `--world` mode, type these commands:
+
+  | Command | What it does |
+  |---|---|
+  | `players` | list everyone connected (id · name · passport fingerprint · map) |
+  | `reports` | show recent player reports (with the reported player's passport) |
+  | `ban <id or fingerprint>` | block a passport — kicks them now and refuses them at the door |
+  | `unban <fingerprint>` | lift a ban |
+  | `bans` | list active bans |
+  | `help` | show the command list |
+
+  A ban is **by passport**, so it's durable: with `--data`, it survives a restart. Because a
+  passport carries **no personal information**, blocking one blocks that device's key — not a
+  person's identity.
 
 ---
 

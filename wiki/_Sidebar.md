@@ -23,6 +23,7 @@
 **Play together (online)**
 - [Making Your Game Multiplayer](Making-Your-Game-Multiplayer)
 - [Hosting a World](Hosting-a-World)
+- [Online Safety (Parents & Teachers)](Online-Safety)
 
 **Polish & ship**
 - [Message Text Codes](Message-Text-Codes)

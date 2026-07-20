@@ -205,3 +205,42 @@ byte-identical). No `js/` `?v=` touched.
 authority: chat off by default, filtered opt-in text, instant client-local mute,
 report → owner/operator, owner kick/ban (friend room) + operator ban-by-passport
 + CLI (world). Solo byte-identical (Playwright 128/128).
+
+---
+
+## Stage B — packaging + safety docs (Opus) ✅ landed 2026-07-20
+
+**Packaging = verification, not code.** Every export builds from `src/` via
+`vite build → dist/player-bundle.js` (the shared build manifest + standalone
+template both the in-editor export and `package-game-exe.mjs` use), so a game
+with Play Together enabled **carries the full MP9 client automatically** — the
+social panel, mute, chat, moderation. Confirmed live: the Playwright `mp-relay`
+spec drives the real relay "Play Together" flow in the BUILT player and is green
+(part of 128/128). A single-player game never mounts any of it (byte-identical).
+
+**Wiki + docs-site (the parent/teacher safety deliverable):**
+- **NEW `wiki/Online-Safety.md`** — the plain-language parent/teacher page the
+  roadmap requires: is online play even on, what connects to what (client↔server
+  only, no P2P, no IPs), what's collected (nothing — no accounts/email/PII; the
+  world passport is a random device key with nothing personal), room-code
+  privacy, chat off-by-default + an **honest** account of the filter's limits,
+  the mute/report/kick/ban tools, self-hosted passport bans, and a 5-point
+  checklist. Added to `wiki/_Sidebar.md` nav.
+- **`Making-Your-Game-Multiplayer.md`** — documents the in-game "💬 Players &
+  Chat" panel (emotes/phrases/chat + per-player mute/report + owner kick/ban),
+  the honest filter note, room-owner kick/ban, and corrects the stale "events
+  run in a later phase" caveat (MP8·B's `--engine-events` runtime is real).
+- **`Hosting-a-World.md`** — adds the MP8 world flags (`--world` / `--data` /
+  `--engine-events` / `--zone-workers`), the ~30 s crash-loss budget, the
+  passport identity note, and a concrete **operator console** table (`players`,
+  `reports`, `ban <id|fingerprint>`, `unban`, `bans`, `help` — durable
+  passport bans), plus a pointer to Online-Safety.
+- **`Publishing-Your-Game.md`** — a "Multiplayer games" section: exports carry
+  Play Together automatically; check the play-server address + chat mode.
+- **docs-site rebuilt** (`node scripts/build-docs-site.mjs`): **28 pages**
+  (was 27 at beacon-7) — `Online-Safety.html` generated; every page's nav
+  refreshed from the updated sidebar.
+
+**Gate slice (B):** docs + docs-site only (no code, no tests, no `js/`
+touched); the vite production build with MP9 is green (Playwright webServer +
+mp-relay). Wiki/docs-site are the deliverable.
