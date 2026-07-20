@@ -71,6 +71,11 @@ class MockConn implements ServerConnection {
 }
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
+/** Poll (bounded) until `pred` holds — robust where a fixed flush count would
+ *  race the REAL async ECDSA passport verify under heavy parallel test load. */
+async function waitFor(pred: () => boolean, tries = 100): Promise<void> {
+  for (let i = 0; i < tries && !pred(); i++) await flush();
+}
 const players = (m: ServerMessage | undefined): any[] =>
   (m as any)?.world?.players ?? (m as any)?.changes?.players ?? [];
 
@@ -87,8 +92,7 @@ async function joinWorld(world: BeaconWorld, passport: Passport): Promise<{ conn
   const sig = await signChallenge(passport, challenge.nonce);
   conn.recv({ t: "hello", proto: 1, name: passport.name, pub, sig });
   conn.recv({ t: "join" });
-  await flush();
-  await flush();
+  await waitFor(() => !!conn.last("welcome") || !!conn.last("error") || !conn.isOpen);
   const w = conn.last("welcome");
   if (!w) throw new Error("join failed: " + conn.sent.join(" | "));
   return { conn, pid: w.playerId };
@@ -145,8 +149,7 @@ describe("MP8·B persistence — kill a world, restore, state intact", () => {
     b.accept(conn);
     const nonce = conn.last("challenge")!.nonce;
     conn.recv({ t: "hello", proto: 1, name: "Griefer", pub: await passportPublicRaw(banned), sig: await signChallenge(banned, nonce) });
-    await flush();
-    await flush();
+    await waitFor(() => !!conn.last("kick") || !conn.isOpen);
     expect(conn.last("kick")?.code).toBe("banned");
     b.shutdown();
   });

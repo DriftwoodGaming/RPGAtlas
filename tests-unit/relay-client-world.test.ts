@@ -27,8 +27,11 @@ class MockTransport implements Transport {
   ofType(t: string): any[] { return this.sent.filter((m) => m.t === t); }
 }
 
-// WebCrypto sign/export settle on a macrotask; give the signed hello time to land.
-const flush = async (): Promise<void> => { for (let i = 0; i < 3; i++) await new Promise((r) => setTimeout(r, 0)); };
+// WebCrypto sign/export settle on a macrotask; poll (bounded) for the signed
+// frame rather than a fixed flush count, which can race under heavy test load.
+async function waitFor(pred: () => boolean, tries = 100): Promise<void> {
+  for (let i = 0; i < tries && !pred(); i++) await new Promise((r) => setTimeout(r, 0));
+}
 
 describe("RelayClient WORLD handshake (D-8-4)", () => {
   it("waits for the challenge, then sends a VALID signed hello + codeless join", async () => {
@@ -40,7 +43,7 @@ describe("RelayClient WORLD handshake (D-8-4)", () => {
 
     const nonce = randomChallengeNonce();
     tr.recv({ t: "challenge", nonce });
-    await flush();
+    await waitFor(() => tr.ofType("hello").length > 0 && tr.ofType("join").length > 0);
 
     const hello = tr.ofType("hello")[0];
     expect(hello).toBeTruthy();
@@ -61,7 +64,7 @@ describe("RelayClient WORLD handshake (D-8-4)", () => {
     const tr = new MockTransport();
     new RelayClient(createWorld(null), tr, { name: "Bo", passport, resume: { code: "ABC-DEF-GHI", token: "tok123" } });
     tr.recv({ t: "challenge", nonce: randomChallengeNonce() });
-    await flush();
+    await waitFor(() => tr.ofType("hello").length > 0 && tr.ofType("resume").length > 0);
     expect(tr.ofType("hello")[0].sig).toBeTruthy();
     const resume = tr.ofType("resume")[0];
     expect(resume.token).toBe("tok123");

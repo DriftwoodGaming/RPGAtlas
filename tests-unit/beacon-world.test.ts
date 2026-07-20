@@ -78,6 +78,14 @@ class MockConn implements ServerConnection {
 /** Let the async passport verification settle. */
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+/** Poll (bounded) until `pred` holds. The passport verify is a REAL async ECDSA
+ *  op; a fixed flush count can lose the race under heavy parallel test load, so
+ *  we wait for the actual terminal frame instead. 100 event-loop turns dwarf a
+ *  sub-millisecond verify, so a genuinely stuck path still fails fast. */
+async function waitFor(pred: () => boolean, tries = 100): Promise<void> {
+  for (let i = 0; i < tries && !pred(); i++) await flush();
+}
+
 function makeWorld(project: unknown = PROJECT, limits = {}, now = { now: 1000 }) {
   const world = new BeaconWorld({ project, clock: () => now.now, seed: 1, limits });
   return { world, now };
@@ -94,8 +102,7 @@ async function joinWorld(world: BeaconWorld, passport: Passport): Promise<{ conn
   const sig = await signChallenge(passport, challenge.nonce);
   conn.recv({ t: "hello", proto: 1, name: passport.name, pub, sig });
   conn.recv({ t: "join" }); // parks in the auth queue, drains after verify
-  await flush();
-  await flush();
+  await waitFor(() => !!conn.last("welcome") || !!conn.last("error") || !conn.isOpen);
   const w = conn.last("welcome");
   if (!w) throw new Error("join failed: " + conn.sent.join(" | "));
   return { conn, pid: w.playerId };
@@ -125,8 +132,7 @@ describe("MP8·A world auth (passport challenge gate)", () => {
     const nonce = conn.last("challenge")!.nonce;
     // Mallory presents Riko's public key with her own signature.
     conn.recv({ t: "hello", proto: 1, name: "Riko?", pub: await passportPublicRaw(riko), sig: await signChallenge(mallory, nonce) });
-    await flush();
-    await flush();
+    await waitFor(() => !!conn.last("error") || !conn.isOpen);
     expect(conn.last("error")?.code).toBe("auth-failed");
     expect(conn.isOpen).toBe(false);
     expect(world.stats().players).toBe(0);
@@ -153,8 +159,7 @@ describe("MP8·A world auth (passport challenge gate)", () => {
     world.accept(again);
     const nonce = again.last("challenge")!.nonce;
     again.recv({ t: "hello", proto: 1, name: "Riko", pub: await passportPublicRaw(p), sig: await signChallenge(p, nonce) });
-    await flush();
-    await flush();
+    await waitFor(() => !!again.last("kick") || !again.isOpen);
     expect(again.last("kick")?.code).toBe("banned");
     expect(again.isOpen).toBe(false);
   });
@@ -268,9 +273,8 @@ describe("MP8·A transfers, records, resume, shared state, zone expiry", () => {
     world.accept(back);
     const nonce = back.last("challenge")!.nonce;
     back.recv({ t: "hello", proto: 1, name: "Riko", pub: await passportPublicRaw(p), sig: await signChallenge(p, nonce) });
-    await flush();
-    await flush();
-    back.recv({ t: "resume", code: welcome.roomCode, token: welcome.resumeToken });
+    back.recv({ t: "resume", code: welcome.roomCode, token: welcome.resumeToken }); // queues, drains after verify
+    await waitFor(() => !!back.last("welcome"));
     expect(back.last("welcome")?.playerId).toBe(welcome.playerId);
     expect(back.last("welcome")?.resumeToken).not.toBe(welcome.resumeToken); // rotated
     expect(back.last("snapshot")).toBeTruthy();
@@ -281,9 +285,8 @@ describe("MP8·A transfers, records, resume, shared state, zone expiry", () => {
     world.accept(steal);
     const n2 = steal.last("challenge")!.nonce;
     steal.recv({ t: "hello", proto: 1, name: "Thief", pub: await passportPublicRaw(thief), sig: await signChallenge(thief, n2) });
-    await flush();
-    await flush();
-    steal.recv({ t: "resume", code: welcome.roomCode, token: back.last("welcome")!.resumeToken });
+    steal.recv({ t: "resume", code: welcome.roomCode, token: back.last("welcome")!.resumeToken }); // queues, drains after verify
+    await waitFor(() => !!steal.last("error") || !!steal.last("welcome"));
     expect(steal.last("error")?.code).toBe("room-not-found"); // ambiguous, no oracle
   });
 
@@ -354,8 +357,7 @@ describe("MP9·A world moderation (operator-only; report inbox; passport bans)",
     const nonce = conn.last("challenge")!.nonce;
     conn.recv({ t: "hello", proto: 1, name: "Bo", pub: await passportPublicRaw(bo), sig: await signChallenge(bo, nonce) });
     conn.recv({ t: "join" });
-    await flush();
-    await flush();
+    await waitFor(() => !!conn.last("kick") || !conn.isOpen);
     expect(conn.last("kick")?.code).toBe("banned");
     expect(conn.last("welcome")).toBeUndefined();
     // …and unban clears the passport ban.
