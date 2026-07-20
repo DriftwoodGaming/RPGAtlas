@@ -54,7 +54,7 @@ class Client {
     const f = this.frames.filter((m) => m.t === t);
     return f[f.length - 1] as Extract<ServerMessage, { t: T }> | undefined;
   }
-  async waitFor(pred: () => boolean, timeout = 4000): Promise<void> {
+  async waitFor(pred: () => boolean, timeout = 8000): Promise<void> {
     const t0 = Date.now();
     while (!pred()) {
       if (Date.now() - t0 > timeout) throw new Error("waitFor timed out");

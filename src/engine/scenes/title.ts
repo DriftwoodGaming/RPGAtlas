@@ -21,6 +21,7 @@ import { resetPresentation } from "./presentation-runtime.js";
 import { optionsMenu } from "./menus.js";
 import { fadeTo } from "../message.js";
 import { render } from "../render-glue.js";
+import { multiplayerEnabled, playTogether } from "../co-op.js";
 
 /** `start` overrides the System start position — the editor Console's
  *  "playtest <map> <x> <y>" boots straight there (playtest-bridge.ts). */
@@ -97,22 +98,26 @@ export async function showTitle(): Promise<void> {
   drawTitleBackdrop();
   while (true) {
     const hasSave = [1, 2, 3].some((s) => slotInfo(s));
-    const i = await showList(
-      [
-        { label: "New Game" },
-        { label: "Continue", disabled: !hasSave },
-        { label: "Options" },
-      ],
-      { className: "titlemenu", cancellable: false },
-    );
-    if (i === 0) {
+    // "Play Together" appears only when the project enables multiplayer (MP5·C);
+    // absent in the frozen fixtures, so the title menu stays byte-identical
+    // there. Built as a label→action list so ordering can't desync (dispatch is
+    // by label, not a fragile index).
+    const items: { label: string; disabled?: boolean }[] = [
+      { label: "New Game" },
+      { label: "Continue", disabled: !hasSave },
+    ];
+    if (multiplayerEnabled()) items.push({ label: "Play Together" });
+    items.push({ label: "Options" });
+    const i = await showList(items, { className: "titlemenu", cancellable: false });
+    const label = items[i].label;
+    if (label === "New Game") {
       tw.remove();
       await fadeTo(1, 300);
       await newGame();
       await render();
       await fadeTo(0, 300);
       return;
-    } else if (i === 1) {
+    } else if (label === "Continue") {
       const ok2 = await saveLoadMenu("load");
       if (ok2) {
         tw.remove();
@@ -120,7 +125,12 @@ export async function showTitle(): Promise<void> {
         await fadeTo(0, 300);
         return;
       }
-    } else if (i === 2) {
+    } else if (label === "Play Together") {
+      // The modal's dark overlay covers the title; on success reconstructClient
+      // tears down the title UI (.titlewin/.titlemenu) and starts the game, so
+      // we return. On cancel the loop just re-shows the menu (tw is still here).
+      if (await playTogether()) return;
+    } else if (label === "Options") {
       await optionsMenu();
     }
   }

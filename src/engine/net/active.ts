@@ -7,9 +7,19 @@
    GPL-3.0-or-later (see LICENSE). */
 
 import type { RoomHost } from "./room-host.js";
-import type { RoomClient } from "./room-client.js";
+import type { InputIntent } from "../../shared/net/protocol.js";
 
-export const active: { host: RoomHost | null; client: RoomClient | null } = {
+/** What the loop + map tick need from a joined client, satisfied by BOTH MP4's
+ *  BroadcastChannel RoomClient and MP5's WebSocket RelayClient — so `active`
+ *  stays transport-agnostic (the loop reads `session.mode`, not the class). */
+export interface ClientLike {
+  sendInput(intent: InputIntent): void;
+  sendEmote(emote: string): void;
+  sendChat(payload: { text?: string; preset?: number }): void;
+  close(): void;
+}
+
+export const active: { host: RoomHost | null; client: ClientLike | null } = {
   host: null,
   client: null,
 };

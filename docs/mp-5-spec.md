@@ -241,11 +241,126 @@ WebSocket hibernation.
 | root `tsc` / eslint | **0 / 0** |
 | goldens | untouched (no engine/render file changed) |
 
-## Stage C — Client "Play Together" title-screen flow + wss transport (Opus, PENDING)
+## Stage C — Client "Play Together" flow + wss transport (Opus, landed 2026-07-19)
 
-## Stage D — Hardening (Opus, PENDING — much already landed in the core at A)
+The browser gets a real title-screen flow to a real server.
 
-## Stage E — WAN smoke test + 16-bot latency gate (Opus, PENDING)
+### What landed
+
+- **`src/engine/net/socket-transport.ts`** (NEW) — a `Transport` over the
+  browser's WebSocket (encode on send / strict-decode on receive; a malformed
+  server frame is dropped, never crashes the client). Buffers outbound until
+  open + inbound until `onMessage` attaches (the loopback contract). The
+  WebSocket constructor is **injectable** (default `globalThis.WebSocket`) so the
+  whole client↔server path is testable headlessly against the `ws` package.
+  `isAllowedRelayUrl` enforces **wss-only** (or `ws://` to loopback for dev).
+- **`src/engine/net/relay-client.ts`** (NEW) — `RelayClient`: the client of a
+  real Beacon server (both creator and joiner are clients; the server is the
+  authority). Runs the server handshake (`hello` → `join` codeless=create /
+  coded=join, or `resume`), and mirrors the server exactly as MP4's RoomClient
+  did — `welcome` (learns id + server-assigned code), `snapshot`/`delta`
+  reconstruct, `directive` renders + replies, `presence` bubbles, plus `error`/
+  `kick` → friendly copy. Reconstruction/rendering are injected hooks (headless-
+  testable).
+- **`src/engine/net/active.ts`** — `active.client` is now a structural
+  `ClientLike` (sendInput/sendEmote/sendChat/close), satisfied by BOTH the MP4
+  RoomClient and the MP5 RelayClient, so the loop/map tick stays
+  transport-agnostic.
+- **`src/engine/co-op.ts`** — the relay flow: `playTogether()` opens a small,
+  inline-styled, kid-readable modal (name → Create / Join by code) with
+  plain-language errors (`friendlyError`/`friendlyKick`, audience-beginners
+  rule); `connectRelay` wires a RelayClient over the socket transport, reusing
+  MP4's `reconstructClient`/`writeLocalPlayer`. Relay URL resolves dev override
+  (`?relay=` / `window.RPGATLAS_MP.relayUrl`) → project (`system.multiplayer.
+  relayUrl`) → `DEFAULT_RELAY_URL`. `multiplayerEnabled()` gates the title entry.
+  (Also tidied the header's stale "?mp=1" note the MP4 gate flagged.)
+- **`src/engine/scenes/title.ts`** — a **gated** "Play Together" entry, shown
+  ONLY when `multiplayerEnabled()` (absent in the frozen fixtures → the title
+  menu is byte-identical there → all title-menu e2e + goldens untouched). Built
+  as a label→action list so ordering can't desync.
+- **`src/engine/boot.ts`** — the RPGATLAS_MP dev hook already exposes
+  `roster`/`session`/`localPlayer`/`sendInput`, reused by the relay e2e.
+- **Tests:** `tests-unit/relay-client.test.ts` (+4, headless: RelayClient over
+  socket-transport ↔ the real Node server — create/join/move/emote/error +
+  wss-only guard); `tests-e2e/mp-relay.spec.mjs` (+1, REAL browser: spawns the
+  built `dist/beacon.mjs`, two pages Create/Join via the UI over the browser's
+  NATIVE WebSocket, move round-trips; no golden baseline).
+
+### Design decisions (stage C)
+
+- **C-1 — Everyone is a client; the server is the authority (D1).** The MP5
+  creator is not a browser host (MP4's model) — it's a client of the server,
+  exactly like a joiner. `RelayClient` unifies both; the server assigns the code.
+- **C-2 — The title entry is gated so the goldens never move.** Multiplayer is
+  a per-project flag (`system.multiplayer.enabled`, MP7 adds the DB toggle);
+  absent in fixtures, so the title menu, its e2e, and the pixel goldens are all
+  byte-identical.
+- **C-3 — Injectable WebSocket = the browser path is unit-tested.** socket-
+  transport takes a WebSocket ctor, so the full client protocol is proven
+  headlessly against `ws`; the browser's native WebSocket is then proven once in
+  a real-browser e2e against the real server.
+
+### Deviations / discoveries (stage C)
+
+- **D-C5-1 (Tauri CSP verified, no change needed).** `tauri.conf.json`
+  `app.security.csp` is `null` (unrestricted), so a `wss://` WebSocket from the
+  desktop webview is already permitted — verified. Tauri *capabilities*
+  (`default.json`) gate the Tauri command API, not webview network, so no
+  capability change is needed either. An explicit `connect-src` allowlist is a
+  packaging-hardening item for MP9 (tightening CSP risks the editor's blob/data/
+  worker usage; out of scope here). Windows stay predefined (no runtime window
+  creation — the desktop trap holds).
+- **D-C5-2 (English strings; i18n is MP7).** The Play Together UI + friendly
+  errors ship English in MP5; the roadmap localizes all player-facing MP strings
+  in MP7·D. Inline-styled (no CSS file → no cache-bust).
+
+## Stage D — Hardening (Opus, landed 2026-07-19)
+
+Most hardening landed in the core at Stage A (rate limits, byte caps, strict
+decode, expiry, resume-token rotation, ambiguous errors, `source` never on the
+wire). Stage D adds the dedicated **fuzz gate** the security review requires.
+
+- **`tests-unit/beacon-fuzz.test.ts`** (+4): 5000 seeded random garbage frames
+  across many connections — the server never throws, every reply is a valid
+  ServerMessage, and a healthy player is unaffected; adversarial well-shaped
+  frames (max seq/name/emote, reply to no directive, 200-input burst) don't
+  crash; **replayed (rotated) resume token rejected**; **code brute-force capped**
+  per source and never finds a random room.
+
+## Stage E — WAN smoke + 16-bot latency gate (Opus, landed 2026-07-19)
+
+- **`tests-unit/beacon-load.test.ts`** (+1, in-gate): **16 bots + 2 clients**
+  (18 players) in one room over REAL WebSockets, each random-walking; measures
+  intent→echo (send a move, time the first authoritative delta reflecting it),
+  asserts every player moves and **p95 ≤ 150 ms**. Measured this run: **p50 ≈
+  16.5 ms, p95 ≈ 31.9 ms** (144 samples) — comfortably inside budget.
+- **`server/bench/bot-smoke.mjs`** (NEW, standalone) — heavier manual runs
+  (spawns `dist/beacon.mjs`, N bots, configurable seconds). 16 bots / 6 s
+  recorded **p50 16.1 · p95 31.6 · p99 31.9 · max 32.7 ms** (267 samples). This
+  is the seed of the MP8 load harness.
+- **WAN note (D-E5-1):** the "WAN" smoke runs against a LOCAL server (loopback) —
+  a true cross-internet run needs the relay deployed (the operator's Cloudflare/
+  host, D-B5-1). The latency gate's method + numbers are the deliverable;
+  real-WAN measurement is an operator step + an MP8 concern.
+
+### Stage C/D/E gate snapshot (all green, 2026-07-19)
+
+| Gate | Result |
+|---|---|
+| vitest | **1109** (parallel pool, `npm run test:unit`) **+ 7** (isolated real-socket suite, `npm run test:net`: beacon-ws 2 · relay-client 4 · beacon-load 1) = **1116 total** (41 new over beacon-4's 1075) |
+| node --test | **46** (unchanged) |
+| Playwright | **126/126** — 123 goldens byte-identical, MP4 mp-coop/mp-presence green, new `mp-relay` green (real server + native WebSocket); perf 262.58/300 |
+| root/server tsc · eslint | 0 / 0 / 0 (Node + CF server targets both typecheck) |
+| 16-bot latency | p50 ≈ 16 ms · **p95 ≈ 32 ms** (budget 150), 144 samples; standalone bench 267 samples p95 31.6 |
+| fuzz | 5000 garbage frames + adversarial + token-replay + brute-force — no crash |
+
+> **Test-runner note (MP5).** The Beacon tests that open REAL TCP sockets +
+> run a live 60 Hz tick (beacon-ws, relay-client, beacon-load) are timing-
+> sensitive and were flaking perf-budget tests (mz-scale-import) under parallel
+> CPU load. They now run isolated + serial via `npm run test:net`
+> (`vitest.net.config.mjs`); the parallel `vitest run` covers everything else.
+> Two full `vitest run` passes were clean after the split. The security gate
+> runs BOTH: `npm run test:unit` (1109) + `npm run test:net` (7).
 
 ---
 
@@ -254,5 +369,9 @@ WebSocket hibernation.
 Template gates + fuzz suite + adversarial audit against the D6/safety checklist.
 Verdict recorded here + the roadmap status table; tag `beacon-5`.
 
-**MP5 SECURITY GATE kickoff (paste into a new Fable conversation):** _(filled in
-when stages B–E land.)_
+**MP5 SECURITY GATE kickoff (paste into a new Fable conversation):**
+```
+Project Beacon — MP5 SECURITY GATE (Fable). Read docs/MULTIPLAYER_ROADMAP.md (MP5 + "Kid safety & privacy") + docs/mp-5-spec.md.
+Re-run template gates + the fuzz suite (tests-unit/beacon-fuzz.test.ts) + the latency gate (tests-unit/beacon-load.test.ts, 16 bots + 2 clients, p95 ≤ 150 ms). Independently typecheck both server targets (server: `npm run typecheck` → Node + CF). Adversarial audit against the D6/safety checklist: attempt code brute-force math (room-code entropy ≥ 40 bits + join rate limits), flood, oversized/malformed frames, resume-token replay (rotation), cross-room leakage, and verify NO message ever carries an IP or anything beyond name + entity state (grep both wire directions in src/shared/net/protocol.ts + server/src/core). Verify empty-room expiry + resume grace. Verify the "Play Together" copy is friendly (no codes/stack traces to players) and the title entry is gated so the goldens stay byte-identical. Verify wss-only. Confirm the D-5-0/D-5-1/D-B5-* scope deferrals (server player-layer only + wall collision; NPC/events/persistence → MP8; one configured game → MP7/MP9 relay) are the intended boundaries.
+Record verdict + the 16-bot numbers, tag beacon-5, push, and end with the MP6 BUILD hand-off block.
+```
