@@ -8,7 +8,8 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { WebSocketServer, type WebSocket } from "ws";
 import { BeaconServer, type BeaconServerOptions } from "../core/server.js";
-import { DEFAULT_LIMITS, type BeaconLimits } from "../core/config.js";
+import { BeaconWorld, type BeaconWorldOptions } from "../core/beacon-world.js";
+import { DEFAULT_LIMITS, DEFAULT_WORLD_LIMITS, type BeaconLimits, type WorldLimits } from "../core/config.js";
 import type { ServerConnection } from "../core/connection.js";
 
 export interface NodeServerOptions extends BeaconServerOptions {
@@ -105,6 +106,62 @@ export function startNodeServer(opts: NodeServerOptions): Promise<NodeServerHand
           clearInterval(tickTimer);
           clearInterval(sweepTimer);
           server.shutdown();
+          return new Promise((done) => {
+            wss.close(() => http.close(() => done()));
+          });
+        },
+      });
+    });
+  });
+}
+
+/* ── MP8·A: the persistent-world target (zones + AOI + passports) ───────── */
+
+export interface NodeWorldOptions extends BeaconWorldOptions {
+  port?: number;
+  host?: string;
+  trustProxy?: boolean;
+  limits?: Partial<WorldLimits>;
+}
+
+export interface NodeWorldHandle {
+  world: BeaconWorld;
+  wss: WebSocketServer;
+  http: Server;
+  port: number;
+  close(): Promise<void>;
+}
+
+/** Start a Node Beacon WORLD server: one game, one world, zone-per-map
+ *  (`node beacon.mjs --project game.json --world`). Same socket wrapping and
+ *  cadences as the friend-room relay; the core behind them is BeaconWorld. */
+export function startNodeWorldServer(opts: NodeWorldOptions): Promise<NodeWorldHandle> {
+  const limits: WorldLimits = { ...DEFAULT_WORLD_LIMITS, ...(opts.limits || {}) };
+  const world = new BeaconWorld({ ...opts, limits });
+  const http = createServer((_req, res) => {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ ok: true, mode: "world", ...world.stats() }));
+  });
+  const wss = new WebSocketServer({ server: http, maxPayload: limits.maxFrameBytes });
+  wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
+    world.accept(wrapSocket(ws, sourceOf(req, !!opts.trustProxy)));
+  });
+
+  const tickTimer = setInterval(() => world.tickZones(), TICK_MS);
+  const sweepTimer = setInterval(() => world.sweep(), SWEEP_MS);
+  if (typeof tickTimer.unref === "function") tickTimer.unref();
+  if (typeof sweepTimer.unref === "function") sweepTimer.unref();
+
+  return new Promise((resolve) => {
+    http.listen(opts.port ?? 8787, opts.host, () => {
+      const addr = http.address();
+      const port = addr && typeof addr === "object" ? addr.port : (opts.port ?? 8787);
+      resolve({
+        world, wss, http, port,
+        close(): Promise<void> {
+          clearInterval(tickTimer);
+          clearInterval(sweepTimer);
+          world.shutdown();
           return new Promise((done) => {
             wss.close(() => http.close(() => done()));
           });

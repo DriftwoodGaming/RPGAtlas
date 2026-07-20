@@ -8,7 +8,9 @@
    Driftwood's free relay is this, deployed with a featured game. GPL-3.0. */
 
 import { readFile } from "node:fs/promises";
-import { startNodeServer } from "./ws-server.js";
+import { DEFAULT_WORLD_LIMITS, type WorldLimits } from "../core/config.js";
+import { workerZoneFactory } from "./worker-zone.js";
+import { startNodeServer, startNodeWorldServer } from "./ws-server.js";
 
 interface Args {
   project?: string;
@@ -16,10 +18,12 @@ interface Args {
   host?: string;
   maxPlayers?: number;
   trustProxy: boolean;
+  world: boolean;
+  zoneWorkers: boolean;
 }
 
 function parseArgs(argv: string[]): Args {
-  const out: Args = { port: 8787, trustProxy: false };
+  const out: Args = { port: 8787, trustProxy: false, world: false, zoneWorkers: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const next = () => argv[++i];
@@ -28,6 +32,8 @@ function parseArgs(argv: string[]): Args {
     else if (a === "--host") out.host = next();
     else if (a === "--max-players") out.maxPlayers = Number(next()) || undefined;
     else if (a === "--trust-proxy") out.trustProxy = true;
+    else if (a === "--world") out.world = true;
+    else if (a === "--zone-workers") out.zoneWorkers = true;
     else if (a === "--help" || a === "-h") { printHelp(); process.exit(0); }
   }
   return out;
@@ -35,12 +41,18 @@ function parseArgs(argv: string[]): Args {
 
 function printHelp(): void {
   process.stdout.write(
-    "RPGAtlas Beacon server (Project Beacon MP5)\n\n" +
+    "RPGAtlas Beacon server (Project Beacon MP5/MP8)\n\n" +
     "  node beacon.mjs --project <game.json> [options]\n\n" +
     "  --project, -p <path>   Game project JSON to host (required)\n" +
+    "  --world                Persistent-world mode (MP8): one shared world,\n" +
+    "                         zone-per-map, passport sign-in — instead of\n" +
+    "                         friend rooms with codes\n" +
+    "  --zone-workers         With --world: run each zone on its own worker\n" +
+    "                         thread (multi-core scale-out)\n" +
     "  --port <n>             Port to listen on (default 8787)\n" +
     "  --host <addr>          Bind address (default all interfaces)\n" +
-    "  --max-players <n>      Players per room (default 16)\n" +
+    "  --max-players <n>      Players per room (default 16); in world mode,\n" +
+    "                         players per world (default 1200)\n" +
     "  --trust-proxy          Read X-Forwarded-For for rate-limit source\n" +
     "  --help, -h             Show this help\n",
   );
@@ -59,17 +71,40 @@ async function main(): Promise<void> {
     process.stderr.write(`beacon: could not read project "${args.project}": ${(e as Error).message}\n`);
     process.exit(2);
   }
-  const handle = await startNodeServer({
-    project,
-    port: args.port,
-    host: args.host,
-    trustProxy: args.trustProxy,
-    limits: args.maxPlayers ? { maxPlayersPerRoom: args.maxPlayers } : undefined,
-    log: (level, event, detail) =>
-      process.stdout.write(`[beacon] ${level} ${event}${detail ? " " + JSON.stringify(detail) : ""}\n`),
-  });
+  const log = (level: string, event: string, detail?: Record<string, unknown>) =>
+    process.stdout.write(`[beacon] ${level} ${event}${detail ? " " + JSON.stringify(detail) : ""}\n`);
+  const worldLimits: WorldLimits = {
+    ...DEFAULT_WORLD_LIMITS,
+    ...(args.maxPlayers ? { maxPlayersPerWorld: args.maxPlayers } : {}),
+  };
+  const handle = args.world
+    ? await startNodeWorldServer({
+        project,
+        port: args.port,
+        host: args.host,
+        trustProxy: args.trustProxy,
+        limits: worldLimits,
+        zoneFactory: args.zoneWorkers
+          ? workerZoneFactory({
+              entry: new URL("./zone-worker.mjs", import.meta.url),
+              projectJson: JSON.stringify(project),
+              limits: worldLimits,
+              log,
+            })
+          : undefined,
+        log,
+      })
+    : await startNodeServer({
+        project,
+        port: args.port,
+        host: args.host,
+        trustProxy: args.trustProxy,
+        limits: args.maxPlayers ? { maxPlayersPerRoom: args.maxPlayers } : undefined,
+        log,
+      });
   process.stdout.write(
-    `[beacon] listening on :${handle.port} — hosting "${projectTitle(project)}"\n` +
+    `[beacon] listening on :${handle.port} — hosting "${projectTitle(project)}"` +
+    (args.world ? " (persistent world)" : "") + "\n" +
     `[beacon] players connect over ws://<host>:${handle.port} (wss:// behind TLS)\n`,
   );
   const stop = () => { handle.close().then(() => process.exit(0)); };

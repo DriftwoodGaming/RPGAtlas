@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(here, "dist/beacon.mjs");
+const workerOut = resolve(here, "dist/zone-worker.mjs");
 
 await mkdir(dirname(out), { recursive: true });
 await build({
@@ -28,3 +29,17 @@ await build({
 });
 await chmod(out, 0o755).catch(() => {});
 process.stdout.write(`built ${out}\n`);
+
+// MP8·A: the worker_threads zone entry (`--world --zone-workers`) — a second
+// self-contained bundle the main bundle spawns per zone.
+await build({
+  entryPoints: [resolve(here, "src/node/zone-worker.ts")],
+  outfile: workerOut,
+  bundle: true,
+  platform: "node",
+  target: "node20",
+  format: "esm",
+  external: ["ws"],
+  legalComments: "none",
+});
+process.stdout.write(`built ${workerOut}\n`);

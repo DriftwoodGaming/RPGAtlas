@@ -52,6 +52,7 @@ export const MP_EN: MpStrings = {
   kickBanned: "You can't rejoin this room.",
   kickRoomClosed: "The room was closed.",
   kickIdle: "You were away too long and left the room.",
+  kickReplaced: "You signed in from another device, so this one left the game.",
 };
 
 /** The ten translated packs (the editor's locale ids). */
@@ -90,6 +91,7 @@ export const MP_PACKS: Record<string, MpStrings> = {
     kickBanned: "No puedes volver a entrar en esta sala.",
     kickRoomClosed: "La sala se cerró.",
     kickIdle: "Estuviste ausente demasiado tiempo y saliste de la sala.",
+    kickReplaced: "Iniciaste sesión desde otro dispositivo, así que este salió del juego.",
   },
   fr: {
     playTogether: "Jouer ensemble",
@@ -125,6 +127,7 @@ export const MP_PACKS: Record<string, MpStrings> = {
     kickBanned: "Tu ne peux pas revenir dans ce salon.",
     kickRoomClosed: "Le salon a été fermé.",
     kickIdle: "Tu es resté absent trop longtemps et tu as quitté le salon.",
+    kickReplaced: "Tu t'es connecté depuis un autre appareil, donc celui-ci a quitté le jeu.",
   },
   de: {
     playTogether: "Zusammen spielen",
@@ -160,6 +163,7 @@ export const MP_PACKS: Record<string, MpStrings> = {
     kickBanned: "Du kannst diesem Raum nicht wieder beitreten.",
     kickRoomClosed: "Der Raum wurde geschlossen.",
     kickIdle: "Du warst zu lange abwesend und hast den Raum verlassen.",
+    kickReplaced: "Du hast dich auf einem anderen Gerät angemeldet, deshalb wurde dieses abgemeldet.",
   },
   ja: {
     playTogether: "いっしょに遊ぶ",
@@ -195,6 +199,7 @@ export const MP_PACKS: Record<string, MpStrings> = {
     kickBanned: "このルームには再参加できません。",
     kickRoomClosed: "ルームが閉じられました。",
     kickIdle: "長い間はなれていたのでルームから退出しました。",
+    kickReplaced: "べつの端末でサインインしたので、こちらはゲームから退出しました。",
   },
   "zh-tw": {
     playTogether: "一起玩",
@@ -230,6 +235,7 @@ export const MP_PACKS: Record<string, MpStrings> = {
     kickBanned: "你無法再次加入這個房間。",
     kickRoomClosed: "房間已關閉。",
     kickIdle: "你離開太久，已退出房間。",
+    kickReplaced: "你在另一台裝置上登入了，所以這台裝置離開了遊戲。",
   },
   "zh-cn": {
     playTogether: "一起玩",
@@ -265,6 +271,7 @@ export const MP_PACKS: Record<string, MpStrings> = {
     kickBanned: "你无法再次加入这个房间。",
     kickRoomClosed: "房间已关闭。",
     kickIdle: "你离开太久，已退出房间。",
+    kickReplaced: "你在另一台设备上登录了，所以这台设备退出了游戏。",
   },
   pt: {
     playTogether: "Jogar juntos",
@@ -300,6 +307,7 @@ export const MP_PACKS: Record<string, MpStrings> = {
     kickBanned: "Você não pode voltar a entrar nesta sala.",
     kickRoomClosed: "A sala foi fechada.",
     kickIdle: "Você ficou ausente por muito tempo e saiu da sala.",
+    kickReplaced: "Você entrou por outro aparelho, então este saiu do jogo.",
   },
   ko: {
     playTogether: "함께 플레이",
@@ -335,6 +343,7 @@ export const MP_PACKS: Record<string, MpStrings> = {
     kickBanned: "이 방에 다시 참가할 수 없습니다.",
     kickRoomClosed: "방이 닫혔습니다.",
     kickIdle: "너무 오래 자리를 비워 방에서 나갔습니다.",
+    kickReplaced: "다른 기기에서 로그인해서 이 기기는 게임에서 나갔어요.",
   },
   it: {
     playTogether: "Gioca insieme",
@@ -370,6 +379,7 @@ export const MP_PACKS: Record<string, MpStrings> = {
     kickBanned: "Non puoi rientrare in questa stanza.",
     kickRoomClosed: "La stanza è stata chiusa.",
     kickIdle: "Sei stato assente troppo a lungo e hai lasciato la stanza.",
+    kickReplaced: "Hai effettuato l'accesso da un altro dispositivo, quindi questo è uscito dal gioco.",
   },
   ru: {
     playTogether: "Играть вместе",
@@ -405,6 +415,7 @@ export const MP_PACKS: Record<string, MpStrings> = {
     kickBanned: "Вы не можете снова войти в эту комнату.",
     kickRoomClosed: "Комната была закрыта.",
     kickIdle: "Вы слишком долго бездействовали и покинули комнату.",
+    kickReplaced: "Ты вошёл с другого устройства, поэтому это устройство вышло из игры.",
   },
 };
 

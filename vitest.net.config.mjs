@@ -19,6 +19,7 @@ export default defineConfig({
       "tests-unit/beacon-ws.test.ts",
       "tests-unit/relay-client.test.ts",
       "tests-unit/beacon-load.test.ts",
+      "tests-unit/zone-worker.test.ts", // MP8·A: worker_threads zone sharding
     ],
     fileParallelism: false,
   },

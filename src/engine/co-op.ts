@@ -364,12 +364,13 @@ function friendlyError(code: ErrorCode | "offline"): string {
 }
 
 /** Plain-language copy for being disconnected by the server. */
-function friendlyKick(code: "kicked" | "banned" | "room-closed" | "idle"): string {
+function friendlyKick(code: "kicked" | "banned" | "room-closed" | "idle" | "replaced"): string {
   switch (code) {
     case "kicked": return mpText("kickKicked");
     case "banned": return mpText("kickBanned");
     case "room-closed": return mpText("kickRoomClosed");
     case "idle": return mpText("kickIdle");
+    case "replaced": return mpText("kickReplaced"); // MP8·A: world passport signed in elsewhere
   }
 }
 

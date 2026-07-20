@@ -356,8 +356,10 @@ export type ServerPresence = {
   preset?: number;
 };
 /** Connection is being closed deliberately; `code` picks the friendly client
- *  copy (room owner kicked you / room closed / idle timeout / banned). */
-export type ServerKick = { t: "kick"; code: "kicked" | "banned" | "room-closed" | "idle"; detail?: string };
+ *  copy (room owner kicked you / room closed / idle timeout / banned).
+ *  MP8·A adds `replaced` (world servers: the same passport signed in from a
+ *  new connection, which supersedes this one — additive within v1). */
+export type ServerKick = { t: "kick"; code: "kicked" | "banned" | "room-closed" | "idle" | "replaced"; detail?: string };
 /** Request failed. `code` picks localized, plain-language client copy
  *  (audience-beginners rule — a kid reads "Couldn't find that room — check
  *  the code and try again", never `detail`, which is for dev consoles/logs). */
@@ -638,7 +640,7 @@ function checkDirective(v: unknown): string | null {
   }
 }
 
-const KICK_CODES = ["kicked", "banned", "room-closed", "idle"] as const;
+const KICK_CODES = ["kicked", "banned", "room-closed", "idle", "replaced"] as const;
 const ERROR_CODES: readonly ErrorCode[] = [
   "proto-mismatch",
   "bad-code",

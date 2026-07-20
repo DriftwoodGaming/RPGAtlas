@@ -47,3 +47,30 @@ export const DEFAULT_LIMITS: BeaconLimits = {
   emptyRoomTtlMs: 60_000,
   idleTimeoutMs: 45_000,
 };
+
+/** MP8·A world-mode knobs (persistent worlds: zones + AOI + passports), on
+ *  top of the base limits. Scale-target defaults per the roadmap table
+ *  (200/zone, 1000+/world); the broadcast cadence default is the MP8·A
+ *  tick-strategy MEASUREMENT decision (see docs/mp-8-spec.md — sim stays
+ *  60 Hz, state broadcast is decimated; friend rooms keep every-tick). */
+export interface WorldLimits extends BeaconLimits {
+  /** Max players simultaneously inside one zone (one map). */
+  maxPlayersPerZone: number;
+  /** Max players in the whole world (all zones). */
+  maxPlayersPerWorld: number;
+  /** Broadcast one state delta every N sim ticks (N=1 ⇒ 60 Hz, N=5 ⇒ 12 Hz). */
+  broadcastEveryTicks: number;
+  /** Zones with at most this many players skip AOI filtering entirely. */
+  aoiBypassMax: number;
+  /** An emptied zone lingers this long before its instance is dropped. */
+  emptyZoneTtlMs: number;
+}
+
+export const DEFAULT_WORLD_LIMITS: WorldLimits = {
+  ...DEFAULT_LIMITS,
+  maxPlayersPerZone: 250,
+  maxPlayersPerWorld: 1200,
+  broadcastEveryTicks: 5, // 12 Hz — the MP8·A measured default (docs/mp-8-spec.md)
+  aoiBypassMax: 32,
+  emptyZoneTtlMs: 60_000,
+};
