@@ -292,3 +292,81 @@ No RNG, no render. Everything is gated on an active room (`active.host` /
 Pure `src/` + `server/` + tests — **no `js/` file, no `?v=` bump**. Version
 1.2.0; FORMAT_VERSION 2. (The plugin-API wiki page + the js/plugins.js header
 doc land in stage D.)
+
+---
+
+## Stage D — i18n, wiki, docs-site, editor e2e (Opus, landed 2026-07-20)
+
+Localizes the player-facing multiplayer strings, ships the two wiki pages,
+rebuilds the docs-site, and adds the editor e2e for the Multiplayer tab.
+
+### What landed
+
+**Runtime i18n (`src/engine/mp-i18n.ts`, NEW):**
+
+- The engine had **no runtime i18n** before (every player string was English).
+  This is a small, self-contained table for the Beacon surface only: an English
+  identity base (`MP_EN`, 33 keys) + the **ten** editor locales (`MP_PACKS`:
+  es/fr/de/ja/zh-tw/zh-cn/pt/ko/it/ru). `mpText(key, params)` substitutes
+  `{name}`/`{names}`/`{code}` placeholders and falls back English → key.
+- Locale selection (best-effort, self-contained): the editor's saved locale
+  (`localStorage rpgatlas_editor_locale`) → `navigator.language` prefix → English.
+  A shipped game with no hint stays English (pre-MP7 behavior).
+- **`co-op.ts`** routes every player-facing string through `mpText`: the Play
+  Together modal (title/name/create/join/cancel/status), presence toasts, the
+  friendly error + kick copy, party toasts, and the battle overlay/toasts.
+
+**A genuine consistency fix surfaced by MP7 (`boot.ts`):**
+
+- The fresh-project boot fallback ran `DataDefaults.newProject()` **without**
+  `migrateProject` (only `loadStored()` migrated). So a brand-new game skipped
+  the additive backfill (Types lists — and now `system.multiplayer`). Fixed:
+  `loadStored() || RA.migrateProject(DataDefaults.newProject())` — migrateProject
+  is the one boundary every entry path runs. Idempotent + additive; no golden is
+  an editor fresh-project, so byte-identity holds.
+
+**Wiki + docs-site:**
+
+- **`wiki/Making-Your-Game-Multiplayer.md`** (NEW): turn it on, the Multiplayer
+  settings, the online event commands, party/battle, and the kid-safety summary.
+- **`wiki/Hosting-a-World.md`** (NEW): friend rooms vs self-hosted; running the
+  Beacon server (Node + Cloudflare); the "what crosses the wire" parent/teacher
+  page; moderation.
+- **`wiki/Plugin-and-Script-API.md`**: the `atlas.mp` surface table + example.
+- **`wiki/_Sidebar.md`** (new "Play together" section), **`Home.md`**,
+  **`The-Database.md`** (the Multiplayer tab) updated.
+- **docs-site rebuilt** (`node scripts/build-docs-site.mjs`): **25 → 27 pages**.
+
+**Editor e2e (`tests-e2e/mp-database.spec.mjs`, NEW):**
+
+- Boots the real editor, opens Database via the command palette, switches to the
+  Multiplayer tab, ticks Enable + sets capacity / chat mode (asserts the D4
+  safety note appears) / presets / a spawn point, and asserts they persist to the
+  project document (localStorage) with FORMAT_VERSION still 2. Additive — no
+  golden touched.
+
+### Tests (+ new)
+
+- `tests-unit/mp-i18n-parity.test.ts` (NEW, +34 vitest → 1194): every one of the
+  ten packs defines EXACTLY the English key set (no missing, no orphans),
+  non-empty values, placeholders preserved; `mpText` fallback + substitution.
+- `tests-e2e/mp-database.spec.mjs` (NEW, +1 Playwright → 128): the tab round-trip.
+
+### Live verification (vite dev)
+
+`mpText` returns English by default, `Jugar juntos` (es), `いっしょに遊ぶ` (ja),
+French error copy, with `{name}` substitution — confirmed by importing the module
+and flipping `localStorage rpgatlas_editor_locale`.
+
+### Gate snapshot (stage D)
+
+| Gate | Result |
+|---|---|
+| vitest (test:unit) | **1194** (79 files; +34 over stage C's 1160) |
+| vitest (test:net) | **7** |
+| node --test | **48** (determinism hash 46633057 green) |
+| Playwright | golden/editor/mp subset (43) green · `git diff beacon-6..HEAD -- "*.png"` **EMPTY** · mp-database new |
+| tsc / eslint | **0 / 0** (root + server Node/CF) |
+| i18n parity | editor 31 green + **Beacon mp-i18n 34 green (10 locales, both directions)** |
+| docs-site | **27 pages** (+2) |
+| versions / FV / cache-busts | 1.2.0 · 2 · none (all `src/` + docs; no `js/` `?v=` file touched) |

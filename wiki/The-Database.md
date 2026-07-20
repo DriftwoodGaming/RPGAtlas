@@ -83,6 +83,12 @@ The customizable **lists** that populate dropdowns elsewhere: **elements** (fire
 **skill types**, plus the **weapon / armor / equip types**. Edit these to fit your world's flavor
 (e.g. rename "Ice" to "Frost", add a "Holy" element) and they appear throughout the other tabs.
 
+### Multiplayer
+Turn your game **online** here. Tick **Enable Play Together** to let friends join with a room
+code, then set room size, how players communicate (safest options first), preset phrases, and
+where joining players appear. Off by default — see
+**[Making Your Game Multiplayer](Making-Your-Game-Multiplayer)** for the full walkthrough.
+
 ### System
 Game-wide presentation and rules. This tab is worth a careful look:
 

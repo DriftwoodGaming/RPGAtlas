@@ -300,9 +300,12 @@ export async function bootWithProject(project: any) {
 }
 
 // The classic boot source: the stored project (localStorage) or the bundled
-// default. Unchanged for the browser build and the desktop no-manager path.
+// default. `loadStored()` already runs RA.migrateProject; the fresh-project
+// fallback must too, so a brand-new game gets the same additive backfill (Types
+// lists, and the Beacon MP7 `system.multiplayer` block) — migrateProject is the
+// one boundary every entry path runs.
 async function boot() {
-  await bootWithProject(loadStored() || DataDefaults.newProject());
+  await bootWithProject(loadStored() || RA.migrateProject(DataDefaults.newProject()));
 }
 
 // Boot on a manager-chosen project, routing a failure through the same

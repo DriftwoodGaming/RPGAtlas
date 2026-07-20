@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hosting a World — RPGAtlas Docs</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav>
+<a class="brand" href="index.html">RPG<span>Atlas</span></a>
+<div class="tag">Chart your world. Tell your story.</div>
+<h3 id="rpgatlas-wiki">RPGAtlas Wiki</h3>
+<p><strong>Getting started</strong></p>
+<ul><li><a href="index.html">Home</a></li><li><a href="Installation-and-Setup.html">Installation & Setup</a></li><li><a href="Your-First-Game.html">Make Your First Game</a></li><li><a href="Your-Game-Is-a-Folder.html">Your Game Is a Folder</a></li><li><a href="The-Editor-Interface.html">The Editor Interface</a></li><li><a href="Coming-from-RPG-Maker.html">Coming from RPG Maker</a></li></ul>
+<p><strong>Building your world</strong></p>
+<ul><li><a href="Maps-and-Tiles.html">Maps & Tiles</a></li><li><a href="Advanced-Map-Editor.html">Advanced Map Editor</a></li><li><a href="Events.html">Events</a></li><li><a href="Dialogue-and-Cutscenes.html">Dialogue & Cutscenes</a></li><li><a href="The-Database.html">The Database</a></li><li><a href="Battles-and-States.html">Battles & States</a></li><li><a href="Characters-and-Custom-Assets.html">Characters & Custom Assets</a></li><li><a href="Adding-Your-Own-Art-and-Music.html">Adding Your Own Art and Music</a></li><li><a href="The-Asset-Browser.html">The Asset Browser</a></li><li><a href="Audio.html">Audio</a></li></ul>
+<p><strong>Play together (online)</strong></p>
+<ul><li><a href="Making-Your-Game-Multiplayer.html">Making Your Game Multiplayer</a></li><li><a class="active" href="Hosting-a-World.html">Hosting a World</a></li></ul>
+<p><strong>Polish & ship</strong></p>
+<ul><li><a href="Message-Text-Codes.html">Message Text Codes</a></li><li><a href="Plugins.html">Plugins</a></li><li><a href="Publishing-Your-Game.html">Publishing Your Game</a></li></ul>
+<p><strong>Reference</strong></p>
+<ul><li><a href="Plugin-and-Script-API.html">Plugin & Script API</a></li><li><a href="Migration-Guide.html">Migration Guide</a></li><li><a href="Troubleshooting-and-FAQ.html">Troubleshooting & FAQ</a></li><li><a href="Resources-and-Glossary.html">Resources & Glossary</a></li></ul>
+</nav>
+<main>
+<h1 id="hosting-a-world">Hosting a World</h1>
+<p>Most games only need the free <strong>Play Together</strong> rooms — friends share a code and play, with zero setup (see <strong><a href="Making-Your-Game-Multiplayer.html">Making Your Game Multiplayer</a></strong>). But if you dream bigger — a persistent world with lots of players on a server <em>you</em> control — RPGAtlas ships an open-source server you can run yourself.</p>
+<p>This page explains the two ways games connect, how to run your own server, and exactly what crosses the network (the part to show a parent or teacher).</p>
+<hr>
+<h2 id="two-ways-to-play-online">Two ways to play online</h2>
+<p><strong>Friend rooms (the easy way).</strong> A player picks <strong>Play Together ▸ Create Room</strong> and gets a code. Friends <strong>Join a Room</strong> with that code. Behind the scenes they all connect to a shared <strong>relay</strong> — Driftwood runs a free one, and it's the default. Nothing to install, nothing to configure. This is the right choice for almost everyone.</p>
+<p><strong>Your own world (the powerful way).</strong> You run the <strong>Beacon server</strong> yourself and point your game at it. Now <em>you</em> own the world: it can hold far more players, and (in a later Beacon phase) persist as a living place people return to. This is for ambitious creators.</p>
+<p>To use your own server, put its address in <strong>Database ▸ Multiplayer ▸ Play server address</strong>. It must start with <code>wss://</code> (a secure connection).</p>
+<hr>
+<h2 id="running-the-beacon-server">Running the Beacon server</h2>
+<p>The Beacon server lives in the <code>server/</code> folder of the RPGAtlas source. It's one small TypeScript program with two ways to run it.</p>
+<h3 id="option-1-node-a-plain-computer-or-vps">Option 1 — Node (a plain computer or VPS)</h3>
+<p>Good for a home machine, a Raspberry Pi, or a cheap virtual server.</p>
+<pre><code>cd server
+npm install
+npm run build
+node dist/beacon.mjs --project path/to/game.rpgatlas --port 8787</code></pre>
+<p>Your game connects to <code>wss://your-machine-address:8787</code>. Useful flags:</p>
+<ul><li><code>--project &lt;file&gt;</code> — the game the server hosts.</li><li><code>--port &lt;n&gt;</code> — the port to listen on.</li><li><code>--max-players &lt;n&gt;</code> — a ceiling on room size (your game's own setting can only make rooms <em>smaller</em>, never bigger than this).</li></ul>
+<h3 id="option-2-cloudflare-free-tier-no-server-to-babysit">Option 2 — Cloudflare (free tier, no server to babysit)</h3>
+<p>Beacon also runs on <strong>Cloudflare Durable Objects</strong> — one room per object, with hibernation so idle rooms cost nothing. Deploy with Cloudflare's <code>wrangler</code> tool from the same <code>server/</code> folder:</p>
+<pre><code>cd server
+npx wrangler deploy</code></pre>
+<p>The live deploy runs in <strong>your</strong> Cloudflare account (Driftwood never sees it). Your game connects to your <code>wss://…workers.dev</code> address.</p>
+<blockquote><p>The server shares the exact same world code the game uses — the same movement, collision, and rules — so what runs on your server behaves like what runs in the editor.</p></blockquote>
+<hr>
+<h2 id="what-crosses-the-network-kid-safety-details">What crosses the network (kid-safety details)</h2>
+<p>This is the part worth reading carefully, and worth showing a parent or teacher.</p>
+<ul><li><strong>No player-to-player connections.</strong> Every player connects only to the server, over a secure <code>wss://</code> link. No player ever learns another player's address or location.</li><li><strong>No accounts, no email, no personal information.</strong> A player is only ever a <strong>display name</strong> and a <strong>room code</strong>. That's the whole identity.</li><li><strong>Room codes are unguessable.</strong> They're long enough that guessing one is hopeless, and join attempts are rate-limited. There is <strong>no public list of rooms</strong> — you play with people you give your code to.</li><li><strong>Empty rooms disappear.</strong> A room with nobody in it expires on its own, so nothing lingers.</li><li><strong>The only things on the wire</strong> are a player's name, their position on the map, and the emotes / preset phrases (or, if you turned it on, filtered chat text) they choose to send. Never an address, never a history, never anything private.</li><li><strong>The free relay</strong> keeps a player's network address only briefly, and only to stop abuse — never shown to anyone, never stored long-term.</li><li><strong>Chat is off by default.</strong> Free-text chat exists only if a game's creator turns it on, and even then it's filtered with mute and report built in.</li></ul>
+<hr>
+<h2 id="moderation-running-your-own-world">Moderation (running your own world)</h2>
+<p>When you host a world, you have the tools to keep it friendly:</p>
+<ul><li><strong>Room owners</strong> can remove a disruptive player from their room.</li><li><strong>World operators</strong> (you) can block a player from a world.</li><li><strong>Every player</strong> can mute anyone instantly, and report a problem.</li></ul>
+<hr>
+<h2 id="which-should-i-choose">Which should I choose?</h2>
+<ul><li><strong>Just want friends to play together?</strong> Do nothing — leave the play server address blank and use the free rooms. This is the answer for most games.</li><li><strong>Want a big, persistent, you-control-it world?</strong> Run the Beacon server (Node or Cloudflare) and point your game at it.</li></ul>
+<hr>
+<p><em>Back to the basics: <strong><a href="Making-Your-Game-Multiplayer.html">Making Your Game Multiplayer</a></strong>.</em></p>
+<footer><p>RPGAtlas is free software under the <strong>GNU GPL v3.0 or later</strong>. Your games are yours. · <a href="index.html">Home</a> · <a href="Troubleshooting-and-FAQ.html">Troubleshooting</a> · <a href="Resources-and-Glossary.html">Glossary</a></p>
+<p>Generated from the <a href="https://github.com/DriftwoodGaming/RPGAtlas/tree/main/wiki">project wiki</a> by <code>scripts/build-docs-site.mjs</code>.</p></footer>
+</main>
+</div>
+</body>
+</html>

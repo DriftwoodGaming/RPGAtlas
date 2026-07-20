@@ -55,6 +55,39 @@ pre-rebrand plugins. The Script event command receives `atlas` and `game` as glo
 | `atlas.startBattle(troopId, canEscape)` | Starts a battle → `Promise<"win" \| "lose" \| "escape">` |
 | `atlas.zonesAt(x, y)` | The current map's [gameplay zones](Advanced-Map-Editor#objects--gameplay-zones) covering a tile, in author draw order — **custom** zones carry whatever `props` you gave them, making this a "regions with data" system. Also on the Script API as `game.zonesAt(x, y)`. |
 
+### Multiplayer — `atlas.mp`
+
+The online surface (see **[Making Your Game Multiplayer](Making-Your-Game-Multiplayer)**). A
+plugin can react to players coming and going and exchange small custom messages with everyone
+in the room — enough to build shared mini-games, cooperative puzzles, or synced world effects.
+Everything here is **inert in single-player**: `isOnline()` is `false`, `players()` is just the
+local player, and `sendCustom` does nothing. So a plugin using `atlas.mp` is safe in an offline
+game.
+
+| Call | Effect |
+|---|---|
+| `atlas.mp.isOnline()` | `true` while the game is in a room, `false` in single-player |
+| `atlas.mp.players()` | The players in the room as `[{ id, name }, …]`, including yourself |
+| `atlas.mp.self()` | This player as `{ id, name }` |
+| `atlas.mp.onPlayerJoin(fn)` | `fn({ id, name })` when someone joins the room |
+| `atlas.mp.onPlayerLeave(fn)` | `fn({ id, name })` when someone leaves |
+| `atlas.mp.sendCustom(data)` | Broadcast a small JSON value to everyone else in the room |
+| `atlas.mp.onCustom(fn)` | `fn({ from, data })` when another player's `sendCustom` arrives (`from` is their id) |
+
+```js
+// A plugin that shows a heart over a friend when they wave.
+atlas.mp.onPlayerJoin(p => console.log(p.name + " arrived!"));
+atlas.mp.onCustom(({ from, data }) => {
+  if (data && data.kind === "wave") showHeartOver(from);
+});
+function wave() { atlas.mp.sendCustom({ kind: "wave" }); }
+```
+
+`data` is any JSON-safe value (object, array, string, number). Keep it small — it travels the
+same wire as everything else — and always check what you receive, since it comes from another
+player's game. `sendCustom` reaches everyone in the room except you; the messages are relayed
+through the play server (the same tier as emotes), so they work in friend rooms today.
+
 ---
 
 ## The `game` script API

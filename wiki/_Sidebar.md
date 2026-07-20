@@ -20,6 +20,10 @@
 - [The Asset Browser](The-Asset-Browser)
 - [Audio](Audio)
 
+**Play together (online)**
+- [Making Your Game Multiplayer](Making-Your-Game-Multiplayer)
+- [Hosting a World](Hosting-a-World)
+
 **Polish & ship**
 - [Message Text Codes](Message-Text-Codes)
 - [Plugins](Plugins)

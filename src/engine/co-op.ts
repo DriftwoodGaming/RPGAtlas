@@ -36,6 +36,7 @@ import { renderDirective } from "./scenes/directive-renderer.js";
 import { loadMap, initPlayer, syncFollowers } from "./scenes/map-runtime.js";
 import { generateRoomCode, normalizeRoomCode, formatRoomCode } from "../shared/net/room-code.js";
 import { resetSession } from "./net/session.js";
+import { mpText } from "./mp-i18n.js";
 import type { PlayerState } from "../shared/sim/players.js";
 import type { ErrorCode } from "../shared/net/protocol.js";
 
@@ -48,7 +49,7 @@ export function createRoom(name: string): string {
     localName: myName,
     localCharset: (G.party && G.party[0] && G.party[0].charset) || "",
     onPresence: (p) => {
-      if (p.kind === "join") toast((p.name || "Someone") + " joined");
+      if (p.kind === "join") toast(mpText("playerJoined", { name: p.name || mpText("someone") }));
       firePresencePlugins(p);
     },
     onCustom: onCustomMessage, // MP7·C: a client's plugin message → host plugins
@@ -68,7 +69,7 @@ export function joinRoom(rawCode: string, name: string): RoomClient | null {
     onSnapshot: reconstructClient,
     onLocal: writeLocalPlayer,
     onPresence: (p) => {
-      if (p.kind === "join") toast((p.name || "Someone") + " joined");
+      if (p.kind === "join") toast(mpText("playerJoined", { name: p.name || mpText("someone") }));
       firePresencePlugins(p);
     },
     renderDirective,
@@ -83,16 +84,16 @@ export function joinRoom(rawCode: string, name: string): RoomClient | null {
 /** MP6·A: my party membership changed — kid-readable feedback. */
 function onPartyChange(change: PartyChange): void {
   if (change.joined) {
-    toast("You joined the party!");
+    toast(mpText("youJoinedParty"));
     return;
   }
   if (change.left) {
-    toast("You left the party.");
+    toast(mpText("youLeftParty"));
     return;
   }
   for (const pid of change.newMates) {
     const e = defaultWorld.roster.players.get(pid);
-    toast(((e && e.name) || "A friend") + " joined your party!");
+    toast(mpText("friendJoinedParty", { name: (e && e.name) || mpText("aFriend") }));
   }
 }
 
@@ -106,7 +107,7 @@ function onPartyChange(change: PartyChange): void {
 function onBattleEvent(ev: BattleEvent): void {
   if (ev.ev === "start") {
     battleOverlay.open(ev.names);
-    toast("Battle! Fighting alongside " + ev.names.join(", ") + "!");
+    toast(mpText("battleStart", { names: ev.names.join(", ") }));
     return;
   }
   if (ev.ev === "round") {
@@ -128,10 +129,10 @@ function onBattleEvent(ev: BattleEvent): void {
   battleOverlay.close();
   toast(
     ev.result === "win"
-      ? "Victory!"
+      ? mpText("victory")
       : ev.result === "escape"
-        ? "Got away safely!"
-        : "The battle is over — everyone gets back up.",
+        ? mpText("escaped")
+        : mpText("battleOver"),
   );
   if (lines.length) toast(lines.join("  ·  "));
 }
@@ -151,7 +152,7 @@ const battleOverlay = {
       "background:rgba(20,24,34,0.92);color:#fff;border-radius:12px;padding:10px 14px;z-index:115;" +
       "font-family:system-ui,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,0.45);pointer-events:none;";
     const title = el("div");
-    title.textContent = "Battle — with " + names.join(", ");
+    title.textContent = mpText("battleWith", { names: names.join(", ") });
     title.style.cssText = "font-weight:700;font-size:14px;margin-bottom:6px;text-align:center;";
     const logEl = el("div", "mp-battle-log");
     logEl.style.cssText =
@@ -348,27 +349,27 @@ function friendlyError(code: ErrorCode | "offline"): string {
   switch (code) {
     case "room-not-found":
     case "bad-code":
-      return "Couldn't find that room — check the code and try again.";
+      return mpText("errRoomNotFound");
     case "room-full":
-      return "That room is full. Ask your friend to make a new one.";
+      return mpText("errRoomFull");
     case "rate-limited":
-      return "Too many tries — wait a moment, then try again.";
+      return mpText("errRateLimited");
     case "proto-mismatch":
-      return "This game needs an update to play together.";
+      return mpText("errProtoMismatch");
     case "offline":
-      return "Couldn't reach the play server. Check your connection and try again.";
+      return mpText("errOffline");
     default:
-      return "Something went wrong. Please try again.";
+      return mpText("errGeneric");
   }
 }
 
 /** Plain-language copy for being disconnected by the server. */
 function friendlyKick(code: "kicked" | "banned" | "room-closed" | "idle"): string {
   switch (code) {
-    case "kicked": return "You were removed from the room.";
-    case "banned": return "You can't rejoin this room.";
-    case "room-closed": return "The room was closed.";
-    case "idle": return "You were away too long and left the room.";
+    case "kicked": return mpText("kickKicked");
+    case "banned": return mpText("kickBanned");
+    case "room-closed": return mpText("kickRoomClosed");
+    case "idle": return mpText("kickIdle");
   }
 }
 
@@ -382,7 +383,7 @@ function connectRelay(
   onFail: (message: string) => void,
 ): RelayClient | null {
   const url = relayUrl();
-  if (!isAllowedRelayUrl(url)) { onFail("This game's play server address isn't safe to use (must be wss://)."); return null; }
+  if (!isAllowedRelayUrl(url)) { onFail(mpText("errBadRelay")); return null; }
   let settled = false;
   let transport;
   try {
@@ -401,7 +402,7 @@ function connectRelay(
     onWelcome: (_pid, roomCode) => { settled = true; onWelcome(roomCode); },
     onSnapshot: reconstructClient,
     onLocal: writeLocalPlayer,
-    onPresence: (p) => { if (p.kind === "join") toast((p.name || "Someone") + " joined"); firePresencePlugins(p); },
+    onPresence: (p) => { if (p.kind === "join") toast(mpText("playerJoined", { name: p.name || mpText("someone") })); firePresencePlugins(p); },
     renderDirective,
     onError: (c) => { if (!settled) { settled = true; onFail(friendlyError(c)); } },
     onKick: (c) => { toast(friendlyKick(c)); leaveRelay(); },
@@ -436,8 +437,8 @@ export function playTogether(): Promise<boolean> {
     "background:#232a3a;color:#fff;border-radius:14px;padding:22px 24px;min-width:300px;max-width:360px;" +
     "box-shadow:0 12px 40px rgba(0,0,0,0.5);text-align:center;";
   back.appendChild(card);
-  const h = el("div"); h.textContent = "Play Together"; h.style.cssText = "font-weight:700;font-size:20px;margin-bottom:12px;";
-  const nameLabel = el("div"); nameLabel.textContent = "Your name"; nameLabel.style.cssText = "font-size:12px;opacity:.75;text-align:left;margin-bottom:4px;";
+  const h = el("div"); h.textContent = mpText("playTogether"); h.style.cssText = "font-weight:700;font-size:20px;margin-bottom:12px;";
+  const nameLabel = el("div"); nameLabel.textContent = mpText("yourName"); nameLabel.style.cssText = "font-size:12px;opacity:.75;text-align:left;margin-bottom:4px;";
   const nameIn = document.createElement("input");
   nameIn.type = "text"; nameIn.maxLength = 24; nameIn.value = ((G.party && G.party[0] && G.party[0].name) || "Player").slice(0, 24);
   nameIn.style.cssText = "width:100%;box-sizing:border-box;padding:8px 10px;border-radius:8px;border:1px solid #3a4358;background:#1a2130;color:#fff;font-size:15px;margin-bottom:14px;";
@@ -451,15 +452,15 @@ export function playTogether(): Promise<boolean> {
       (primary ? "background:#4a86ff;color:#fff;" : "background:#39415a;color:#dfe6f5;");
     return b;
   };
-  const createBtn = mkBtn("Create Room", true);
-  const joinBtn = mkBtn("Join a Room", false);
-  const closeX = mkBtn("Cancel", false); closeX.style.marginTop = "10px"; closeX.style.background = "transparent"; closeX.style.color = "#9aa6bf";
+  const createBtn = mkBtn(mpText("createRoom"), true);
+  const joinBtn = mkBtn(mpText("joinRoom"), false);
+  const closeX = mkBtn(mpText("cancel"), false); closeX.style.marginTop = "10px"; closeX.style.background = "transparent"; closeX.style.color = "#9aa6bf";
 
   const setBusy = (busy: boolean): void => { createBtn.disabled = joinBtn.disabled = busy; };
   const enter = (roomCode: string, isHost: boolean): void => { status.textContent = ""; back.remove(); onRoomEntered(roomCode, isHost); resolve(true); };
 
   createBtn.onclick = (): void => {
-    setBusy(true); status.textContent = "Creating a room…";
+    setBusy(true); status.textContent = mpText("creatingRoom");
     connectRelay(nameIn.value, undefined,
       (roomCode) => enter(roomCode, true),
       (msg) => { setBusy(false); status.textContent = msg; },
@@ -468,19 +469,19 @@ export function playTogether(): Promise<boolean> {
   joinBtn.onclick = (): void => {
     // Reveal a code field on first click; connect on the second.
     if (!card.querySelector(".mp-code-in")) {
-      const codeLabel = el("div"); codeLabel.textContent = "Room code"; codeLabel.style.cssText = "font-size:12px;opacity:.75;text-align:left;margin:4px 0;";
+      const codeLabel = el("div"); codeLabel.textContent = mpText("roomCodeField"); codeLabel.style.cssText = "font-size:12px;opacity:.75;text-align:left;margin:4px 0;";
       const codeIn = document.createElement("input");
       codeIn.className = "mp-code-in"; codeIn.type = "text"; codeIn.placeholder = "XXX-XXX-XXX"; codeIn.maxLength = 13;
       codeIn.style.cssText = nameIn.style.cssText;
       card.insertBefore(codeLabel, status); card.insertBefore(codeIn, status);
-      joinBtn.textContent = "Join";
+      joinBtn.textContent = mpText("join");
       codeIn.focus();
       return;
     }
     const codeIn = card.querySelector<HTMLInputElement>(".mp-code-in")!;
     const norm = normalizeRoomCode(codeIn.value);
     if (!norm) { status.textContent = friendlyError("bad-code"); return; }
-    setBusy(true); status.textContent = "Joining…";
+    setBusy(true); status.textContent = mpText("joining");
     connectRelay(nameIn.value, norm,
       () => enter(norm, false),
       (msg) => { setBusy(false); status.textContent = msg; },
@@ -499,7 +500,7 @@ export function playTogether(): Promise<boolean> {
  *  (reconstructClient). Show the room code so the host can share it. */
 function onRoomEntered(roomCode: string, isHost: boolean): void {
   if (isHost) showRoomCodeBanner(roomCode);
-  else toast("Joined room " + formatRoomCode(roomCode));
+  else toast(mpText("joinedRoom", { code: formatRoomCode(roomCode) }));
 }
 
 /** A persistent, dismissible banner with the room code to share (host). */
@@ -510,7 +511,7 @@ function showRoomCodeBanner(roomCode: string): void {
     "position:absolute;top:10px;left:50%;transform:translateX(-50%);background:#232a3a;color:#fff;" +
     "padding:8px 14px;border-radius:10px;font-family:system-ui,sans-serif;font-size:14px;z-index:130;" +
     "box-shadow:0 6px 20px rgba(0,0,0,0.4);display:flex;gap:10px;align-items:center;";
-  const label = el("span"); label.textContent = "Room code:";
+  const label = el("span"); label.textContent = mpText("roomCodeLabel");
   label.style.cssText = "opacity:.8;";
   const code = el("span"); code.textContent = formatRoomCode(roomCode);
   code.style.cssText = "font-weight:700;letter-spacing:1px;";

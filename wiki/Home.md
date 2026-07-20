@@ -38,6 +38,13 @@ you need from the sidebar.
 - **[Generators](Generators)** — 20 name and story-hook generators for worldbuilding, encounters, treasure, and adventures.
 - **[Audio](Audio)** — the procedural music and sound effects, and how to assign them.
 
+## Play together (online)
+
+- **[Making Your Game Multiplayer](Making-Your-Game-Multiplayer)** — one checkbox lets friends
+  join your game with a room code: walk together, emote, party up, and fight side by side.
+- **[Hosting a World](Hosting-a-World)** — run the open-source Beacon server yourself for a big,
+  persistent world, plus exactly what crosses the network (the part to show a parent or teacher).
+
 ## Polish & ship
 
 - **[Message Text Codes](Message-Text-Codes)** — icons, colors, and variables inside dialogue.
