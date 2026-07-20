@@ -1,0 +1,88 @@
+/* RPGAtlas — server/src/node/main.ts
+   Project Beacon MP5·A: the Beacon server CLI (plain-Node target). Loads a game
+   project and serves friend rooms over WebSocket:
+
+     node beacon.mjs --project path/to/game.json [--port 8787] [--trust-proxy]
+
+   This is the open-source "host a world in one command" entry (roadmap D2).
+   Driftwood's free relay is this, deployed with a featured game. GPL-3.0. */
+
+import { readFile } from "node:fs/promises";
+import { startNodeServer } from "./ws-server.js";
+
+interface Args {
+  project?: string;
+  port: number;
+  host?: string;
+  maxPlayers?: number;
+  trustProxy: boolean;
+}
+
+function parseArgs(argv: string[]): Args {
+  const out: Args = { port: 8787, trustProxy: false };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    const next = () => argv[++i];
+    if (a === "--project" || a === "-p") out.project = next();
+    else if (a === "--port") out.port = Number(next()) || 8787;
+    else if (a === "--host") out.host = next();
+    else if (a === "--max-players") out.maxPlayers = Number(next()) || undefined;
+    else if (a === "--trust-proxy") out.trustProxy = true;
+    else if (a === "--help" || a === "-h") { printHelp(); process.exit(0); }
+  }
+  return out;
+}
+
+function printHelp(): void {
+  process.stdout.write(
+    "RPGAtlas Beacon server (Project Beacon MP5)\n\n" +
+    "  node beacon.mjs --project <game.json> [options]\n\n" +
+    "  --project, -p <path>   Game project JSON to host (required)\n" +
+    "  --port <n>             Port to listen on (default 8787)\n" +
+    "  --host <addr>          Bind address (default all interfaces)\n" +
+    "  --max-players <n>      Players per room (default 16)\n" +
+    "  --trust-proxy          Read X-Forwarded-For for rate-limit source\n" +
+    "  --help, -h             Show this help\n",
+  );
+}
+
+async function main(): Promise<void> {
+  const args = parseArgs(process.argv.slice(2));
+  if (!args.project) {
+    process.stderr.write("beacon: --project <game.json> is required (see --help)\n");
+    process.exit(2);
+  }
+  let project: unknown;
+  try {
+    project = JSON.parse(await readFile(args.project, "utf8"));
+  } catch (e) {
+    process.stderr.write(`beacon: could not read project "${args.project}": ${(e as Error).message}\n`);
+    process.exit(2);
+  }
+  const handle = await startNodeServer({
+    project,
+    port: args.port,
+    host: args.host,
+    trustProxy: args.trustProxy,
+    limits: args.maxPlayers ? { maxPlayersPerRoom: args.maxPlayers } : undefined,
+    log: (level, event, detail) =>
+      process.stdout.write(`[beacon] ${level} ${event}${detail ? " " + JSON.stringify(detail) : ""}\n`),
+  });
+  process.stdout.write(
+    `[beacon] listening on :${handle.port} — hosting "${projectTitle(project)}"\n` +
+    `[beacon] players connect over ws://<host>:${handle.port} (wss:// behind TLS)\n`,
+  );
+  const stop = () => { handle.close().then(() => process.exit(0)); };
+  process.on("SIGINT", stop);
+  process.on("SIGTERM", stop);
+}
+
+function projectTitle(project: unknown): string {
+  const p = project as { system?: { title?: string } } | null;
+  return (p && p.system && p.system.title) || "Untitled";
+}
+
+main().catch((e) => {
+  process.stderr.write(`beacon: fatal ${(e as Error).stack || e}\n`);
+  process.exit(1);
+});

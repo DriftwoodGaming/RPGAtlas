@@ -1,0 +1,24 @@
+{
+  "name": "@rpgatlas/beacon-server",
+  "version": "1.2.0",
+  "private": true,
+  "description": "Project Beacon — open-source multiplayer relay/world server for RPGAtlas games (Node + Cloudflare Durable Objects targets)",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "bin": {
+    "rpgatlas-beacon": "dist/beacon.mjs"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node dist/beacon.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13",
+    "esbuild": "^0.25.12",
+    "typescript": "^5.9.0"
+  }
+}

@@ -10,6 +10,11 @@ src-tauri/game.conf.json
 # Build artifacts
 *.log
 
+# Project Beacon (server/): the bundled Node server + any DO build output are
+# reproducible via `npm run build` in server/ — source is checked in, not dist.
+server/dist/
+server/node_modules/
+
 # M6·B community-scale QA fixture (scripts/build-migration-scale-fixture.mjs) —
 # large + regenerable; the round-trip tests build it in memory, never from disk.
 tests/fixtures/scale-project/

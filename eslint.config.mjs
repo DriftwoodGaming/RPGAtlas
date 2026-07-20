@@ -23,6 +23,9 @@ export default [
       "tests/**",
       "tools/**",
       "wiki/**",
+      // Project Beacon MP5: the bundled server output (esbuild) + the DO's
+      // generated worker are build artifacts, not source.
+      "server/dist/**",
     ],
   },
   js.configs.recommended,
