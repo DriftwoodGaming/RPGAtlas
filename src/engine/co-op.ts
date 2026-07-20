@@ -43,12 +43,15 @@ import type { ErrorCode } from "../shared/net/protocol.js";
  *  room code to share. The host keeps playing exactly as solo; peers join. */
 export function createRoom(name: string): string {
   const code = generateRoomCode();
+  myName = (name || "Host").slice(0, 24);
   active.host = new RoomHost(soloHost.world, soloHost, code, {
-    localName: (name || "Host").slice(0, 24),
+    localName: myName,
     localCharset: (G.party && G.party[0] && G.party[0].charset) || "",
     onPresence: (p) => {
       if (p.kind === "join") toast((p.name || "Someone") + " joined");
+      firePresencePlugins(p);
     },
+    onCustom: onCustomMessage, // MP7·C: a client's plugin message → host plugins
   });
   return code;
 }
@@ -59,16 +62,19 @@ export function createRoom(name: string): string {
 export function joinRoom(rawCode: string, name: string): RoomClient | null {
   const code = normalizeRoomCode(rawCode);
   if (!code) return null;
+  myName = (name || "Player").slice(0, 24);
   const client = new RoomClient(defaultWorld, code, {
-    name: (name || "Player").slice(0, 24),
+    name: myName,
     onSnapshot: reconstructClient,
     onLocal: writeLocalPlayer,
     onPresence: (p) => {
       if (p.kind === "join") toast((p.name || "Someone") + " joined");
+      firePresencePlugins(p);
     },
     renderDirective,
     onParty: onPartyChange,
     onBattle: onBattleEvent,
+    onCustom: onCustomMessage,
   });
   active.client = client;
   return client;
@@ -233,6 +239,67 @@ function writeLocalPlayer(s: PlayerState): void {
 // through the late-bound registry — no scene↔co-op import cycle.
 fns.mpToast = toast;
 
+/* ── MP7·C: the plugin multiplayer surface (the 2.0 net unfreeze) ──────────
+   Presence + custom messages reach the game's plugins through the plugin
+   runtime's hook arrays (fns.Plugins, late-bound). `fns.mp` gives atlas.mp its
+   send/read operations without the plugin runtime importing the net tree. All
+   inert in solo (no host/client ⇒ isOnline false, no players, sendCustom a
+   no-op), so a game with no multiplayer is byte-identical. */
+
+/** The world whose roster the local tab reads (host: the authority; client: the
+ *  mirror). Both keep OTHER players in `roster.players`; the local player is
+ *  `roster.local`. */
+function rosterWorld() {
+  return active.host ? soloHost.world : defaultWorld;
+}
+
+/** Fire a plugin multiplayer hook (playerJoin / playerLeave / custom), guarded
+ *  so it is a no-op when no plugin runtime is present (headless tests). */
+function firePlugins(name: string, arg: unknown): void {
+  const P = (fns as any).Plugins;
+  if (P && typeof P.fire === "function") P.fire(name, arg);
+}
+
+/** Dispatch a presence event to the plugin join/leave hooks (in addition to the
+ *  toast). Emote/say are not plugin-facing here (they render as bubbles). */
+function firePresencePlugins(p: { kind: string; playerId: number; name?: string }): void {
+  if (p.kind === "join") firePlugins("playerJoin", { id: p.playerId, name: p.name || "" });
+  else if (p.kind === "leave") {
+    const e = rosterWorld().roster.players.get(p.playerId);
+    firePlugins("playerLeave", { id: p.playerId, name: (e && e.name) || p.name || "" });
+  }
+}
+
+/** A plugin custom message arrived from another player → the game's plugins. */
+function onCustomMessage(msg: { from: number; data: unknown }): void {
+  firePlugins("custom", msg);
+}
+
+/** This tab's own display name, remembered at connect time so atlas.mp.self()
+ *  can report it (the roster only stores OTHER players' names). */
+let myName = "";
+
+// atlas.mp's operations, late-bound so plugin-runtime.ts never imports the net
+// tree. Solo-inert (no active session).
+(fns as any).mp = {
+  sendCustom(data: unknown): void {
+    if (active.host) active.host.sendCustom(data as never);
+    else if (active.client) active.client.sendCustom(data as never);
+  },
+  isOnline(): boolean {
+    return !!(active.host || active.client);
+  },
+  self(): { id: number; name: string } {
+    return { id: rosterWorld().roster.local, name: myName };
+  },
+  players(): Array<{ id: number; name: string }> {
+    const w = rosterWorld();
+    const out: Array<{ id: number; name: string }> = [{ id: w.roster.local, name: myName }];
+    for (const e of w.roster.players.values()) out.push({ id: e.id, name: e.name || "" });
+    return out;
+  },
+};
+
 /** A brief presence toast (join). Inline-styled so MP4 adds no player-facing
  *  CSS (no cache-bust); MP5·C gives presence a designed treatment. */
 function toast(text: string): void {
@@ -327,18 +394,20 @@ function connectRelay(
     onFail(friendlyError("offline"));
     return null;
   }
+  myName = (name || "Player").slice(0, 24);
   const client = new RelayClient(defaultWorld, transport, {
-    name: (name || "Player").slice(0, 24),
+    name: myName,
     code,
     onWelcome: (_pid, roomCode) => { settled = true; onWelcome(roomCode); },
     onSnapshot: reconstructClient,
     onLocal: writeLocalPlayer,
-    onPresence: (p) => { if (p.kind === "join") toast((p.name || "Someone") + " joined"); },
+    onPresence: (p) => { if (p.kind === "join") toast((p.name || "Someone") + " joined"); firePresencePlugins(p); },
     renderDirective,
     onError: (c) => { if (!settled) { settled = true; onFail(friendlyError(c)); } },
     onKick: (c) => { toast(friendlyKick(c)); leaveRelay(); },
     onParty: onPartyChange,
     onBattle: onBattleEvent,
+    onCustom: onCustomMessage,
   });
   active.client = client;
   return client;

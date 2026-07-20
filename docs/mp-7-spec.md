@@ -202,3 +202,93 @@ path; the determinism canary **46633057** is re-verified green after the
 
 Pure `src/` (TS) + tests — **no `js/` file, no `?v=` bump**. Version 1.2.0;
 FORMAT_VERSION 2.
+
+---
+
+## Stage C — Plugin API net surface (Opus, landed 2026-07-19)
+
+The additive net surface — the 2.0 plugin-API unfreeze (D7). `atlas.mp` lets a
+plugin build co-op mechanics on top of Beacon: presence hooks + an opaque
+custom-message channel. **Custom messages are communication tier** (relayed like
+emote/chat, no world sim), so — unlike parties/battles (D-6-0) — they work over
+BOTH the local co-op bus AND the relay **today**.
+
+### What landed
+
+**Protocol (`src/shared/net/protocol.ts`):**
+
+- `ClientCustom = { t: "custom"; data: JsonValue }` +
+  `ServerCustom = { t: "custom"; from: PlayerId; data: JsonValue }`, added to the
+  unions. `data` is opaque — the engine NEVER interprets it. Strict decoder arms
+  both directions (client: `data` present; server: uint `from` + `data`);
+  size bounded by the existing frame byte cap, rate by the message token bucket.
+
+**Relay server (`server/`):**
+
+- `server.ts` route lets `t:"custom"` through to the room in-room dispatch;
+  `room.ts handleFrame` relays `{t:"custom", from: pid, data}` to every OTHER
+  member (never back to the sender) — the emote/chat passthrough pattern, no
+  world-sim involvement. The MP5 security posture is unchanged (opaque relay,
+  scoped to the room, capped + rate-limited; no IP/PII).
+
+**Engine transports:**
+
+- `room-host.ts` (MP4-local): a client's `custom` frame broadcasts to other
+  clients + fires `onCustom` for the host's own plugins; `sendCustom(data)`
+  broadcasts the host's own message (from id 0). `broadcast` widened to
+  `ServerMessage`.
+- `room-client.ts` / `relay-client.ts`: handle the server `custom` frame →
+  `onCustom({from, data})`; add `sendCustom(data)`. `active.ts ClientLike` gains
+  `sendCustom`.
+
+**Engine co-op + plugin runtime:**
+
+- `co-op.ts`: `fns.mp` (sendCustom/isOnline/players/self, late-bound so the
+  plugin runtime never imports the net tree) + presence join/leave fire the
+  plugin hooks + `onCustom` wired into all three connect paths (host/client/
+  relay). `myName` tracked for `self()`. All inert in solo.
+- `plugin-runtime.ts`: `Plugins.hooks` gains `playerJoin`/`playerLeave`/`custom`
+  (fired via the existing `Plugins.fire`); the `atlas.mp` bridge exposes
+  `onPlayerJoin` / `onPlayerLeave` / `onCustom` / `sendCustom` / `isOnline` /
+  `players` / `self`, delegating to `fns.mp`.
+
+### API shape (frozen again after 2.0 — kept minimal)
+
+```
+atlas.mp.onPlayerJoin(fn)   // fn({ id, name })
+atlas.mp.onPlayerLeave(fn)  // fn({ id, name })
+atlas.mp.onCustom(fn)       // fn({ from, data })  — data is your JSON payload
+atlas.mp.sendCustom(data)   // broadcast an opaque JSON payload to the room
+atlas.mp.isOnline()         // true while in a room
+atlas.mp.players()          // [{ id, name }, …] including self
+atlas.mp.self()             // { id, name }
+```
+
+### Tests (+ new)
+
+- `tests-unit/net-protocol.test.ts` (+3): custom client/server round-trips (any
+  JSON-safe payload), and rejects (missing `data`, bad `from`, oversized frame).
+- `tests-unit/beacon-server.test.ts` (+1): a client's custom message relays to
+  every OTHER member tagged with the sender's id, never echoed to the sender.
+- `tests-unit/coop-session.test.ts` (+1): over the real BroadcastChannel bus,
+  custom messages relay client→host (+ to other clients, not the sender) and
+  host→clients (from id 0).
+
+### Live verification (vite dev)
+
+Importing `co-op.ts` installs `fns.mp` (inert in solo: `isOnline()` false,
+`players()` = `[{id:0}]`, `sendCustom` a no-op that never throws); the plugin
+hook arrays (`playerJoin`/`playerLeave`/`custom`) exist and `Plugins.fire`
+delivers the right arg shape to registered hooks.
+
+### Draw-conservation / byte-identity note (stage C)
+
+No RNG, no render. Everything is gated on an active room (`active.host` /
+`active.client`), null in solo. The new wire arm is additive within protocol v1
+(the D-6-3 precedent); no PROTOCOL_VERSION bump.
+
+### Cache-busts / versions (stage C)
+
+Pure `src/` + `server/` + tests — **no `js/` file, no `?v=` bump**. Version
+1.2.0; FORMAT_VERSION 2. (The plugin-API wiki page + the js/plugins.js header
+doc land in stage D.)

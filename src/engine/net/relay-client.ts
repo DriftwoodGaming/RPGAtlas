@@ -18,6 +18,7 @@ import {
   PROTOCOL_VERSION,
   type ErrorCode,
   type InputIntent,
+  type JsonValue,
   type ServerKick,
   type ServerMessage,
   type ServerPresence,
@@ -60,6 +61,8 @@ export interface RelayClientOptions {
   onParty?: (change: PartyChange) => void;
   /** MP6·A: a shared-battle event addressed to me (same MP8 note). */
   onBattle?: (ev: BattleEvent) => void;
+  /** MP7·C: a plugin custom message from another player (works on the relay). */
+  onCustom?: (msg: { from: number; data: JsonValue }) => void;
 }
 
 export class RelayClient {
@@ -130,6 +133,9 @@ export class RelayClient {
       this.opts.onError?.(m.code);
     } else if (m.t === "kick") {
       this.opts.onKick?.(m.code);
+    } else if (m.t === "custom") {
+      // MP7·C: a plugin custom message from another player → the game's plugins.
+      this.opts.onCustom?.({ from: m.from, data: m.data });
     }
   }
 
@@ -146,6 +152,12 @@ export class RelayClient {
   /** Say a dev-authored preset phrase (index) or free text (dev opt-in, D4). */
   sendChat(payload: { text?: string; preset?: number }): void {
     this.transport.send({ t: "chat", ...payload });
+  }
+
+  /** MP7·C: send a plugin custom message to the room (opaque payload). Works on
+   *  the relay today (communication tier, relayed like emote/chat). */
+  sendCustom(data: JsonValue): void {
+    this.transport.send({ t: "custom", data });
   }
 
   close(): void {

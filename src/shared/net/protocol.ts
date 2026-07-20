@@ -293,6 +293,13 @@ export type ClientEmote = { t: "emote"; emote: string };
  *  preset phrases — always available) or `text` (free text — only when the
  *  game's dev opted in, D4; server rejects otherwise with "chat-disabled"). */
 export type ClientChat = { t: "chat"; text?: string; preset?: number };
+/** Plugin custom message (Beacon MP7·C — the additive net surface, the 2.0
+ *  plugin-API unfreeze). `data` is an opaque JsonValue the engine NEVER
+ *  interprets — only the game's own plugins do (atlas.mp.sendCustom /
+ *  onCustom). Relayed to the room like emote/chat (communication tier, not
+ *  world sim), so it works over both the local co-op bus and the relay. Size is
+ *  bounded by the client frame byte cap; rate-limited by the message bucket. */
+export type ClientCustom = { t: "custom"; data: JsonValue };
 
 export type ClientMessage =
   | ClientHello
@@ -301,7 +308,8 @@ export type ClientMessage =
   | ClientInput
   | ClientReply
   | ClientEmote
-  | ClientChat;
+  | ClientChat
+  | ClientCustom;
 
 /* ── Server → client messages ──────────────────────────────────────────── */
 
@@ -345,6 +353,10 @@ export type ServerKick = { t: "kick"; code: "kicked" | "banned" | "room-closed" 
  *  (audience-beginners rule — a kid reads "Couldn't find that room — check
  *  the code and try again", never `detail`, which is for dev consoles/logs). */
 export type ServerError = { t: "error"; code: ErrorCode; fatal?: boolean; detail?: string };
+/** A plugin custom message relayed from another player in the room (Beacon
+ *  MP7·C). `from` is the sender's player id; `data` is their opaque payload.
+ *  Only the game's plugins interpret `data`. */
+export type ServerCustom = { t: "custom"; from: PlayerId; data: JsonValue };
 
 export type ErrorCode =
   | "proto-mismatch"
@@ -365,7 +377,8 @@ export type ServerMessage =
   | ServerDirective
   | ServerPresence
   | ServerKick
-  | ServerError;
+  | ServerError
+  | ServerCustom;
 
 /* ── Codec ─────────────────────────────────────────────────────────────── */
 
@@ -668,6 +681,11 @@ export function decodeClientMessage(text: string): DecodeResult<ClientMessage> {
       if (hasPreset && !isUint(m.preset)) return fail("chat: bad preset");
       break;
     }
+    case "custom":
+      // `data` is opaque (any JsonValue). Presence + the frame byte cap is the
+      // whole contract — the engine never interprets it, only plugins do.
+      if (!("data" in m)) return fail("custom: missing data");
+      break;
     default:
       return fail(`unknown client message type "${m.t}"`);
   }
@@ -725,6 +743,10 @@ export function decodeServerMessage(text: string): DecodeResult<ServerMessage> {
     case "error":
       if (!ERROR_CODES.includes(m.code as ErrorCode)) return fail("error: bad code");
       if (m.fatal !== undefined && typeof m.fatal !== "boolean") return fail("error: bad fatal");
+      break;
+    case "custom":
+      if (!isUint(m.from)) return fail("custom: bad from");
+      if (!("data" in m)) return fail("custom: missing data");
       break;
     default:
       return fail(`unknown server message type "${m.t}"`);

@@ -20,7 +20,9 @@ import { scriptApi } from "./script-api.js";
 import { zonesAtTile } from "../shared/zone-geom.js";
 
 export const Plugins: any = {
-  hooks: { mapLoad: [], update: [], render: [] },
+  // MP7·C adds the multiplayer hook lists (playerJoin/playerLeave/custom); the
+  // co-op layer fires them via Plugins.fire(name, arg), same as mapLoad/update.
+  hooks: { mapLoad: [], update: [], render: [], playerJoin: [], playerLeave: [], custom: [] },
   textProcessors: [], // fn(html) -> html, run on every message/choice string
   commands: {}, // custom event-command handlers, by command type
   transition: null, // { out(ms), in(ms) } installed by a transition plugin
@@ -117,6 +119,21 @@ export const Plugins: any = {
       // give any zone kind its own meaning. Absent map.zones ⇒ [].
       zonesAt: (x: any, y: any) =>
         zonesAtTile(ctx.map && ctx.map.zones, Math.floor(x), Math.floor(y)),
+      // Multiplayer surface (Project Beacon MP7·C — the additive net API, the
+      // 2.0 plugin unfreeze). Presence + custom messages let a plugin build
+      // co-op mechanics on top of Beacon. All inert in single-player (isOnline
+      // false, no players, sendCustom a no-op), routed through fns.mp so this
+      // bridge never imports the net tree. `data` is any JSON-safe value; keep
+      // it small (bounded by the wire frame cap) and validate it on receipt.
+      mp: {
+        onPlayerJoin: (fn: any) => Plugins.hooks.playerJoin.push(fn),
+        onPlayerLeave: (fn: any) => Plugins.hooks.playerLeave.push(fn),
+        onCustom: (fn: any) => Plugins.hooks.custom.push(fn),
+        sendCustom: (data: any) => { const mp = (fns as any).mp; if (mp) mp.sendCustom(data); },
+        isOnline: () => { const mp = (fns as any).mp; return !!(mp && mp.isOnline()); },
+        players: () => { const mp = (fns as any).mp; return mp ? mp.players() : []; },
+        self: () => { const mp = (fns as any).mp; return mp ? mp.self() : { id: 0, name: "" }; },
+      },
     };
     Plugins.atlas = Plugins.dw = atlas; // .dw kept for pre-rebrand plugins
     Plugins.status = [];

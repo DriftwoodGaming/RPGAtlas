@@ -264,6 +264,13 @@ export class BeaconRoom {
         { t: "presence", tick: this.world.tick, kind: "say", playerId: member.pid, preset: msg.preset },
         member.pid,
       );
+    } else if (msg.t === "custom") {
+      // Beacon MP7·C: relay the plugin's opaque payload to everyone else in the
+      // room. The engine NEVER interprets `data` — only the game's plugins do.
+      // Communication tier (like emote/chat), no world sim; size + rate are
+      // already capped by the frame byte limit and the message token bucket.
+      const frame = encodeMessage({ t: "custom", from: member.pid, data: msg.data });
+      for (const m of this.members.values()) if (m.conn && m.pid !== member.pid) m.conn.send(frame);
     }
   }
 

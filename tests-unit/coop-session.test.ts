@@ -42,7 +42,7 @@ afterEach(() => {
   resetSession();
 });
 
-function makeHost(roomCode: string) {
+function makeHost(roomCode: string, onCustom?: (m: { from: number; data: unknown }) => void) {
   const world: World = createWorld(PROJ);
   world.g.player = { x: 5, y: 5, rx: 5, ry: 5, dir: 0, moving: false, animT: 0 };
   world.g.mapId = 1;
@@ -51,6 +51,7 @@ function makeHost(roomCode: string) {
   const host = new RoomHost(world, worldHost, roomCode, {
     localName: "Host",
     localCharset: "hero",
+    onCustom,
   });
   cleanups.push(() => host.close());
   return { world, worldHost, host };
@@ -69,6 +70,7 @@ function makeClient(
     directives: [] as Directive[],
     party: [] as PartyChange[],
     battle: [] as BattleEvent[],
+    custom: [] as Array<{ from: number; data: unknown }>,
   };
   const client = new RoomClient(world, roomCode, {
     name,
@@ -82,6 +84,7 @@ function makeClient(
     },
     onParty: (c) => rec.party.push(c),
     onBattle: (ev) => rec.battle.push(ev),
+    onCustom: (m) => rec.custom.push(m),
   });
   cleanups.push(() => client.close());
   return { world, client, rec };
@@ -177,5 +180,28 @@ describe("MP6·A co-op session over BroadcastChannel", () => {
     expect(a.rec.battle).toEqual([{ ev: "itemUsed", id: 9 }]);
     host.afterTick();
     expect(b.rec.battle).toEqual([]); // Bo's inventory is never touched
+  });
+
+  it("MP7·C: plugin custom messages relay both directions over the bus", async () => {
+    const room = "COOPE" + Date.now().toString(36);
+    const hostGot: Array<{ from: number; data: unknown }> = [];
+    const { host } = makeHost(room, (m) => hostGot.push(m));
+    const a = makeClient(room, "Ana", acceptInvite);
+    await waitFor(() => a.rec.welcomeId === 1);
+    const b = makeClient(room, "Bo", acceptInvite);
+    await waitFor(() => b.rec.welcomeId === 2);
+
+    // client → host (and NOT echoed back to the sender)
+    a.client.sendCustom({ hi: "there", n: 3 });
+    await waitFor(() => hostGot.length > 0);
+    expect(hostGot[0]).toEqual({ from: 1, data: { hi: "there", n: 3 } });
+    await waitFor(() => b.rec.custom.length > 0); // Bo (another client) hears it, from Ana
+    expect(b.rec.custom[0]).toEqual({ from: 1, data: { hi: "there", n: 3 } });
+    expect(a.rec.custom).toEqual([]); // the sender never receives its own echo
+
+    // host → all clients (from id 0)
+    host.sendCustom({ pong: true });
+    await waitFor(() => a.rec.custom.length > 0);
+    expect(a.rec.custom[0]).toEqual({ from: 0, data: { pong: true } });
   });
 });

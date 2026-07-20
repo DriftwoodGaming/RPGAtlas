@@ -7,7 +7,7 @@
    GPL-3.0-or-later (see LICENSE). */
 
 import type { RoomHost } from "./room-host.js";
-import type { InputIntent } from "../../shared/net/protocol.js";
+import type { InputIntent, JsonValue } from "../../shared/net/protocol.js";
 
 /** What the loop + map tick need from a joined client, satisfied by BOTH MP4's
  *  BroadcastChannel RoomClient and MP5's WebSocket RelayClient — so `active`
@@ -16,6 +16,8 @@ export interface ClientLike {
   sendInput(intent: InputIntent): void;
   sendEmote(emote: string): void;
   sendChat(payload: { text?: string; preset?: number }): void;
+  /** MP7·C: send a plugin custom message to the room (opaque payload). */
+  sendCustom(data: JsonValue): void;
   close(): void;
 }
 

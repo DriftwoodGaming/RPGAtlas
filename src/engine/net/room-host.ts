@@ -20,6 +20,7 @@ import {
   PROTOCOL_VERSION,
   type ClientMessage,
   type JsonValue,
+  type ServerMessage,
   type ServerPresence,
 } from "../../shared/net/protocol.js";
 import type { Transport } from "../../shared/net/transport.js";
@@ -55,6 +56,9 @@ export interface RoomHostOptions {
   localCharset: string;
   /** Fired when a peer joins (for the host's own presence toast/UI). */
   onPresence?: (p: ServerPresence) => void;
+  /** MP7·C: a client sent a plugin custom message (atlas.mp.sendCustom). The
+   *  host's co-op layer dispatches it to the host's own plugins. */
+  onCustom?: (msg: { from: number; data: JsonValue }) => void;
 }
 
 export class RoomHost {
@@ -148,12 +152,24 @@ export class RoomHost {
         };
         this.broadcast(pres);
         this.opts.onPresence?.(pres);
+      } else if (m.t === "custom") {
+        // MP7·C: relay the plugin payload to every OTHER client, and hand it to
+        // the host's own plugins. The engine never interprets `data`.
+        this.broadcast({ t: "custom", from: pid, data: m.data }, pid);
+        this.opts.onCustom?.({ from: pid, data: m.data });
       }
     });
   }
 
+  /** MP7·C: the host's own plugin broadcasts a custom message to every client
+   *  (sender id 0). The host already has the payload locally, so it is not
+   *  re-dispatched here. */
+  sendCustom(data: JsonValue): void {
+    this.broadcast({ t: "custom", from: 0, data });
+  }
+
   /** Send a frame to every connected client, optionally excluding one. */
-  private broadcast(frame: ServerPresence, except = -1): void {
+  private broadcast(frame: ServerMessage, except = -1): void {
     for (const c of this.clients.values()) if (c.pid !== except) c.transport.send(frame);
   }
 

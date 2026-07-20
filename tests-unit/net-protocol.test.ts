@@ -108,6 +108,14 @@ describe("client→server round-trips (every union arm is wire-safe)", () => {
     roundTripClient({ t: "chat", preset: 3 });
     roundTripClient({ t: "chat", text: "let's check the cave" });
   });
+
+  it("MP7·C custom: any JSON-safe payload round-trips (the plugin net surface)", () => {
+    roundTripClient({ t: "custom", data: { kind: "wave", at: [3, 4] } });
+    roundTripClient({ t: "custom", data: "just a string" });
+    roundTripClient({ t: "custom", data: 42 });
+    roundTripClient({ t: "custom", data: null });
+    roundTripClient({ t: "custom", data: [1, 2, { deep: true }] });
+  });
 });
 
 describe("server→client round-trips (every union arm is wire-safe)", () => {
@@ -177,6 +185,11 @@ describe("server→client round-trips (every union arm is wire-safe)", () => {
     roundTripServer({ t: "kick", code: "kicked", detail: "owner kick" });
     roundTripServer({ t: "error", code: "room-not-found" });
     roundTripServer({ t: "error", code: "proto-mismatch", fatal: true, detail: "client v0" });
+  });
+
+  it("MP7·C custom: relayed payload with sender id round-trips", () => {
+    roundTripServer({ t: "custom", from: 2, data: { kind: "wave" } });
+    roundTripServer({ t: "custom", from: 5, data: null });
   });
 });
 
@@ -251,6 +264,14 @@ describe("decoder strictness (hostile input comes back {ok:false}, never a throw
     rejectClient({ t: "chat", text: "hi", preset: 1 }, /exactly one/);
     rejectClient({ t: "chat", text: "x".repeat(MAX_CHAT_LEN + 1) }, /bad text/);
     rejectClient({ t: "chat", preset: 2.5 }, /bad preset/);
+  });
+
+  it("custom: data key is required; oversized frames still rejected by the byte cap", () => {
+    rejectClient({ t: "custom" }, /missing data/);
+    rejectServer({ t: "custom", data: {} }, /bad from/); // server frame needs `from`
+    rejectServer({ t: "custom", from: -1, data: {} }, /bad from/);
+    // the frame byte cap bounds an opaque payload (no per-field size check needed)
+    rejectClient(JSON.stringify({ t: "custom", data: "x".repeat(MAX_CLIENT_MESSAGE_BYTES) }), /too large/);
   });
 
   it("server frames validate too (a client must survive a hostile server)", () => {

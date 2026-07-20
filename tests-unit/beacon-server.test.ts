@@ -150,6 +150,20 @@ describe("MP5 BeaconServer lifecycle", () => {
     expect(conn.last("error")?.code).toBe("proto-mismatch");
     expect(conn.isOpen).toBe(false);
   });
+
+  // MP7·C: a plugin custom message is relayed to every OTHER room member.
+  it("relays a custom message to the room, tagged with the sender's id, not back to the sender", () => {
+    const { server } = makeServer();
+    const { conn: a, code } = createRoom(server, "Ana"); // pid 1
+    const b = joinRoom(server, code, "Bo"); // pid 2
+    const c = joinRoom(server, code, "Cy"); // pid 3
+    a.recv({ t: "custom", data: { kind: "ping", n: 7 } });
+    const bMsg = b.last("custom");
+    const cMsg = c.last("custom");
+    expect(bMsg).toEqual({ t: "custom", from: 1, data: { kind: "ping", n: 7 } });
+    expect(cMsg).toEqual({ t: "custom", from: 1, data: { kind: "ping", n: 7 } });
+    expect(a.last("custom")).toBeUndefined(); // the sender never receives its own echo
+  });
 });
 
 describe("MP5 authoritative movement", () => {

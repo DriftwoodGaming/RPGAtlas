@@ -18,6 +18,7 @@
 import {
   PROTOCOL_VERSION,
   type InputIntent,
+  type JsonValue,
   type ServerMessage,
   type ServerPresence,
 } from "../../shared/net/protocol.js";
@@ -58,6 +59,8 @@ export interface RoomClientOptions {
   onParty?: (change: PartyChange) => void;
   /** MP6·A: a shared-battle event addressed to me (stage B renders it). */
   onBattle?: (ev: BattleEvent) => void;
+  /** MP7·C: a plugin custom message from another player in the room. */
+  onCustom?: (msg: { from: number; data: JsonValue }) => void;
 }
 
 export class RoomClient {
@@ -118,6 +121,9 @@ export class RoomClient {
         if (e && m.kind === "say") e.say = { text: m.text, preset: m.preset, t: m.tick };
       }
       this.opts.onPresence?.(m);
+    } else if (m.t === "custom") {
+      // MP7·C: a plugin custom message from another player → the game's plugins.
+      this.opts.onCustom?.({ from: m.from, data: m.data });
     }
   }
 
@@ -134,6 +140,11 @@ export class RoomClient {
   /** Say a dev-authored preset phrase (index) or free text (dev opt-in, D4). */
   sendChat(payload: { text?: string; preset?: number }): void {
     this.transport.send({ t: "chat", ...payload });
+  }
+
+  /** MP7·C: send a plugin custom message to the room (opaque payload). */
+  sendCustom(data: JsonValue): void {
+    this.transport.send({ t: "custom", data });
   }
 
   close(): void {

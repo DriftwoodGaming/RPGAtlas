@@ -184,7 +184,7 @@ export class BeaconServer {
     // In a room: only in-room frames are meaningful; hello/join/resume there are
     // protocol errors (already in a room).
     if (st.phase === "in-room") {
-      if (msg.t === "input" || msg.t === "reply" || msg.t === "emote" || msg.t === "chat") {
+      if (msg.t === "input" || msg.t === "reply" || msg.t === "emote" || msg.t === "chat" || msg.t === "custom") {
         if (st.room && st.member) st.room.handleFrame(st.member, msg);
       } else if (msg.t === "hello" || msg.t === "join" || msg.t === "resume") {
         this.sendError(st, "already-in-room");
