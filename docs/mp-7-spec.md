@@ -1,6 +1,9 @@
 # Phase MP7 Spec — Editor, Database, Event Commands, Plugin API, Docs ("Project Beacon")
 
-**Status:** 🚧 IN PROGRESS (Opus build). Stage A landed 2026-07-19.
+**Status:** ✅ **BUILD COMPLETE (Opus) — awaiting Fable gate.** Stages A/B/C
+landed 2026-07-19, stage D 2026-07-20. Commits: A `a9f19ee` · B `dc8aa9f` ·
+C `fe6e73d` · D `2a5c275`. The MP7 GATE block is at the bottom of this file; the
+Fable gate records the verdict + tags `beacon-7`.
 **Authored:** 2026-07-19 by Claude Opus 4.8, from the MP7 section of
 `docs/MULTIPLAYER_ROADMAP.md` + `docs/mp-6-spec.md`.
 **Workflow:** commit + push each stage to `main`; the frozen pixel goldens stay
@@ -370,3 +373,28 @@ and flipping `localStorage rpgatlas_editor_locale`.
 | i18n parity | editor 31 green + **Beacon mp-i18n 34 green (10 locales, both directions)** |
 | docs-site | **27 pages** (+2) |
 | versions / FV / cache-busts | 1.2.0 · 2 · none (all `src/` + docs; no `js/` `?v=` file touched) |
+
+---
+
+## Phase gate (Fable, after D)
+
+Template gates + i18n parity (both the editor's 10 locales AND the new Beacon
+`mp-i18n` 10) + migrateProject round-trip + the new editor e2e + old-project
+byte-identity + a minimality review of the plugin net surface (it re-freezes
+after 2.0). Verdict recorded here + the roadmap status table; tag `beacon-7`.
+
+**MP7 GATE kickoff (paste into a new Fable conversation):**
+```
+Project Beacon — MP7 GATE (Fable). Read docs/MULTIPLAYER_ROADMAP.md (MP7) + docs/mp-7-spec.md (all of it — stages A DB section · B event commands · C plugin API · D i18n/wiki/docs-site, plus the deviations D-7-0 and the boot.ts migrate fix).
+Independently re-run the template gates: npm run test:unit (expect 1194) · npm run test:net (7) · node --test tests/ (48 — the determinism hash 46633057 must hold) · cargo test (26, Rust untouched by MP7) · npx tsc --noEmit + the server typechecks (server/ tsconfig.json AND tsconfig.cf.json, both 0) · npx eslint src --ext .ts (0, and prove the sim wall still FIRES on a probe import into src/shared/sim/) · FULL npx playwright test (128/128; perf within ±10%). Solo byte-identity: `git diff beacon-6..HEAD -- "*.png"` must be EMPTY. Flake bar: run tests-e2e/mp-database.spec.mjs 3× consecutively.
+i18n parity (both directions, all locales): tests-unit/i18n-parity.test.ts (editor chrome, 31) AND tests-unit/mp-i18n-parity.test.ts (the Beacon player strings — every one of the 10 packs defines EXACTLY the English key set, no missing, no orphans, placeholders preserved). Confirm the DB-tab field labels are i18n-EXEMPT by precedent (they never enter the parity set).
+migrateProject round-trip (additive backfill): verify tests/mp-project.test.js — an old v2 project with no `system.multiplayer` gains the inert default (enabled:false → multiplayerEnabled() false → byte-identical), the normalizer clamps every field, and it's idempotent. Verify the boot.ts fresh-project fallback now migrates (RA.migrateProject(DataDefaults.newProject())) so a brand-new game is consistent.
+Plugin net surface minimality (it re-freezes after 2.0): review atlas.mp (onPlayerJoin/onPlayerLeave/onCustom/sendCustom/isOnline/players/self) — confirm it is minimal, versioned within protocol v1 (no PROTOCOL_VERSION bump), and that the `custom` wire arm is opaque + capped by the frame byte cap + rate-limited by the message bucket + scoped to the room (relayed like emote/chat, never a world-sim surface), and that the MP5 security posture is unchanged (no IP/PII on the wire; sender never gets its own echo).
+Semantics review against the spec: A the DB block + resolveSpawn per-map spawns + the server capacity cap (authored maxPlayers only LOWERS the operator ceiling); B waitPlayers solo-instant + Show-Message-To broadcast (fire-and-forget to peers, awaits only the origin) + per-player switch scope (G.pSwitches, save round-trip) + Is Online/Player Count (solo false/1); C the custom channel both directions on the local bus AND the relay; D the runtime i18n + the two wiki pages + docs-site 27 pages. Confirm the deferral D-7-0 as the intended boundary (relay runs no events until MP8·A; MP7·B builds the authoring surface + solo-correct + headless semantics — the MP3/MP4 precedent).
+Record the verdict here + the roadmap status table, tag beacon-7, push with tags, and end with the MP8 BUILD hand-off block.
+```
+
+### VERDICT — ⏳ PENDING (Fable gate)
+
+_The Fable gate records the verdict here, updates the roadmap status table, and
+tags `beacon-7`._
