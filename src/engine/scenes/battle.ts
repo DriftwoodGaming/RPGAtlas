@@ -70,6 +70,20 @@ import {
   mzEscapeChance,
   rollDrops,
 } from "./battle-logic.js";
+import {
+  coopLog,
+  coopVictoryRewards,
+  finishCoopBattle,
+  isCoopHost,
+  openCoopBattle,
+} from "./battle-coop.js";
+import {
+  collectBattleCommands,
+  queueBattleEvent,
+  type CmdRequest,
+} from "../../shared/sim/coop-battle.js";
+import type { BattleActionCmd, BattleCmdDirective } from "../../shared/net/protocol.js";
+import { defaultWorld } from "../state/default-world.js";
 
 const TILE = Assets.TILE;
 
@@ -97,7 +111,7 @@ export const Battle: any = {
     const surprise = !!(opts && opts.surprise) && !preemptive;
     // Battle mode (Phase 5 Stage B): "turn" runs the Phase 1 loop verbatim;
     // "atb"/"ctb" run the timed scheduler over the same resolution core.
-    const battleSystem =
+    let battleSystem =
       proj.system.battleSystem === "atb" || proj.system.battleSystem === "ctb"
         ? proj.system.battleSystem
         : "turn";
@@ -105,6 +119,25 @@ export const Battle: any = {
       prevMusic = Music.current;
     ctx.scene = "battle";
     Music.play(sysBgm("battle"));
+
+    // Project Beacon MP6·A: a partied trigger opens a SHARED battle — the
+    // world core coordinates participants over battleJoin/battleCmd
+    // directives while the fight itself runs here on the authority. Solo and
+    // non-partied triggers take the null path WITHOUT awaiting (the ternary
+    // never suspends), and every co-op branch below gates on `coop` — the
+    // presence gating that keeps solo battles on the exact pre-MP6 code and
+    // RNG stream (draw conservation, THE battle contract).
+    Battle.lastShared = false;
+    const coop = isCoopHost() ? await openCoopBattle(troopId) : null;
+    if (coop) {
+      Battle.lastShared = true;
+      battleSystem = "turn"; // co-op is turn-based in stage A (D-6-6)
+    }
+    // The battler party: solo = G.party BY REFERENCE (byte-identical); co-op
+    // = the authority's A-4 slice plus every rebuilt remote battler.
+    const party = coop
+      ? [...G.party.slice(0, coop.localSlots), ...coop.remoteBattlers]
+      : G.party;
 
     // This statement stays verbatim, annotation-free JS: tests/battle-index.test.js
     // extracts its source text and executes it to pin the filtered-index invariant.
@@ -294,6 +327,9 @@ export const Battle: any = {
     }
     async function say(text: any, ms?: any) {
       log.textContent = text;
+      // MP6·A: every battle-log line mirrors to the co-op participants as a
+      // `log` event (their stage-A view of the fight; stage B renders a HUD).
+      if (coop) coopLog(coop, String(text));
       await sleep(ms == null ? 650 : ms);
     }
     function flash(i: any) {
@@ -305,7 +341,10 @@ export const Battle: any = {
     // native troops never set either flag, so this is the classic filter.
     const livingE = () =>
       enemies.filter((e: any) => e.alive && !e.hidden && !e.escaped);
-    const livingP = () => G.party.filter((a: any) => a.hp > 0);
+    // MP6·A: the battler pool is `party` (== G.party by reference in solo).
+    // `coopGone` marks a disconnect-withdrawn participant's battlers (D-6-4);
+    // solo actors never carry it.
+    const livingP = () => party.filter((a: any) => a.hp > 0 && !a.coopGone);
     function variance(v: any) {
       return Math.max(1, Math.floor(v * (0.85 + rndf() * 0.3)));
     }
@@ -577,9 +616,9 @@ export const Battle: any = {
     async function pickAlly(mode: "living" | "dead" | "any" = "living") {
       const pool =
         mode === "any"
-          ? G.party
+          ? party
           : mode === "dead"
-            ? G.party.filter((a: any) => a.hp <= 0)
+            ? party.filter((a: any) => a.hp <= 0 && !a.coopGone)
             : livingP();
       if (!pool.length) return null;
       const i = await showList(
@@ -699,7 +738,7 @@ export const Battle: any = {
         rng: rndf,
         // M3·C condition refinements (MZ types 3/5/6) — computed draw-free.
         mpPct: (enemyMp(en) / Math.max(1, bStat(en, "mmp"))) * 100,
-        partyLevel: G.party.reduce((m: any, a: any) => Math.max(m, a.level || 1), 1),
+        partyLevel: party.reduce((m: any, a: any) => Math.max(m, a.level || 1), 1),
         switches: G.switches,
       });
       const acts = valid.length ? valid : [{ skillId: 0, weight: 1 }];
@@ -996,7 +1035,7 @@ export const Battle: any = {
     /** Any party member carries this party-ability trait (MZ trait 64 —
      *  dead members count, like Game_Party.partyAbility). */
     const partyAbility = (key: string) =>
-      G.party.some(
+      party.some(
         (a: any) => RA.traitsOf(actorEffCarrier(a), "special", key).length > 0,
       );
     /** MZ substitute (trait 62.2): a healthy same-side battler with the trait
@@ -1028,6 +1067,141 @@ export const Battle: any = {
       escapeFails++;
       await say("Couldn't escape!", 700);
       return false;
+    }
+
+    // ---- MP6·A: the co-op command round ----
+    // Build each remote participant's battleCmd view, ask them all at once
+    // (the sim core races each against the AFK deadline), then resolve the
+    // replies into the same command objects the solo UI builds. Stage A
+    // resolves attack / skill / guard / escape; `item` rides stage B
+    // (participant-inventory semantics, D-6-7). Returns whether anyone asked
+    // to escape (collective, A-6). Never reached in solo.
+    async function collectCoopRound(cmds: any[]): Promise<boolean> {
+      if (!coop) return false;
+      const world = defaultWorld;
+      // A withdrawn participant's battlers leave the fight at the round edge.
+      for (const b of coop.remoteBattlers) {
+        if (b.coopGone) continue;
+        const part = coop.sb.participants.find((p: any) => p.pid === b.coopPid);
+        if (part && part.withdrawn) b.coopGone = true;
+      }
+      const enemyViews = enemies
+        .filter((en: any) => !en.hidden)
+        .map((en: any) => ({
+          i: en.i,
+          name: String(en.d.name || ""),
+          hp: en.hp,
+          mhp: en.d.stats.mhp,
+          alive: !!en.alive && !en.escaped,
+        }));
+      if (!enemyViews.length) return false;
+      const requests: CmdRequest[] = [];
+      const perPid = new Map<number, any[]>();
+      for (const p of coop.sb.participants) {
+        if (p.pid === coop.sb.trigger || p.withdrawn) continue;
+        const theirs = coop.remoteBattlers.filter(
+          (b: any) => b.coopPid === p.pid && b.hp > 0 && !b.coopGone,
+        );
+        if (!theirs.length) continue;
+        perPid.set(p.pid, theirs);
+        const view: BattleCmdDirective = {
+          kind: "battleCmd",
+          round: turnNumber,
+          canEscape: !!canEscape,
+          yours: theirs.map((a: any) => ({
+            idx: party.indexOf(a),
+            name: String(a.name || ""),
+            hp: a.hp,
+            mhp: bStat(a, "mhp"),
+            mp: a.mp,
+            mmp: bStat(a, "mmp"),
+            tp: tpActive ? tpOf(a) : undefined,
+            states: statesOf(a).map((st: any) => Number(st.id) || 0),
+            skills: learnedSkills(a).map((s: any) => ({
+              id: s.id,
+              name: String(s.name || ""),
+              mpCost: skillMpCost(a, s),
+              tpCost: tpActive && s.tpCost ? Number(s.tpCost) : undefined,
+              usable: !(
+                a.mp < skillMpCost(a, s) ||
+                (tpActive && tpOf(a) < (Number(s.tpCost) || 0)) ||
+                skillBlocked(a, s)
+              ),
+            })),
+            canAct: !cannotAct(a),
+          })),
+          allies: party
+            .filter((b: any) => b.coopPid !== p.pid && b.hp > 0 && !b.coopGone)
+            .map((b: any) => ({ name: String(b.name || ""), hp: b.hp, mhp: bStat(b, "mhp") })),
+          enemies: enemyViews,
+        };
+        requests.push({ pid: p.pid, view });
+      }
+      if (!requests.length) return false;
+      queueBattleEvent(
+        world,
+        requests.map((r) => r.pid),
+        { ev: "round", n: turnNumber },
+      );
+      const replies = await collectBattleCommands(world, coop.sb, requests);
+      let wantEscape = false;
+      for (const r of requests) {
+        const theirs = perPid.get(r.pid) || [];
+        const list = replies.get(r.pid) || [];
+        for (let i = 0; i < theirs.length; i++) {
+          const a = theirs[i];
+          if (a.hp <= 0 || a.coopGone) continue;
+          if (cannotAct(a)) {
+            cmds.push({ type: "stunned", actor: a });
+            continue;
+          }
+          const resolved = resolveCoopCmd(a, list[i]);
+          if (resolved === "escape") wantEscape = true;
+          else cmds.push(resolved);
+        }
+      }
+      return wantEscape;
+    }
+
+    /** One co-op battler's reply → the same command object the solo UI
+     *  builds. Anything stale, unknown, or unusable falls back to guard —
+     *  never a crash, never a free hit (the C3.2c posture). */
+    function resolveCoopCmd(a: any, cmd: BattleActionCmd | undefined): any {
+      const guard = { type: "guard", actor: a };
+      if (!cmd || cmd.type === "guard") return guard;
+      if (cmd.type === "escape") return canEscape ? "escape" : guard;
+      const enemyByI = (i: unknown): any => {
+        const en = enemies.find((e: any) => e.i === i);
+        return en && en.alive && !en.hidden && !en.escaped ? en : livingE()[0] || null;
+      };
+      if (cmd.type === "attack") {
+        const t = enemyByI(cmd.enemy);
+        return t ? { type: "attack", actor: a, target: t } : guard;
+      }
+      if (cmd.type === "skill") {
+        const s = learnedSkills(a).find((x: any) => x.id === cmd.id);
+        if (!s) return guard;
+        if (
+          a.mp < skillMpCost(a, s) ||
+          (tpActive && tpOf(a) < (Number(s.tpCost) || 0)) ||
+          skillBlocked(a, s)
+        )
+          return guard;
+        if (s.scope === "enemy") {
+          const t = enemyByI(cmd.enemy);
+          return t ? { type: "skill", actor: a, skill: s, target: t } : guard;
+        }
+        if (s.scope === "ally") {
+          const pool = s.revive
+            ? party.filter((m: any) => m.hp <= 0 && !m.coopGone)
+            : livingP();
+          const want = cmd.ally != null ? party[cmd.ally] : a;
+          const t = want && pool.includes(want) ? want : s.revive ? pool[0] : a;
+          return t ? { type: "skill", actor: a, skill: s, target: t } : guard;
+        }
+        return { type: "skill", actor: a, skill: s };
+      }
+      return guard; // `item` rides stage B (D-6-7)
     }
     // ---- troop battle events ----
     const pageRTs = makeTroopPageRTs(troop.pages || []);
@@ -1407,7 +1581,7 @@ export const Battle: any = {
               const targets =
                 c.skill.scope === "allies"
                   ? c.skill.revive
-                    ? G.party.filter((m: any) => m.hp <= 0)
+                    ? party.filter((m: any) => m.hp <= 0 && !m.coopGone)
                     : livingP()
                   : [c.target];
               const healAnim = animById(c.skill.animationId);
@@ -1883,7 +2057,7 @@ export const Battle: any = {
     }
     async function runTimedBattle(): Promise<any> {
       const battlers: any[] = [
-        ...G.party.map((a: any) => ({ actor: a, agi: () => bStat(a, "agi") })),
+        ...party.map((a: any) => ({ actor: a, agi: () => bStat(a, "agi") })),
         ...enemies.map((en: any) => ({ enemy: en, agi: () => bStat(en, "agi") })),
       ];
       for (const b of battlers) {
@@ -2026,7 +2200,7 @@ export const Battle: any = {
     // M3·B: TP opens at 0–24 per battler (MZ initTp) — draws only when the
     // project actually uses TP; preserve-TP battlers keep what they carried.
     if (tpActive) {
-      for (const a of G.party) if (!effHas(a, "special", "preserveTp")) a.tp = rnd(25);
+      for (const a of party) if (!effHas(a, "special", "preserveTp")) a.tp = rnd(25);
       for (const en of enemies) if (!effHas(en, "special", "preserveTp")) en.tp = rnd(25);
     }
     // M3·B: the Change Enemy TP command (342) reaches the live troop here.
@@ -2138,7 +2312,7 @@ export const Battle: any = {
           const a =
             Number(index) === 0
               ? livingP()[0]
-              : G.party.find((m: any) => m.actorId === Number(index));
+              : party.find((m: any) => m.actorId === Number(index));
           if (!a || a.hp <= 0) return;
           const c: any = { actor: a, forced: true };
           if (skillRec && (skillRec.scope === "ally" || skillRec.scope === "allies")) {
@@ -2187,8 +2361,13 @@ export const Battle: any = {
         // ---- collect party commands ----
         // M3·C: a surprise round gives the party no commands on turn 1
         // (mzBattleFlow random encounters only — never Atlas-native flow).
+        // MP6·A: co-op battlers (`coopPid`) answer through battleCmd
+        // directives AFTER this loop; the authority's own battlers keep the
+        // exact solo UI path (battleCmd is only ever sent to remotes).
         const cmds = [];
+        let coopTurnLost = false;
         collect: for (const a of surprise && turnNumber === 1 ? [] : livingP()) {
+          if (a.coopPid) continue; // remote-owned: collected below
           refreshParty();
           if (cannotAct(a)) {
             cmds.push({ type: "stunned", actor: a });
@@ -2221,9 +2400,23 @@ export const Battle: any = {
                 break battleLoop;
               }
               cmds.length = 0;
+              coopTurnLost = true; // a failed party escape voids the round
               break collect; // enemies still act
             }
             cmds.push(c);
+          }
+        }
+        // MP6·A: the co-op participants' command round (one battleCmd
+        // directive each, raced against the AFK deadline). Never reached in
+        // solo (`coop` null) — zero draws, zero directives, zero deviation.
+        if (coop && !coopTurnLost && !(surprise && turnNumber === 1)) {
+          const wantEscape = await collectCoopRound(cmds);
+          if (wantEscape) {
+            if (await tryEscape()) {
+              result = "escape";
+              break battleLoop;
+            }
+            cmds.length = 0; // a failed party escape voids the round for all
           }
         }
         guards = new Set(
@@ -2348,6 +2541,12 @@ export const Battle: any = {
             await say("Found " + rec.name + "!", 700);
           }
         }
+        // MP6·A (A-8): the co-op participants' reward draws — AFTER the
+        // authority's classic sequence just above (which stayed
+        // byte-identical), in participant join order. Presence-gated: solo
+        // never reaches this line.
+        if (coop)
+          coopVictoryRewards(coop, defeated, exp, gold, currencyRewards, dropRate, rndf);
       } else if (result === "lose") {
         noteBattleFailure(troopId, troop.enemies.map((id: any) => Number(id) || 0));
         // Defeat jingle (M4·B): imported/overridden ME only — there was never
@@ -2355,10 +2554,19 @@ export const Battle: any = {
         const defeatJingle = jingleKey("defeat");
         if (defeatJingle) { Music.stop(); void playMe(defeatJingle); }
         await say("The party has fallen...", 1100);
+        // MP6·A (A-7): co-op defeat never ends a friend's world — every
+        // participant's battlers get back up with 1 HP, and the game-over
+        // flow is suppressed at the callsites via Battle.lastShared. Solo
+        // defeat is untouched (the classic flow below).
+        if (coop) for (const b of party) if (b.hp <= 0 && !b.coopGone) b.hp = 1;
       }
     } finally {
       delete fns.battleAddEnemyTp;
       delete fns.battleEnemyOps;
+      // MP6·A: capture the co-op end frames (rewards + final battler state)
+      // and release the shared battle (blocking, active slot) BEFORE the
+      // scene tears down. No-op in solo.
+      if (coop) finishCoopBattle(coop, (result || "win") as "win" | "lose" | "escape");
       // shed battle-only states (poison etc. configured to clear after battle)
       for (const a of G.party) {
         if (a.states)

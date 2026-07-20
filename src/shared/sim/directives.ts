@@ -31,13 +31,21 @@
    per player as a hostile-event guard. GPL-3.0-or-later (see LICENSE). */
 
 import type {
+  BattleActionCmd,
+  BattlerLoadout,
   Directive,
   DirectiveReplyValue,
   ServerDirective,
   ShopGood,
   ShopTransaction,
 } from "../net/protocol.js";
-import { MAX_NAME_INPUT_LEN, MAX_SHOP_TRANSACTIONS } from "../net/protocol.js";
+import {
+  MAX_BATTLE_BATTLERS,
+  MAX_LOADOUT_BATTLERS,
+  MAX_NAME_INPUT_LEN,
+  MAX_SHOP_TRANSACTIONS,
+} from "../net/protocol.js";
+import { waitTicks } from "./timers.js";
 import type { World } from "./world.js";
 
 /** Who an interpreter run acts as (MP0·C §C6): a player context (`playerId`
@@ -133,6 +141,13 @@ export function escapeValueOf(d: Directive): DirectiveReplyValue {
       return { kind: "selectItem", id: 0 };
     case "scrollText":
       return { kind: "scrollText", done: true };
+    // MP6·A: a battleJoin that can't be answered sits the battle out; a
+    // battleCmd that can't be answered guards every battler (the AFK rule —
+    // one away friend never freezes the fight).
+    case "battleJoin":
+      return { kind: "battleJoin", party: [] };
+    case "battleCmd":
+      return { kind: "battleCmd", cmds: [] };
   }
 }
 
@@ -145,13 +160,42 @@ export function emitDirective(
   playerId: number,
   directive: Directive,
 ): Promise<DirectiveReplyValue> {
+  return emitDirectiveTimed(world, playerId, directive, 0);
+}
+
+/** `emitDirective` with a world-tick deadline (MP6·A): after `timeoutTicks`
+ *  the pending — if still unanswered — resolves with its C3.4 escape value.
+ *  `timeoutTicks` 0 = no deadline (the classic emit; solo/loopback always
+ *  answers synchronously and never races the timer). The world-tick clock
+ *  keeps pumping during battles (the map update ticks timers before its
+ *  scene early-return), which is what makes battle AFK timeouts honest. */
+export function emitDirectiveTimed(
+  world: World,
+  playerId: number,
+  directive: Directive,
+  timeoutTicks: number,
+): Promise<DirectiveReplyValue> {
   const ds = world.directives;
   if (!ds.send) return Promise.resolve(escapeValueOf(directive));
   const id = ds.nextId++;
-  return new Promise((resolve) => {
+  const reply = new Promise<DirectiveReplyValue>((resolve) => {
     ds.pending.set(id, { id, playerId, directive, resolve });
     ds.send!(playerId, { t: "directive", id, directive });
   });
+  if (timeoutTicks > 0)
+    void waitTicks(world, timeoutTicks).then(() => resolvePendingWithEscape(world, id));
+  return reply;
+}
+
+/** Resolve ONE pending directive with its escape value (deadline/withdraw
+ *  path). Already-answered ids are a no-op. Returns whether one resolved. */
+export function resolvePendingWithEscape(world: World, id: number): boolean {
+  const ds = world.directives;
+  const p = ds.pending.get(id);
+  if (!p) return false;
+  ds.pending.delete(id);
+  p.resolve(escapeValueOf(p.directive));
+  return true;
 }
 
 /** Semantic reply validation against the directive that asked (C3.2c — layer
@@ -205,6 +249,40 @@ export function validateReplyValue(directive: Directive, value: DirectiveReplyVa
     }
     case "scrollText":
       return (value as { done?: unknown }).done === true ? null : "scrollText: done must be true";
+    // MP6·A semantic layer (structural shape is the wire decoder's job): a
+    // loadout within the participant cap; a command list no longer than the
+    // battlers the directive asked about. Live-state validation (stale
+    // targets, unusable skills) is the battle's own job at apply time.
+    case "battleJoin": {
+      const party = (value as { party?: unknown }).party;
+      if (!Array.isArray(party)) return "battleJoin: bad party";
+      if (party.length > MAX_LOADOUT_BATTLERS) return "battleJoin: too many battlers";
+      for (const b of party as BattlerLoadout[]) {
+        if (!b || typeof b !== "object") return "battleJoin: bad battler";
+        if (!Number.isInteger(b.actorId) || b.actorId < 1) return "battleJoin: bad actorId";
+        if (!Number.isInteger(b.level) || b.level < 1 || b.level > 99)
+          return "battleJoin: bad level";
+      }
+      return null;
+    }
+    case "battleCmd": {
+      const cmds = (value as { cmds?: unknown }).cmds;
+      if (!Array.isArray(cmds)) return "battleCmd: bad cmds";
+      if (cmds.length > Math.min(directive.yours.length, MAX_BATTLE_BATTLERS))
+        return "battleCmd: too many cmds";
+      for (const c of cmds as BattleActionCmd[]) {
+        if (!c || typeof c !== "object") return "battleCmd: bad cmd";
+        if (
+          c.type !== "attack" &&
+          c.type !== "skill" &&
+          c.type !== "item" &&
+          c.type !== "guard" &&
+          c.type !== "escape"
+        )
+          return "battleCmd: bad cmd type";
+      }
+      return null;
+    }
   }
 }
 

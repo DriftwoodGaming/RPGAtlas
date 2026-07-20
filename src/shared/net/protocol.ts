@@ -45,6 +45,15 @@ export const MAX_EMOTE_LEN = 32;
 export const MAX_NAME_INPUT_LEN = 64;
 /** Cap on one shop session's transaction log. */
 export const MAX_SHOP_TRANSACTIONS = 200;
+/** Player-party size cap (MP6·A — a social group of players, not `G.party`). */
+export const MAX_PARTY_MEMBERS = 4;
+/** Total battlers in one shared battle (each participant brings
+ *  `max(1, floor(8 / participants))`, trigger-first — MP6·A A-4). */
+export const MAX_BATTLE_BATTLERS = 8;
+/** Battlers one participant may contribute in a `battleJoin` reply. */
+export const MAX_LOADOUT_BATTLERS = 4;
+/** States carried on one battler loadout entry. */
+export const MAX_LOADOUT_STATES = 32;
 
 /* ── Shared shapes ─────────────────────────────────────────────────────── */
 
@@ -99,7 +108,12 @@ export type InputIntent =
   /** Equip `id` (0 = remove) into `slot` of party actor `actor`. §C5. */
   | { k: "equip"; actor: number; slot: EquipSlot; id: number }
   /** Swap two party positions (formation). §C5. */
-  | { k: "formation"; from: number; to: number };
+  | { k: "formation"; from: number; to: number }
+  /** Invite another player to team up (MP6·A A-1). The world validates and
+   *  emits a `choices` directive to the target; accepting joins the party. */
+  | { k: "partyInvite"; target: PlayerId }
+  /** Leave the current player-party (MP6·A). */
+  | { k: "partyLeave" };
 
 /* ── Presentation directives (world → one player's UI) and replies ─────────
    The modal-event seam (MP3): a server-side event command that needs a
@@ -156,6 +170,72 @@ export type SelectItemDirective = { kind: "selectItem"; itemType?: number };
  *  (D-B2). `speed` 1–8 (omitted = 2); `noFast` disables the hold-OK speed-up. */
 export type ScrollTextDirective = { kind: "scrollText"; text: string; speed?: number; noFast?: boolean };
 
+/* ── Co-op battle shapes (MP6·A) ─────────────────────────────────────────
+   Shared battles run on the world authority; participants contribute their
+   OWN party (D-6-1 per-player parties) as a compact loadout — everything
+   else (stats, traits, skills) derives from the SHARED project via
+   actorId + level + equips, and the authority clamps hp/mp to the derived
+   maxima. New directive kinds follow the MP3·B additive precedent (no
+   protocol version bump, docs/mp-6-spec.md D-6-3). */
+
+/** One battler as a participant contributes it to a shared battle. */
+export type BattlerLoadout = {
+  actorId: number;
+  level: number;
+  hp: number;
+  mp: number;
+  tp?: number;
+  weaponId?: number;
+  weapon2Id?: number;
+  armorId?: number;
+  row?: "front" | "back";
+  states?: { id: number; turns: number }[];
+};
+
+/** The world asks a partied, proximate player to enter a shared battle.
+ *  Auto-answered by the client with its party loadout — being partied IS the
+ *  consent (A-3/A-4); an empty `party` reply sits the battle out. */
+export type BattleJoinDirective = { kind: "battleJoin"; troopId: number; from: string };
+
+/** One of this participant's own battlers, as a command round shows it. */
+export type BattleAllyView = {
+  /** Index into the shared battle's merged battler list (stable per battle). */
+  idx: number;
+  name: string;
+  hp: number;
+  mhp: number;
+  mp: number;
+  mmp: number;
+  tp?: number;
+  states: number[];
+  skills: { id: number; name: string; mpCost: number; tpCost?: number; usable: boolean }[];
+  /** False = stunned etc.: the battler is shown but collects no command. */
+  canAct: boolean;
+};
+export type BattleEnemyView = { i: number; name: string; hp: number; mhp: number; alive: boolean };
+export type BattleOtherView = { name: string; hp: number; mhp: number };
+
+/** One command round for one participant: pick one action per entry of
+ *  `yours`, in order. AFK timeout answers the escape value (all-guard). */
+export type BattleCmdDirective = {
+  kind: "battleCmd";
+  round: number;
+  canEscape: boolean;
+  yours: BattleAllyView[];
+  allies: BattleOtherView[];
+  enemies: BattleEnemyView[];
+};
+
+/** One battler's chosen action. `enemy` = a BattleEnemyView.i; `ally` = a
+ *  merged battler idx. The authority re-validates against live battle state
+ *  (stale targets retarget; unusable skills fall back to guard). */
+export type BattleActionCmd =
+  | { type: "attack"; enemy: number }
+  | { type: "skill"; id: number; enemy?: number; ally?: number }
+  | { type: "item"; id: number; ally?: number }
+  | { type: "guard" }
+  | { type: "escape" };
+
 export type Directive =
   | MessageDirective
   | ChoicesDirective
@@ -163,7 +243,9 @@ export type Directive =
   | NameInputDirective
   | ShopDirective
   | SelectItemDirective
-  | ScrollTextDirective;
+  | ScrollTextDirective
+  | BattleJoinDirective
+  | BattleCmdDirective;
 
 /** One buy/sell line in a shop session's reply transcript. The server
  *  re-validates every line against authoritative stock/wallet/inventory
@@ -186,7 +268,9 @@ export type DirectiveReplyValue =
   | { kind: "nameInput"; value: string }
   | { kind: "shop"; transactions: ShopTransaction[] }
   | { kind: "selectItem"; id: number }
-  | { kind: "scrollText"; done: true };
+  | { kind: "scrollText"; done: true }
+  | { kind: "battleJoin"; party: BattlerLoadout[] }
+  | { kind: "battleCmd"; cmds: BattleActionCmd[] };
 
 /* ── Client → server messages ──────────────────────────────────────────── */
 
@@ -345,6 +429,10 @@ function checkIntent(v: unknown): string | null {
       if (!isUint(v.from)) return "formation: bad from";
       if (!isUint(v.to)) return "formation: bad to";
       return null;
+    case "partyInvite":
+      return isUint(v.target) ? null : "partyInvite: bad target";
+    case "partyLeave":
+      return null;
     default:
       return "unknown intent kind";
   }
@@ -381,9 +469,68 @@ function checkReplyValue(v: unknown): string | null {
       return isUint(v.id) ? null : "selectItem reply: bad id";
     case "scrollText":
       return v.done === true ? null : "scrollText reply: done must be true";
+    case "battleJoin":
+      return checkLoadouts(v.party);
+    case "battleCmd":
+      return checkBattleCmds(v.cmds);
     default:
       return "unknown reply kind";
   }
+}
+
+/** Structural check of a `battleJoin` reply's loadout list (MP6·A). */
+function checkLoadouts(party: unknown): string | null {
+  if (!Array.isArray(party)) return "battleJoin reply: party must be an array";
+  if (party.length > MAX_LOADOUT_BATTLERS) return "battleJoin reply: too many battlers";
+  for (const b of party) {
+    if (!isObj(b)) return "battleJoin reply: bad battler";
+    if (!isUint(b.actorId) || b.actorId === 0) return "battleJoin reply: bad actorId";
+    if (!isUint(b.level) || b.level === 0 || b.level > 99) return "battleJoin reply: bad level";
+    if (!isUint(b.hp)) return "battleJoin reply: bad hp";
+    if (!isUint(b.mp)) return "battleJoin reply: bad mp";
+    if (b.tp !== undefined && !isUint(b.tp)) return "battleJoin reply: bad tp";
+    for (const k of ["weaponId", "weapon2Id", "armorId"] as const)
+      if (b[k] !== undefined && !isUint(b[k])) return `battleJoin reply: bad ${k}`;
+    if (b.row !== undefined && b.row !== "front" && b.row !== "back")
+      return "battleJoin reply: bad row";
+    if (b.states !== undefined) {
+      if (!Array.isArray(b.states)) return "battleJoin reply: bad states";
+      if (b.states.length > MAX_LOADOUT_STATES) return "battleJoin reply: too many states";
+      for (const st of b.states)
+        if (!isObj(st) || !isUint(st.id) || !isUint(st.turns))
+          return "battleJoin reply: bad state entry";
+    }
+  }
+  return null;
+}
+
+/** Structural check of a `battleCmd` reply's command list (MP6·A). */
+function checkBattleCmds(cmds: unknown): string | null {
+  if (!Array.isArray(cmds)) return "battleCmd reply: cmds must be an array";
+  if (cmds.length > MAX_BATTLE_BATTLERS) return "battleCmd reply: too many cmds";
+  for (const c of cmds) {
+    if (!isObj(c)) return "battleCmd reply: bad cmd";
+    switch (c.type) {
+      case "attack":
+        if (!isUint(c.enemy)) return "battleCmd reply: attack needs enemy";
+        break;
+      case "skill":
+        if (!isUint(c.id)) return "battleCmd reply: skill needs id";
+        if (c.enemy !== undefined && !isUint(c.enemy)) return "battleCmd reply: bad enemy";
+        if (c.ally !== undefined && !isUint(c.ally)) return "battleCmd reply: bad ally";
+        break;
+      case "item":
+        if (!isUint(c.id)) return "battleCmd reply: item needs id";
+        if (c.ally !== undefined && !isUint(c.ally)) return "battleCmd reply: bad ally";
+        break;
+      case "guard":
+      case "escape":
+        break;
+      default:
+        return "battleCmd reply: unknown cmd type";
+    }
+  }
+  return null;
 }
 
 function checkDirective(v: unknown): string | null {
@@ -421,6 +568,31 @@ function checkDirective(v: unknown): string | null {
         return "scrollText: bad speed";
       if (v.noFast !== undefined && typeof v.noFast !== "boolean") return "scrollText: bad noFast";
       return null;
+    case "battleJoin":
+      if (!isUint(v.troopId)) return "battleJoin: bad troopId";
+      if (!isText(v.from, MAX_NAME_LEN)) return "battleJoin: bad from";
+      return null;
+    case "battleCmd": {
+      if (!isUint(v.round)) return "battleCmd: bad round";
+      if (typeof v.canEscape !== "boolean") return "battleCmd: bad canEscape";
+      if (!Array.isArray(v.yours) || v.yours.length > MAX_BATTLE_BATTLERS)
+        return "battleCmd: bad yours";
+      for (const a of v.yours) {
+        if (!isObj(a) || !isUint(a.idx) || typeof a.name !== "string") return "battleCmd: bad ally";
+        if (typeof a.hp !== "number" || typeof a.mhp !== "number") return "battleCmd: bad ally hp";
+        if (typeof a.mp !== "number" || typeof a.mmp !== "number") return "battleCmd: bad ally mp";
+        if (!Array.isArray(a.states) || !Array.isArray(a.skills)) return "battleCmd: bad ally lists";
+        if (typeof a.canAct !== "boolean") return "battleCmd: bad canAct";
+      }
+      if (!Array.isArray(v.allies)) return "battleCmd: bad allies";
+      if (!Array.isArray(v.enemies) || v.enemies.length === 0) return "battleCmd: bad enemies";
+      for (const e of v.enemies) {
+        if (!isObj(e) || !isUint(e.i) || typeof e.name !== "string") return "battleCmd: bad enemy";
+        if (typeof e.hp !== "number" || typeof e.mhp !== "number" || typeof e.alive !== "boolean")
+          return "battleCmd: bad enemy state";
+      }
+      return null;
+    }
     default:
       return "unknown directive kind";
   }

@@ -16,7 +16,10 @@ export function registerCombatCommands(): void {
     const result = await services.Battle.run(c.troopId, c.escape !== false);
     // M3·C battle branches (RM 601/602/603). The lose branch only exists
     // with `lose:true` (RM's Can Lose) — otherwise a loss still game-overs.
-    if (result === "lose" && !c.lose) {
+    // Beacon MP6·A (A-7): a SHARED battle's defeat revived everyone at 1 HP
+    // and must not game-over a friend's world — lastShared suppresses it
+    // (false/undefined in solo and in stubbed node-test services).
+    if (result === "lose" && !c.lose && !services.Battle.lastShared) {
       await services.gameOver();
       return;
     }

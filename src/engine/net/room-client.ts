@@ -23,6 +23,8 @@ import {
 } from "../../shared/net/protocol.js";
 import type { Transport } from "../../shared/net/transport.js";
 import type { World } from "../../shared/sim/world.js";
+import type { BattleEvent } from "../../shared/sim/coop-battle.js";
+import { applyPartyTable, type PartyChange, type PartyTableEntry } from "../../shared/sim/party.js";
 import { applyPlayerStates, getPlayer, type PlayerState } from "../../shared/sim/players.js";
 import type { DirectiveRenderer } from "./client-session.js";
 import { connectBroadcast } from "./broadcast-transport.js";
@@ -30,11 +32,12 @@ import { session } from "./session.js";
 
 /** The MP4 snapshot payload (ServerSnapshot.world / ServerDelta.changes carry
  *  opaque JSON at the protocol level; this is the shape the room host/client
- *  agree on). */
+ *  agree on). MP6·A adds the party table. */
 export interface RoomSnapshot {
   players: PlayerState[];
   mapId: number;
   timeOfDay: number;
+  party?: PartyTableEntry[];
 }
 
 export interface RoomClientOptions {
@@ -51,6 +54,10 @@ export interface RoomClientOptions {
   onPresence?: (p: ServerPresence) => void;
   /** Render a modal directive with the engine UI and resolve with the reply. */
   renderDirective?: DirectiveRenderer;
+  /** MP6·A: my party membership changed (engine toasts it). */
+  onParty?: (change: PartyChange) => void;
+  /** MP6·A: a shared-battle event addressed to me (stage B renders it). */
+  onBattle?: (ev: BattleEvent) => void;
 }
 
 export class RoomClient {
@@ -84,11 +91,22 @@ export class RoomClient {
       void (async () => {
         if (this.opts.onSnapshot) await this.opts.onSnapshot(snap);
         applyPlayerStates(this.world, this.localPlayerId, snap.players || [], this.opts.onLocal);
+        if (snap.party) applyPartyTable(this.world, snap.party);
       })();
     } else if (m.t === "delta") {
       this.world.tick = m.tick;
-      const changes = m.changes as unknown as { players?: PlayerState[] };
+      const changes = m.changes as unknown as {
+        players?: PlayerState[];
+        party?: PartyTableEntry[];
+        battle?: BattleEvent[];
+      };
       applyPlayerStates(this.world, this.localPlayerId, changes.players || [], this.opts.onLocal);
+      // MP6·A additive delta content: the party table + my battle events.
+      if (changes.party) {
+        const diff = applyPartyTable(this.world, changes.party);
+        this.opts.onParty?.(diff);
+      }
+      if (changes.battle) for (const ev of changes.battle) this.opts.onBattle?.(ev);
     } else if (m.t === "directive") {
       const render = this.opts.renderDirective;
       if (render) void render(m.directive).then((value) => this.transport.send({ t: "reply", id: m.id, value }));

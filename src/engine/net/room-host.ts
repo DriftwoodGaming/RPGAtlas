@@ -25,6 +25,8 @@ import {
 import type { Transport } from "../../shared/net/transport.js";
 import type { World } from "../../shared/sim/world.js";
 import { deliverReply } from "../../shared/sim/directives.js";
+import { drainBattleOutbox, type BattleEvent } from "../../shared/sim/coop-battle.js";
+import { consumePartyDirty, partyTable } from "../../shared/sim/party.js";
 import { addPlayer, buildPlayerStates, getPlayer, removePlayer } from "../../shared/sim/players.js";
 import { openBroadcastServer, type BroadcastServer } from "./broadcast-transport.js";
 import type { WorldHost } from "./world-host.js";
@@ -118,6 +120,8 @@ export class RoomHost {
             players: this.states(),
             mapId: this.world.g ? this.world.g.mapId : 0,
             timeOfDay: this.world.g ? this.world.g.timeOfDay : 12,
+            // MP6·A: a late joiner learns the current party table too.
+            party: partyTable(this.world),
           } as unknown as JsonValue,
         });
         const pres: ServerPresence = { t: "presence", tick: this.world.tick, kind: "join", playerId: pid, name };
@@ -155,15 +159,34 @@ export class RoomHost {
 
   /** Broadcast one delta of every player's position — called after each world
    *  tick by the loop (host mode). No clients ⇒ nothing sent (a lone host is
-   *  byte-identical to solo). */
+   *  byte-identical to solo). MP6·A: the delta additionally carries the party
+   *  table when membership changed and each player's queued battle events
+   *  (both additive `changes` content — the D-B1 precedent). */
   afterTick(): void {
     if (!this.clients.size) return;
-    const delta = {
-      t: "delta" as const,
-      tick: this.world.tick,
-      changes: { players: this.states() } as unknown as JsonValue,
-    };
-    for (const c of this.clients.values()) c.transport.send(delta);
+    const players = this.states();
+    const table = consumePartyDirty(this.world) ? partyTable(this.world) : null;
+    const evs = drainBattleOutbox(this.world);
+    let byPid: Map<number, BattleEvent[]> | null = null;
+    if (evs.length) {
+      byPid = new Map();
+      for (const e of evs) {
+        const list = byPid.get(e.pid);
+        if (list) list.push(e.ev);
+        else byPid.set(e.pid, [e.ev]);
+      }
+    }
+    for (const c of this.clients.values()) {
+      const changes: Record<string, unknown> = { players };
+      if (table) changes.party = table;
+      const mine = byPid && byPid.get(c.pid);
+      if (mine) changes.battle = mine;
+      c.transport.send({
+        t: "delta",
+        tick: this.world.tick,
+        changes: changes as unknown as JsonValue,
+      });
+    }
   }
 
   /** Number of connected peers (0 ⇒ the host is effectively solo). */

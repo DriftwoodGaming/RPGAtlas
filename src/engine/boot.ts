@@ -70,6 +70,7 @@ import {
 } from "./scenes/map.js";
 import { soloClient, soloHost } from "./net/solo-session.js";
 import { addPlayer, removePlayer } from "../shared/sim/players.js";
+import { partyTable } from "../shared/sim/party.js";
 import { session } from "./net/session.js";
 import { active } from "./net/active.js";
 import { createRoom, joinRoom } from "./co-op.js";
@@ -394,6 +395,21 @@ async function boot(): Promise<void> {
     localPlayer: () => soloHost.world.g.player,
     sendInput: (intent: any) => active.client && active.client.sendInput(intent),
     sendEmote: (emote: string) => active.client && active.client.sendEmote(emote),
+    // MP6·A: party verbs (ride the §C5 intent channel from either posture —
+    // the host's own intents drain through the loopback inbox) + reads/arms
+    // for the co-op battle e2e.
+    partyInvite: (target: number) => {
+      const intent = { k: "partyInvite", target } as any;
+      if (active.client) active.client.sendInput(intent);
+      else soloClient.sendInput(intent);
+    },
+    partyLeave: () => {
+      const intent = { k: "partyLeave" } as any;
+      if (active.client) active.client.sendInput(intent);
+      else soloClient.sendInput(intent);
+    },
+    partyState: () => partyTable(soloHost.world),
+    armEncounter: () => armForcedEncounter(),
   };
 
   // unlock audio on first interaction

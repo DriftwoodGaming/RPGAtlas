@@ -21,7 +21,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { mulberry32 } from "../rng.js";
+import { createCoopBattleState, type CoopBattleState } from "./coop-battle.js";
 import { createDirectiveState, type DirectiveState } from "./directives.js";
+import { createPartyState, type PartyState } from "./party.js";
 import { createRosterState, type RosterState } from "./players.js";
 
 /** One world's live game state — the exact object the engine has always
@@ -91,6 +93,14 @@ export interface World {
    *  player code path is inert and the goldens stay byte-identical. Runtime-
    *  only — never snapshotted (a room rebuilds it from presence + snapshot). */
   roster: RosterState;
+  /** Player-party system (MP6·A): social groups of players — invites,
+   *  leadership, the battle auto-join query. EMPTY in solo (nobody to invite)
+   *  so the whole co-op battle surface stays unreachable. Runtime-only. */
+  party: PartyState;
+  /** Shared-battle coordination (MP6·A): the active co-op battle + the
+   *  per-player battle-event outbox the room host drains. Null/empty in solo
+   *  (presence gate #1: no party ⇒ no shared battle). Runtime-only. */
+  coopBattle: CoopBattleState;
   /** Parallel-interpreter scheduling: event runtime -> running flag. */
   parallels: Map<any, any>;
   /** Common-event parallel scheduling: common event id -> running flag. */
@@ -164,6 +174,8 @@ export function createWorld(proj: any = null, opts: WorldOptions = {}): World {
     blocking: new Set(),
     directives: createDirectiveState(),
     roster: createRosterState(),
+    party: createPartyState(),
+    coopBattle: createCoopBattleState(),
     parallels: new Map(),
     commonParallels: new Map(),
     tick: 0,

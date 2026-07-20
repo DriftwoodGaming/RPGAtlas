@@ -276,3 +276,87 @@ describe("forward compatibility (additive evolution inside protocol v1)", () => 
     if (r.ok) expect((r.msg as unknown as Record<string, unknown>).passportPub).toBe("future-field");
   });
 });
+
+describe("MP6·A additive arms (party verbs + co-op battle directives)", () => {
+  it("party intents round-trip and validate", () => {
+    roundTripClient({ t: "input", seq: 60, intent: { k: "partyInvite", target: 3 } });
+    roundTripClient({ t: "input", seq: 61, intent: { k: "partyLeave" } });
+    rejectClient({ t: "input", seq: 62, intent: { k: "partyInvite" } }, /bad target/);
+    rejectClient({ t: "input", seq: 63, intent: { k: "partyInvite", target: -1 } }, /bad target/);
+  });
+
+  it("battleJoin: directive + loadout reply round-trip; junk rejects", () => {
+    roundTripServer({
+      t: "directive",
+      id: 9,
+      directive: { kind: "battleJoin", troopId: 4, from: "Riko" },
+    });
+    roundTripClient({
+      t: "reply",
+      id: 9,
+      value: {
+        kind: "battleJoin",
+        party: [
+          { actorId: 1, level: 5, hp: 42, mp: 7, weaponId: 2, row: "back", states: [{ id: 3, turns: 2 }] },
+          { actorId: 2, level: 3, hp: 20, mp: 0 },
+        ],
+      },
+    });
+    roundTripClient({ t: "reply", id: 9, value: { kind: "battleJoin", party: [] } }); // sit out
+    rejectServer({ t: "directive", id: 9, directive: { kind: "battleJoin", troopId: 4 } }, /bad from/);
+    rejectClient({ t: "reply", id: 9, value: { kind: "battleJoin", party: [{ actorId: 0, level: 1, hp: 1, mp: 0 }] } }, /bad actorId/);
+    rejectClient({ t: "reply", id: 9, value: { kind: "battleJoin", party: [{ actorId: 1, level: 100, hp: 1, mp: 0 }] } }, /bad level/);
+    rejectClient(
+      { t: "reply", id: 9, value: { kind: "battleJoin", party: [{ actorId: 1, level: 1, hp: 1, mp: 0, row: "middle" }] } },
+      /bad row/,
+    );
+  });
+
+  it("battleCmd: view directive + command reply round-trip; junk rejects", () => {
+    roundTripServer({
+      t: "directive",
+      id: 10,
+      directive: {
+        kind: "battleCmd",
+        round: 2,
+        canEscape: true,
+        yours: [
+          {
+            idx: 4,
+            name: "Mage",
+            hp: 12,
+            mhp: 20,
+            mp: 9,
+            mmp: 10,
+            tp: 15,
+            states: [3],
+            skills: [{ id: 2, name: "Spark", mpCost: 3, usable: true }],
+            canAct: true,
+          },
+        ],
+        allies: [{ name: "Hero", hp: 30, mhp: 30 }],
+        enemies: [{ i: 0, name: "Slime", hp: 10, mhp: 10, alive: true }],
+      },
+    });
+    roundTripClient({
+      t: "reply",
+      id: 10,
+      value: {
+        kind: "battleCmd",
+        cmds: [
+          { type: "attack", enemy: 0 },
+          { type: "skill", id: 2, ally: 4 },
+          { type: "item", id: 1, ally: 0 },
+          { type: "guard" },
+          { type: "escape" },
+        ],
+      },
+    });
+    rejectServer(
+      { t: "directive", id: 10, directive: { kind: "battleCmd", round: 1, canEscape: true, yours: [], allies: [], enemies: [] } },
+      /bad enemies/,
+    );
+    rejectClient({ t: "reply", id: 10, value: { kind: "battleCmd", cmds: [{ type: "attack" }] } }, /needs enemy/);
+    rejectClient({ t: "reply", id: 10, value: { kind: "battleCmd", cmds: [{ type: "dance" }] } }, /unknown cmd type/);
+  });
+});

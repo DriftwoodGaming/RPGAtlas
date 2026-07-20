@@ -19,10 +19,13 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { ctx } from "./state/engine-context.js";
+import { ctx, fns } from "./state/engine-context.js";
 import { G, makeActor } from "./state/game-state.js";
 import { el } from "./util.js";
 import { defaultWorld } from "./state/default-world.js";
+import { applyBattleEnd } from "./scenes/battle-coop.js";
+import type { BattleEvent } from "../shared/sim/coop-battle.js";
+import type { PartyChange } from "../shared/sim/party.js";
 import { soloHost } from "./net/solo-session.js";
 import { active } from "./net/active.js";
 import { RoomHost } from "./net/room-host.js";
@@ -64,9 +67,48 @@ export function joinRoom(rawCode: string, name: string): RoomClient | null {
       if (p.kind === "join") toast((p.name || "Someone") + " joined");
     },
     renderDirective,
+    onParty: onPartyChange,
+    onBattle: onBattleEvent,
   });
   active.client = client;
   return client;
+}
+
+/** MP6·A: my party membership changed — kid-readable feedback. */
+function onPartyChange(change: PartyChange): void {
+  if (change.joined) {
+    toast("You joined the party!");
+    return;
+  }
+  if (change.left) {
+    toast("You left the party.");
+    return;
+  }
+  for (const pid of change.newMates) {
+    const e = defaultWorld.roster.players.get(pid);
+    toast(((e && e.name) || "A friend") + " joined your party!");
+  }
+}
+
+/** MP6·A: shared-battle events addressed to me. Stage A applies the end
+ *  frame (exp / loot / gold / battler write-back — the authority rolled every
+ *  draw) and toasts the beats; the in-battle UI (battleCmd rendering, log
+ *  HUD) is stage B. */
+function onBattleEvent(ev: BattleEvent): void {
+  if (ev.ev === "start") {
+    toast("Battle! Fighting alongside " + ev.names.join(", ") + "!");
+    return;
+  }
+  if (ev.ev !== "end") return; // round/log feed the stage-B HUD
+  const lines = applyBattleEnd(ev);
+  toast(
+    ev.result === "win"
+      ? "Victory!"
+      : ev.result === "escape"
+        ? "Got away safely!"
+        : "The battle is over — everyone gets back up.",
+  );
+  if (lines.length) toast(lines.join("  ·  "));
 }
 
 /** Client reconstruction from the host's snapshot: build the same map + party
@@ -87,10 +129,35 @@ async function reconstructClient(snap: RoomSnapshot): Promise<void> {
   if (ctx.fader) ctx.fader.style.opacity = 0;
 }
 
-/** Apply the local player's authoritative position from the host (client). */
+/** Apply the local player's authoritative position from the host (client).
+ *  MP6·A (A-2): when the authority reports ME on another map (the party
+ *  followed its leader through a transfer), load that map first and land on
+ *  the reported tile; position writes pause while the load is in flight. */
+let clientMapSwitching = false;
 function writeLocalPlayer(s: PlayerState): void {
   const p = G.player;
   if (!p) return;
+  if (clientMapSwitching) return; // don't fight the in-flight map load
+  if (s.mapId !== G.mapId) {
+    clientMapSwitching = true;
+    void (async () => {
+      try {
+        await loadMap(s.mapId);
+        const me = G.player;
+        me.x = me.tx = s.x;
+        me.y = me.ty = s.y;
+        me.rx = me.prx = s.rx;
+        me.ry = me.pry = s.ry;
+        me.dir = s.dir;
+        me.moving = false;
+        me.route = null;
+        syncFollowers(true);
+      } finally {
+        clientMapSwitching = false;
+      }
+    })();
+    return;
+  }
   p.prx = p.rx;
   p.pry = p.ry;
   p.x = s.x;
@@ -101,6 +168,10 @@ function writeLocalPlayer(s: PlayerState): void {
   p.moving = s.moving;
   p.animT = s.animT;
 }
+
+// The host's own party feedback (map.ts handlePartyIntent) reaches the toast
+// through the late-bound registry — no scene↔co-op import cycle.
+fns.mpToast = toast;
 
 /** A brief presence toast (join). Inline-styled so MP4 adds no player-facing
  *  CSS (no cache-bust); MP5·C gives presence a designed treatment. */
@@ -206,6 +277,8 @@ function connectRelay(
     renderDirective,
     onError: (c) => { if (!settled) { settled = true; onFail(friendlyError(c)); } },
     onKick: (c) => { toast(friendlyKick(c)); leaveRelay(); },
+    onParty: onPartyChange,
+    onBattle: onBattleEvent,
   });
   active.client = client;
   return client;

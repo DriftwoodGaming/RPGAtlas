@@ -24,6 +24,8 @@ import {
 } from "../../shared/net/protocol.js";
 import type { Transport } from "../../shared/net/transport.js";
 import type { World } from "../../shared/sim/world.js";
+import type { BattleEvent } from "../../shared/sim/coop-battle.js";
+import { applyPartyTable, type PartyChange, type PartyTableEntry } from "../../shared/sim/party.js";
 import { applyPlayerStates, getPlayer, type PlayerState } from "../../shared/sim/players.js";
 import type { RoomSnapshot } from "./room-client.js";
 import type { DirectiveRenderer } from "./client-session.js";
@@ -52,6 +54,12 @@ export interface RelayClientOptions {
   onError?: (code: ErrorCode) => void;
   /** The server closed us (kicked / room closed / idle). */
   onKick?: (code: ServerKick["code"]) => void;
+  /** MP6·A: my party membership changed (a relay serves these from MP8·A —
+   *  the MP5 server's player layer never emits them; wired now so the client
+   *  is ready). */
+  onParty?: (change: PartyChange) => void;
+  /** MP6·A: a shared-battle event addressed to me (same MP8 note). */
+  onBattle?: (ev: BattleEvent) => void;
 }
 
 export class RelayClient {
@@ -92,11 +100,21 @@ export class RelayClient {
       void (async () => {
         if (this.opts.onSnapshot) await this.opts.onSnapshot(snap);
         applyPlayerStates(this.world, this.localPlayerId, snap.players || [], this.opts.onLocal);
+        if (snap.party) applyPartyTable(this.world, snap.party);
       })();
     } else if (m.t === "delta") {
       this.world.tick = m.tick;
-      const changes = m.changes as unknown as { players?: PlayerState[] };
+      const changes = m.changes as unknown as {
+        players?: PlayerState[];
+        party?: PartyTableEntry[];
+        battle?: BattleEvent[];
+      };
       applyPlayerStates(this.world, this.localPlayerId, changes.players || [], this.opts.onLocal);
+      if (changes.party) {
+        const diff = applyPartyTable(this.world, changes.party);
+        this.opts.onParty?.(diff);
+      }
+      if (changes.battle) for (const ev of changes.battle) this.opts.onBattle?.(ev);
     } else if (m.t === "directive") {
       const render = this.opts.renderDirective;
       if (render) void render(m.directive).then((value) => this.transport.send({ t: "reply", id: m.id, value }));

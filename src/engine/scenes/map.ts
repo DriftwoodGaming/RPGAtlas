@@ -27,6 +27,8 @@ import {
   type InterpOrigin,
 } from "../../shared/sim/directives.js";
 import { preemptiveRate, surpriseRate } from "./battle-logic.js";
+import { leaveParty, requestPartyInvite, warpPartyToLeader } from "../../shared/sim/party.js";
+import { session } from "../net/session.js";
 import { wantsDash } from "../state/player-options.js";
 import { UIStack } from "../ui-stack.js";
 import { Interp } from "../interpreter/interp.js";
@@ -180,6 +182,10 @@ export async function transferPlayer(mapId: any, x: any, y: any, dir: any): Prom
   p.route = null;
   if (dir != null) p.dir = dir;
   syncFollowers(true); // pile the chain onto the arrival tile
+  // Beacon MP6·A (A-2): the party follows its leader through a transfer —
+  // partied members' entities warp onto the arrival tile (their clients load
+  // the map off the delta's mapId). No party (solo) ⇒ zero-cost no-op.
+  if (defaultWorld.party.parties.size) warpPartyToLeader(defaultWorld, defaultWorld.roster.local);
   await render();
   if (tr && tr.in) await tr.in();
   else await fadeTo(0, 250);
@@ -416,7 +422,41 @@ function applyPlayerIntent(intent: InputIntent): void {
   }
   if (intent.k === "act") {
     if (!tryVehicleAction()) checkActionTrigger();
+    return;
   }
+  // Beacon MP6·A: the authority's own party verbs ride the same intent
+  // channel as everyone else's (§C5). Unreachable in solo — nothing emits
+  // these intents there (the dev/e2e hook and future UI are room-only).
+  if (intent.k === "partyInvite" || intent.k === "partyLeave") handlePartyIntent(0, intent);
+}
+
+/** Beacon MP6·A: one party-verb dispatcher for the authority's own player and
+ *  every remote peer. The party core validates authoritatively (bad targets
+ *  never emit an invite); toasts here are the HOST's own feedback (clients
+ *  toast off their party-table delta). `fns.mpToast` is late-bound by co-op.ts
+ *  — absent in solo, where this is unreachable anyway. */
+function handlePartyIntent(pid: number, intent: InputIntent): void {
+  if (intent.k === "partyInvite") {
+    const fromName =
+      pid === 0
+        ? session.name || "Player"
+        : ((defaultWorld.roster.players.get(pid) as any)?.name as string) || "A friend";
+    void requestPartyInvite(defaultWorld, pid, intent.target, fromName).then((r) => {
+      if (r !== "accepted") {
+        if (pid === 0 && r === "declined") fns.mpToast?.("They said not now.");
+        return;
+      }
+      if (pid === 0) {
+        const e: any = defaultWorld.roster.players.get((intent as any).target);
+        fns.mpToast?.(((e && e.name) || "Your friend") + " joined your party!");
+      } else if ((intent as any).target === 0) {
+        fns.mpToast?.("You joined " + fromName + "'s party!");
+      }
+    });
+    return;
+  }
+  if (intent.k === "partyLeave" && leaveParty(defaultWorld, pid) && pid === 0)
+    fns.mpToast?.("You left the party.");
 }
 
 /** MP4·B (host): apply one remote player's input to THEIR roster entity. MP4
@@ -425,6 +465,16 @@ function applyPlayerIntent(intent: InputIntent): void {
 function applyRemoteIntent(pid: number, intent: InputIntent): void {
   const e = defaultWorld.roster.players.get(pid) as any;
   if (!e) return;
+  // Beacon MP6·A: party verbs (§C5 intents) — validated world-side by the
+  // party core (bad targets never emit an invite).
+  if (intent.k === "partyInvite" || intent.k === "partyLeave") {
+    handlePartyIntent(pid, intent);
+    return;
+  }
+  // MP6·A (A-10): a blocked player (shared-battle participant / cutscene
+  // target) doesn't move. Remote pids never entered `blocking` before MP6,
+  // so this gate is inert for MP4/MP5 behavior.
+  if (defaultWorld.blocking.has(pid)) return;
   if (intent.k === "face") {
     e.dir = NUM_OF_CARDINAL[intent.dir];
     return;
@@ -579,7 +629,9 @@ function onPlayerStep(): void {
       }
       (async () => {
         const result = await fns.Battle.run(troopId, true, opts);
-        if (result === "lose") await fns.gameOver();
+        // Beacon MP6·A (A-7): a shared battle's defeat revived everyone at
+        // 1 HP — no game-over in co-op. Solo keeps the classic flow.
+        if (result === "lose" && !fns.Battle.lastShared) await fns.gameOver();
         // Autosave (post-1.1): a survived random battle autosaves like MZ.
         else autosaveNow();
       })();

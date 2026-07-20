@@ -19,6 +19,7 @@ import { MAX_SHOP_TRANSACTIONS, MESSAGE_BG_NAMES, MESSAGE_POS_NAMES } from "../.
 import { ctx } from "../state/engine-context.js";
 import { showList } from "../ui-stack.js";
 import { numberInputScene, nameInputScene, selectItemScene } from "./input-scenes.js";
+import { buildLoadout } from "./battle-coop.js";
 import { showScrollText } from "./presentation-runtime.js";
 import { frameWait } from "./map.js";
 import { Shop } from "./shop.js";
@@ -78,5 +79,15 @@ export async function renderDirective(d: Directive): Promise<DirectiveReplyValue
       // value — modal like Show Message).
       await showScrollText(d.text, d.speed ?? 2, !!d.noFast, frameWait);
       return { kind: "scrollText", done: true };
+    case "battleJoin":
+      // MP6·A: auto-answered — being partied is the consent (A-3/A-4). The
+      // client contributes its own party loadout; no UI. Solo never receives
+      // battle directives (they only ever target remote participants).
+      return { kind: "battleJoin", party: buildLoadout() };
+    case "battleCmd":
+      // MP6·A: the remote battle-command UI is stage B; until it lands the
+      // client answers all-guard (the C3.4 escape value) so a shared fight
+      // can never hang on a client that lacks the UI.
+      return { kind: "battleCmd", cmds: [] };
   }
 }
