@@ -10,10 +10,17 @@
   "compatibility_date": "2025-01-01",
   "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
-    "bindings": [{ "name": "BEACON_ROOM", "class_name": "BeaconRoomDO" }]
+    "bindings": [
+      { "name": "BEACON_ROOM", "class_name": "BeaconRoomDO" },
+      // MP8·B (D-8-1): the persistent-world DO. Connect at /wrt?world=<name>
+      // (default "main"); its state persists in the DO's own SQLite storage and
+      // survives hibernation/eviction.
+      { "name": "BEACON_WORLD", "class_name": "BeaconWorldDO" }
+    ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["BeaconRoomDO"] }
+    { "tag": "v1", "new_sqlite_classes": ["BeaconRoomDO"] },
+    { "tag": "v2", "new_sqlite_classes": ["BeaconWorldDO"] }
   ],
   "kv_namespaces": [
     // Create with `wrangler kv namespace create GAME`, then paste the id here.

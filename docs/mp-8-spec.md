@@ -668,15 +668,76 @@ are reachable only from the server bundle path) · both server bundles build +
 evaluate headless. No golden or `js/ ?v=` touched (server + additive engine-net
 only; solo/friend-room byte-identical).
 
-### Remaining stage-B work (hand-off — items 3, 4, 6)
+### B·3 — Cloudflare DO persistent world (D-8-1) ✅ landed 2026-07-20
 
-Infra (2, 5) + the engine runtime (1) are green and pushed. The next tranche:
+A persistent world on Cloudflare that SURVIVES hibernation/eviction — the
+"free-tier DO plan" self-host option (D2), with no external database.
 
-- **Item 3 — CF DO world (D-8-1):** zone DO + directory DO; the persistence
-  seam is ready (`server/src/cf/do-store.ts` `doStorageKv` +
-  `KvWorldStore`) — the DO builds `new KvWorldStore(doStorageKv(state.storage))`.
-  `handoff` reconnect flow; drift-compensated DO tick; hibernation restore from
-  the ZoneSnapshots this layer now persists.
+**`server/src/cf/world-do.ts` — `BeaconWorldDO`.** One Durable Object hosts a
+whole `BeaconWorld` (the directory + its in-process map-zones + every player
+socket), persisting to the DO's own SQLite-backed storage via
+`new KvWorldStore(doStorageKv(state.storage))` — the SAME `KvWorldStore` the
+Node target + the unit tests exercise, no CF-specific store code. It closes the
+MP5·B "eviction resets the room" boundary the roadmap named: on a cold start the
+DO rebuilds the world on the SAME storage and `await world.load()` restores the
+§A5 units — the WorldSnapshot (switches/vars/timeOfDay + bans), every
+PlayerRecord (a rejoin lands where the player left off), and every ZoneSnapshot
+(self-switches + event state) — BEFORE the first client is accepted. The
+authoritative 60 Hz sim runs the SAME drift-compensated loop the Node drivers
+use (§A3, so a quantized `setInterval` can't halve the sim rate). WebSocket
+hibernation (`state.acceptWebSocket`) means an idle world costs no compute; the
+storage `alarm` sweeps (1 Hz) and flushes the dirty set every 30 s (§A5 crash
+budget ≤ 30 s) + once more on empty before the isolate sleeps.
+
+**`server/src/cf/worker.ts`.** A new `/wrt?world=<name>` route resolves a bounded
+world slug to a `BeaconWorldDO` (one DO per named world, default `main`); the
+client sends a codeless `join` (a world has one shared room). `BeaconWorldDO` is
+exported and bound in `wrangler.jsonc` (`BEACON_WORLD`, migration `v2`
+`new_sqlite_classes`). No engine import reaches the CF bundle — the CF world is
+the persistent PLAYER-LAYER world (the scale + persistence target); the engine
+event runtime on CF (which would need the headless window shim validated inside
+workerd) rides the multi-DO work below.
+
+**Proof — `tests-unit/do-store.test.ts` (4, fast pool).** No miniflare in this
+rig, so the DO's custom/risky part — its persistence seam — is proven the way
+the DO uses it: `doStorageKv` over a faithful in-memory `DurableObjectStorage`
+stand-in (get/put/delete/list-by-prefix), then a full `KvWorldStore` round-trip
+— WorldSnapshot (shared cells + bans), passport records (the prefix batch-load,
+D-8-5; a world/zone key never leaks into the record batch), per-map
+ZoneSnapshots (+ `zoneIds`), and a truncated/corrupt unit reading back as empty
+rather than throwing (the ungraceful-eviction guard). The DO wrapper itself is
+thin over `BeaconWorld` (unit-tested) + `KvWorldStore` (now tested over the CF
+seam) + `doStorageKv`; the hibernation/tick lifecycle mirrors the audited
+`room-do.ts`; `tsc -p tsconfig.cf.json` type-checks the workerd surface — the
+project's established CF coverage bar (no runtime CF tests; `room-do.ts` is the
+precedent).
+
+**Deviation D-8-7 (multi-DO zone sharding — prepared, deferred).** This single
+DO hosts the whole world, so cross-zone transfer is the in-process gateway (the
+socket never moves — no `handoff` needed within one DO), and it scales to what
+one isolate can hold (the realistic free-tier world). Sharding zones across
+SEPARATE DOs — one DO per zone + `BeaconWorldDO` as the directory DO, the
+socket terminating on each zone DO, the `handoff` frame reconnecting a
+transferring client to the target zone DO with a token, and cross-DO
+world-shared fan-out — is the scale step beyond one isolate. The seams are all
+in place (the `handoff` protocol arm from stage A, `doStorageKv`, per-map
+ZoneSnapshots) and it is carried as D-8-7; the Node target already meets the
+1000-across-8-zones scale gate (§A4/§B·5), so the CF multi-DO split is a
+scale-out, not a gate blocker. The client's `handoff` handling still ships in
+item 4 so the protocol arm is live.
+
+**Gate slice (B·3):** root tsc 0 · server tsc Node 0 / CF 0 · eslint 0 · **fast
+`test:unit` 1241 → 1245** (86 files; +4 do-store) · net suite 11 (unchanged —
+CF code isn't socket-tested here) · node --test 48 (determinism untouched — CF
+files are not on the solo/Node path) · both Node bundles build. CF changes are
+`server/src/cf/*` + `wrangler.jsonc` only; no golden, no `js/ ?v=`, no Node
+runtime behaviour touched.
+
+### Remaining stage-B work (hand-off — items 4, 6)
+
+Infra (2, 5) + the engine runtime (1) + the CF persistent world (3) are green
+and pushed. The next tranche:
+
 - **Item 4 — client world-join (D-8-4):** relay-client `challenge`/`handoff`/
   `replaced` handling; world address entry; passport export/import UI;
   dead-reckoning smoothing for 12 Hz deltas; i18n ×10.

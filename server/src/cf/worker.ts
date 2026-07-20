@@ -11,9 +11,14 @@
    accepts a codeless `join` instead — the client handles both, MP5·C). GPL-3.0. */
 
 import { BeaconRoomDO, type Env } from "./room-do.js";
+import { BeaconWorldDO, type WorldEnv } from "./world-do.js";
 import { generateRoomCode, isCanonicalRoomCode } from "../../../src/shared/net/room-code.js";
 
-export { BeaconRoomDO };
+export { BeaconRoomDO, BeaconWorldDO };
+
+/** The Worker env: friend-room DOs (BEACON_ROOM) + persistent-world DOs
+ *  (BEACON_WORLD), both reading the game project from the GAME KV namespace. */
+type WorkerEnv = Env & WorldEnv;
 
 const CORS = {
   "access-control-allow-origin": "*",
@@ -21,8 +26,16 @@ const CORS = {
   "access-control-allow-headers": "content-type",
 };
 
+/** World name → DO key. A deployment can host several named persistent worlds
+ *  (default "main"); the name is sanitised to a bounded slug so it is a safe,
+ *  stable DO id (idFromName). */
+function worldKey(name: string): string {
+  const slug = (name || "main").toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 48);
+  return "world:" + (slug || "main");
+}
+
 export default {
-  async fetch(req: Request, env: Env): Promise<Response> {
+  async fetch(req: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(req.url);
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
@@ -36,12 +49,20 @@ export default {
       return json({ code: generateRoomCode() });
     }
 
-    // WebSocket connect to a specific room.
+    // WebSocket connect to a specific friend room.
     if (url.pathname === "/rt") {
       const code = url.searchParams.get("code") || "";
       if (!isCanonicalRoomCode(code)) return new Response("bad room code", { status: 400, headers: CORS });
       const id = env.BEACON_ROOM.idFromName(code);
       const stub = env.BEACON_ROOM.get(id);
+      return stub.fetch(req);
+    }
+
+    // WebSocket connect to a persistent WORLD (MP8·B, D-8-1). One DO per named
+    // world; the client sends a codeless `join` (a world has one shared room).
+    if (url.pathname === "/wrt") {
+      const id = env.BEACON_WORLD.idFromName(worldKey(url.searchParams.get("world") || "main"));
+      const stub = env.BEACON_WORLD.get(id);
       return stub.fetch(req);
     }
 
