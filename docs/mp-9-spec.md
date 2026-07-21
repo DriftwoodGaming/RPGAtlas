@@ -887,3 +887,95 @@ docs-site 28 pages · E3 touched no `js/` (no cache-bust due) · version **2.0.0
 unchanged (only the re-gate tags). **NEXT: E4** (relay-battle Playwright e2e +
 exe rebuild + docs-site refresh), then hand the unchanged MP9 RELEASE GATE block
 to a fresh Fable conversation.
+
+#### E4 — Proof + packaging (Opus, 2026-07-20)
+
+Built per the §MP9·E work order in three parts (e2e proof · desktop exe ·
+docs-site). E4 closes the fork-(a) remedy: the F-1 flow the release gate found
+IMPOSSIBLE now has a Playwright proof driving the SHIPPED UI end to end over a
+real relay — the invite through the panel button, the battle on the server.
+
+**E4·a — the relay co-op-battle e2e** (`tests-e2e/mp-relay-battle.spec.mjs`,
+`server/src/node/main.ts`; commit `70719d4`):
+
+- New spec: two SEPARATE browser contexts (genuinely independent players — not
+  mp-battle's same-origin BroadcastChannel; every message crosses the socket)
+  against a REAL `beacon.mjs` child running ENGINE ROOMS (the E2 default, one
+  full engine world per room in a worker). The whole shipped flow: Play Together
+  → Create Room (code) / Join by code over native WebSocket → open the 💬 panel
+  → click the guest's **Team Up** button (E3) → the guest answers the real
+  "Join!" consent choice → both relay mirrors carry the party `[1, 2]` → the host
+  triggers the SHARED battle → both tabs open the remote battle overlay,
+  auto-answer `battleJoin`, drive the real `battleCmd` command UI to victory →
+  BOTH apply their own end frame (full gold to each, no draws) and both overlays
+  close. The battle's whole turn loop runs SERVER-SIDE in the room worker (E1's
+  `battle-runtime`) — the all-remote posture means even the trigger fights as a
+  participant, so BOTH tabs render the remote overlay + answer command rounds
+  (neither runs a local classic `.battlewin`). No page/console errors either tab.
+- **The invite goes through the panel BUTTON** — F-1's whole point, player-
+  reachable end to end. Only the ENCOUNTER trigger uses a dev hook: an
+  action-trigger `battle` event is hand-placed on every tile orthogonally
+  adjacent to the spawn (so whichever way the host faces at spawn per `startDir`,
+  a single `act` fires it) and the host sends one `{k:"act"}` intent via
+  `RPGATLAS_MP.sendInput`. Logged as **D-9E-E4-1**. Note the work order's
+  "armEncounter dev hook stays acceptable" phrasing: `armEncounter` itself is a
+  CLIENT-side random-encounter latch (`defaultWorld.forcedEncounterArmed`) the
+  server never reads — the engine zone has NO random-encounter roll, battles come
+  only from events (`battle-runtime.ts` even notes the roll "belong[s] to the
+  client map's random-encounter path"). So the server-authoritative equivalent of
+  "a forced deterministic encounter" is a battle EVENT + `act`, exactly the
+  `room-battle.test.ts` model — no tile-walking, no RNG timing (the flake
+  mp-battle's D-6-B-2 note avoided under the real, unfrozen clock this transport
+  needs). Deterministic by construction: a frail dummy troop the merged party
+  drops in one round (server seed irrelevant to the outcome).
+- **Bugfix D-9E-E4-2 (server, surfaced by two relay specs at `--workers=2`):**
+  `--port 0` was clobbered to 8787 by `Number(next()) || 8787` (0 is falsy), so
+  mp-relay's and mp-relay-battle's beacon children both grabbed 8787 and the
+  loser died on `EADDRINUSE` → never bannered → beforeAll timeout (masqueraded as
+  a "beacon did not start in time"/hook-timeout flake — measured 96 ms cold in
+  isolation, so it was never contention). The ws-server already binds ephemeral
+  correctly (`opts.port ?? 8787` → `listen(0)` → reads the real port back from the
+  socket), so the fix is one line in the arg parse: honor a valid non-negative
+  `--port` (0 = ephemeral) and default 8787 only on a missing/invalid value.
+  Verified: two/three concurrent `--port 0` beacons now get DISTINCT ephemeral
+  ports; `--port abc`→8787, `--port 9999`→9999. mp-relay.spec's existing
+  `--port 0` is now genuinely ephemeral; that spec is otherwise BYTE-UNCHANGED
+  (reverted the interim timeout probes once the root cause was the port). No new
+  unit test (parseArgs is internal to main.ts; the two-context e2e at
+  `--workers=2` — proven green 3× as a pair — is the regression proof).
+- Additive — multiplayer is enabled only in the spec's own project copy, so the
+  frozen goldens never see it (captures no baseline). Green **3× consecutive
+  `--workers=1`** AND in the full suite; the mp-relay/mp-relay-battle pair
+  verified green 3× together at `--workers=2` after the port fix.
+
+**E4·b — desktop exe rebuild** (`npm run tauri:build`): SUCCEEDED at **2.0.0**.
+Release compile 2m17s → `src-tauri/target/release/rpgatlas.exe`, then two bundles:
+`RPGAtlas_2.0.0_x64_en-US.msi` + `RPGAtlas_2.0.0_x64-setup.exe` (NSIS). Version
+2.0.0 across `tauri.conf.json` + `Cargo.toml` + `Cargo.lock`; the desktop exe is
+no longer the 1.2.0-era build MP9·D flagged. **Predefined-window trap held** —
+`main` + `playtest` windows declared in config (playtest `visible:false`), the
+build compiled + bundled with no WebviewWindowBuilder deadlock. Artifacts live in
+the gitignored `target/` dir → nothing to commit (the build's only tracked touch
+was CRLF pseudo-drift on Cargo.toml — numstat empty, reverted).
+
+**E4·c — docs-site refresh** (`node scripts/build-docs-site.mjs`): **28 pages,
+byte-identical** to E3's output (E4 changed no wiki content) — a verified no-op
+refresh confirming the site is current with the E3 honesty edits (Team Up flow,
+per-passport bans, self-host-first relay copy). Nothing to commit.
+
+**Gates (E4):** fast `test:unit` **1308 / 94 files** (unchanged — E4 added an e2e
++ a server one-liner, no new unit surface) · net **12 × 3 consecutive** · node
+--test **48/48** (determinism golden **46633057** re-computed live) · cargo **26**
+· root tsc 0 · server tsc Node + CF 0 · eslint 0 · **Playwright 131/131** (was
+130; +mp-relay-battle; perf 240.36/300; `git diff beacon-8..HEAD -- "*.png"`
+**EMPTY** = solo goldens byte-identical) · all three server bundles rebuilt,
+`beacon.mjs --help` evaluates headless · docs-site 28 pages · E4 touched no `js/`
+(no cache-bust due) · version **2.0.0** unchanged (only the re-gate tags).
+
+**MP9·E BUILD COMPLETE (E1 Fable · E2/E3/E4 Opus).** The F-1 blocker is closed:
+server-side parties + shared battles (E1), friend rooms as engine worlds (E2),
+the player-reachable Team Up UI (E3), and a live two-browser proof over a real
+relay (E4) — D5 is true online. **NEXT: hand the UNCHANGED MP9 RELEASE GATE block
+(§MP9, "RELEASE GATE kickoff") to a fresh Fable conversation. The re-gate
+re-runs every gate + the fresh-eyes playthrough and ONLY it tags `beacon-9` +
+`v2.0.0`. Do NOT tag from a build conversation.**

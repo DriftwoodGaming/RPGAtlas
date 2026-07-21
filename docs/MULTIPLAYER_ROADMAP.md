@@ -18,8 +18,20 @@ Full findings F-1…F-5 + the fix fork for Driftwood: MP9 row below + `docs/mp-9
 **Driftwood picked fork (a) 2026-07-20 (decision D8): make D5 true online — server-side parties +
 shared battles.** Phase **MP9·E** (section below; work order in `docs/mp-9-spec.md` §MP9·E) is now the
 active phase: **E1 headless battle runner (Fable) ✅ · E2 rooms-as-engine-worlds (Opus) ✅ · E3 Team Up
-UI + honesty fixes (Opus) ✅** · E4 relay-battle e2e + exe rebuild → then RE-RUN the MP9 RELEASE gate (fresh
-Fable conversation, same gate block). Tags stay withheld until the re-gate passes. **E3 landed 2026-07-20
+UI + honesty fixes (Opus) ✅ · E4 relay-battle e2e + exe rebuild (Opus) ✅ → MP9·E BUILD COMPLETE.** The
+UNCHANGED MP9 RELEASE GATE block (§MP9) now goes to a fresh Fable conversation; the re-gate re-runs every
+gate + the fresh-eyes playthrough and ONLY it tags `beacon-9` + `v2.0.0`. **E4 landed 2026-07-20 (commit
+`70719d4`): `tests-e2e/mp-relay-battle.spec.mjs` proves F-1 end to end through the SHIPPED UI — two
+SEPARATE browser contexts vs a real `beacon.mjs` engine-room child, Play Together → join by code → 💬 →
+the **Team Up button** → "Join!" consent → a shared battle whose turn loop runs SERVER-SIDE in the room
+worker → BOTH tabs get their own end frame (3× consecutive `--workers=1`; the invite goes through the
+button, the encounter is a server-side battle event fired by one `act` dev-hook intent, D-9E-E4-1). Fixed a
+latent bug it surfaced: `--port 0` was clobbered to 8787 so two beacons collided on `EADDRINUSE` — now
+honored as an ephemeral port (D-9E-E4-2; mp-relay.spec byte-unchanged). Desktop exe rebuilt at 2.0.0
+(`rpgatlas.exe` + MSI + NSIS, predefined-window trap held). docs-site refresh = byte-identical (28 pages,
+current from E3). Gates: Playwright 131/131, goldens `beacon-8..HEAD` EMPTY, test:unit 1308/94, net 12×3,
+node 48 (46633057 live), cargo 26, tsc/eslint 0, no `js/` touched, version 2.0.0 (only the re-gate tags).
+**E3 landed 2026-07-20
 (commits `3bc0993` Team Up UI + `59a1efc` keepalive + `f87ffc5` honesty docs + `a01b14c` de-flake): the
 social panel gained per-player **Team Up** + header **Leave Team** (SocialApi.invite/leaveParty over the
 §C5 intent E2 wired — the button IS the proven dev-hook path, sim-validated, so F-1 is now player-reachable
@@ -653,13 +665,27 @@ sentence, then makes the invite reachable by a real player.
   F-2/F-5 + relay copy: docs updated to the NEW truth (battles online in rooms
   + engine worlds), passport-ban wording fixed, "zero setup" softened until the
   relay is deployed (F-3 operator step stays flagged).
-- **E4 (Opus) — Proof + packaging.** Playwright two-browser RELAY battle e2e:
-  real server child process, real UI end-to-end (Play Together → join by code →
-  Team Up button → consent → shared battle → both end frames) 3× consecutive.
-  Desktop exe rebuild (`npm run tauri:build`, still 1.2.0-era). Docs-site
-  rebuild. THEN: paste the MP9 RELEASE GATE block into a fresh Fable
-  conversation — the re-gate re-runs everything including the playthrough, and
-  only IT tags `beacon-9` + `v2.0.0`.
+- **E4 (Opus) ✅ — Proof + packaging** (commit `70719d4`; detail
+  `docs/mp-9-spec.md` §MP9·E E4). Playwright two-browser RELAY battle e2e
+  (`tests-e2e/mp-relay-battle.spec.mjs`): a real `beacon.mjs` engine-room child +
+  two SEPARATE browser contexts drive the shipped UI end to end — Play Together →
+  Create/Join by code over native WebSocket → 💬 → the **Team Up button** →
+  "Join!" consent → a shared battle whose turn loop runs SERVER-SIDE in the room
+  worker (E1) → BOTH tabs get their own end frame — green 3× consecutive
+  `--workers=1`. The invite goes through the button (F-1's point); only the
+  encounter TRIGGER is a dev hook — a server-side battle event fired by one
+  `{k:"act"}` intent, since `armEncounter` is a client-only latch the engine zone
+  never reads (D-9E-E4-1). Fixed a latent server bug it surfaced: `--port 0` was
+  clobbered to 8787, colliding two beacons on `EADDRINUSE` — now honored as an
+  ephemeral port (D-9E-E4-2; `mp-relay.spec` byte-unchanged). Desktop exe rebuilt
+  at **2.0.0** (`npm run tauri:build` → `rpgatlas.exe` + MSI + NSIS; the
+  predefined-window trap held; no longer the 1.2.0-era build). docs-site refresh =
+  byte-identical (28 pages, current from E3). Gates: Playwright **131/131**,
+  goldens `beacon-8..HEAD` EMPTY, test:unit 1308/94, net 12×3, node 48 (46633057
+  live), cargo 26, tsc/eslint 0, no `js/` touched, version 2.0.0. **MP9·E BUILD
+  COMPLETE → hand the UNCHANGED MP9 RELEASE GATE block to a fresh Fable
+  conversation; the re-gate re-runs everything including the playthrough, and only
+  IT tags `beacon-9` + `v2.0.0`.**
 
 **Gates (every stage):** template gates · goldens byte-identical (`git diff
 beacon-8..HEAD -- "*.png"` empty) · determinism hash 46633057 · net suite ×3 ·
