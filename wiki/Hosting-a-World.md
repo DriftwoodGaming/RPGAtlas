@@ -72,7 +72,8 @@ node dist/beacon.mjs --project path/to/game.rpgatlas --world --data ./world-data
   a memory-only world that resets when you stop the server.
 - `--engine-events` — run authored **NPCs, cutscenes, and triggers** on the server, so every
   player shares the same living world. Add `--zone-workers` for a multi-map world (one map per
-  worker thread).
+  worker thread). Battles come from authored Battle **events**; random step encounters don't
+  fire server-side yet (they stay single-player for now).
 
 The crash-loss budget is small and honest: with `--data`, at most ~30 seconds of world state
 and player movement can be lost in a hard crash (the server saves every 30 seconds and on a

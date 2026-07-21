@@ -171,6 +171,12 @@ A player who isn't in a party gets their **own** private battle, exactly as in a
 >   address* above). Until then, host your own with the one-liner in the demo section.
 > - **Cloudflare-hosted rooms** are walk-and-chat only for now; parties and battles need the
 >   Node server. A temporary limit we'll close after 2.0.
+> - **Online battles start from Battle *events*** — fights you place with the Battle command
+>   (an action-trigger monster, a boss, a cutscene fight). Random step encounters (a map's
+>   walk-around encounter list) **don't fire on a server yet** — they stay single-player for
+>   now — so give your online maps a battle event or two to fight. And in a friend room,
+>   events (and so battles) run on your game's **starting map**; other maps are walk-and-chat
+>   there, while a world server with `--zone-workers` runs events on every map.
 
 ---
 
