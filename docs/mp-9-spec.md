@@ -1109,6 +1109,12 @@ sign-in → server logs `zone-created {mapId:4}` (engine events ON) +
 - **F-3 carry (operator, release-day).** `beacon.rpgatlas.app` still does not
   resolve (checked live). Docs are now honest about it (E3); deploy the relay
   before announcing "zero setup", or keep leading with the self-host one-liner.
+  **CLOSED 2026-07-21 (operator step done + 2.0.1 hotfix).** Driftwood deployed
+  the Workers relay (KV `project` = the co-op demo, Custom Domain
+  `beacon.rpgatlas.app` — live: `/health` ok, `/new` minting). The live deploy
+  immediately exposed that the 2.0.0 client never actually spoke the Worker
+  contract (bare-URL Node dial only — worker.ts's "the client handles both"
+  comment was aspirational). Fixed in 2.0.1 — see §POST-2.0 · 2.0.1 below.
 
 ### Ruling
 
@@ -1121,3 +1127,61 @@ honestly documented) do not block a truthful 2.0.0.
 **VERDICT: GO. Tag `beacon-9` + `v2.0.0`.** Project Beacon MP0–MP9 complete —
 RPGAtlas 2.0.0 ships real online multiplayer: rooms, worlds, passports, chat
 safety, moderation, and friends fighting side by side.
+
+---
+
+## POST-2.0 · 2.0.1 — free relay LIVE + the two field bugs it surfaced (2026-07-21)
+
+The F-3 operator step ran for real: Driftwood created the Cloudflare account,
+KV namespace (`project` = the co-op demo JSON, `--remote`), deployed
+`rpgatlas-beacon`, and attached the Custom Domain — **`beacon.rpgatlas.app` is
+live** (`/health` ok, `/new` minting; wrangler.jsonc now carries the routes
+block + Driftwood's namespace id with self-hoster notes). Two field findings
+came out of the first real session, both fixed here:
+
+- **R-4 · 2.0.0 client could not reach a Workers relay at all (release
+  blocker for the "zero setup" path).** The shipped client dialed only the
+  Node style — one WebSocket to the bare relay URL, codeless/coded `join` —
+  but the CF Worker routes a room's Durable Object from the URL *before* the
+  first frame, so it needs `GET /new` (mint) + WS `/rt?code=…`; its `/` route
+  answers HTTP 200 health, which a WS handshake reads as failure → the
+  friendly offline copy. worker.ts's "the client handles both (MP5·C)"
+  comment was aspirational — nothing in src/ ever called `/new` (D-B5-1 meant
+  the CF pairing was never live-tested). **Fix:** `src/shared/net/`
+  `relay-endpoints.ts` (pure URL derivation) + `src/engine/net/relay-dial.ts`
+  (Node-first dial; on socket-level failure BEFORE any server frame, fall
+  back to the Worker contract; a server frame settles the dial so in-session
+  drops never re-dial). `connectRelay` rewired through it; worker.ts comment
+  corrected. Tests: `relay-endpoints` + `relay-dial` (fast pool, injectable
+  connect/fetch) + `relay-cf-fallback` (test:net, real sockets vs a CF-shaped
+  stub server).
+- **R-5 · editable fields lost every game-bound key.** Typing in the Play
+  Together name/room-code/world-address fields (or chat) dropped W/A/S/D,
+  arrows, Space, Enter, Z/X, F/J, M, Shift — the global keydown handler
+  consumed its bound keys regardless of target ("Mike" → "ike"; found live by
+  Driftwood on the first real name typed). **Fix:** `isEditableTarget` guard
+  in js/runtime/input.js `onKeyDown` only (INPUT/TEXTAREA/SELECT/
+  contenteditable; keyup stays unguarded so a key held before focus can't
+  stick; buttons excluded so HUD clicks don't kill movement). input.js
+  `?v=11→12` (play.html only — index.html doesn't load it). Tests:
+  `tests/input-editable.test.js` (node:test vm harness) +
+  `tests-e2e/mp-name-typing.spec.mjs`.
+
+Also in 2.0.1: docs honesty flip now that the relay is live (wiki ×4 +
+docs-site: relay live, needs 2.0.1+, free-relay rooms walk/chat-only with
+battles pointed at self-host; roadmap header F-3 → CLOSED), patch-notes
+`?v=76→77` (help.ts + shims.d.ts), two kid-readable patch-note entries.
+Version 2.0.0→2.0.1 in 8 places (the M6·C seven + server/package.json).
+Known-good scope holds: CF rooms walk/chat-only (D-9E-D1 unchanged), one game
+per relay (D-5-1), sim/protocol untouched (no `PROTOCOL_VERSION` bump —
+relay-dial is client connection plumbing only), frozen goldens untouched.
+
+**Gates (all re-run this session):** node:test 49/49 · vitest fast
+**1342/1342** (99 files; +15 for relay-endpoints/relay-dial) · `test:net`
+**8/8 files ×3 consecutive** (+relay-cf-fallback) · root tsc 0 · server tsc
+Node 0 / CF 0 · eslint 0 · Playwright **134/134** (+mp-name-typing) · live
+relay probe: `/health` ok, `/new` minting, and a scripted two-player session
+on `beacon.rpgatlas.app` — welcome + snapshot + deltas + presence in one
+minted room (this session). FORMAT_VERSION 2. Desktop exe rebuild required
+(embeds the client)
+— run `npm run tauri:build` + `scripts/package-game-exe.mjs` before announce.

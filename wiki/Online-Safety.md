@@ -29,8 +29,8 @@ room, joins a friend's room with a short code, or connects to a world by address
   over a secure `wss://` (encrypted) link — the same kind of secure connection a bank website
   uses. There is no peer-to-peer, so **no player ever learns another player's IP address or
   location.**
-- Friends in a **room** all connect to a shared **relay** server — either one the game's
-  creator runs themselves, or Driftwood's free relay (the default, once it's available).
+- Friends in a **room** all connect to a shared **relay** server — usually one the game's
+  creator runs themselves; for Driftwood's own demo game, that's Driftwood's free relay.
 - A **world** (a bigger, persistent server) is one that a creator runs and controls.
 
 ---

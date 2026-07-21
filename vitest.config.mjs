@@ -30,6 +30,7 @@ export default defineConfig({
       "tests-unit/world-smoke.test.ts", // MP8·B: real sockets + 60 Hz world tick
       "tests-unit/world-engine-events.test.ts", // MP8·B: engine runtime in a real worker
       "tests-unit/room-battle.test.ts", // MP9·E E2·b: engine friend room in a real worker
+      "tests-unit/relay-cf-fallback.test.ts", // post-2.0: real sockets vs a CF-shaped stub
     ],
   },
 });

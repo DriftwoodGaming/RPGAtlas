@@ -1,32 +1,68 @@
 {
-  // RPGAtlas — Project Beacon MP5·B: Cloudflare deploy config for the Beacon
-  // relay. One room/world per Durable Object, WebSocket hibernation. See
-  // docs/mp-5-spec.md (Stage B) + README "Hosting a Beacon relay". Fill in the
-  // KV namespace id, then: `wrangler kv key put --binding=GAME project --path game.json --remote`
-  // (--remote is required: without it wrangler writes to LOCAL miniflare storage
-  // and the deployed Worker's GAME namespace stays empty)
-  // and `wrangler deploy`.
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "rpgatlas-beacon",
-  "main": "src/cf/worker.ts",
-  "compatibility_date": "2025-01-01",
-  "compatibility_flags": ["nodejs_compat"],
-  "durable_objects": {
-    "bindings": [
-      { "name": "BEACON_ROOM", "class_name": "BeaconRoomDO" },
-      // MP8·B (D-8-1): the persistent-world DO. Connect at /wrt?world=<name>
-      // (default "main"); its state persists in the DO's own SQLite storage and
-      // survives hibernation/eviction.
-      { "name": "BEACON_WORLD", "class_name": "BeaconWorldDO" }
-    ]
-  },
-  "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["BeaconRoomDO"] },
-    { "tag": "v2", "new_sqlite_classes": ["BeaconWorldDO"] }
-  ],
-  "kv_namespaces": [
-    // Create with `wrangler kv namespace create GAME`, then paste the id here.
-    { "binding": "GAME", "id": "REPLACE_WITH_YOUR_KV_NAMESPACE_ID" }
-  ],
-  "observability": { "enabled": true }
+	// RPGAtlas — Project Beacon MP5·B: Cloudflare deploy config for the Beacon
+	// relay. One room/world per Durable Object, WebSocket hibernation. See
+	// docs/mp-5-spec.md (Stage B) + README "Hosting a Beacon relay". Fill in the
+	// KV namespace id, then: `wrangler kv key put --binding=GAME project --path game.json --remote`
+	// (--remote is required: without it wrangler writes to LOCAL miniflare storage
+	// and the deployed Worker's GAME namespace stays empty)
+	// and `wrangler deploy`.
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "rpgatlas-beacon",
+	"main": "src/cf/worker.ts",
+	"compatibility_date": "2025-01-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	// F-3 (operator, CLOSED 2026-07-21): Driftwood's public relay address — the
+	// client's DEFAULT_RELAY_URL (wss://beacon.rpgatlas.app, src/engine/co-op.ts).
+	// Custom Domain = Cloudflare creates the DNS record + TLS cert automatically
+	// on deploy; requires the rpgatlas.app zone in the same Cloudflare account.
+	// SELF-HOSTERS: delete this "routes" block (your Worker then serves on your
+	// workers.dev subdomain) or point the pattern at a domain in YOUR account.
+	"routes": [
+		{
+			"pattern": "beacon.rpgatlas.app",
+			"custom_domain": true
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "BEACON_ROOM",
+				"class_name": "BeaconRoomDO"
+			},
+			// MP8·B (D-8-1): the persistent-world DO. Connect at /wrt?world=<name>
+			// (default "main"); its state persists in the DO's own SQLite storage and
+			// survives hibernation/eviction.
+			{
+				"name": "BEACON_WORLD",
+				"class_name": "BeaconWorldDO"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"BeaconRoomDO"
+			]
+		},
+		{
+			"tag": "v2",
+			"new_sqlite_classes": [
+				"BeaconWorldDO"
+			]
+		}
+	],
+	"kv_namespaces": [
+		// Driftwood's namespace. SELF-HOSTERS: create your own with
+		// `wrangler kv namespace create GAME`, then paste YOUR id here.
+		{
+			"binding": "GAME",
+			"id": "cb2875e2250e41e5b513af8196c2f2a2"
+		}
+	],
+	"observability": {
+		"enabled": true
+	}
 }

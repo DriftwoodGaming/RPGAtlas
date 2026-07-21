@@ -1,10 +1,11 @@
 # Hosting a World
 
 Most games only need the friend-room **Play Together** flow — friends share a code and play
-(see **[Making Your Game Multiplayer](Making-Your-Game-Multiplayer)**). That runs on a Beacon
-server: Driftwood's free relay once it's live, or one you start yourself in a single command.
-But if you dream bigger — a persistent world with lots of players on a server *you* control —
-RPGAtlas ships an open-source server you can run yourself.
+(see **[Making Your Game Multiplayer](Making-Your-Game-Multiplayer)**). That runs on a
+**Beacon server hosting your game** — you start one in a single command below. (Driftwood's
+free relay is a Beacon server too, but it hosts Driftwood's demo game, so it can't run
+yours.) And if you dream bigger — a persistent world with lots of players on a server *you*
+control — the very same open-source server does that too.
 
 This page explains the two ways games connect, how to run your own server, and exactly what
 crosses the network (the part to show a parent or teacher).
@@ -15,9 +16,11 @@ crosses the network (the part to show a parent or teacher).
 
 **Friend rooms (the easy way).** A player picks **Play Together ▸ Create Room** and gets a
 code. Friends **Join a Room** with that code. Behind the scenes they all connect to a shared
-**relay** — Driftwood's free relay is the default (once it's deployed), or point at one you
-run yourself. On a Node Beacon server every room is a **full engine world by default**, so
-parties and co-op battles work out of the box. This is the right choice for almost everyone.
+**relay** — a Beacon server hosting the game. A relay hosts **one game**, so for your own
+game that's a server you run with the one command below. (Driftwood's free relay hosts
+Driftwood's demo game — the place to *try* Play Together, not to ship your game on.) On a
+Node Beacon server every room is a **full engine world by default**, so parties and co-op
+battles work out of the box. This is the right choice for almost everyone.
 
 **Your own world (the powerful way).** You run the **Beacon server** yourself and point your
 game at it. Now *you* own the world: it can hold far more players and persist as a living place
@@ -161,10 +164,15 @@ When you host a world, you have the tools to keep it friendly:
 
 ## Which should I choose?
 
-- **Just want friends to play together?** Do nothing — leave the play server address blank and
-  use the free rooms. This is the answer for most games.
-- **Want a big, persistent, you-control-it world?** Run the Beacon server (Node or Cloudflare)
-  and point your game at it.
+- **Just curious how Play Together feels?** Try the co-op demo on Driftwood's free relay —
+  no setup at all, though the demo's shared battle still needs a server you run (see
+  **[Making Your Game Multiplayer](Making-Your-Game-Multiplayer)**).
+- **Want friends to play *your* game together?** Run the one-command friend-room server
+  (Option 1 above) with your project and put its address in **Play server address**. Rooms,
+  codes, parties, and co-op battles all work out of the box. This is the answer for most
+  games.
+- **Want a big, persistent, you-control-it world?** Run the Beacon server with `--world`
+  (Node or Cloudflare) and point your game at it.
 
 ---
 

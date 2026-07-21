@@ -7,7 +7,7 @@
 <p align="center"><i>Chart your world. Tell your story.</i></p>
 
 <p align="center">
-  <img alt="Version 2.0.0" src="https://img.shields.io/badge/version-2.0.0-ffd86a.svg">
+  <img alt="Version 2.0.1" src="https://img.shields.io/badge/version-2.0.1-ffd86a.svg">
   <a href="LICENSE"><img alt="License: GPL v3" src="https://img.shields.io/badge/License-GPLv3-blue.svg"></a>
   <img alt="Zero-install runtime" src="https://img.shields.io/badge/runtime-zero--install-brightgreen.svg">
   <img alt="Self-contained exports" src="https://img.shields.io/badge/exports-self--contained-brightgreen.svg">

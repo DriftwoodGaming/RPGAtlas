@@ -25,8 +25,10 @@ docs added in-gate, `72ec558`) · R-2 (co-op demo ships no battle content — RE
 practice-dummy battle event on the demo shore via the coop-demo transform, frozen maps
 untouched) · R-3 (stale battleCmd windows stack client-side — RESOLVED 2026-07-20: one-live
 round-stamped command session, stale windows torn down on the next round's ask / `round`
-event / battle `end`, see mp-9-spec §RELEASE RE-GATE) · F-3 carry
-(`beacon.rpgatlas.app` still unresolved — deploy before announcing "zero setup"; docs honest).
+event / battle `end`, see mp-9-spec §RELEASE RE-GATE) · F-3 CLOSED 2026-07-21
+(relay deployed on Cloudflare Workers, `beacon.rpgatlas.app` LIVE hosting the co-op demo; the
+deploy exposed that the 2.0.0 client had no Worker-contract dial — fixed in the 2.0.1 hotfix
+with the editable-keys bug, mp-9-spec §POST-2.0 · 2.0.1; CF rooms stay walk/chat-only, D-9E-D1).
 Full verdict: `docs/mp-9-spec.md` §RELEASE RE-GATE. History of the first NO-GO + the MP9·E
 fix phase: mp-9-spec §RELEASE GATE + §MP9·E, and the MP9/MP9·E sections below.
 **E4 landed 2026-07-20 (commit

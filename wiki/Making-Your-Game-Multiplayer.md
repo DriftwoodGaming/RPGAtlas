@@ -42,13 +42,18 @@ node scripts/build-coop-demo.mjs      # writes Atlas_Quest_Coop.json
   Put your server's `wss://` address in **Database ▸ Multiplayer ▸ Play server address** (or
   launch the game with `?relay=wss://…`), then pick **Play Together ▸ Create Room** for a code
   to share.
-- **Driftwood's free relay** *(once it's live).* When the hosted relay is deployed you won't
-  run anything at all — just **Play Together ▸ Create Room** for a code, and friends **Join a
-  Room**. Until then, use your own server above.
+- **Driftwood's free relay** *(live!).* The free relay is a Beacon server Driftwood runs,
+  and it hosts this very demo game — you run nothing at all: just **Play Together ▸ Create
+  Room** for a code, and friends **Join a Room**. You'll need RPGAtlas **2.0.1 or newer**
+  (older versions can't reach Cloudflare-hosted play servers). One honest limit for now:
+  free-relay rooms are for meeting up — walking, waving, partying up, chatting. For the
+  Practice Dummy *battle*, use the run-your-own server above. (A play server hosts one game —
+  the relay runs the demo, so your *own* game still needs its own server; see **Play server
+  address** below.)
 
 Either way, the flow is: **Play Together → Create Room** (share the code) → a friend picks
-**Join a Room** and enters it. You're both on the shore in seconds — open the 💬 panel,
-**Team Up**, and take on the Practice Dummy together. See
+**Join a Room** and enters it. You're both on the shore in seconds. On your own server, open
+the 💬 panel, **Team Up**, and take on the Practice Dummy together. See
 **[Hosting a World](Hosting-a-World)** for a bigger, persistent world.
 
 ---
@@ -75,9 +80,11 @@ Everything lives on the **Database ▸ Multiplayer** tab.
 
 - **Max players in a room** — how many friends can be in one room together (2–16). Smaller
   is cozier; bigger is a party. The default is 4.
-- **Play server address** — leave this **blank** to use Driftwood's free play server. Only
-  fill it in if you're running your own world server (see
-  **[Hosting a World](Hosting-a-World)**). It must start with `wss://`.
+- **Play server address** — where your game connects to play online. It must start with
+  `wss://` (a secure connection). A play server hosts **one game**, so for your own game fill
+  in the address of a Beacon server running *your* project — starting one is a single command
+  (see **[Hosting a World](Hosting-a-World)**). Left blank, the game uses Driftwood's free
+  relay, which hosts Driftwood's demo game — right for trying the demo, not for your game.
 
 ### Talking to each other
 
@@ -171,8 +178,9 @@ A player who isn't in a party gets their **own** private battle, exactly as in a
 >   `--no-engine-rooms` for the lighter walk-and-emote rooms with no battles.)
 > - **Persistent worlds** with authored events turned on (`--engine-events` — see
 >   **[Hosting a World](Hosting-a-World)**).
-> - **Driftwood's free relay** runs engine rooms too — **once it's deployed** (see *Play server
->   address* above). Until then, host your own with the one-liner in the demo section.
+> - **Driftwood's free relay** is live — but it runs on Cloudflare, so its demo rooms are
+>   walk-and-chat only for now (next line). Your own game's battles run on a
+>   server hosting *your* project — the one-liner in the demo section.
 > - **Cloudflare-hosted rooms** are walk-and-chat only for now; parties and battles need the
 >   Node server. A temporary limit we'll close after 2.0.
 > - **Online battles start from Battle *events*** — fights you place with the Battle command

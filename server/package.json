@@ -1,6 +1,6 @@
 {
   "name": "@rpgatlas/beacon-server",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "Project Beacon — open-source multiplayer relay/world server for RPGAtlas games (Node + Cloudflare Durable Objects targets)",
   "license": "GPL-3.0-or-later",

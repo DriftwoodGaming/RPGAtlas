@@ -23,6 +23,7 @@ export default defineConfig({
       "tests-unit/world-smoke.test.ts", // MP8·B: world load smoke + socket persistence
       "tests-unit/world-engine-events.test.ts", // MP8·B: engine event runtime in a worker
       "tests-unit/room-battle.test.ts", // MP9·E E2·b: engine friend room co-op battle in a worker
+      "tests-unit/relay-cf-fallback.test.ts", // post-2.0: the CF /new + /rt dial fallback
     ],
     fileParallelism: false,
   },

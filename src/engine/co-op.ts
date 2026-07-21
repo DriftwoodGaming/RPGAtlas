@@ -32,6 +32,7 @@ import { active } from "./net/active.js";
 import { RoomHost } from "./net/room-host.js";
 import { RoomClient, type RoomSnapshot } from "./net/room-client.js";
 import { RelayClient } from "./net/relay-client.js";
+import { dialRelay, type RelayDial } from "./net/relay-dial.js";
 import { connectSocket, isAllowedRelayUrl } from "./net/socket-transport.js";
 import { renderDirective } from "./scenes/directive-renderer.js";
 import { loadMap, initPlayer, syncFollowers } from "./scenes/map-runtime.js";
@@ -483,46 +484,50 @@ function friendlyKick(code: "kicked" | "banned" | "room-closed" | "idle" | "repl
   }
 }
 
-/** Connect to the relay as a CREATE (no code) or JOIN (code). Wires a
- *  RelayClient with the engine reconstruction hooks + friendly error handling.
- *  `onFail` fires (with copy already chosen) if the attempt can't proceed. */
+/** Connect to the relay as a CREATE (no code) or JOIN (code). The relay may be
+ *  either server target: relay-dial.ts dials the Node style first (bare URL,
+ *  codeless/coded join) and falls back to the Cloudflare Worker contract
+ *  (GET /new + WS /rt?code=…) when the bare socket fails before any server
+ *  frame. Wires a RelayClient with the engine reconstruction hooks + friendly
+ *  error handling. `onFail` fires (with copy already chosen) if no dial style
+ *  can proceed. */
 function connectRelay(
   name: string,
   code: string | undefined,
   onWelcome: (roomCode: string) => void,
   onFail: (message: string) => void,
-): RelayClient | null {
+): void {
   const url = relayUrl();
-  if (!isAllowedRelayUrl(url)) { onFail(mpText("errBadRelay")); return null; }
-  let settled = false;
-  let transport;
-  try {
-    transport = connectSocket(url, {
-      onClose: () => { if (!settled) { settled = true; onFail(friendlyError("offline")); } },
-      onError: () => { if (!settled) { settled = true; onFail(friendlyError("offline")); } },
-    });
-  } catch {
-    onFail(friendlyError("offline"));
-    return null;
-  }
+  if (!isAllowedRelayUrl(url)) { onFail(mpText("errBadRelay")); return; }
   myName = (name || "Player").slice(0, 24);
-  const client = new RelayClient(defaultWorld, transport, {
-    name: myName,
+  let settled = false;
+  let dial: RelayDial | null = null;
+  // Any server frame decides the dial — no later socket event may trigger the
+  // fallback or the offline copy (e.g. the server closing after an `error`).
+  const settle = (): void => { settled = true; dial?.settle(); };
+  dial = dialRelay({
+    url,
     code,
-    onWelcome: (_pid, roomCode) => { settled = true; onWelcome(roomCode); },
-    onSnapshot: reconstructClient,
-    onLocal: writeLocalPlayer,
-    onPresence: (p) => { if (p.kind === "join") toast(mpText("playerJoined", { name: p.name || mpText("someone") })); firePresencePlugins(p); },
-    renderDirective,
-    onError: (c) => { if (!settled) { settled = true; onFail(friendlyError(c)); } else inSessionError(c); },
-    onKick: (c) => { toast(friendlyKick(c)); leaveRelay(); },
-    onParty: onPartyChange,
-    onBattle: onBattleEvent,
-    onCustom: onCustomMessage,
-    onReport: handleReport,
+    attach: (transport, joinCode) => {
+      active.client = new RelayClient(defaultWorld, transport, {
+        name: myName,
+        code: joinCode,
+        onWelcome: (_pid, roomCode) => { settle(); onWelcome(roomCode); },
+        onSnapshot: reconstructClient,
+        onLocal: writeLocalPlayer,
+        onPresence: (p) => { if (p.kind === "join") toast(mpText("playerJoined", { name: p.name || mpText("someone") })); firePresencePlugins(p); },
+        renderDirective,
+        onError: (c) => { if (!settled) { settle(); onFail(friendlyError(c)); } else inSessionError(c); },
+        onKick: (c) => { settle(); toast(friendlyKick(c)); leaveRelay(); },
+        onParty: onPartyChange,
+        onBattle: onBattleEvent,
+        onCustom: onCustomMessage,
+        onReport: handleReport,
+      });
+    },
+    teardown: () => { if (active.client) { active.client.close(); active.client = null; } },
+    onOffline: () => { if (!settled) { settled = true; onFail(friendlyError("offline")); } },
   });
-  active.client = client;
-  return client;
 }
 
 /** The world address of the current session (for a handoff re-dial). */

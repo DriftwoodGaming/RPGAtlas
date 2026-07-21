@@ -6,9 +6,14 @@
      GET  /new            → { code } : mint a fresh room code (a create)
      GET  /rt?code=XXXX   → 101 WS   : connect to the room with that code
 
-   `/new` exists so the browser client stays uniform across targets: it asks for
-   a code, then connects to /rt?code=… for both create and join (the Node target
-   accepts a codeless `join` instead — the client handles both, MP5·C). GPL-3.0. */
+   `/new` exists because DO routing needs the room code BEFORE the first frame
+   (this Worker picks the Durable Object from the URL), so the Node target's
+   codeless-`join` create can never work here. The browser client dials the
+   Node style first — a bare-URL socket, codeless/coded `join` — and falls back
+   to this contract when that handshake fails at the socket level (the "/"
+   health answer below is exactly that failure): GET /new mints the code for a
+   create, then /rt?code=… connects for both create and join
+   (src/engine/net/relay-dial.ts). GPL-3.0. */
 
 import { BeaconRoomDO, type Env } from "./room-do.js";
 import { BeaconWorldDO, type WorldEnv } from "./world-do.js";

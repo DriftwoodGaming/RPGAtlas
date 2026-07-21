@@ -39,9 +39,11 @@ byte-for-byte the same as before.
 
 Two things to double-check before you ship a multiplayer game:
 
-- **Play server address.** Blank = Driftwood's free relay (friend rooms — zero setup once it's
-  live; until then, or any time, point it at a Beacon server you run yourself). Fill in your own
-  `wss://` address to use your server or a world (see **[Hosting a World](Hosting-a-World)**).
+- **Play server address.** A play server hosts **one game**, so your game needs a server
+  running *your* project. Fill in the `wss://` address of a Beacon server you run — starting
+  one is a single command (see **[Hosting a World](Hosting-a-World)**). Left blank, the game
+  points at Driftwood's free relay — but that hosts Driftwood's own demo game, not yours, so
+  a shipped game should always have its own address here.
 - **Chat mode.** It's off by default (emotes + preset phrases). Turn on free-text only if you're
   comfortable with players typing — it's filtered, with mute/report/kick built in. For a page to
   show a parent or teacher, see **[Online Safety](Online-Safety)**.

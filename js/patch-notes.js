@@ -4,6 +4,27 @@
 
 export const PATCH_NOTES = [
   {
+    date: "July 21, 2026",
+    title: "Play Together connects to Cloudflare-hosted play servers",
+    summary:
+      "Create and Join now work when a game's play server runs on Cloudflare — the game quietly tries the second way of connecting before giving up.",
+    items: [
+      "A play server hosted on Cloudflare Workers answers a slightly different handshake (it needs the room code in the address before it can pick the right room). Play Together now handles that by itself: it tries the normal connection first, and if that gets no answer it asks the server for a room code the Cloudflare way. Nothing to configure.",
+      "Joining a friend's room by code does the same, so the code your friend shares works whether their room lives on a home computer or on Cloudflare.",
+      "If neither way answers, you still get the same friendly “can't reach the play server” message as before.",
+    ],
+  },
+  {
+    date: "July 21, 2026",
+    title: "Typing your name in Play Together works for every name",
+    summary:
+      "Text boxes now get every letter you type. Before, the game grabbed its own control keys — W, A, S, D, M, Space and more — so typing \"Mike\" came out as \"ike\".",
+    items: [
+      "Fixed in the Play Together window (your name, room code, and world address) and the chat box: while you're typing in a text box, the game no longer treats your letters as move or menu keys.",
+      "This also means the character can't wander off or open menus while you type. Click back on the game when you're done typing and the controls work again.",
+    ],
+  },
+  {
     date: "July 20, 2026",
     title: "Detailed Tutorials — step-by-step guides in the Help menu",
     summary:

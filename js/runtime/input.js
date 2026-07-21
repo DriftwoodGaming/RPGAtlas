@@ -160,7 +160,22 @@ function createInputSystem(deps) {
   function onVisibilityChange() {
     if (doc && doc.hidden) clearHeld();
   }
+  // A key aimed at an editable DOM element (the Play Together name / room-code /
+  // world-address fields, the chat box, any plugin dialog) belongs to that field,
+  // not the game. Without this, every bound key (W/A/S/D, arrows, Space, Enter,
+  // Z/X, F/J, M, Shift) was preventDefault-ed out of the field — typing "Mike"
+  // produced "ike". Buttons are deliberately NOT included: clicking a DOM button
+  // focuses it, and movement must keep working right after a HUD click.
+  function isEditableTarget(t) {
+    if (!t || !t.tagName) return false;
+    const tag = t.tagName;
+    return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || !!t.isContentEditable;
+  }
   function onKeyDown(e) {
+    // Typing wins over everything (even rebinder capture): never consume, queue,
+    // or menu-route a key the player is typing into a text field. onKeyUp still
+    // runs unguarded so a key held before focusing a field can't stay stuck.
+    if (isEditableTarget(e.target)) return;
     // Capture mode (rebinder) takes absolute precedence: grab the next fresh key for a
     // keyboard rebind, swallow stray keys during a gamepad rebind, Escape cancels.
     if (capture) {
