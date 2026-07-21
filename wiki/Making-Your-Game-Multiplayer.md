@@ -17,7 +17,10 @@ commands. When you're ready to run a big persistent world for lots of players, s
 
 RPGAtlas ships a ready-made co-op scenario so you can *see* Play Together before you build
 your own. It's the Atlas Quest showcase set up as a beach meet-up on **Driftwood Shore** —
-friends spawn together, wave, use preset phrases, party up, and explore.
+friends spawn together, wave, use preset phrases, party up, and fight their first shared
+battle: the sparkling crystal a few steps from the spawn is a **Practice Dummy**. Team Up
+with a friend, walk up to it, and press the action key — the battle runs on the server and
+you both fight it side by side (and both keep the full rewards).
 
 Generate the demo project (it's derived from the sample game — no map is edited):
 
@@ -44,7 +47,8 @@ node scripts/build-coop-demo.mjs      # writes Atlas_Quest_Coop.json
   Room**. Until then, use your own server above.
 
 Either way, the flow is: **Play Together → Create Room** (share the code) → a friend picks
-**Join a Room** and enters it. You're both on the shore in seconds. See
+**Join a Room** and enters it. You're both on the shore in seconds — open the 💬 panel,
+**Team Up**, and take on the Practice Dummy together. See
 **[Hosting a World](Hosting-a-World)** for a bigger, persistent world.
 
 ---

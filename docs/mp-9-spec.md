@@ -1077,11 +1077,35 @@ sign-in → server logs `zone-created {mapId:4}` (engine events ON) +
   nothing to fight, so the D5 headline isn't showcased by the shipped demo.
   Post-tag content patch: add a practice-dummy Battle event to the demo shore
   via `scripts/coop-demo-config.mjs` (derived project — frozen maps untouched).
+  **RESOLVED 2026-07-20 (post-tag content patch).** `applyCoopDemo` now plants
+  a frail Practice Dummy (enemy 900 + troop 900, additive) and an
+  action-trigger Battle event — a sparkling crystal at (7,7), two tiles from
+  the (5,6) spawn — on the demo shore, mirroring the exact event shape
+  mp-relay-battle.spec.mjs proves server-side. Reachability is guarded by the
+  real collision baker and the shipped JSON is lock-step-guarded in
+  tests-unit/coop-demo-content.test.ts; the booted demo carries the live
+  event per coop-demo.spec.mjs. No tile layer edited — frozen goldens
+  untouched. Wiki demo copy + docs-site updated.
 - **R-3 · client polish nit (post-2.0 ledger).** A `battleCmd` window whose
   round timed out lingers on the client and stacks under the next round's
   window (the server already escape-resolved it; answering the stale window is
   dropped harmlessly). Cosmetic — close stale command windows when their
   round's deadline event arrives.
+  **RESOLVED 2026-07-20 (post-tag polish patch).** The client keeps at most
+  ONE battleCmd command session live (new
+  `src/engine/scenes/battle-cmd-session.ts`, a pure round-stamped registry):
+  the next round's `battleCmd` supersedes the stale session on arrival, a
+  newer `round` event dismisses it round-guarded (safe under either arrival
+  order — the directive frame is sent immediately while the event rides the
+  next delta, so an unguarded dismiss could kill the fresh window), and the
+  battle `end` event / `leaveRelay` dismiss unconditionally. Teardown closes
+  the tracked windows via `removeUI` and unblocks the pending render (a
+  SUPERSEDED race against each window's answer); the abandoned render still
+  resolves with index-aligned guards, whose reply targets a dead directive id
+  the authority drops — exactly the AFK escape it mirrors. Remote-overlay-only
+  (solo never receives battle directives; frozen goldens untouched). The
+  supersession contract is proven headlessly in
+  `tests-unit/battle-cmd-session.test.ts`.
 - **F-3 carry (operator, release-day).** `beacon.rpgatlas.app` still does not
   resolve (checked live). Docs are now honest about it (E3); deploy the relay
   before announcing "zero setup", or keep leading with the self-host one-liner.

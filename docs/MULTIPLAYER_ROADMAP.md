@@ -21,8 +21,11 @@ through the shipped UI** — create room → join by code (system share: create 
 battle running SERVER-SIDE** → full rewards to BOTH players → world join with silent no-PII
 passport. The first gate run's F-1 blocker (D5 unreachable) is closed in substance by MP9·E.
 Re-gate findings: R-1 (step encounters never fire online; battles are event-fired — honest
-docs added in-gate, `72ec558`) · R-2 (co-op demo ships no battle content — post-tag content
-patch flagged) · R-3 (stale battleCmd windows stack client-side — polish ledger) · F-3 carry
+docs added in-gate, `72ec558`) · R-2 (co-op demo ships no battle content — RESOLVED 2026-07-20:
+practice-dummy battle event on the demo shore via the coop-demo transform, frozen maps
+untouched) · R-3 (stale battleCmd windows stack client-side — RESOLVED 2026-07-20: one-live
+round-stamped command session, stale windows torn down on the next round's ask / `round`
+event / battle `end`, see mp-9-spec §RELEASE RE-GATE) · F-3 carry
 (`beacon.rpgatlas.app` still unresolved — deploy before announcing "zero setup"; docs honest).
 Full verdict: `docs/mp-9-spec.md` §RELEASE RE-GATE. History of the first NO-GO + the MP9·E
 fix phase: mp-9-spec §RELEASE GATE + §MP9·E, and the MP9/MP9·E sections below.

@@ -30,7 +30,7 @@
 <blockquote><p><strong>Single-player is untouched.</strong> Until you tick the box below, your game plays exactly as before. Turning multiplayer on never changes how the game looks or feels offline.</p></blockquote>
 <hr>
 <h2 id="try-the-co-op-demo-first">Try the co-op demo first</h2>
-<p>RPGAtlas ships a ready-made co-op scenario so you can <em>see</em> Play Together before you build your own. It's the Atlas Quest showcase set up as a beach meet-up on <strong>Driftwood Shore</strong> — friends spawn together, wave, use preset phrases, party up, and explore.</p>
+<p>RPGAtlas ships a ready-made co-op scenario so you can <em>see</em> Play Together before you build your own. It's the Atlas Quest showcase set up as a beach meet-up on <strong>Driftwood Shore</strong> — friends spawn together, wave, use preset phrases, party up, and fight their first shared battle: the sparkling crystal a few steps from the spawn is a <strong>Practice Dummy</strong>. Team Up with a friend, walk up to it, and press the action key — the battle runs on the server and you both fight it side by side (and both keep the full rewards).</p>
 <p>Generate the demo project (it's derived from the sample game — no map is edited):</p>
 <pre><code>node scripts/build-coop-demo.mjs      # writes Atlas_Quest_Coop.json</code></pre>
 <p><strong>Host a demo room</strong> two ways:</p>
@@ -38,7 +38,7 @@
 <p>``<code> cd server &amp;&amp; npm install &amp;&amp; npm run build node dist/beacon.mjs --project ../Atlas_Quest_Coop.json --port 8787 </code>``</p>
 <p>Put your server's <code>wss://</code> address in <strong>Database ▸ Multiplayer ▸ Play server address</strong> (or launch the game with <code>?relay=wss://…</code>), then pick <strong>Play Together ▸ Create Room</strong> for a code to share.</p>
 <ul><li><strong>Driftwood's free relay</strong> <em>(once it's live).</em> When the hosted relay is deployed you won't run anything at all — just <strong>Play Together ▸ Create Room</strong> for a code, and friends <strong>Join a Room</strong>. Until then, use your own server above.</li></ul>
-<p>Either way, the flow is: <strong>Play Together → Create Room</strong> (share the code) → a friend picks <strong>Join a Room</strong> and enters it. You're both on the shore in seconds. See <strong><a href="Hosting-a-World.html">Hosting a World</a></strong> for a bigger, persistent world.</p>
+<p>Either way, the flow is: <strong>Play Together → Create Room</strong> (share the code) → a friend picks <strong>Join a Room</strong> and enters it. You're both on the shore in seconds — open the 💬 panel, <strong>Team Up</strong>, and take on the Practice Dummy together. See <strong><a href="Hosting-a-World.html">Hosting a World</a></strong> for a bigger, persistent world.</p>
 <hr>
 <h2 id="turn-it-on">Turn it on</h2>
 <ol><li>Open <strong>Database</strong> (the 🗄 button, or the Game menu).</li><li>Click the <strong>Multiplayer</strong> tab.</li><li>Tick <strong>Enable Play Together</strong>.</li></ol>

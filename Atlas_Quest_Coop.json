@@ -2077,6 +2077,29 @@
           "weight": 3
         }
       ]
+    },
+    {
+      "id": 900,
+      "name": "Practice Dummy",
+      "sprite": "crystal",
+      "color": "#d8b04f",
+      "stats": {
+        "mhp": 6,
+        "mmp": 0,
+        "atk": 1,
+        "def": 0,
+        "mat": 0,
+        "mdf": 0,
+        "agi": 1
+      },
+      "exp": 30,
+      "gold": 15,
+      "actions": [
+        {
+          "skillId": 0,
+          "weight": 5
+        }
+      ]
     }
   ],
   "troops": [
@@ -2171,6 +2194,14 @@
         12,
         6
       ]
+    },
+    {
+      "id": 900,
+      "name": "Practice Dummy",
+      "enemies": [
+        900
+      ],
+      "pages": []
     }
   ],
   "maps": [
@@ -11171,6 +11202,51 @@
                   "t": "text",
                   "name": "Old Fisherman",
                   "text": "Prettiest hour of the day, this.\nThe sun sinks, the lanterns wake,\nand the whole sea turns to gold."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "name": "Practice Dummy",
+          "x": 7,
+          "y": 7,
+          "pages": [
+            {
+              "name": "",
+              "cond": {
+                "switchId": 0,
+                "varId": 0,
+                "varVal": 0,
+                "selfSw": "",
+                "questId": 0,
+                "questStatus": "active",
+                "objectiveQuestId": 0,
+                "objectiveIndex": 0,
+                "objectiveStatus": "completed"
+              },
+              "charset": "crystal",
+              "dir": 0,
+              "moveType": "fixed",
+              "trigger": "action",
+              "priority": "same",
+              "through": false,
+              "combat": {
+                "enabled": false,
+                "enemyId": 0,
+                "hp": 0,
+                "touchDamage": 0,
+                "knockbackTiles": 1,
+                "invulnFrames": 24,
+                "defeatSelfSwitch": ""
+              },
+              "commands": [
+                {
+                  "t": "battle",
+                  "troopId": 900,
+                  "escape": true,
+                  "lose": false
                 }
               ]
             }

@@ -24,9 +24,13 @@ applyCoopDemo(project);
 writeFileSync(out, JSON.stringify(project, null, 2) + "\n");
 
 const mp = project.system.multiplayer;
+const dummy = project.maps
+  .find((m) => m.id === project.system.startMapId)
+  .events.find((e) => e.name === "Practice Dummy");
 process.stdout.write(
   `[coop-demo] wrote Atlas_Quest_Coop.json — "${project.system.title}"\n` +
   `[coop-demo] multiplayer: on · ${mp.maxPlayers} players · chat "${mp.chatMode}" · ` +
   `${mp.presets.length} presets · start on map ${project.system.startMapId} (Driftwood Shore)\n` +
+  `[coop-demo] practice dummy at (${dummy.x},${dummy.y}) — Team Up and act on it for a shared battle\n` +
   `[coop-demo] host it:  node server/dist/beacon.mjs --project Atlas_Quest_Coop.json\n`,
 );
