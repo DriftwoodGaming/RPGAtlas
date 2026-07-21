@@ -65,9 +65,14 @@ KV namespace (too large for a plaintext var).
 cd server
 npm i                                            # dev deps (wrangler via npx)
 npx wrangler kv namespace create GAME            # copy the id into wrangler.jsonc
-npx wrangler kv key put --binding=GAME project --path ../Atlas_Quest.json
+npx wrangler kv key put --binding=GAME project --path ../Atlas_Quest.json --remote
 npx wrangler deploy                              # deploys the Worker + DO
 ```
+
+Don't skip `--remote` on the `kv key put` line: without it wrangler stores the
+value on your own computer only (its local dev storage), the deployed Worker's
+GAME namespace stays empty, and every room connection fails with
+`beacon: GAME KV has no 'project' key`.
 
 Client routes on the deployed Worker:
 

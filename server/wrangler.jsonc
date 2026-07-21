@@ -2,7 +2,9 @@
   // RPGAtlas — Project Beacon MP5·B: Cloudflare deploy config for the Beacon
   // relay. One room/world per Durable Object, WebSocket hibernation. See
   // docs/mp-5-spec.md (Stage B) + README "Hosting a Beacon relay". Fill in the
-  // KV namespace id, then: `wrangler kv:key put --binding=GAME project --path game.json`
+  // KV namespace id, then: `wrangler kv key put --binding=GAME project --path game.json --remote`
+  // (--remote is required: without it wrangler writes to LOCAL miniflare storage
+  // and the deployed Worker's GAME namespace stays empty)
   // and `wrangler deploy`.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "rpgatlas-beacon",
