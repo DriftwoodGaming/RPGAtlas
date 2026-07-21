@@ -750,6 +750,35 @@ button.danger:hover { background: #6a3636; }
 .patch-note p { margin: 7px 0; }
 .patch-note ul { margin: 6px 0 0; padding-left: 20px; }
 .patch-note li { margin: 4px 0; }
+/* Detailed Tutorials (Help ▸ Detailed Tutorials, src/editor/tutorials.ts) */
+.tutorials .tut-intro { margin: 2px 0 10px; }
+.tutorials .tut-outro { margin-top: 10px; }
+.tut-card { display: flex; align-items: flex-start; gap: 12px; width: 100%; text-align: left;
+  background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 7px;
+  padding: 10px 12px; margin: 0 0 8px; cursor: pointer; color: inherit; font: inherit; }
+.tut-card:hover { background: var(--hover); }
+.tut-card-icon { font-size: 22px; line-height: 1.2; }
+.tut-card-text { display: flex; flex-direction: column; min-width: 0; }
+.tut-card-title { color: var(--heading); font-weight: 700; }
+.tut-card-blurb { color: var(--text-dim); font-size: var(--fs-small); margin-top: 2px; }
+.tut-card-meta { color: #7f88a6; font-size: var(--fs-tiny); margin-top: 4px; }
+.tut-back { margin: 0 0 10px; }
+.tut-title { color: var(--heading); margin: 0 0 2px; }
+.tut-meta { color: var(--text-dim); font-size: var(--fs-small); margin: 0 0 10px; }
+.tutorials ol { margin: 4px 0; padding-left: 22px; }
+.tutorials ol li { margin: 5px 0; }
+.tutorials pre { background: var(--bg); border: 1px solid var(--line-2); border-radius: 6px;
+  padding: 8px 10px; margin: 6px 0; overflow-x: auto; font: 12px Consolas, monospace; }
+.tutorials code { background: var(--hover); border: 1px solid #44485f; border-radius: 4px;
+  padding: 0 5px; font: 11px Consolas, monospace; }
+.tutorials table { border-collapse: collapse; margin: 6px 0; }
+.tutorials th, .tutorials td { border: 1px solid var(--line-2); padding: 4px 8px; text-align: left;
+  font-size: var(--fs-small); }
+.tutorials th { color: var(--heading); background: var(--panel-2); }
+.tut-tip, .tut-done { border-radius: 6px; padding: 7px 10px; margin: 8px 0;
+  background: var(--panel-2); border: 1px solid var(--line-2); }
+.tut-tip { border-left: 3px solid #ffd86a; }
+.tut-done { border-left: 3px solid #79c96e; }
 
 /* ---------- plugin manager ---------- */
 .modal.plugin-modal { min-width: 880px; min-height: 520px; }

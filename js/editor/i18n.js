@@ -79,6 +79,7 @@ const SHARED = {
       // Help menu
       "Interface Language…": "Idioma de la interfaz…", "Patch Notes": "Notas de versión",
       "Keyboard Shortcuts…": "Atajos de teclado…", "Quick Help": "Ayuda rápida",
+      "Detailed Tutorials": "Tutoriales detallados",
       "About RPGAtlas": "Acerca de RPGAtlas",
       // language / appearance dialog
       "Interface Language": "Idioma de la interfaz", "Language": "Idioma",
@@ -164,6 +165,7 @@ const SHARED = {
       // Help menu
       "Interface Language…": "Langue de l'interface…", "Patch Notes": "Notes de version",
       "Keyboard Shortcuts…": "Raccourcis clavier…", "Quick Help": "Aide rapide",
+      "Detailed Tutorials": "Tutoriels détaillés",
       "About RPGAtlas": "À propos de RPGAtlas",
       // language / appearance dialog
       "Interface Language": "Langue de l'interface", "Language": "Langue",
@@ -249,6 +251,7 @@ const SHARED = {
       // Help menu
       "Interface Language…": "Oberflächensprache…", "Patch Notes": "Versionshinweise",
       "Keyboard Shortcuts…": "Tastenkürzel…", "Quick Help": "Kurzhilfe",
+      "Detailed Tutorials": "Ausführliche Tutorials",
       "About RPGAtlas": "Über RPGAtlas",
       // language / appearance dialog
       "Interface Language": "Oberflächensprache", "Language": "Sprache",
@@ -334,6 +337,7 @@ const SHARED = {
       // Help menu
       "Interface Language…": "表示言語…", "Patch Notes": "更新履歴",
       "Keyboard Shortcuts…": "キーボードショートカット…", "Quick Help": "クイックヘルプ",
+      "Detailed Tutorials": "詳細チュートリアル",
       "About RPGAtlas": "RPGAtlasについて",
       // language / appearance dialog
       "Interface Language": "表示言語", "Language": "言語",
@@ -419,6 +423,7 @@ const SHARED = {
       // Help menu
       "Interface Language…": "介面語言…", "Patch Notes": "更新紀錄",
       "Keyboard Shortcuts…": "鍵盤快速鍵…", "Quick Help": "快速說明",
+      "Detailed Tutorials": "詳細教學",
       "About RPGAtlas": "關於 RPGAtlas",
       // language / appearance dialog
       "Interface Language": "介面語言", "Language": "語言",
@@ -504,6 +509,7 @@ const SHARED = {
       // Help menu
       "Interface Language…": "界面语言…", "Patch Notes": "更新日志",
       "Keyboard Shortcuts…": "键盘快捷键…", "Quick Help": "快速帮助",
+      "Detailed Tutorials": "详细教程",
       "About RPGAtlas": "关于 RPGAtlas",
       // language / appearance dialog
       "Interface Language": "界面语言", "Language": "语言",
@@ -589,6 +595,7 @@ const SHARED = {
       // Help menu
       "Interface Language…": "Idioma da interface…", "Patch Notes": "Notas de atualização",
       "Keyboard Shortcuts…": "Atalhos de teclado…", "Quick Help": "Ajuda rápida",
+      "Detailed Tutorials": "Tutoriais detalhados",
       "About RPGAtlas": "Sobre o RPGAtlas",
       // language / appearance dialog
       "Interface Language": "Idioma da interface", "Language": "Idioma",
@@ -674,6 +681,7 @@ const SHARED = {
       // Help menu
       "Interface Language…": "인터페이스 언어…", "Patch Notes": "패치 노트",
       "Keyboard Shortcuts…": "키보드 단축키…", "Quick Help": "빠른 도움말",
+      "Detailed Tutorials": "상세 튜토리얼",
       "About RPGAtlas": "RPGAtlas 정보",
       // language / appearance dialog
       "Interface Language": "인터페이스 언어", "Language": "언어",
@@ -759,6 +767,7 @@ const SHARED = {
       // Help menu
       "Interface Language…": "Lingua dell'interfaccia…", "Patch Notes": "Note di versione",
       "Keyboard Shortcuts…": "Scorciatoie da tastiera…", "Quick Help": "Guida rapida",
+      "Detailed Tutorials": "Tutorial dettagliati",
       "About RPGAtlas": "Informazioni su RPGAtlas",
       // language / appearance dialog
       "Interface Language": "Lingua dell'interfaccia", "Language": "Lingua",
@@ -844,6 +853,7 @@ const SHARED = {
       // Help menu
       "Interface Language…": "Язык интерфейса…", "Patch Notes": "Список изменений",
       "Keyboard Shortcuts…": "Горячие клавиши…", "Quick Help": "Краткая справка",
+      "Detailed Tutorials": "Подробные руководства",
       "About RPGAtlas": "О программе RPGAtlas",
       // language / appearance dialog
       "Interface Language": "Язык интерфейса", "Language": "Язык",

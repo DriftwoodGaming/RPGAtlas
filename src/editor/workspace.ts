@@ -44,6 +44,7 @@ import { openRmImportWizard, openSavedImportReport, hasImportReport } from "./im
 import {
   openLanguageSettings, openPatchNotes, openKeyboardShortcuts, openHelp, openAbout,
 } from "./help";
+import { openTutorials } from "./tutorials";
 import { openCommandPalette } from "./command-palette";
 import { managerActive } from "./project-manager/manager-host";
 
@@ -241,6 +242,7 @@ act("language", { label: "Interface Language…", run: openLanguageSettings });
 act("patchnotes", { label: "Patch Notes", run: openPatchNotes });
 act("shortcuts", { label: "Keyboard Shortcuts…", key: "?", run: openKeyboardShortcuts });
 act("help", { label: "Quick Help", run: openHelp });
+act("tutorials", { label: "Detailed Tutorials", tip: "Step-by-step guides — multiplayer servers, the Advanced Map Editor, map properties, events, exporting", run: () => openTutorials() });
 act("about", { label: "About RPGAtlas", run: openAbout });
 
 const TOOLBAR = [
@@ -300,7 +302,7 @@ const MENUS = [
   { label: "Tools", items: ["db", "dialogue", "plugins", "audio", "search", "resources", "assetbrowser", "chargen", "-", "autotile-import", "-", "cmdpal"] },
   { label: "Generators", items: ["generators", "-", ...QUICK_GENERATOR_IDS.map((id) => "generator-" + id)] },
   { label: "Game", items: ["play", "build", "-", "mapprops", "hdpreview", "mode-start"] },
-  { label: "Help", items: ["language", "-", "shortcuts", "patchnotes", "help", "about"] },
+  { label: "Help", items: ["language", "-", "shortcuts", "patchnotes", "help", "tutorials", "about"] },
 ];
 // Palette feed: every registered command with its localized label, key hint,
 // and a category derived from MENUS membership (first menu containing the id

@@ -5,6 +5,17 @@
 export const PATCH_NOTES = [
   {
     date: "July 20, 2026",
+    title: "Detailed Tutorials — step-by-step guides in the Help menu",
+    summary:
+      "A new Help ▸ Detailed Tutorials dialog walks you through the big features in small, friendly steps — starting with running your own multiplayer server.",
+    items: [
+      "Six guides at launch: Set Up a Multiplayer Server (for developers — build and run the Beacon server, connect your game, go public safely), Turn On Multiplayer (Play Together), Use the Advanced Map Editor, Configure Map Properties, Create Your First Events, and Export & Share Your Game.",
+      "Every guide is written for newer developers: numbered steps, checkpoints so you know it worked, plain words, and honest troubleshooting sections.",
+      "Pick a guide from the list, and jump back with the ← All Tutorials button. Quick Help stays the one-page cheat sheet.",
+    ],
+  },
+  {
+    date: "July 20, 2026",
     title: "Play Together — online multiplayer is here (RPGAtlas 2.0.0)",
     summary:
       "Friends can join your game online with a room code in under a minute — the feature RPG Maker never had, built right into the engine.",

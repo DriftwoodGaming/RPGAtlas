@@ -76,7 +76,7 @@ It has [a whole page of its own](Advanced-Map-Editor).
 | **Tools** | The big managers: Database, Plugin Manager, Audio Manager, Event Searcher, Resource Manager, Character Generator — plus the **Command Palette** |
 | **Generators** | Quick links and the searchable [Generator Hub](Generators) for names, lore hooks, batch copying, and saved favorites |
 | **Game** | Set Start Position, Playtest, and game-wide settings |
-| **Help** | Newest-first Patch Notes, Quick Help, and About RPGAtlas |
+| **Help** | Newest-first Patch Notes, Quick Help, **Detailed Tutorials** (step-by-step guides: multiplayer servers, the Advanced Map Editor, map properties, events, exporting), and About RPGAtlas |
 
 The **icon toolbar** duplicates the most common actions so they're always one click away, including
 the **▶ Playtest** button.

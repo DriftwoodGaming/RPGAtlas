@@ -949,3 +949,31 @@ test.describe("starter packs (phase 6)", () => {
     await expect(page.locator(".ab-grid .ab-card")).toHaveCount(0);
   });
 });
+
+test.describe("detailed tutorials", () => {
+  test("Help menu opens the tutorial picker; a guide opens, back returns, Close dismisses", async ({ page }) => {
+    await page.goto("/index.html");
+    await expect(page.locator("#save-ind")).toBeVisible(); // boot finished
+
+    // Help ▸ Detailed Tutorials opens the picker.
+    await page.locator("#menus .menu-label", { hasText: "Help" }).dispatchEvent("mousedown");
+    await page.locator(".menu-drop .menu-item", { hasText: "Detailed Tutorials" }).click();
+    await expect(page.locator(".modal-title", { hasText: "Detailed Tutorials" })).toBeVisible();
+
+    // The index lists the launch guides as clickable cards.
+    const cards = page.locator(".tut-card");
+    await expect(cards).toHaveCount(6);
+    await expect(cards.first()).toContainText("Set Up a Multiplayer Server");
+
+    // Opening the multiplayer-server guide shows real step-by-step content.
+    await cards.first().click();
+    await expect(page.locator(".tutorials")).toContainText("npm run build");
+    await expect(page.locator(".tutorials")).toContainText("Part 2 — Start your server");
+
+    // Back returns to the index; Close dismisses the dialog.
+    await page.locator(".tut-back").first().click();
+    await expect(page.locator(".tut-card")).toHaveCount(6);
+    await page.locator(".modal-btns button", { hasText: "Close" }).click();
+    await expect(page.locator(".modal-title", { hasText: "Detailed Tutorials" })).toHaveCount(0);
+  });
+});
