@@ -24,6 +24,7 @@ import { G, makeActor, addInv } from "./state/game-state.js";
 import { el, esc } from "./util.js";
 import { defaultWorld } from "./state/default-world.js";
 import { applyBattleEnd } from "./scenes/battle-coop.js";
+import { dismissCmdSession, dismissCmdSessionBefore } from "./scenes/battle-cmd-session.js";
 import type { BattleEvent } from "../shared/sim/coop-battle.js";
 import { partyOf, type PartyChange } from "../shared/sim/party.js";
 import { soloHost, soloClient } from "./net/solo-session.js";
@@ -120,6 +121,11 @@ function onBattleEvent(ev: BattleEvent): void {
     return;
   }
   if (ev.ev === "round") {
+    // R-3: a command window still open from an OLDER round is stale (the
+    // authority escape-resolved that round at its AFK deadline) — close it.
+    // Round-guarded so this round's own fresh window survives either arrival
+    // order (the directive is sent immediately; this event rides the delta).
+    dismissCmdSessionBefore(ev.n);
     battleOverlay.line("— Round " + ev.n + " —", true);
     return;
   }
@@ -134,6 +140,7 @@ function onBattleEvent(ev: BattleEvent): void {
     return;
   }
   if (ev.ev !== "end") return;
+  dismissCmdSession(); // R-3: the battle is over — no command window survives it
   const lines = applyBattleEnd(ev);
   battleOverlay.close();
   toast(
@@ -645,6 +652,7 @@ function importPassportFile(onDone?: () => void): void {
 /** Tear down the current relay session and return to solo (title). */
 export function leaveRelay(): void {
   unmountSocialUI();
+  dismissCmdSession(); // R-3: leaving mid-battle strands no command window
   clearMuted();
   if (active.client) { active.client.close(); active.client = null; }
   resetSession();

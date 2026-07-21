@@ -28,7 +28,8 @@ import { Assets, RA } from "../../shared/deps.js";
 import { esc } from "../util.js";
 import { ctx } from "../state/engine-context.js";
 import { invCount } from "../state/game-state.js";
-import { showList } from "../ui-stack.js";
+import { removeUI, showList, UIStack } from "../ui-stack.js";
+import { openCmdSession, SUPERSEDED, type CmdSession } from "./battle-cmd-session.js";
 import { numberInputScene, nameInputScene, selectItemScene } from "./input-scenes.js";
 import { buildLoadout } from "./battle-coop.js";
 import { showScrollText } from "./presentation-runtime.js";
@@ -114,17 +115,51 @@ export async function renderDirective(d: Directive): Promise<DirectiveReplyValue
    (no wire round-trip); ally targeting picks among the client's own battlers
    (`idx` = the shared battle's merged battler index). Cancelling any submenu
    loops back to the main command list — the top menu is not cancellable, so
-   the client always produces a command and a shared fight never hangs. */
+   the client always produces a command and a shared fight never hangs.
+
+   R-3 (post-2.0): the whole render runs inside a CmdSession — at most one
+   battleCmd's windows are ever live. When the authority escape-resolves a
+   round at its AFK deadline and the next round's ask (or the battle `end`)
+   arrives, the stale session dies: its windows close and the pending await
+   lands here as SUPERSEDED. The abandoned render still resolves — with
+   index-aligned guards — so its reply targets a dead directive id and the
+   authority drops it (counted, harmless), exactly like the AFK escape it
+   mirrors. */
 async function renderBattleCmd(d: BattleCmdDirective): Promise<BattleActionCmd[]> {
+  const sess = openCmdSession(d.round, removeUI);
   const cmds: BattleActionCmd[] = [];
-  for (const me of d.yours) {
-    if (!me.canAct) {
-      cmds.push({ type: "guard" }); // authority sees this as "stunned"
-      continue;
+  try {
+    for (const me of d.yours) {
+      if (!me.canAct) {
+        cmds.push({ type: "guard" }); // authority sees this as "stunned"
+        continue;
+      }
+      cmds.push(await pickBattleAction(me, d, sess));
     }
-    cmds.push(await pickBattleAction(me, d));
+  } catch (e) {
+    if (e !== SUPERSEDED) throw e;
+  } finally {
+    sess.done();
   }
+  while (cmds.length < d.yours.length) cmds.push({ type: "guard" });
   return cmds;
+}
+
+/** showList, session-scoped (R-3): the opened window is tracked so a session
+ *  teardown closes it, and the await unblocks — by throwing SUPERSEDED — when
+ *  the session dies underneath it. Reads the window handle as top-of-stack,
+ *  which showList guarantees by pushing synchronously before returning. */
+async function sessList(
+  sess: CmdSession,
+  items: Parameters<typeof showList>[0],
+  opts: Parameters<typeof showList>[1],
+): Promise<number> {
+  if (sess.dead) throw SUPERSEDED;
+  const answer = showList(items, opts);
+  sess.track(UIStack[UIStack.length - 1]);
+  const i = await Promise.race([answer, sess.superseded]);
+  if (sess.dead || i === SUPERSEDED) throw SUPERSEDED;
+  return i;
 }
 
 /** Live enemies from the round view (targets). */
@@ -134,11 +169,12 @@ function liveEnemies(d: BattleCmdDirective): BattleEnemyView[] {
 
 /** Pick one enemy target; returns the enemy's `.i`, or null on cancel. A lone
  *  enemy is chosen without a prompt (the solo battle's `pickTarget` behavior). */
-async function pickEnemyTarget(d: BattleCmdDirective): Promise<number | null> {
+async function pickEnemyTarget(d: BattleCmdDirective, sess: CmdSession): Promise<number | null> {
   const live = liveEnemies(d);
   if (!live.length) return null;
   if (live.length === 1) return live[0].i;
-  const i = await showList(
+  const i = await sessList(
+    sess,
     live.map((e) => ({ label: e.name + "  (HP " + e.hp + ")" })),
     { className: "targetwin" },
   );
@@ -147,10 +183,15 @@ async function pickEnemyTarget(d: BattleCmdDirective): Promise<number | null> {
 
 /** Pick one of THIS client's own battlers as an ally target; returns its merged
  *  `idx`. `mode` filters to living (heals/items) or fallen (revives). */
-async function pickOwnAlly(d: BattleCmdDirective, mode: "living" | "dead"): Promise<number | null> {
+async function pickOwnAlly(
+  d: BattleCmdDirective,
+  mode: "living" | "dead",
+  sess: CmdSession,
+): Promise<number | null> {
   const pool = d.yours.filter((a) => (mode === "dead" ? a.hp <= 0 : a.hp > 0));
   if (!pool.length) return null;
-  const i = await showList(
+  const i = await sessList(
+    sess,
     pool.map((a) => ({ label: a.name + "  (HP " + a.hp + "/" + a.mhp + ")" })),
     { className: "targetwin" },
   );
@@ -161,7 +202,11 @@ async function pickOwnAlly(d: BattleCmdDirective, mode: "living" | "dead"): Prom
 type UiItem = { id: number; name: string; revive?: boolean };
 
 /** The command menu for one battler. Loops until it returns a command. */
-async function pickBattleAction(me: BattleAllyView, d: BattleCmdDirective): Promise<BattleActionCmd> {
+async function pickBattleAction(
+  me: BattleAllyView,
+  d: BattleCmdDirective,
+  sess: CmdSession,
+): Promise<BattleActionCmd> {
   const proj = ctx.proj;
   const myItems: UiItem[] = (proj.items || []).filter((it: UiItem) => invCount("item", it.id) > 0);
   while (true) {
@@ -172,12 +217,13 @@ async function pickBattleAction(me: BattleAllyView, d: BattleCmdDirective): Prom
       { html: Assets.iconHtml(22, "menu-icon") + "Guard" },
     ];
     if (d.canEscape) menu.push({ html: Assets.iconHtml(7, "menu-icon") + "Escape" });
-    const i = await showList(menu, { title: me.name, className: "cmdwin", cancellable: false });
+    const i = await sessList(sess, menu, { title: me.name, className: "cmdwin", cancellable: false });
     if (i === 0) {
-      const e = await pickEnemyTarget(d);
+      const e = await pickEnemyTarget(d, sess);
       if (e != null) return { type: "attack", enemy: e };
     } else if (i === 1) {
-      const si = await showList(
+      const si = await sessList(
+        sess,
         me.skills.map((s) => ({
           html:
             esc(s.name) +
@@ -192,16 +238,17 @@ async function pickBattleAction(me: BattleAllyView, d: BattleCmdDirective): Prom
       const def = RA.byId(proj.skills, skill.id);
       const scope = def && def.scope;
       if (scope === "enemy") {
-        const e = await pickEnemyTarget(d);
+        const e = await pickEnemyTarget(d, sess);
         if (e != null) return { type: "skill", id: skill.id, enemy: e };
       } else if (scope === "ally") {
-        const ally = await pickOwnAlly(d, def && def.revive ? "dead" : "living");
+        const ally = await pickOwnAlly(d, def && def.revive ? "dead" : "living", sess);
         if (ally != null) return { type: "skill", id: skill.id, ally };
       } else {
         return { type: "skill", id: skill.id };
       }
     } else if (i === 2) {
-      const ii = await showList(
+      const ii = await sessList(
+        sess,
         myItems.map((it: UiItem) => ({
           html: esc(it.name) + ' <span class="cnt">×' + invCount("item", it.id) + "</span>",
         })),
@@ -209,7 +256,7 @@ async function pickBattleAction(me: BattleAllyView, d: BattleCmdDirective): Prom
       );
       if (ii < 0) continue;
       const it = myItems[ii];
-      const ally = await pickOwnAlly(d, it.revive ? "dead" : "living");
+      const ally = await pickOwnAlly(d, it.revive ? "dead" : "living", sess);
       if (ally != null) return { type: "item", id: it.id, ally };
     } else if (d.canEscape && i === 4) {
       return { type: "escape" };
