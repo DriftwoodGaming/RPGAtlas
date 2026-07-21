@@ -1,12 +1,12 @@
 # Phase MP9 Spec — Safety, Chat, Moderation, Packaging, Release 2.0 ("Project Beacon")
 
-**Status:** BUILD ✅ (Opus, 4 stages) → **RELEASE GATE ❌ NO-GO 2026-07-20 (Fable)
-— `beacon-9` + `v2.0.0` NOT tagged.** All numeric/safety gates re-verified PASS;
-the fresh-eyes playthrough fails its co-op-battle leg (D5 unreachable by
-players). See §RELEASE GATE at the end of this file for the full verdict,
-findings F-1…F-5, and the fix fork. **Driftwood locked fork (a) 2026-07-20
-(roadmap decision D8) → phase MP9·E is active: work order in §MP9·E below,
-kickoff blocks in the roadmap §MP9·E. Tags withheld until the re-gate.**
+**Status:** ✅ **RELEASED — RE-GATE GO 2026-07-20 (Fable), tags `beacon-9` +
+`v2.0.0`** (verdict in §RELEASE RE-GATE at the end of this file). History:
+BUILD ✅ (Opus, 4 stages) → first RELEASE GATE ❌ NO-GO 2026-07-20 (Fable;
+§RELEASE GATE — F-1 blocker: D5 unreachable by players) → Driftwood locked
+fork (a) (roadmap decision D8) → **MP9·E ✅** (E1 Fable · E2/E3/E4 Opus;
+§MP9·E) closed F-1 → the re-run RELEASE gate passed everything including the
+live co-op-battle playthrough and tagged.
 Prior: `beacon-8` tagged (MP8 LOAD GATE PASS 2026-07-20).
 
 **Authored:** 2026-07-20 by Claude Opus 4.8, from the MP9 section of
@@ -979,3 +979,121 @@ relay (E4) — D5 is true online. **NEXT: hand the UNCHANGED MP9 RELEASE GATE bl
 (§MP9, "RELEASE GATE kickoff") to a fresh Fable conversation. The re-gate
 re-runs every gate + the fresh-eyes playthrough and ONLY it tags `beacon-9` +
 `v2.0.0`. Do NOT tag from a build conversation.**
+
+---
+
+## §RELEASE RE-GATE — verdict ✅ GO (Fable, 2026-07-20; tags `beacon-9` + `v2.0.0`)
+
+The full MP9 RELEASE gate re-run from scratch at `eddf92a` (MP9·E complete),
+per the unchanged §MP9 kickoff. Every number below re-executed this session;
+every safety item re-audited from source; the playthrough performed live in a
+real browser against real servers built from this tree.
+
+### Re-verified PASS (all numbers live this session)
+
+- fast `test:unit` **1308 / 94 files** · net `test:net` **12/12 × 3 consecutive**
+- node --test **48/48**, determinism hash **46633057** re-computed live ·
+  cargo **26/26** · root tsc 0 · server tsc Node + CF 0 · eslint 0, and the
+  MP1·C sim wall PROVEN to fire on a probe (restricted engine import + `window`
+  global → 2 errors; probe deleted, tree clean)
+- **Playwright 131/131** (3.1 m; perf 233.88/300 ms, +0.7 % vs beacon-8's
+  232.21 → within ±10 %); `git diff beacon-8..HEAD -- "*.png"` **EMPTY**
+  (solo frozen goldens byte-identical through MP9 + MP9·E); the beacon-8..HEAD
+  `js/` diff is exactly patch-notes.js +14 (MP9·D's 2.0.0 note, ?v=75)
+- Load smoke re-run live, machine quiet: **200 bots/1 zone p95 83.5 ms**
+  (15,484 samples, 200/200 moved, 89 MB rss) · **1000 bots/8 worker zones
+  p95 98.5 ms** (70,253 samples, 1000/1000 moved, 263 MB rss) — the MP8
+  recorded band within noise, 2.5–3× headroom under the 250 ms budget
+- i18n parity **65/65** (editor 31 + mp-i18n 34; 62 keys/pack incl. the E3
+  additions) · versions **2.0.0 × 7 sites** · patch-notes **?v=75** in BOTH
+  help.ts and shims.d.ts · editor.css v70 / data.js v36 correctly untouched ·
+  FORMAT_VERSION **2** · docs-site **28 pages** · all THREE server bundles
+  build (`beacon.mjs` + `zone-worker.mjs` + `room-worker.mjs`) and
+  `beacon.mjs --help` evaluates headless
+
+### Safety checklist PASS (re-audited from source)
+
+- **Chat off by default:** `chatModeOf` defaults `"off"`; ONE shared
+  `resolveSay` (presets always pass; free text only under `"text"`, then
+  `censorChat`-masked) enforced on all four transports — server room.ts:339,
+  server zone.ts:350, RoomHost :163 (peer) and :204 (host-own).
+- **Mute** never on the wire (protocol.ts's only "mute" is the comment saying
+  so); `ClientMod` = action+target+reason?, `ServerReport` = 2 public pids +
+  name + capped hint.
+- **Moderation logs** carry passport fingerprints, never `source`
+  (player-report at beacon-world.ts:306); `source` exists only in rate-limit
+  buckets + the two documented transient abuse events.
+- **Room codes** 9 × 30-alphabet = 44.15 bits ≥ 40, CSPRNG rejection-sampled
+  (REJECT_AT 240); live normalization proven (lowercase+dashes joined).
+- **Keepalive (F-4 closed):** `{t:"ping"}` liveness-only in BOTH routers
+  (early-return before any phase logic), RelayClient 20 s unref'd interval,
+  `idleTimeoutMs` 90 s.
+- **Parent page (Online-Safety)** re-verified claim-by-claim: accurate, F-5
+  per-passport wording fixed, relay honestly "once it's available".
+- **F-1 fix verified at all three source layers:** the Team Up button sends
+  the real `{k:"partyInvite"}` intent through the active client
+  (social-ui.ts:203 → co-op.ts mpInvite), Zone.frame routes party verbs to
+  `runtime.onPartyIntent` (zone.ts:326), and the D-8-6 `Battle` stub is the
+  real headless runner (`createHeadlessBattle`, zone-event-runtime.ts).
+
+### Fresh-eyes playthrough (live browser, real relay + real world server)
+
+Shipped demo project + one creator-authored Battle event (the editor's own
+command shape) + `relayUrl` set via the DB field — no dev-hook connection path.
+Title → **Play Together** → Create Room → code `ZJ8-J02-SCT` → second tab joins
+typed `zj8-j02-sct` (normalized) and lands beside the host at 5,6 on Driftwood
+Shore. Scripted timing of the system's share of the flow: **create→code 211 ms,
+join→in-room 234 ms** — at human typing speed the flow is the prior gate's
+≈30 s, far under the 60 s budget. Wrong code → "Couldn't find that room — check
+the code and try again." verbatim. 💬 panel: 9 emotes, the demo's 8 phrases,
+"Free typing is off — use emotes and quick phrases.", owner-view
+Mute/Report/Kick/Ban. **Team Up (the button) → real "Join!" consent → party
+[1,2] on both mirrors → the host `act`s on the battle event (the D-9E-E4-1
+trigger; this pane's CDP keys don't reach the game input system — the
+Playwright e2e proves real keyboard) → shared battle runs SERVER-SIDE in the
+room worker → both tabs drive their own real battleCmd UI → victory → BOTH
+players' gold 150→165 (full payout each, A-8) → overlays close.** Along the
+way the AFK all-guard was observed doing its job live (slow rounds resolved
+all-guard; nobody hung; stale answers dropped harmlessly). Zero console/page
+errors on either tab. World leg: Play Together → Join a World → address →
+passport **silently auto-created** (exact no-PII key set
+`{v,kind,name,created,publicKeyJwk,privateKeyJwk}` verified live) → challenge
+sign-in → server logs `zone-created {mapId:4}` (engine events ON) +
+`world-join` → in.
+
+### Findings (this re-gate)
+
+- **R-1 · docs (FIXED IN-GATE, commit `72ec558`).** The server runs no
+  random-encounter roll anywhere — online battles come ONLY from authored
+  Battle events, and in a friend room events run on the STARTING map — but the
+  wiki's battle sections never said so, while the showcase's own battles are
+  all step encounters. One honest bullet added to
+  Making-Your-Game-Multiplayer's "Where co-op battles run" callout + one
+  clause in Hosting-a-World; docs-site rebuilt (28 pages, 2 changed).
+- **R-2 · showcase (non-blocking, flagged to Driftwood).** The co-op demo
+  (`Atlas_Quest_Coop.json`) has no battle content — its shore has 3 events,
+  none a battle, and the map's encounter list is empty (and step encounters
+  would not fire online anyway, R-1). Team Up works in the demo but there is
+  nothing to fight, so the D5 headline isn't showcased by the shipped demo.
+  Post-tag content patch: add a practice-dummy Battle event to the demo shore
+  via `scripts/coop-demo-config.mjs` (derived project — frozen maps untouched).
+- **R-3 · client polish nit (post-2.0 ledger).** A `battleCmd` window whose
+  round timed out lingers on the client and stacks under the next round's
+  window (the server already escape-resolved it; answering the stale window is
+  dropped harmlessly). Cosmetic — close stale command windows when their
+  round's deadline event arrives.
+- **F-3 carry (operator, release-day).** `beacon.rpgatlas.app` still does not
+  resolve (checked live). Docs are now honest about it (E3); deploy the relay
+  before announcing "zero setup", or keep leading with the self-host one-liner.
+
+### Ruling
+
+The F-1 blocker is closed in substance, not just in tests: D5 co-op battles
+are reachable end-to-end through the shipped UI and run server-side, proven
+live this session. All numeric, safety, version, and i18n gates hold. R-1
+(fixed), R-2/R-3 (non-blocking content/polish), and F-3 (operator step,
+honestly documented) do not block a truthful 2.0.0.
+
+**VERDICT: GO. Tag `beacon-9` + `v2.0.0`.** Project Beacon MP0–MP9 complete —
+RPGAtlas 2.0.0 ships real online multiplayer: rooms, worlds, passports, chat
+safety, moderation, and friends fighting side by side.
