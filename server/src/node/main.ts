@@ -43,7 +43,12 @@ function parseArgs(argv: string[]): Args {
     const a = argv[i];
     const next = () => argv[++i];
     if (a === "--project" || a === "-p") out.project = next();
-    else if (a === "--port") out.port = Number(next()) || 8787;
+    // `--port 0` means an OS-assigned ephemeral port (standard listen(0); the
+    // real port is read back from the socket and printed in the banner). Only a
+    // missing/invalid value falls back to the 8787 default — `|| 8787` used to
+    // clobber a legitimate 0, so two beacons on `--port 0` both grabbed 8787 and
+    // the second died on EADDRINUSE (surfaced by the MP9·E parallel relay e2e).
+    else if (a === "--port") { const p = Number(next()); out.port = Number.isFinite(p) && p >= 0 ? p : 8787; }
     else if (a === "--host") out.host = next();
     else if (a === "--max-players") out.maxPlayers = Number(next()) || undefined;
     else if (a === "--max-rooms") out.maxRooms = Number(next()) || undefined;
