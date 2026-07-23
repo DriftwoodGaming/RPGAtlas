@@ -88,6 +88,27 @@ const vm = require("node:vm");
   assert.equal(interp0.testCond({ kind: "playerCount", cmp: ">=", val: 2 }), true, "count 3 >= 2");
   assert.equal(interp0.testCond({ kind: "playerCount", cmp: "==", val: 3 }), true, "count == 3");
 
+  // ---- testCond: variable-vs-variable + item-count operands (conditional-
+  // branch expansion that shipped with Show Choices conditions). Both are
+  // additive: without the new fields the old comparisons are byte-identical.
+  G.vars = { 1: 5, 2: 5, 3: 9 };
+  assert.equal(interp0.testCond({ kind: "var", id: 1, cmp: "==", val: 999, valVarId: 2 }), true,
+    "var-vs-var compares the two variables (constant val is ignored)");
+  assert.equal(interp0.testCond({ kind: "var", id: 1, cmp: ">=", valVarId: 3 }), false, "5 >= 9 is false");
+  assert.equal(interp0.testCond({ kind: "var", id: 1, cmp: "==", val: 5, valVarId: 0 }), true,
+    "valVarId 0 keeps the classic constant comparison");
+  assert.equal(interp0.testCond({ kind: "var", id: 4, cmp: "==", valVarId: 5 }), true,
+    "unset variables read 0 on both sides");
+  G.inv = { item: { 7: 3 }, weapon: {}, armor: {} };
+  assert.equal(interp0.testCond({ kind: "item", id: 7 }), true, "classic has-item check unchanged");
+  assert.equal(interp0.testCond({ kind: "item", id: 9 }), false, "classic has-item check: none owned");
+  assert.equal(interp0.testCond({ kind: "item", id: 7, count: 3, cmp: ">=" }), true, "owned 3 >= 3");
+  assert.equal(interp0.testCond({ kind: "item", id: 7, count: 4, cmp: ">=" }), false, "owned 3 >= 4 is false");
+  assert.equal(interp0.testCond({ kind: "item", id: 7, count: 3 }), true, "count compare defaults to >=");
+  assert.equal(interp0.testCond({ kind: "item", id: 9, count: 0, cmp: "==" }), true, "count == 0 expresses 'has none'");
+  assert.equal(interp0.testCond({ kind: "item", id: 7, val: 99 }), true,
+    "a stale val (editor kind-flip leftovers) never becomes a count compare");
+
   // ---- Wait for All Players: instant in solo, bounded barrier online ----
   let frameWaits = 0;
   const waitSvc = {

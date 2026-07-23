@@ -187,13 +187,24 @@ export class Interp {
         }
         return !!G.switches[cond.id] === (cond.val !== false);
       case "var":
-        return cmp(G.vars[cond.id] || 0, cond.val, cond.cmp || ">=");
+        // valVarId ≥ 1 compares against another variable (amount-from-variable
+        // pattern, matching CmdGold/CmdItem); absent/0 is the constant `val`.
+        return cmp(
+          G.vars[cond.id] || 0,
+          Number(cond.valVarId) >= 1 ? G.vars[cond.valVarId] || 0 : cond.val,
+          cond.cmp || ">=",
+        );
       case "selfsw":
         return !!G.selfSw[this.selfKey(cond.key)];
       case "quest":
         return Quests.status(cond.questId) === (cond.status || "active");
       case "item":
-        return invCount(cond.itemKind || "item", cond.id) > 0;
+        // A present `count` compares the owned count (dedicated field — a
+        // stale `val` left by editor kind-flipping must not change behavior);
+        // absent keeps the classic "owns at least one" check.
+        return cond.count != null
+          ? cmp(invCount(cond.itemKind || "item", cond.id), cond.count, cond.cmp || ">=")
+          : invCount(cond.itemKind || "item", cond.id) > 0;
       case "gold":
         // currencyId ≥ 2 reads a wallet balance; absent/0/1 is classic gold.
         return cmp(currencyBalance(cond.currencyId), cond.val, cond.cmp || ">=");

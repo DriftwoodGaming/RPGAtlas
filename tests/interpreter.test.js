@@ -228,6 +228,51 @@ async function loadRegistry() {
     assert.equal(ran.length, 1, "choices runs exactly one branch");
     assert.equal(ran[0][0].name, "no", "choices runs the branch the reply picked");
 
+    // choices per-option conditions (post-2.0.1): unmet options are hidden
+    // from the directive and the picked visible index maps back to the
+    // AUTHORED branch. testCond is the interpreter's — mocked here; the real
+    // operands are covered in mp-commands.test.js.
+    ran.length = 0;
+    let sent = null;
+    const condInterp = {
+      origin,
+      testCond: (k) => !k || k.met !== false,
+      runList: async (list) => { ran.push(list); },
+    };
+    const condSvc = {
+      presentation: { localEcho: true, choices: async (o, d) => { sent = d; return 1; } },
+    };
+    await getCommand("choices")(
+      { t: "choices", options: ["A", "B", "C"], conditions: [{ met: false }, null, { met: true }],
+        branches: [[{ t: "label", name: "a" }], [{ t: "label", name: "b" }], [{ t: "label", name: "c" }]] },
+      { interp: condInterp, state: pstate, services: condSvc },
+    );
+    assert.deepEqual(Array.from(sent.options), ["B", "C"], "unmet options are hidden from the directive");
+    assert.equal(sent.cancelable, undefined, "cancelable stays off the wire unless authored");
+    assert.equal(ran.length, 1, "conditional choices still run exactly one branch");
+    assert.equal(ran[0][0].name, "c", "visible index 1 maps back to authored branch C");
+
+    // every option hidden → the whole command is skipped (no directive, no branch).
+    sent = null; ran.length = 0;
+    await getCommand("choices")(
+      { t: "choices", options: ["A"], conditions: [{ met: false }], branches: [[{ t: "label" }]] },
+      { interp: condInterp, state: pstate, services: condSvc },
+    );
+    assert.equal(sent, null, "all-hidden choices never reach the presentation port");
+    assert.equal(ran.length, 0, "…and run no branch");
+
+    // cancelable rides the directive; a canceled reply (-1) runs nothing.
+    sent = null; ran.length = 0;
+    const cancelSvc = {
+      presentation: { localEcho: true, choices: async (o, d) => { sent = d; return -1; } },
+    };
+    await getCommand("choices")(
+      { t: "choices", options: ["A", "B"], cancelable: true, branches: [[{ t: "label" }], [{ t: "label" }]] },
+      { interp: condInterp, state: pstate, services: cancelSvc },
+    );
+    assert.equal(sent.cancelable, true, "authored cancelable rides the directive");
+    assert.equal(ran.length, 0, "canceled choices run no branch");
+
     // shop: localEcho (loopback) skips the transcript re-apply; a remote
     // session (localEcho false) applies it through services.applyShopTranscript.
     const goods = [{ kind: "item", id: 2 }];

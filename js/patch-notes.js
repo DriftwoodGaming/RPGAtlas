@@ -4,6 +4,20 @@
 
 export const PATCH_NOTES = [
   {
+    date: "July 22, 2026",
+    title: "Choices can hide themselves — and smarter conditions",
+    summary:
+      "Show Choices options can now appear only when a condition is met, and Conditional Branch learns to compare two variables or count your items.",
+    items: [
+      "Show Choices: give any choice its own condition with the new “Only if…” button — a locked door can offer “Use the Rusty Key” only when the player actually has it. Hidden choices keep their branches; if every choice is hidden, the event just moves on.",
+      "Show Choices: a new “Player can cancel” checkbox lets Esc (or the B button) close the window without picking — nothing runs and the event continues. Great for optional shops and menus.",
+      "Conditional Branch: Variable conditions can compare against another variable, not just a fixed number — “if Coins Collected ≥ Coins Needed” finally reads the way you think it.",
+      "Conditional Branch: Has-item conditions can count — check for “Potion ≥ 3” or even “Herb == 0”, instead of only “has at least one”.",
+      "The event list shows all of it at a glance: conditional choices are marked in the command line, and each “When [choice]” branch label says which condition guards it.",
+      "Everything is optional and backwards-friendly: events you made before behave exactly as they always did.",
+    ],
+  },
+  {
     date: "July 21, 2026",
     title: "Play Together connects to Cloudflare-hosted play servers",
     summary:

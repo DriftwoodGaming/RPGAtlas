@@ -85,6 +85,30 @@ import { openLocationPicker } from "./location-picker";
     return row(field("Red (−255…255)", rIn), field("Green", gIn), field("Blue", bIn), field("Gray (0…255)", grIn), field("", presetSel));
   }
 
+  /** One-line human description of a Condition — extracted verbatim from the
+   *  Conditional Branch summary so Show Choices per-option rows and the
+   *  command list's branch labels can share it. Output is unchanged for
+   *  pre-upgrade shapes; only the new operands (variable-vs-variable, item
+   *  count) add text. */
+  export function condSummary(cond: any): string {
+    const swName = (id: any) => id + (S.proj.system.switches[id - 1] ? " (" + S.proj.system.switches[id - 1] + ")" : "");
+    const varName = (id: any) => id + (S.proj.system.variables[id - 1] ? " (" + S.proj.system.variables[id - 1] + ")" : "");
+    const dbName = (arr: any, id: any) => { const e = RA.byId(arr, id); return e ? e.name : "#" + id; };
+    const questName = (id: any) => dbName(S.proj.quests || [], id);
+    const k = cond.kind;
+    return k === "switch" ? "Switch " + swName(cond.id) + (cond.val === false ? " is OFF" : " is ON")
+      : k === "var" ? "Var " + varName(cond.id) + " " + (cond.cmp || ">=") + " " + (Number(cond.valVarId) >= 1 ? "Var " + varName(cond.valVarId) : cond.val)
+      : k === "selfsw" ? "Self-Switch " + cond.key + " is ON"
+      : k === "quest" ? "Quest " + questName(cond.questId) + " is " + (cond.status || "active")
+      : k === "item" ? "Has " + dbName(cond.itemKind === "weapon" ? S.proj.weapons : cond.itemKind === "armor" ? S.proj.armors : S.proj.items, cond.id) + (cond.count != null ? " " + (cond.cmp || ">=") + " " + cond.count : "")
+      : k === "region" ? "Player in region " + (cond.id || 0)
+      : k === "time" ? "Clock is " + (cond.from || 0) + ":00–" + (cond.to || 0) + ":00"
+      : k === "online" ? "Playing online is " + (cond.val === false ? "OFF" : "ON")
+      : k === "playerCount" ? "Player count " + (cond.cmp || ">=") + " " + (cond.val || 0)
+      : k === "mzScript" ? "Script: " + (cond.code || "").split("\n")[0].slice(0, 38)
+      : (cond.currencyId > 1 ? currencyLabel(cond.currencyId) : "Gold") + " " + (cond.cmp || ">=") + " " + cond.val;
+  }
+
   // ============================ command definitions ============================
   export function cmdSummary(c: any) {
     const swName = (id: any) => id + (S.proj.system.switches[id - 1] ? " (" + S.proj.system.switches[id - 1] + ")" : "");
@@ -100,25 +124,11 @@ import { openLocationPicker } from "./location-picker";
     };
     switch (c.t) {
       case "text": return "Text" + (c.name ? " [" + c.name + "]" : "") + (c.face ? " (face)" : "") + (c.to === "all" ? " → everyone" : "") + ": " + c.text.split("\n")[0].slice(0, 42);
-      case "choices": return "Show Choices: " + c.options.join(" / ");
+      case "choices": return "Show Choices: " + c.options.map((o: any, i: any) => o + (c.conditions && c.conditions[i] ? " (if…)" : "")).join(" / ") + (c.cancelable ? " — can cancel" : "");
       case "switch": return "Switch " + swName(c.id) + " = " + (c.val ? "ON" : "OFF") + (c.scope === "player" ? " (per-player)" : "");
       case "selfsw": return "Self-Switch " + c.key + " = " + (c.val ? "ON" : "OFF");
       case "var": return "Variable " + varName(c.id) + " " + (c.op === "set" ? "=" : c.op === "add" ? "+=" : c.op === "sub" ? "−=" : "= rnd") + " " + c.val + (c.op === "rnd" ? ".." + (c.val2 || c.val) : "");
-      case "if": {
-        const k = c.cond.kind;
-        const d = k === "switch" ? "Switch " + swName(c.cond.id) + (c.cond.val === false ? " is OFF" : " is ON")
-          : k === "var" ? "Var " + varName(c.cond.id) + " " + (c.cond.cmp || ">=") + " " + c.cond.val
-          : k === "selfsw" ? "Self-Switch " + c.cond.key + " is ON"
-          : k === "quest" ? "Quest " + questName(c.cond.questId) + " is " + (c.cond.status || "active")
-          : k === "item" ? "Has " + dbName(c.cond.itemKind === "weapon" ? S.proj.weapons : c.cond.itemKind === "armor" ? S.proj.armors : S.proj.items, c.cond.id)
-          : k === "region" ? "Player in region " + (c.cond.id || 0)
-          : k === "time" ? "Clock is " + (c.cond.from || 0) + ":00–" + (c.cond.to || 0) + ":00"
-          : k === "online" ? "Playing online is " + (c.cond.val === false ? "OFF" : "ON")
-          : k === "playerCount" ? "Player count " + (c.cond.cmp || ">=") + " " + (c.cond.val || 0)
-          : k === "mzScript" ? "Script: " + (c.cond.code || "").split("\n")[0].slice(0, 38)
-          : (c.cond.currencyId > 1 ? currencyLabel(c.cond.currencyId) : "Gold") + " " + (c.cond.cmp || ">=") + " " + c.cond.val;
-        return "If " + d;
-      }
+      case "if": return "If " + condSummary(c.cond);
       case "loop": return "Loop";
       case "breakLoop": return "Break Loop";
       case "questStart": return "Start Quest: " + questName(c.questId);
@@ -243,6 +253,157 @@ import { openLocationPicker } from "./location-picker";
         "\\i, \\c and the [b]/[i]/[color]/[size] tags need the Atlas_TextCodes plugin (on by default)."));
   }
 
+  /** The Condition editor fields — extracted from the Conditional Branch form
+   *  so Show Choices can reuse them for per-option show conditions. Renders
+   *  into `el`; `commit()` applies the same normalization the Conditional
+   *  Branch form always did (plus cleanup of the two UI-only scratch fields
+   *  the new operands use), mutating `w` in place. */
+  function conditionFields(w: any) {
+    const root = h("div");
+    const sub = h("div");
+    function redraw() {
+      sub.innerHTML = "";
+      if (w.kind === "switch") {
+        // MP7·B: a switch condition can read the shared switch (World) or the
+        // triggering player's own copy (This player).
+        if (w.scope !== "player") w.scope = "world";
+        const csOpts: any = [{ v: "world", l: "World (shared)" }, { v: "player", l: "This player" }];
+        csOpts.stringValues = true;
+        sub.appendChild(row(field("Switch", sel(w, "id", switchOpts())), field("Is", sel(w, "val", [{ v: "true", l: "ON" }, { v: "false", l: "OFF" }])),
+          field("Scope", sel(w, "scope", csOpts))));
+      } else if (w.kind === "var") {
+        // Compare with another variable (valVarId ≥ 1) or a constant — the
+        // same amount-from-variable pattern as Change Gold / Change Items.
+        if (w.src == null) w.src = Number(w.valVarId) >= 1 ? "var" : "const";
+        if (w.valVarId == null) w.valVarId = 0;
+        const valSpan = h("span", { id: "ifvarval" });
+        const redrawVal = () => {
+          valSpan.innerHTML = "";
+          valSpan.appendChild(w.src === "var" ? sel(w, "valVarId", varOpts()) : nIn(w, "val"));
+        };
+        sub.appendChild(row(field("Variable", sel(w, "id", varOpts())),
+          field("Cmp", sel(w, "cmp", cmpOpts())),
+          field("Compare with", sel(w, "src", [{ v: "const", l: "Constant" }, { v: "var", l: "Another variable" }], redrawVal)),
+          field("Value", valSpan)));
+        redrawVal();
+      } else if (w.kind === "selfsw") {
+        sub.appendChild(field("Self-Switch", sel(w, "key", [{ v: "A", l: "A" }, { v: "B", l: "B" }, { v: "C", l: "C" }, { v: "D", l: "D" }])));
+      } else if (w.kind === "quest") {
+        sub.appendChild(row(field("Quest", sel(w, "questId", dbOpts(S.proj.quests, "(none)"))),
+          field("Status", sel(w, "status", stringSelOpts(["inactive", "active", "completed", "failed", "abandoned"])))));
+      } else if (w.kind === "item") {
+        const kindSel = sel(w, "itemKind", [{ v: "item", l: "Item" }, { v: "weapon", l: "Weapon" }, { v: "armor", l: "Armor" }], redrawItem);
+        sub.appendChild(row(field("Kind", kindSel), field("Entry", h("span", { id: "ifitem" }))));
+        redrawItem();
+        function redrawItem() {
+          const arr = w.itemKind === "weapon" ? S.proj.weapons : w.itemKind === "armor" ? S.proj.armors : S.proj.items;
+          const span = sub.querySelector("#ifitem") || sub;
+          span.innerHTML = "";
+          span.appendChild(sel(w, "id", dbOpts(arr)));
+        }
+        // Optional count comparison (kept on the condition as `count` only in
+        // compare mode, so classic "has it" conditions keep their old shape).
+        if (w.countMode == null) w.countMode = w.count != null ? "cmp" : "any";
+        if (w.count == null) w.count = 1;
+        const amtWrap = h("span");
+        const redrawAmt = () => {
+          amtWrap.innerHTML = "";
+          if (w.countMode === "cmp") {
+            amtWrap.appendChild(sel(w, "cmp", cmpOpts()));
+            amtWrap.appendChild(nIn(w, "count", 0, 9999));
+          } else {
+            amtWrap.appendChild(h("span", { class: "dim" }, "(1 or more)"));
+          }
+        };
+        sub.appendChild(row(field("How many", sel(w, "countMode", [{ v: "any", l: "Has at least 1" }, { v: "cmp", l: "Compare count…" }], redrawAmt)),
+          field("Count", amtWrap)));
+        redrawAmt();
+      } else if (w.kind === "actor") {
+        if (!w.actorId) w.actorId = S.proj.actors[0] ? S.proj.actors[0].id : 1;
+        if (!w.check) w.check = "inParty";
+        if (w.itemId == null) w.itemId = 0;
+        const checkSel = sel(w, "check", [
+          { v: "inParty", l: "Is in Party" },
+          { v: "weapon", l: "Has Weapon Equipped" },
+          { v: "armor", l: "Has Armor Equipped" }
+        ], redrawActorCheck);
+        const itemSpan = h("span", { id: "actoritem" });
+        sub.appendChild(row(
+          field("Actor", sel(w, "actorId", dbOpts(S.proj.actors))),
+          field("Check", checkSel),
+          field("Equipment", itemSpan)
+        ));
+        redrawActorCheck();
+        function redrawActorCheck() {
+          const span = sub.querySelector("#actoritem") || itemSpan;
+          span.innerHTML = "";
+          if (w.check === "weapon") {
+            span.appendChild(sel(w, "itemId", dbOpts(S.proj.weapons, "(none)")));
+          } else if (w.check === "armor") {
+            span.appendChild(sel(w, "itemId", dbOpts(S.proj.armors, "(none)")));
+          } else {
+            span.appendChild(h("span", { class: "dim" }, "N/A"));
+          }
+        }
+      } else if (w.kind === "region") {
+        sub.appendChild(row(field("Region id (0–63; player's tile)", nIn(w, "id", 0, 63))));
+      } else if (w.kind === "time") {
+        sub.appendChild(row(field("From hour (0–24)", nIn(w, "from", 0, 24)),
+          field("Until hour (wraps past midnight)", nIn(w, "to", 0, 24))));
+      } else if (w.kind === "online") {
+        // MP7·B: is this game currently playing online (in a room)?
+        sub.appendChild(row(field("Playing online is", sel(w, "val", [{ v: "true", l: "ON (in a room)" }, { v: "false", l: "OFF (single-player)" }]))));
+        sub.appendChild(h("div", { class: "dim" }, "True while friends are playing together in a room; false in a normal single-player game."));
+      } else if (w.kind === "playerCount") {
+        // MP7·B: how many players share the room (yourself included; 1 in solo).
+        // Coerce the cloned value to a number (the shared `val` may arrive as
+        // a switch's boolean when the author flips kinds without editing it).
+        if (typeof w.val !== "number") w.val = 2;
+        sub.appendChild(row(field("Players in room", nIn(w, "val", 1, 16)),
+          field("Compare", sel(w, "cmp", cmpOpts()))));
+        sub.appendChild(h("div", { class: "dim" }, "Counts everyone in the room including this player. A single-player game always has 1."));
+      } else {
+        if (w.currencyId == null) w.currencyId = 1;
+        sub.appendChild(row(field("Currency", sel(w, "currencyId", currencyOpts())),
+          field("Is", sel(w, "cmp", [{ v: ">=", l: "≥" }, { v: "<=", l: "≤" }])), field("Value", nIn(w, "val"))));
+      }
+    }
+    root.appendChild(field("Condition type", sel(w, "kind", [
+      { v: "switch", l: "Switch" }, { v: "var", l: "Variable" }, { v: "selfsw", l: "Self-Switch" },
+      { v: "quest", l: "Quest Status" }, { v: "item", l: "Has item" }, { v: "gold", l: "Gold" }, { v: "actor", l: "Actor" },
+      { v: "region", l: "Player Region" }, { v: "time", l: "Time of Day" },
+      { v: "online", l: "Playing Online" }, { v: "playerCount", l: "Player Count" }
+    ], redraw)));
+    if (w.kind === "item" && !w.itemKind) w.itemKind = "item";
+    if (w.kind === "selfsw" && !w.key) w.key = "A";
+    if (w.kind === "quest") {
+      if (w.questId == null) w.questId = 0;
+      if (!w.status) w.status = "active";
+    }
+    root.appendChild(sub);
+    redraw();
+    return {
+      el: root,
+      commit() {
+        if (w.val === "true") w.val = true;
+        if (w.val === "false") w.val = false;
+        // Only gold conditions keep a currencyId, and only for wallet ids —
+        // classic-gold conditions stay in their pre-wallet shape.
+        if (w.kind !== "gold" || Number(w.currencyId) <= 1) delete w.currencyId;
+        // MP7·B: a switch condition keeps `scope` only when per-player, so
+        // world-scope switch conditions stay byte-identical to pre-MP7.
+        if (w.kind !== "switch" || w.scope !== "player") delete w.scope;
+        // Variable-vs-variable: keep valVarId only when a real variable is
+        // picked; item count-compare: keep `count` only in compare mode. The
+        // two mode pickers are UI-only scratch and never saved.
+        if (w.kind !== "var" || w.src !== "var" || Number(w.valVarId) < 1) delete w.valVarId;
+        if (w.kind !== "item" || w.countMode !== "cmp") delete w.count;
+        delete w.src;
+        delete w.countMode;
+      },
+    };
+  }
+
   // each entry: label, make(), form(c, box) -> apply()
   export const CMD_DEFS: any[] = [
     { t: "text", label: "Show Text", make: () => ({ t: "text", name: "", face: "", text: "" }),
@@ -280,121 +441,67 @@ import { openLocationPicker } from "./location-picker";
       form(c: any, box: any) {
         const ta = h("textarea", { rows: 4 }, c.options.join("\n"));
         box.appendChild(field("Choices (one per line)", ta));
+        // Per-option show conditions: one row per line, kept in step with the
+        // textarea as the author types. Conditions (like branches) belong to
+        // their line NUMBER, and each is edited with the same fields as
+        // Conditional Branch in a small nested dialog.
+        const conds: any[] = (c.conditions || []).map((k: any) => (k ? RA.clone(k) : null));
+        const w = { cancelable: !!c.cancelable };
+        const lines = () => ta.value.split("\n").map((s: any) => s.trim()).filter(Boolean);
+        const condList = h("div", { class: "minilist" });
+        function redrawConds() {
+          condList.innerHTML = "";
+          lines().forEach((opt: any, i: any) => {
+            condList.appendChild(h("div", { class: "minirow" },
+              h("span", null, opt + " — "),
+              h("span", { class: conds[i] ? "" : "dim" }, conds[i] ? "if " + condSummary(conds[i]) : "always shown"),
+              h("button", { class: "mini", onclick() { editOptionCond(i); } }, conds[i] ? "Edit…" : "Only if…"),
+              conds[i] ? h("button", { class: "mini", onclick() { conds[i] = null; redrawConds(); } }, "✕") : null));
+          });
+        }
+        function editOptionCond(i: number) {
+          const cw = conds[i] ? RA.clone(conds[i]) : { kind: "switch", id: 1, val: true };
+          if (!cw.kind) cw.kind = "switch";
+          const cf = conditionFields(cw);
+          modal({
+            title: "Show this choice only if…",
+            content: cf.el,
+            buttons: [
+              { label: "OK", primary: true, onClick(close: any) { cf.commit(); conds[i] = cw; close(); redrawConds(); } },
+              { label: "Cancel" },
+            ],
+            dialogKeys: true,
+          });
+        }
+        ta.addEventListener("input", redrawConds);
+        redrawConds();
+        box.appendChild(h("div", { class: "fld" }, h("span", null, "Show each choice… (optional)"), condList));
+        box.appendChild(row(field("Player can cancel (Esc closes, nothing runs)", chk(w, "cancelable"))));
+        box.appendChild(h("div", { class: "dim" },
+          "A choice whose condition isn't met is hidden when the event runs — its branch and the others keep their places. If every choice is hidden, the command is skipped."));
         box.appendChild(textCodesHelp());
         return () => {
           const opts = ta.value.split("\n").map((s: any) => s.trim()).filter(Boolean);
           if (!opts.length) opts.push("OK");
           const br = opts.map((_: any, i: any) => c.branches[i] || []);
           c.options = opts; c.branches = br;
+          // Keep the fields only when actually used, so untouched commands
+          // stay in their pre-upgrade shape (same policy as valVarId/scope).
+          const trimmed = opts.map((_: any, i: any) => conds[i] || null);
+          if (trimmed.some(Boolean)) c.conditions = trimmed; else delete c.conditions;
+          if (w.cancelable) c.cancelable = true; else delete c.cancelable;
         };
       } },
     { t: "if", label: "Conditional Branch", make: () => ({ t: "if", cond: { kind: "switch", id: 1, val: true }, then: [], else: [] }),
       form(c: any, box: any) {
+        // The condition fields live in conditionFields() (shared with Show
+        // Choices' per-option conditions); commit order is unchanged.
         const w = RA.clone(c.cond);
         if (!w.kind) w.kind = "switch";
-        const sub = h("div");
-        function redraw() {
-          sub.innerHTML = "";
-          if (w.kind === "switch") {
-            // MP7·B: a switch condition can read the shared switch (World) or the
-            // triggering player's own copy (This player).
-            if (w.scope !== "player") w.scope = "world";
-            const csOpts: any = [{ v: "world", l: "World (shared)" }, { v: "player", l: "This player" }];
-            csOpts.stringValues = true;
-            sub.appendChild(row(field("Switch", sel(w, "id", switchOpts())), field("Is", sel(w, "val", [{ v: "true", l: "ON" }, { v: "false", l: "OFF" }])),
-              field("Scope", sel(w, "scope", csOpts))));
-          } else if (w.kind === "var") {
-            sub.appendChild(row(field("Variable", sel(w, "id", varOpts())),
-              field("Cmp", sel(w, "cmp", cmpOpts())),
-              field("Value", nIn(w, "val"))));
-          } else if (w.kind === "selfsw") {
-            sub.appendChild(field("Self-Switch", sel(w, "key", [{ v: "A", l: "A" }, { v: "B", l: "B" }, { v: "C", l: "C" }, { v: "D", l: "D" }])));
-          } else if (w.kind === "quest") {
-            sub.appendChild(row(field("Quest", sel(w, "questId", dbOpts(S.proj.quests, "(none)"))),
-              field("Status", sel(w, "status", stringSelOpts(["inactive", "active", "completed", "failed", "abandoned"])))));
-          } else if (w.kind === "item") {
-            const kindSel = sel(w, "itemKind", [{ v: "item", l: "Item" }, { v: "weapon", l: "Weapon" }, { v: "armor", l: "Armor" }], redrawItem);
-            sub.appendChild(row(field("Kind", kindSel), field("Entry", h("span", { id: "ifitem" }))));
-            redrawItem();
-            function redrawItem() {
-              const arr = w.itemKind === "weapon" ? S.proj.weapons : w.itemKind === "armor" ? S.proj.armors : S.proj.items;
-              const span = sub.querySelector("#ifitem") || sub;
-              span.innerHTML = "";
-              span.appendChild(sel(w, "id", dbOpts(arr)));
-            }
-          } else if (w.kind === "actor") {
-            if (!w.actorId) w.actorId = S.proj.actors[0] ? S.proj.actors[0].id : 1;
-            if (!w.check) w.check = "inParty";
-            if (w.itemId == null) w.itemId = 0;
-            const checkSel = sel(w, "check", [
-              { v: "inParty", l: "Is in Party" },
-              { v: "weapon", l: "Has Weapon Equipped" },
-              { v: "armor", l: "Has Armor Equipped" }
-            ], redrawActorCheck);
-            const itemSpan = h("span", { id: "actoritem" });
-            sub.appendChild(row(
-              field("Actor", sel(w, "actorId", dbOpts(S.proj.actors))),
-              field("Check", checkSel),
-              field("Equipment", itemSpan)
-            ));
-            redrawActorCheck();
-            function redrawActorCheck() {
-              const span = sub.querySelector("#actoritem") || itemSpan;
-              span.innerHTML = "";
-              if (w.check === "weapon") {
-                span.appendChild(sel(w, "itemId", dbOpts(S.proj.weapons, "(none)")));
-              } else if (w.check === "armor") {
-                span.appendChild(sel(w, "itemId", dbOpts(S.proj.armors, "(none)")));
-              } else {
-                span.appendChild(h("span", { class: "dim" }, "N/A"));
-              }
-            }
-          } else if (w.kind === "region") {
-            sub.appendChild(row(field("Region id (0–63; player's tile)", nIn(w, "id", 0, 63))));
-          } else if (w.kind === "time") {
-            sub.appendChild(row(field("From hour (0–24)", nIn(w, "from", 0, 24)),
-              field("Until hour (wraps past midnight)", nIn(w, "to", 0, 24))));
-          } else if (w.kind === "online") {
-            // MP7·B: is this game currently playing online (in a room)?
-            sub.appendChild(row(field("Playing online is", sel(w, "val", [{ v: "true", l: "ON (in a room)" }, { v: "false", l: "OFF (single-player)" }]))));
-            sub.appendChild(h("div", { class: "dim" }, "True while friends are playing together in a room; false in a normal single-player game."));
-          } else if (w.kind === "playerCount") {
-            // MP7·B: how many players share the room (yourself included; 1 in solo).
-            // Coerce the cloned value to a number (the shared `val` may arrive as
-            // a switch's boolean when the author flips kinds without editing it).
-            if (typeof w.val !== "number") w.val = 2;
-            sub.appendChild(row(field("Players in room", nIn(w, "val", 1, 16)),
-              field("Compare", sel(w, "cmp", cmpOpts()))));
-            sub.appendChild(h("div", { class: "dim" }, "Counts everyone in the room including this player. A single-player game always has 1."));
-          } else {
-            if (w.currencyId == null) w.currencyId = 1;
-            sub.appendChild(row(field("Currency", sel(w, "currencyId", currencyOpts())),
-              field("Is", sel(w, "cmp", [{ v: ">=", l: "≥" }, { v: "<=", l: "≤" }])), field("Value", nIn(w, "val"))));
-          }
-        }
-        box.appendChild(field("Condition type", sel(w, "kind", [
-          { v: "switch", l: "Switch" }, { v: "var", l: "Variable" }, { v: "selfsw", l: "Self-Switch" },
-          { v: "quest", l: "Quest Status" }, { v: "item", l: "Has item" }, { v: "gold", l: "Gold" }, { v: "actor", l: "Actor" },
-          { v: "region", l: "Player Region" }, { v: "time", l: "Time of Day" },
-          { v: "online", l: "Playing Online" }, { v: "playerCount", l: "Player Count" }
-        ], redraw)));
-        if (w.kind === "item" && !w.itemKind) w.itemKind = "item";
-        if (w.kind === "selfsw" && !w.key) w.key = "A";
-        if (w.kind === "quest") {
-          if (w.questId == null) w.questId = 0;
-          if (!w.status) w.status = "active";
-        }
-        box.appendChild(sub);
-        redraw();
+        const cf = conditionFields(w);
+        box.appendChild(cf.el);
         return () => {
-          if (w.val === "true") w.val = true;
-          if (w.val === "false") w.val = false;
-          // Only gold conditions keep a currencyId, and only for wallet ids —
-          // classic-gold conditions stay in their pre-wallet shape.
-          if (w.kind !== "gold" || Number(w.currencyId) <= 1) delete w.currencyId;
-          // MP7·B: a switch condition keeps `scope` only when per-player, so
-          // world-scope switch conditions stay byte-identical to pre-MP7.
-          if (w.kind !== "switch" || w.scope !== "player") delete w.scope;
+          cf.commit();
           c.cond = w;
           if (!c.then) c.then = [];
           if (!c.else) c.else = [];

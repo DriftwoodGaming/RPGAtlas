@@ -12,7 +12,7 @@ import { RA, t, editorState as S } from "../editor-state";
 import { h } from "../dom";
 import { touch } from "../persistence";
 import { flashStatus } from "../map-editor/status";
-import { cmdSummary, editCommand, pickCommand } from "./command-defs";
+import { cmdSummary, condSummary, editCommand, pickCommand } from "./command-defs";
 
   // Depth-first walk of a command list (recursing into if/choices branches),
   // calling cb for every command. Shared by the event searcher and map-delete
@@ -42,7 +42,8 @@ import { cmdSummary, editCommand, pickCommand } from "./command-defs";
         out.push({ arr: c.else, idx: c.else.length, depth: depth + 1, slot: true });
       } else if (c.t === "choices") {
         c.options.forEach((o: any, bi: any) => {
-          out.push({ label: "▸ When [" + o + "]", depth });
+          const oc = c.conditions && c.conditions[bi];
+          out.push({ label: "▸ When [" + o + "]" + (oc ? " — if " + condSummary(oc) : ""), depth });
           buildCmdRows(c.branches[bi], depth + 1, out);
           out.push({ arr: c.branches[bi], idx: c.branches[bi].length, depth: depth + 1, slot: true });
         });

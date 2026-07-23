@@ -800,9 +800,20 @@ export interface Condition {
   code?: string;
   val?: boolean | number;
   cmp?: string;
+  /** kind "var": compare against another game variable instead of the
+   *  constant `val`. ids ≥ 1 read that variable at run time and `val` is
+   *  ignored — the same amount-from-variable pattern as CmdGold/CmdItem.
+   *  Absent/0 = the constant `val` (exact pre-upgrade shape). */
+  valVarId?: number;
   key?: string; // selfsw
   questId?: number;
   status?: QuestStatus;
+  /** kind "item": when `count` is present the condition compares the owned
+   *  count (`cmp`, default ">=") against it. A dedicated field — NOT `val` —
+   *  because kind-flipping in the editor can leave stale val/cmp on a
+   *  condition; absent `count` keeps the classic "owns at least one" check,
+   *  byte-identical for existing projects. */
+  count?: number;
   itemKind?: ItemKind;
   actorId?: number;
   check?: "inParty" | "weapon" | "armor" | string;
@@ -831,6 +842,17 @@ export interface CmdChoices {
   t: "choices";
   options: string[];
   branches: AnyCommand[][];
+  /** Per-option show conditions, parallel to `options`. An option whose
+   *  condition is unmet is hidden at run time; its branch keeps its authored
+   *  index (the interpreter maps the pick back). null/absent entries always
+   *  show; an absent array = every option shows (the exact pre-upgrade shape,
+   *  so untouched projects stay byte-identical). If every option is hidden the
+   *  whole command is skipped. Additive/optional. */
+  conditions?: (Condition | null)[];
+  /** When true the player may close the choice window (Esc/B) without picking;
+   *  no branch runs and the event continues. Absent = cancel disallowed (the
+   *  pre-upgrade behavior). Additive/optional. */
+  cancelable?: boolean;
 }
 export interface CmdIf {
   t: "if";

@@ -156,8 +156,8 @@ the button to edit or delete it.
 | **Show Text** | Display a message window. Optional speaker **name** and **face** portrait. Supports [text codes](Message-Text-Codes). |
 | **Call Common Event** | Run a reusable command sequence from Database ▸ Common Events. |
 | **Play Dialogue** | Run a reusable conversation or cutscene from Tools ▸ Dialogue & Cutscenes. |
-| **Show Choices** | Offer the player options, each branching to its own sub-list of commands. |
-| **Conditional Branch** | Run commands only **if** a condition is true (switch, self-switch, variable, quest, item, gold, actor, [player region](Maps-and-Tiles#regions--numbered-zone-tags), time-of-day clock window…), with an optional **else**. |
+| **Show Choices** | Offer the player options, each branching to its own sub-list of commands. Any choice can carry its own **Only if…** condition — it's hidden unless the condition is met (if every choice is hidden the command is skipped) — and **Player can cancel** lets Esc close the window with no branch run. |
+| **Conditional Branch** | Run commands only **if** a condition is true (switch, self-switch, variable — against a number **or another variable**, quest, item — owned at all **or a counted amount**, gold, actor, [player region](Maps-and-Tiles#regions--numbered-zone-tags), time-of-day clock window…), with an optional **else**. |
 | **Loop** | Repeat its body until a **Break Loop** command runs inside it. |
 | **Break Loop** | Exit the innermost enclosing Loop and continue after it. |
 | **Label** | Mark a named spot in this command list. |

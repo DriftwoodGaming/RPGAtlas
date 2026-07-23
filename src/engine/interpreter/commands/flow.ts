@@ -31,8 +31,28 @@ export function registerFlowCommands(): void {
   });
 
   registerCommand("choices", async (c: any, { interp, services }: InterpContext) => {
-    const i = await services.presentation.choices(interp.origin, { options: c.options });
-    await interp.runList(c.branches[i] || []);
+    // Per-option conditions: an option whose condition is unmet is hidden and
+    // the picked visible index maps back to its authored branch. A command
+    // with no conditions array emits the exact pre-upgrade directive. When
+    // every option is hidden the whole command is skipped (nothing to ask).
+    const all: string[] = c.options || [];
+    const conds = Array.isArray(c.conditions) ? c.conditions : null;
+    const branchOf: number[] = [];
+    const options = !conds
+      ? all
+      : all.filter((_o, oi) => {
+          if (!interp.testCond(conds[oi])) return false;
+          branchOf.push(oi);
+          return true;
+        });
+    if (!options.length) return;
+    const d: any = { options };
+    // Cancelable rides the directive (renderer + reply validation already
+    // support it); a canceled reply resolves to -1 and no branch runs.
+    if (c.cancelable) d.cancelable = true;
+    const i = await services.presentation.choices(interp.origin, d);
+    if (i < 0) return;
+    await interp.runList(c.branches[conds ? branchOf[i] : i] || []);
   });
 
   // ---- Message-system input scenes (Beacon MP3·B: presentation directives) ----
