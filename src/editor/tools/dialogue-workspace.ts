@@ -6,15 +6,14 @@
 
 import { Assets, RA, Sfx, editorState as S } from "../editor-state";
 import {
-  h, tIn, nIn, sel, field, row, dbOpts, switchOpts, varOpts, cmpOpts,
-  charsetOpts, typeSelOpts, SE_OPTS,
+  h, tIn, nIn, sel, chk, field, row, charsetOpts, SE_OPTS,
 } from "../dom";
 import { modal, confirmBox } from "../modals";
 import { touch } from "../persistence";
 import { beginEdit, endEdit } from "../edit-scope";
 import type { ScopeSpec } from "../scoped-restore";
 import { cmdListWidget } from "../event-editor/command-list";
-import { cmdSummary } from "../event-editor/command-defs";
+import { cmdSummary, condSummary, conditionGroupWidget } from "../event-editor/command-defs";
 import { flashStatus } from "../map-editor/status";
 
 let liveRefresh: null | (() => void) = null;
@@ -47,69 +46,40 @@ function speakerOf(dialogue: any, node: any): any {
 function nodeLabel(dialogue: any, node: any): string {
   if (!node) return "Missing node";
   if (node.kind === "choice") return "Choice · " + String(node.text || "Choose…").split("\n")[0].slice(0, 38);
+  if (node.kind === "hub") return "Topic Hub · " + String(node.text || "Ask about…").split("\n")[0].slice(0, 34);
   if (node.kind === "cutscene") return "Cutscene · " + (node.label || (node.commands || []).length + " commands");
   const speaker = speakerOf(dialogue, node);
   return (speaker ? speaker.name + " · " : "") + String(node.text || "Empty line").split("\n")[0].slice(0, 42);
 }
 
-function defaultCondition(kind: string): any {
-  if (kind === "switch") return { kind, id: 1, val: true };
-  if (kind === "var") return { kind, id: 1, cmp: ">=", val: 0 };
-  if (kind === "quest") return { kind, questId: S.proj.quests[0] ? S.proj.quests[0].id : 0, status: "active" };
-  if (kind === "item") return { kind, itemKind: "item", id: S.proj.items[0] ? S.proj.items[0].id : 0 };
-  if (kind === "gold") return { kind, cmp: ">=", val: 0 };
-  if (kind === "actor") return { kind, actorId: S.proj.actors[0] ? S.proj.actors[0].id : 0, check: "inParty" };
-  if (kind === "region") return { kind, id: 0 };
-  return { kind: "time", from: 6, to: 18 };
-}
-
-function conditionEditor(node: any, redraw: () => void): any {
-  const wrap = h("div", { class: "dialogue-condition" });
-  const kind = node.condition && node.condition.kind ? node.condition.kind : "";
-  const kindSelect = h("select", { onchange(e: any) {
-    const next = e.target.value;
-    if (next) node.condition = defaultCondition(next);
-    else delete node.condition;
-    touch(); redraw();
-  } },
-  ...[
-    ["", "Always"], ["switch", "Switch"], ["var", "Variable"], ["quest", "Quest status"],
-    ["item", "Has item"], ["gold", "Gold"], ["actor", "Actor in party"],
-    ["region", "Player region"], ["time", "Time of day"],
-  ].map(([v, l]) => h("option", { value: v, ...(kind === v ? { selected: "" } : {}) }, l)));
-  wrap.appendChild(field("Run when", kindSelect));
-  const c = node.condition;
-  if (!c) return wrap;
-  if (c.kind === "switch") {
-    const val = h("select", { onchange(e: any) { c.val = e.target.value === "true"; touch(); } },
-      h("option", { value: "true", ...(c.val !== false ? { selected: "" } : {}) }, "ON"),
-      h("option", { value: "false", ...(c.val === false ? { selected: "" } : {}) }, "OFF"));
-    wrap.appendChild(row(field("Switch", sel(c, "id", switchOpts())), field("Is", val)));
-  } else if (c.kind === "var") {
-    wrap.appendChild(row(field("Variable", sel(c, "id", varOpts())), field("Compare", sel(c, "cmp", cmpOpts())), field("Value", nIn(c, "val"))));
-  } else if (c.kind === "quest") {
-    const statuses: any = ["inactive", "active", "completed", "failed", "abandoned"].map((v) => ({ v, l: v }));
-    statuses.stringValues = true;
-    wrap.appendChild(row(field("Quest", sel(c, "questId", dbOpts(S.proj.quests, "(none)"))), field("Status", sel(c, "status", statuses))));
-  } else if (c.kind === "item") {
-    const kinds: any = [{ v: "item", l: "Item" }, { v: "weapon", l: "Weapon" }, { v: "armor", l: "Armor" }];
-    kinds.stringValues = true;
-    const list = c.itemKind === "weapon" ? S.proj.weapons : c.itemKind === "armor" ? S.proj.armors : S.proj.items;
-    wrap.appendChild(row(field("Kind", sel(c, "itemKind", kinds, redraw)), field("Entry", sel(c, "id", dbOpts(list, "(none)")))));
-  } else if (c.kind === "gold") {
-    // currencyId is kept only for wallet ids (≥ 2) — picking the classic gold
-    // entry (id 1) restores the condition's pre-wallet shape.
-    wrap.appendChild(row(
-      field("Currency", sel(c, "currencyId", typeSelOpts("currencyTypes"), (v: any) => { if (Number(v) <= 1) delete c.currencyId; })),
-      field("Is", sel(c, "cmp", cmpOpts())), field("Value", nIn(c, "val", 0))));
-  } else if (c.kind === "actor") {
-    wrap.appendChild(field("Actor", sel(c, "actorId", dbOpts(S.proj.actors, "(none)"))));
-  } else if (c.kind === "region") {
-    wrap.appendChild(field("Region id", nIn(c, "id", 0, 63)));
-  } else if (c.kind === "time") {
-    wrap.appendChild(row(field("From hour", nIn(c, "from", 0, 24)), field("Until hour", nIn(c, "to", 0, 24))));
+/** The "Only if…" control shared by nodes, choice options and topics. It
+ *  opens the SAME multi-condition builder the event system uses, so every
+ *  operand available to Conditional Branch (self-switches, variable-vs-
+ *  variable, item counts, online state…) is available here too — and, like
+ *  there, several conditions can be combined with ALL/ANY.
+ *  `owner.condition` is the single storage slot; absent means always. */
+function conditionCell(owner: any, redraw: () => void, alwaysLabel: string): any {
+  const has = !!owner.condition;
+  function open() {
+    const group = conditionGroupWidget(owner.condition, { emptyLabel: "No conditions — " + alwaysLabel + "." });
+    modal({
+      title: "Only if…",
+      content: group.el,
+      buttons: [
+        { label: "OK", primary: true, onClick(close: any) {
+          const value = group.value();
+          if (value) owner.condition = value; else delete owner.condition;
+          touch(); close(); redraw();
+        } },
+        { label: "Cancel" },
+      ],
+      dialogKeys: true,
+    });
   }
-  return wrap;
+  return h("span", { class: "dialogue-cond-cell" },
+    h("span", { class: has ? "dialogue-cond-text" : "dim" }, has ? "if " + condSummary(owner.condition) : alwaysLabel),
+    h("button", { class: "mini", onclick: open }, has ? "Edit…" : "Only if…"),
+    has ? h("button", { class: "mini danger", onclick() { delete owner.condition; touch(); redraw(); } }, "✕") : null);
 }
 
 function openSpeakerManager(dialogue: any, after: () => void): void {
@@ -169,10 +139,25 @@ function openPreview(dialogue: any): void {
         node.key ? h("code", null, node.key) : null));
     content.appendChild(bubble);
     if (node.voice) content.appendChild(h("button", { class: "mini", onclick: () => Sfx.play(node.voice) }, "▶ Voice cue"));
-    if (node.kind === "choice") {
+    if (node.kind === "hub") {
+      // The preview shows the whole pool (conditions are assumed true) in the
+      // order the player would see it, so the priority ordering is checkable
+      // without launching the game.
+      const pool = (dialogue.topics || []).slice()
+        .sort((a: any, b: any) => (Number(b.priority) || 0) - (Number(a.priority) || 0));
+      const cap = Number(node.maxTopics) || 0;
+      for (const topic of (cap > 0 ? pool.slice(0, cap) : pool)) {
+        content.appendChild(h("button", { class: "dialogue-preview-choice", onclick: () => show(Number(topic.nextId) || 0) },
+          (topic.text || "Topic") + (topic.condition ? " (if…)" : "")));
+      }
+      if (!pool.length) content.appendChild(h("div", { class: "dim" }, "No topics in this dialogue's pool yet."));
+      const exitText = node.exitText == null ? "Leave" : String(node.exitText);
+      if (exitText) content.appendChild(h("button", { onclick: () => show(Number(node.nextId) || 0) }, exitText));
+    } else if (node.kind === "choice") {
       const options = node.options || [];
       if (!options.length) content.appendChild(h("button", { onclick: () => show(Number(node.nextId) || 0) }, "Continue"));
-      for (const option of options) content.appendChild(h("button", { class: "dialogue-preview-choice", onclick: () => show(Number(option.nextId) || Number(node.nextId) || 0) }, option.text || "Choice"));
+      for (const option of options) content.appendChild(h("button", { class: "dialogue-preview-choice", onclick: () => show(Number(option.nextId) || Number(node.nextId) || 0) },
+        (option.text || "Choice") + (option.condition ? " (if…)" : "")));
     } else {
       content.appendChild(h("button", { class: "primary", onclick: () => show(Number(node.nextId) || 0) }, "Continue"));
     }
@@ -184,12 +169,16 @@ function openPreview(dialogue: any): void {
 function generateKeys(dialogue: any): void {
   const slug = String(dialogue.name || "dialogue").toLowerCase().replace(/[^a-z0-9]+/g, ".").replace(/^\.+|\.+$/g, "") || "dialogue";
   for (const node of dialogue.nodes || []) {
-    if ((node.kind === "line" || node.kind === "choice") && !node.key) node.key = "dialogue." + slug + "." + node.id;
+    if ((node.kind === "line" || node.kind === "choice" || node.kind === "hub") && !node.key) node.key = "dialogue." + slug + "." + node.id;
     if (node.kind === "choice") {
       (node.options || []).forEach((option: any, index: number) => {
         if (!option.key) option.key = "dialogue." + slug + "." + node.id + ".choice." + (index + 1);
       });
     }
+  }
+  // Topics live on the asset rather than a node, so they key off the pool.
+  for (const topic of dialogue.topics || []) {
+    if (!topic.key) topic.key = "dialogue." + slug + ".topic." + topic.id;
   }
   touch();
   flashStatus("Generated missing dialogue localization keys");
@@ -224,9 +213,16 @@ export function openDialogueWorkspace(initialDialogueId?: number, initialNodeId?
     const id = RA.nextId(dialogue.nodes);
     const next: any = kind === "choice"
       ? { id, kind, speakerId: 0, portrait: "", voice: "", text: "What will you say?", key: "", nextId: 0, options: [{ text: "Choice", key: "", nextId: 0 }] }
-      : kind === "cutscene"
-        ? { id, kind, label: "Cutscene commands", commands: [], nextId: 0 }
-        : { id, kind: "line", speakerId: 0, portrait: "", voice: "", text: "New dialogue line.", key: "", nextId: 0 };
+      : kind === "hub"
+        ? { id, kind, speakerId: 0, portrait: "", voice: "", text: "What do you want to ask about?", key: "", nextId: 0, exitText: "Leave", includeIds: [], maxTopics: 0 }
+        : kind === "cutscene"
+          ? { id, kind, label: "Cutscene commands", commands: [], nextId: 0 }
+          : { id, kind: "line", speakerId: 0, portrait: "", voice: "", text: "New dialogue line.", key: "", nextId: 0 };
+    // A brand-new hub with nothing to offer is a dead end, so seed the pool.
+    if (kind === "hub") {
+      dialogue.topics = Array.isArray(dialogue.topics) ? dialogue.topics : [];
+      if (!dialogue.topics.length) dialogue.topics.push({ id: 1, text: "New topic", key: "", nextId: 0 });
+    }
     dialogue.nodes.push(next);
     if (!dialogue.startNodeId) dialogue.startNodeId = id;
     else if (node && !node.nextId) node.nextId = id;
@@ -241,6 +237,8 @@ export function openDialogueWorkspace(initialDialogueId?: number, initialNodeId?
       if (other.nextId === target.id) other.nextId = 0;
       for (const option of other.options || []) if (option.nextId === target.id) option.nextId = 0;
     }
+    // Topics route to nodes too, so a deleted node must not leave one dangling.
+    for (const topic of dialogue.topics || []) if (topic.nextId === target.id) topic.nextId = 0;
     if (dialogue.startNodeId === target.id) dialogue.startNodeId = dialogue.nodes[0] ? dialogue.nodes[0].id : 0;
     node = RA.byId(dialogue.nodes, dialogue.startNodeId) || dialogue.nodes[0] || null;
     touch(); redraw();
@@ -281,6 +279,7 @@ export function openDialogueWorkspace(initialDialogueId?: number, initialNodeId?
       h("b", null, "Conversation tree"),
       h("button", { onclick: () => addNode("line") }, "+ Line"),
       h("button", { onclick: () => addNode("choice") }, "+ Choice"),
+      h("button", { onclick: () => addNode("hub") }, "+ Topic Hub"),
       h("button", { onclick: () => addNode("cutscene") }, "+ Cutscene")));
     const tree = h("div", { class: "dialogue-tree" });
     const rendered = new Set<number>();
@@ -308,7 +307,10 @@ export function openDialogueWorkspace(initialDialogueId?: number, initialNodeId?
       },
       h("span", { class: "dialogue-node-id" }, (current.id === dialogue.startNodeId ? "START · " : "") + "#" + current.id),
       branchLabel ? h("span", { class: "dialogue-branch-label" }, branchLabel) : null,
-      h("b", null, current.kind === "cutscene" ? (current.label || "Cutscene") : current.kind === "choice" ? "Choice" : (speaker ? speaker.name : "Narrator")),
+      h("b", null, current.kind === "cutscene" ? (current.label || "Cutscene")
+        : current.kind === "choice" ? "Choice"
+        : current.kind === "hub" ? "Topic Hub"
+        : (speaker ? speaker.name : "Narrator")),
       h("span", null, current.kind === "cutscene" ? (current.commands || []).length + " command(s)" : String(current.text || "").split("\n")[0].slice(0, 70)),
       current.condition ? h("span", { class: "dialogue-node-badge" }, "Conditional") : null,
       current.voice ? h("span", { class: "dialogue-node-badge" }, "Voice") : null,
@@ -317,7 +319,29 @@ export function openDialogueWorkspace(initialDialogueId?: number, initialNodeId?
       if (current.kind === "choice") {
         const options = current.options || [];
         if (!options.length) renderBranch(Number(current.nextId) || 0, depth + 1, "No options");
-        options.forEach((option: any) => renderBranch(Number(option.nextId) || Number(current.nextId) || 0, depth + 1, option.text || "Choice"));
+        // The label carries the guard, so a glance at the tree says which
+        // options are conditional — the same "(if…)" cue the command list uses.
+        options.forEach((option: any) => renderBranch(Number(option.nextId) || Number(current.nextId) || 0, depth + 1,
+          (option.text || "Choice") + (option.condition ? " (if " + condSummary(option.condition) + ")" : "")));
+      } else if (current.kind === "hub") {
+        // A hub's branches are its dialogue's topics, in the order the player
+        // will see them (priority first) — plus wherever "leave" goes.
+        const pool = (dialogue.topics || []).slice()
+          .sort((a: any, b: any) => (Number(b.priority) || 0) - (Number(a.priority) || 0));
+        if (!pool.length) tree.appendChild(h("div", { class: "dialogue-end warning", style: "--depth:" + (depth + 1) }, "No topics yet — add one in the inspector"));
+        for (const topic of pool) {
+          renderBranch(Number(topic.nextId) || 0, depth + 1,
+            "❓ " + (topic.text || "Topic")
+            + (Number(topic.priority) ? " [p" + topic.priority + "]" : "")
+            + (topic.once ? " (once)" : "")
+            + (topic.condition ? " (if " + condSummary(topic.condition) + ")" : ""));
+        }
+        for (const id2 of current.includeIds || []) {
+          const extra = RA.byId(S.proj.dialogues, Number(id2));
+          tree.appendChild(h("div", { class: "dialogue-end", style: "--depth:" + (depth + 1) },
+            "+ topics from " + (extra ? extra.name : "missing dialogue #" + id2)));
+        }
+        renderBranch(Number(current.nextId) || 0, depth + 1, (current.exitText || "Leave") + " →");
       } else renderBranch(Number(current.nextId) || 0, depth, undefined);
       visiting.delete(id);
     };
@@ -340,7 +364,7 @@ export function openDialogueWorkspace(initialDialogueId?: number, initialNodeId?
     inspector.appendChild(h("div", { class: "dialogue-inspector-actions" },
       h("button", { class: node.id === dialogue.startNodeId ? "sel" : "", onclick() { dialogue.startNodeId = node.id; touch(); redraw(); } }, node.id === dialogue.startNodeId ? "✓ Start node" : "Make start"),
       h("button", { class: "danger", onclick: () => confirmBox("Delete node #" + node.id + "?", () => deleteNode(node)) }, "Delete node")));
-    inspector.appendChild(conditionEditor(node, redrawInspector));
+    inspector.appendChild(field("Run this node when", conditionCell(node, () => { redrawInspector(); redrawTree(); }, "always")));
     if (node.kind === "cutscene") {
       inspector.appendChild(field("Label", tIn(node, "label")));
       inspector.appendChild(field("After commands", sel(node, "nextId", targetOpts(dialogue), redrawTree)));
@@ -357,10 +381,12 @@ export function openDialogueWorkspace(initialDialogueId?: number, initialNodeId?
     inspector.appendChild(field("Speaker", sel(node, "speakerId", speakers, redraw)));
     inspector.appendChild(row(field("Portrait override", sel(node, "portrait", portraits, redrawInspector)), facePreview(node.portrait || (speakerOf(dialogue, node) || {}).portrait || "")));
     inspector.appendChild(row(field("Voice cue", sel(node, "voice", voices)), node.voice ? h("button", { class: "mini", onclick: () => Sfx.play(node.voice) }, "▶") : null));
-    const textarea = h("textarea", { rows: node.kind === "choice" ? 3 : 6, oninput(e: any) { node.text = e.target.value; touch(); redrawTree(); } }, node.text || "");
-    inspector.appendChild(field(node.kind === "choice" ? "Prompt" : "Dialogue text", textarea));
+    const isHub = node.kind === "hub";
+    const textarea = h("textarea", { rows: node.kind === "choice" || isHub ? 3 : 6, oninput(e: any) { node.text = e.target.value; touch(); redrawTree(); } }, node.text || "");
+    inspector.appendChild(field(node.kind === "choice" ? "Prompt" : isHub ? "Prompt shown above the topic list (optional)" : "Dialogue text", textarea));
     inspector.appendChild(field("Localization key", tIn(node, "key")));
-    inspector.appendChild(field(node.kind === "choice" ? "Fallback when no option is linked" : "Next node", sel(node, "nextId", targetOpts(dialogue), redrawTree)));
+    inspector.appendChild(field(node.kind === "choice" ? "Fallback when no option is linked"
+      : isHub ? "After leaving the topic list" : "Next node", sel(node, "nextId", targetOpts(dialogue), redrawTree)));
     if (node.kind === "choice") {
       inspector.appendChild(h("div", { class: "subhead" }, "Player choices"));
       node.options = Array.isArray(node.options) ? node.options : [];
@@ -370,10 +396,65 @@ export function openDialogueWorkspace(initialDialogueId?: number, initialNodeId?
         field("Text", tIn(option, "text")),
         field("Localization key", tIn(option, "key")),
         field("Goes to", sel(option, "nextId", targetOpts(dialogue), redrawTree)),
+        // Per-option show condition — the Dialogue System's own "Only if…",
+        // matching Show Choices on event pages.
+        field("Show this option", conditionCell(option, () => { redrawInspector(); redrawTree(); }, "always shown")),
         h("button", { class: "mini danger", onclick() { node.options.splice(index, 1); touch(); redraw(); } }, "×"))));
       options.appendChild(h("button", { onclick() { node.options.push({ text: "Choice", key: "", nextId: 0 }); touch(); redraw(); } }, "+ Add choice"));
       inspector.appendChild(options);
+      inspector.appendChild(h("div", { class: "dim" },
+        "An option whose condition isn't met is left out of the list; the rest keep their own targets. If every option is hidden the node falls through to its fallback."));
     }
+    if (isHub) redrawHubInspector();
+  }
+
+  /** The Topic Hub inspector: the hub's own settings, then the dialogue's
+   *  topic pool. Topics are edited HERE rather than in the tree because the
+   *  point of the model is that they are a flat list — you add one and it
+   *  shows up, instead of wiring it into a branch. */
+  function redrawHubInspector() {
+    inspector.appendChild(row(
+      field("\"Stop asking\" option (blank = none)", tIn(node, "exitText")),
+      field("Show at most (0 = all)", nIn(node, "maxTopics", 0, 99))));
+    // Topic pools borrowed from other dialogue assets: a shared "Guild
+    // topics" asset can hang off every guild member's hub.
+    node.includeIds = Array.isArray(node.includeIds) ? node.includeIds : [];
+    const others = S.proj.dialogues.filter((entry: any) => entry !== dialogue);
+    const includes = h("div", { class: "minilist" });
+    node.includeIds.forEach((id: any, index: number) => {
+      const entry = RA.byId(S.proj.dialogues, Number(id));
+      includes.appendChild(h("div", { class: "minirow" },
+        h("span", null, entry ? entry.name : "Missing dialogue #" + id),
+        h("button", { class: "mini danger", onclick() { node.includeIds.splice(index, 1); touch(); redrawInspector(); } }, "✕")));
+    });
+    if (others.length) {
+      const picker = { id: 0 };
+      includes.appendChild(h("div", { class: "minirow" },
+        sel(picker, "id", [{ v: 0, l: "(pick a dialogue)" }].concat(others.map((entry: any) => ({ v: entry.id, l: entry.name })))),
+        h("button", { class: "mini", onclick() {
+          if (picker.id && !node.includeIds.includes(picker.id)) { node.includeIds.push(picker.id); touch(); redrawInspector(); }
+        } }, "+ Include")));
+    }
+    inspector.appendChild(h("div", { class: "fld" }, h("span", null, "Also offer topics from"), includes));
+
+    inspector.appendChild(h("div", { class: "subhead" }, "Topic pool (" + (dialogue.topics || []).length + ")"));
+    inspector.appendChild(h("div", { class: "dim" },
+      "Every topic whose condition is met is offered in one list, highest priority first. Topics belong to the whole dialogue, so any hub in it (or any hub that includes it) can offer them."));
+    dialogue.topics = Array.isArray(dialogue.topics) ? dialogue.topics : [];
+    const topics = h("div", { class: "dialogue-topics" });
+    dialogue.topics.forEach((topic: any, index: number) => topics.appendChild(h("div", { class: "dialogue-topic-row" },
+      field("Topic", tIn(topic, "text")),
+      field("Goes to", sel(topic, "nextId", targetOpts(dialogue), redrawTree)),
+      field("Priority", nIn(topic, "priority", -99, 99)),
+      field("Ask once", chk(topic, "once")),
+      field("Localization key", tIn(topic, "key")),
+      field("Offer this topic", conditionCell(topic, () => { redrawInspector(); redrawTree(); }, "always offered")),
+      h("button", { class: "mini danger", onclick() { dialogue.topics.splice(index, 1); touch(); redraw(); } }, "×"))));
+    topics.appendChild(h("button", { onclick() {
+      dialogue.topics.push({ id: RA.nextId(dialogue.topics), text: "New topic", key: "", nextId: 0 });
+      touch(); redraw();
+    } }, "+ Add topic"));
+    inspector.appendChild(topics);
   }
 
   function redraw() { redrawAssets(); redrawTree(); redrawInspector(); }

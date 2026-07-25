@@ -48,6 +48,12 @@ assert.match(workspaceChrome, /Dialogue & Cutscenes/, "Tools exposes the dedicat
 assert.match(workspaceSource, /Conversation tree/);
 assert.match(workspaceSource, /Generate keys/);
 assert.match(workspaceSource, /Voice cue/);
+assert.match(workspaceSource, /\+ Topic Hub/, "the tree toolbar can add a Topic Hub node");
+assert.match(workspaceSource, /Topic pool/, "a selected hub edits the dialogue's topic pool inline");
+assert.match(commandSource, /export function conditionGroupWidget/,
+  "the multi-condition (ALL/ANY) builder is exported for reuse");
+assert.match(workspaceSource, /conditionGroupWidget/,
+  "dialogue conditions use the shared event-system picker, not a reduced local one");
 assert.match(commandSource, /t: "dialogue", label: "Play Dialogue"/,
   "the event picker and Atlas Graph expose reusable dialogue assets");
 

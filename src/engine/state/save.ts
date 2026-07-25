@@ -99,6 +99,8 @@ function buildSavePayload(): any {
       selfSw: G.selfSw,
       // Per-player switches (Beacon MP7·B). Old saves lack it → {} on load.
       pSwitches: G.pSwitches || {},
+      // Spent "say once" dialogue topics. Old saves lack it → {} on load.
+      topicsUsed: G.topicsUsed || {},
       quests: G.quests,
       party: G.party,
       inv: G.inv,
@@ -146,6 +148,7 @@ async function applySave(d: any): Promise<void> {
   G.vars = d.vars || {};
   G.selfSw = d.selfSw || {};
   G.pSwitches = d.pSwitches || {}; // Beacon MP7·B (absent in old saves)
+  G.topicsUsed = d.topicsUsed || {}; // say-once topics (absent in old saves)
   G.quests = d.quests || {};
   G.party = d.party || [];
   G.inv = d.inv || { item: {}, weapon: {}, armor: {} };

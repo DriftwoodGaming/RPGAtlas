@@ -91,6 +91,15 @@ import { openLocationPicker } from "./location-picker";
    *  pre-upgrade shapes; only the new operands (variable-vs-variable, item
    *  count) add text. */
   export function condSummary(cond: any): string {
+    if (!cond) return "always";
+    // Condition groups read as their members joined by AND/OR. A nested group
+    // is parenthesized so "A and (B or C)" stays unambiguous at a glance.
+    if (cond.kind === "all" || cond.kind === "any") {
+      const parts = (cond.conds || []).map((sub: any) =>
+        (sub && (sub.kind === "all" || sub.kind === "any")) ? "(" + condSummary(sub) + ")" : condSummary(sub));
+      if (!parts.length) return "always";
+      return parts.join(cond.kind === "all" ? " AND " : " OR ");
+    }
     const swName = (id: any) => id + (S.proj.system.switches[id - 1] ? " (" + S.proj.system.switches[id - 1] + ")" : "");
     const varName = (id: any) => id + (S.proj.system.variables[id - 1] ? " (" + S.proj.system.variables[id - 1] + ")" : "");
     const dbName = (arr: any, id: any) => { const e = RA.byId(arr, id); return e ? e.name : "#" + id; };
@@ -258,7 +267,7 @@ import { openLocationPicker } from "./location-picker";
    *  into `el`; `commit()` applies the same normalization the Conditional
    *  Branch form always did (plus cleanup of the two UI-only scratch fields
    *  the new operands use), mutating `w` in place. */
-  function conditionFields(w: any) {
+  export function conditionFields(w: any) {
     const root = h("div");
     const sub = h("div");
     function redraw() {
@@ -404,6 +413,117 @@ import { openLocationPicker } from "./location-picker";
     };
   }
 
+  /** Opens the single-condition fields in their own dialog and hands back the
+   *  committed condition. Shared by every "Only if…" surface. */
+  function editOneCondition(initial: any, title: string, onDone: (cond: any) => void): void {
+    const w = initial ? RA.clone(initial) : { kind: "switch", id: 1, val: true };
+    if (!w.kind || w.kind === "all" || w.kind === "any") w.kind = "switch";
+    const cf = conditionFields(w);
+    modal({
+      title,
+      content: cf.el,
+      buttons: [
+        { label: "OK", primary: true, onClick(close: any) { cf.commit(); close(); onDone(w); } },
+        { label: "Cancel" },
+      ],
+      dialogKeys: true,
+    });
+  }
+
+  /** A LIST of conditions on one gate, with an All (AND) / Any (OR) match
+   *  mode — "only if you're in the guild AND have met Ravel". Shared by
+   *  Conditional Branch, Show Choices' per-option guards, and every condition
+   *  in the Dialogue workspace (nodes, choice options, topics).
+   *
+   *  Storage stays minimal on purpose: no conditions saves nothing, ONE
+   *  condition saves the bare pre-upgrade shape (so projects that never touch
+   *  a second condition are byte-identical), and only two or more produce an
+   *  {kind:"all"|"any", conds:[…]} group. A member may itself be a group, so
+   *  "A AND (B OR C)" is authorable by nesting one level down. */
+  export function conditionGroupWidget(initial: any, opts?: any) {
+    const options = opts || {};
+    const isGroup = (c: any) => !!c && (c.kind === "all" || c.kind === "any");
+    let mode: string = isGroup(initial) ? initial.kind : "all";
+    const rows: any[] = !initial ? []
+      : isGroup(initial) ? (initial.conds || []).filter(Boolean).map((c: any) => RA.clone(c))
+      : [RA.clone(initial)];
+
+    const el = h("div", { class: "condgroup" });
+    const modeWrap = h("div", { class: "condgroup-mode" });
+    const list = h("div", { class: "minilist" });
+    const onChange = () => { if (options.onChange) options.onChange(); };
+
+    function redraw() {
+      modeWrap.innerHTML = "";
+      // The match mode only means something once there are two conditions.
+      if (rows.length > 1) {
+        const modeOpts: any = [{ v: "all", l: "ALL of these must be true (AND)" }, { v: "any", l: "ANY one of these (OR)" }];
+        modeOpts.stringValues = true;
+        const holder = { mode };
+        // Redraw so the "and"/"or" word in front of each row follows the mode.
+        modeWrap.appendChild(field("Match", sel(holder, "mode", modeOpts, (v: any) => { mode = String(v); redraw(); onChange(); })));
+      }
+      list.innerHTML = "";
+      rows.forEach((cond: any, i: number) => {
+        list.appendChild(h("div", { class: "minirow" },
+          h("span", { class: "condgroup-join" }, i === 0 ? "if" : (mode === "all" ? "and" : "or")),
+          h("span", { class: "condgroup-text" }, condSummary(cond)),
+          h("button", { class: "mini", onclick() {
+            if (isGroup(cond)) editNested(i); else editOneCondition(cond, "Edit condition", (next: any) => { rows[i] = next; redraw(); onChange(); });
+          } }, "Edit…"),
+          h("button", { class: "mini danger", onclick() { rows.splice(i, 1); redraw(); onChange(); } }, "✕")));
+      });
+      if (!rows.length) list.appendChild(h("div", { class: "dim" }, options.emptyLabel || "No conditions — always true."));
+    }
+
+    // A nested group is edited by the same widget one level down, which is
+    // what makes "A AND (B OR C)" possible without a dedicated tree editor.
+    function editNested(i: number) {
+      const inner = conditionGroupWidget(rows[i]);
+      modal({
+        title: "Condition group",
+        content: inner.el,
+        buttons: [
+          { label: "OK", primary: true, onClick(close: any) {
+            const value = inner.value();
+            if (value) rows[i] = value; else rows.splice(i, 1);
+            close(); redraw(); onChange();
+          } },
+          // Backing out of a group that was created empty (the "+ Add group"
+          // button opens it straight away) leaves no stray row behind.
+          { label: "Cancel", onClick(close: any) {
+            if (isGroup(rows[i]) && !(rows[i].conds || []).length) { rows.splice(i, 1); redraw(); }
+            close();
+          } },
+        ],
+        dialogKeys: true,
+      });
+    }
+
+    el.append(modeWrap, list, h("div", { class: "condgroup-actions" },
+      h("button", { class: "mini", onclick() {
+        editOneCondition(null, "Add condition", (next: any) => { rows.push(next); redraw(); onChange(); });
+      } }, "+ Add condition"),
+      h("button", { class: "mini", onclick() {
+        rows.push({ kind: mode === "all" ? "any" : "all", conds: [] });
+        redraw(); onChange();
+        editNested(rows.length - 1);
+      } }, "+ Add group")));
+    redraw();
+
+    return {
+      el,
+      /** The condition to store: null when empty, the bare condition when
+       *  there is exactly one, a group only when there are several. */
+      value(): any {
+        const kept = rows.filter(Boolean).filter((c: any) => !(isGroup(c) && !(c.conds || []).length));
+        if (!kept.length) return null;
+        if (kept.length === 1) return kept[0];
+        return { kind: mode === "any" ? "any" : "all", conds: kept };
+      },
+    };
+  }
+
   // each entry: label, make(), form(c, box) -> apply()
   export const CMD_DEFS: any[] = [
     { t: "text", label: "Show Text", make: () => ({ t: "text", name: "", face: "", text: "" }),
@@ -460,14 +580,14 @@ import { openLocationPicker } from "./location-picker";
           });
         }
         function editOptionCond(i: number) {
-          const cw = conds[i] ? RA.clone(conds[i]) : { kind: "switch", id: 1, val: true };
-          if (!cw.kind) cw.kind = "switch";
-          const cf = conditionFields(cw);
+          // A LIST of conditions per option (All/Any) — one condition still
+          // stores the bare shape it always did.
+          const group = conditionGroupWidget(conds[i], { emptyLabel: "No conditions — this choice is always shown." });
           modal({
             title: "Show this choice only if…",
-            content: cf.el,
+            content: group.el,
             buttons: [
-              { label: "OK", primary: true, onClick(close: any) { cf.commit(); conds[i] = cw; close(); redrawConds(); } },
+              { label: "OK", primary: true, onClick(close: any) { conds[i] = group.value(); close(); redrawConds(); } },
               { label: "Cancel" },
             ],
             dialogKeys: true,
@@ -494,15 +614,16 @@ import { openLocationPicker } from "./location-picker";
       } },
     { t: "if", label: "Conditional Branch", make: () => ({ t: "if", cond: { kind: "switch", id: 1, val: true }, then: [], else: [] }),
       form(c: any, box: any) {
-        // The condition fields live in conditionFields() (shared with Show
-        // Choices' per-option conditions); commit order is unchanged.
-        const w = RA.clone(c.cond);
-        if (!w.kind) w.kind = "switch";
-        const cf = conditionFields(w);
-        box.appendChild(cf.el);
+        // A list of conditions with an All/Any match mode (shared with Show
+        // Choices' per-option guards and the Dialogue workspace). A branch
+        // that only ever had one condition still stores exactly that.
+        const group = conditionGroupWidget(c.cond, { emptyLabel: "No conditions — the Then branch always runs." });
+        box.appendChild(group.el);
+        box.appendChild(h("div", { class: "dim" },
+          "Add a second condition to choose between ALL of them (AND) and ANY of them (OR). \"+ Add group\" nests one level, for \"A and (B or C)\"."));
         return () => {
-          cf.commit();
-          c.cond = w;
+          const value = group.value();
+          if (value) c.cond = value; else delete c.cond;
           if (!c.then) c.then = [];
           if (!c.else) c.else = [];
         };

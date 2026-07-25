@@ -376,6 +376,7 @@ button.danger:hover { background: #6a3636; }
 .dialogue-node-card.choice { border-left: 4px solid #b886ff; }
 .dialogue-node-card.cutscene { border-left: 4px solid #f0ad4e; }
 .dialogue-node-card.line { border-left: 4px solid #58b8e8; }
+.dialogue-node-card.hub { border-left: 4px solid #55c9a2; }
 .dialogue-node-card.unlinked { display: block; color: var(--text-dim); border-style: dashed; }
 .dialogue-node-id { color: var(--text-dim); font-size: var(--fs-tiny); font-variant-numeric: tabular-nums; }
 .dialogue-node-card.sel .dialogue-node-id, .dialogue-node-card.sel code { color: #eaf0ff; }
@@ -393,6 +394,20 @@ button.danger:hover { background: #6a3636; }
 .dialogue-choice-options { display: flex; flex-direction: column; gap: 6px; }
 .dialogue-choice-row, .dialogue-speaker-row { display: flex; gap: 6px; align-items: flex-end; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line-2); border-radius: 6px; padding: 6px; }
 .dialogue-choice-number { align-self: center; color: var(--text-dim); font-weight: 700; }
+/* Topic pool rows (the "ask them about…" model) reuse the choice-row chrome. */
+.dialogue-topics { display: flex; flex-direction: column; gap: 6px; }
+.dialogue-topic-row { display: flex; gap: 6px; align-items: flex-end; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line-2); border-left: 3px solid #55c9a2; border-radius: 6px; padding: 6px; }
+.dialogue-topic-row .fld { min-width: 96px; }
+/* "Only if…" cell — summary plus the buttons that open the condition list. */
+.dialogue-cond-cell { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.dialogue-cond-text { color: #8fd3b8; }
+/* The shared multi-condition builder (Conditional Branch, Show Choices,
+   dialogue nodes/options/topics). */
+.condgroup { display: flex; flex-direction: column; gap: 6px; }
+.condgroup .minirow { background: var(--panel); border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 7px; }
+.condgroup-join { min-width: 28px; color: var(--text-dim); font-weight: 700; text-transform: uppercase; font-size: var(--fs-tiny); }
+.condgroup-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.condgroup-actions { display: flex; gap: 6px; }
 .dialogue-speakers { display: flex; flex-direction: column; gap: 8px; }
 .dialogue-preview { display: flex; flex-direction: column; gap: 9px; min-height: 240px; }
 .dialogue-preview-bubble { display: flex; gap: 12px; align-items: flex-start; padding: 14px; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 8px; }

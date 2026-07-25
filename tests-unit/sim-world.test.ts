@@ -24,6 +24,7 @@ describe("createWorld — fresh state", () => {
       vars: {},
       selfSw: {},
       pSwitches: {}, // per-player switches (Beacon MP7·B); empty ⇒ inert
+      topicsUsed: {}, // spent "ask once" dialogue topics; empty ⇒ inert
       quests: {},
       party: [],
       inv: { item: {}, weapon: {}, armor: {} },

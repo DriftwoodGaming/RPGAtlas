@@ -19,6 +19,19 @@ import { openEventEditor } from "../event-editor/event-editor";
 import { setMode, refreshToolbar } from "../workspace";
 import { openDialogueWorkspace } from "./dialogue-workspace";
 
+/** Does this condition use switch/variable `id` anywhere inside it? A gate
+ *  can now be an ALL/ANY group of conditions, so a flat `cond.kind === …`
+ *  check would quietly miss every switch an author combined with another. */
+function condUses(cond: any, kind: string, id: number, depth = 0): boolean {
+  if (!cond || depth >= 16) return false;
+  if (cond.kind === "all" || cond.kind === "any") {
+    return (cond.conds || []).some((sub: any) => condUses(sub, kind, id, depth + 1));
+  }
+  if (cond.kind !== kind) return false;
+  // A variable condition can also compare AGAINST a variable (valVarId).
+  return cond.id === id || (kind === "var" && Number(cond.valVarId) === id);
+}
+
 export function openEventSearcher() {
   const results = h("div", { class: "search-results" });
   const input = h("input", { type: "text", placeholder: "Search…", onkeydown(e: any) { if (e.key === "Enter") run(); } });
@@ -43,20 +56,24 @@ export function openEventSearcher() {
     for (const dialogue of S.proj.dialogues || []) {
       for (const node of dialogue.nodes || []) {
         let hit: any = null;
+        // A hub has no options of its own — its player-facing lines are the
+        // dialogue's topics, so they are searched alongside the node.
+        const topics = node.kind === "hub" ? (dialogue.topics || []) : [];
         if (kind === "text") {
           const optionText = (node.options || []).map((option: any) => option.text).join(" ");
-          if (((node.text || "") + " " + optionText).toLowerCase().includes(ql)) hit = "Dialogue node: “" + String(node.text || optionText).split("\n")[0].slice(0, 50) + "”";
-        } else if (kind === "switch") {
-          if (node.condition && node.condition.kind === "switch" && node.condition.id === idQ) hit = "Dialogue node condition";
+          const topicText = topics.map((topic: any) => topic.text).join(" ");
+          if (((node.text || "") + " " + optionText + " " + topicText).toLowerCase().includes(ql)) {
+            hit = "Dialogue node: “" + String(node.text || optionText || topicText).split("\n")[0].slice(0, 50) + "”";
+          }
+        } else if (kind === "switch" || kind === "var") {
+          if (condUses(node.condition, kind, idQ)) hit = "Dialogue node condition";
+          // Per-option and per-topic guards are conditions too.
+          if (!hit && (node.options || []).some((option: any) => condUses(option.condition, kind, idQ))) hit = "Dialogue choice condition";
+          if (!hit && topics.some((topic: any) => condUses(topic.condition, kind, idQ))) hit = "Dialogue topic condition";
           walkCommands(node.commands, (c: any) => {
-            if (!hit && c.t === "switch" && c.id === idQ) hit = "Dialogue cutscene command";
-            else if (!hit && c.t === "if" && c.cond && c.cond.kind === "switch" && c.cond.id === idQ) hit = "Dialogue cutscene branch";
-          });
-        } else if (kind === "var") {
-          if (node.condition && node.condition.kind === "var" && node.condition.id === idQ) hit = "Dialogue node condition";
-          walkCommands(node.commands, (c: any) => {
-            if (!hit && c.t === "var" && c.id === idQ) hit = "Dialogue cutscene command";
-            else if (!hit && c.t === "if" && c.cond && c.cond.kind === "var" && c.cond.id === idQ) hit = "Dialogue cutscene branch";
+            if (!hit && c.t === kind && c.id === idQ) hit = "Dialogue cutscene command";
+            else if (!hit && c.t === "if" && condUses(c.cond, kind, idQ)) hit = "Dialogue cutscene branch";
+            else if (!hit && c.t === "choices" && (c.conditions || []).some((k: any) => condUses(k, kind, idQ))) hit = "Dialogue cutscene choice condition";
           });
         }
         if (hit != null) matches.push({ dialogue, node, hit });
@@ -79,14 +96,16 @@ export function openEventSearcher() {
             walkCommands(pg.commands, (c: any) => {
               if (hit) return;
               if (c.t === "switch" && c.id === idQ) hit = "Control Switch command";
-              else if (c.t === "if" && c.cond && c.cond.kind === "switch" && c.cond.id === idQ) hit = "Conditional Branch";
+              else if (c.t === "if" && condUses(c.cond, "switch", idQ)) hit = "Conditional Branch";
+              else if (c.t === "choices" && (c.conditions || []).some((k: any) => condUses(k, "switch", idQ))) hit = "Show Choices condition";
             });
           } else {
             if (pg.cond.varId === idQ) hit = "page condition (variable ≥)";
             walkCommands(pg.commands, (c: any) => {
               if (hit) return;
               if (c.t === "var" && c.id === idQ) hit = "Control Variable command";
-              else if (c.t === "if" && c.cond && c.cond.kind === "var" && c.cond.id === idQ) hit = "Conditional Branch";
+              else if (c.t === "if" && condUses(c.cond, "var", idQ)) hit = "Conditional Branch";
+              else if (c.t === "choices" && (c.conditions || []).some((k: any) => condUses(k, "var", idQ))) hit = "Show Choices condition";
             });
           }
           if (hit != null) matches.push({ m, ev, pi, hit });

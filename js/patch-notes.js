@@ -4,6 +4,21 @@
 
 export const PATCH_NOTES = [
   {
+    date: "July 25, 2026",
+    title: "Dialogue topics, and as many conditions as you need",
+    summary:
+      "The Dialogue & Cutscenes workspace gets per-choice conditions and a new Topic Hub that shows every question an NPC can answer right now — and conditions everywhere can be combined with AND/OR.",
+    items: [
+      "Any condition can now be a LIST of conditions. Click “+ Add condition” a second time and you choose whether ALL of them must be true (AND) or ANY one of them (OR) — “only if you're in the Mage guild AND have met Ravel”. “+ Add group” nests one level for “A and (B or C)”.",
+      "Dialogue & Cutscenes: choice options finally have their own “Only if…” button, the same as Show Choices on event pages. An option whose condition isn't met is left out of the list, and the options that remain keep their own targets — hiding one can never send the player down the wrong branch.",
+      "Dialogue & Cutscenes: conditions here now use the full event-system condition picker, so self-switches, variable-vs-variable, item counts, and online state work in conversations too — not just the nine kinds the old panel offered.",
+      "New node type — Topic Hub: instead of wiring every question into a branch, you fill a Topic Pool and the hub shows every topic whose condition is met, all in one list. Pick one, hear the answer, and you're back at the list. This is the “talk to an NPC and see everything you can ask them” style of dialogue.",
+      "Topics have a Priority (higher shows first), an “Ask once” tick that retires a topic after it's used, and their own conditions. A hub can also borrow topics from another dialogue, so one shared “Guild topics” asset can hang off every guild member.",
+      "The conversation tree shows it all: topics appear under their hub in the order the player will see them, with their priority, once-only mark and condition spelled out.",
+      "As always this is additive — every dialogue and event you already made behaves exactly as it did.",
+    ],
+  },
+  {
     date: "July 22, 2026",
     title: "Choices can hide themselves — and smarter conditions",
     summary:

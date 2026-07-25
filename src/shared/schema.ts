@@ -790,7 +790,17 @@ export interface Condition {
     | "gold"
     | "actor"
     | "mzScript"
+    | "all"
+    | "any"
     | string;
+  /** kinds "all"/"any": a GROUP of conditions rather than a single test.
+   *  "all" passes when every member passes (AND), "any" when at least one
+   *  does (OR); members may themselves be groups, so authors can nest
+   *  "A and (B or C)". An empty/absent list reads as "always true", matching
+   *  the no-condition case. The editor only ever writes a group when an
+   *  author adds a SECOND condition — one condition is still stored as the
+   *  bare shape it always had, so existing projects are byte-identical. */
+  conds?: Condition[];
   id?: number;
   /** kind "mzScript" (Project Compass M5·B): a read-only RPG Maker
    *  Conditional-Branch "Script" expression, evaluated through the same
@@ -1850,16 +1860,46 @@ export interface DialogueSpeaker {
 
 export interface DialogueChoiceOption {
   text: string;
+  /** Show this option only when the condition passes (absent = always).
+   *  Unmet options are hidden and the remaining ones keep their own targets,
+   *  so hiding one never re-points another. Use an "all"/"any" group for
+   *  several conditions at once. */
+  condition?: Condition;
   /** Stable author-owned localization key; runtime currently uses `text`. */
   key: string;
   nextId: number;
+}
+
+/** One entry in a dialogue's TOPIC POOL — the "ask them about…" model.
+ *  Topics are authored as a flat list instead of being wired into the tree:
+ *  a `hub` node gathers every topic whose condition passes, orders them by
+ *  `priority`, and shows them as one list. Adding a topic therefore never
+ *  requires re-shaping the branches around it. */
+export interface DialogueTopic {
+  id: number;
+  /** The line the player sees in the hub list. */
+  text: string;
+  /** Node this topic runs when picked. 0 = ends the conversation. Topics
+   *  pulled in from another dialogue asset run inside THAT asset (the hub
+   *  calls it starting at this node) and return to the hub afterwards. */
+  nextId: number;
+  /** Offered only while this passes (absent = always). "all"/"any" groups
+   *  cover "in the Mage guild AND has met Ravel". */
+  condition?: Condition;
+  /** Higher sorts first; equal priorities keep authored order. Default 0. */
+  priority?: number;
+  /** Drop the topic from the list once it has been picked, for the rest of
+   *  the save (tracked in G.topicsUsed, which saves round-trip). */
+  once?: boolean;
+  /** Stable author-owned localization key; runtime currently uses `text`. */
+  key: string;
 }
 
 /** One node in a reusable conversation tree. Cutscene nodes embed the same
  * ordinary event-command lists used by event pages and Atlas Graph. */
 export interface DialogueNode {
   id: number;
-  kind: "line" | "choice" | "cutscene";
+  kind: "line" | "choice" | "cutscene" | "hub";
   speakerId: number;
   portrait: string;
   voice: string;
@@ -1870,6 +1910,16 @@ export interface DialogueNode {
   options?: DialogueChoiceOption[];
   label?: string;
   commands?: AnyCommand[];
+  /** kind "hub": the label of the always-last "stop asking" option. Empty
+   *  string removes it — the hub then only closes once its topics run out,
+   *  so leave it set unless an exit is guaranteed some other way. */
+  exitText?: string;
+  /** kind "hub": also offer the topic pools of these dialogue assets, so a
+   *  shared "Guild topics" asset can hang off every guild member's hub. */
+  includeIds?: number[];
+  /** kind "hub": show at most this many topics (highest priority first).
+   *  Absent/0 = no cap. */
+  maxTopics?: number;
 }
 
 export interface DialogueAsset {
@@ -1879,6 +1929,9 @@ export interface DialogueAsset {
   startNodeId: number;
   speakers: DialogueSpeaker[];
   nodes: DialogueNode[];
+  /** The flat topic pool `hub` nodes draw from. Absent/empty for every
+   *  dialogue authored before topics existed. */
+  topics?: DialogueTopic[];
 }
 
 export interface Tileset {

@@ -43,6 +43,9 @@ export class Interp {
   /** Yield counter guarding a wait-less backward jump loop (see the `jump`
    *  command); mirrors the `loop` handler's spin valve. */
   jumpSpins = 0;
+  /** How many topic hubs are open on this run (runDialogueHub). Bounds
+   *  hub-inside-a-topic nesting; 0 unless a `hub` node exists. */
+  hubDepth = 0;
   /** Who this run acts as (Beacon MP3·A, MP0·C §C6): the triggering player
    *  ({playerId: N}) or the world ({playerId: null} — autorun/parallel/timer
    *  scheduling passes it explicitly). Presentation directives target
@@ -108,76 +111,200 @@ export class Interp {
     }
     return true;
   }
-  async callDialogue(id: any): Promise<boolean> {
+  /** `startNodeId` overrides the asset's own start node. Only the topic hub
+   *  passes it, to run a topic that lives in an included dialogue inside its
+   *  OWN asset (so that asset's speakers and nodes resolve correctly). */
+  async callDialogue(id: any, startNodeId?: number): Promise<boolean> {
     const dialogue = RA.byId(ctx.proj.dialogues || [], Number(id));
     if (!dialogue || !Array.isArray(dialogue.nodes) || !dialogue.nodes.length) return false;
     if (this.dialogueStack.includes(dialogue.id)) {
       console.warn("Skipped recursive dialogue call:", dialogue.id);
       return false;
     }
-    const nodes = new Map(dialogue.nodes.map((node: any) => [Number(node.id), node]));
-    const speakers = new Map((dialogue.speakers || []).map((speaker: any) => [Number(speaker.id), speaker]));
-    let nodeId = Number(dialogue.startNodeId) || Number(dialogue.nodes[0].id) || 0;
-    let steps = 0;
+    const nodes = new Map<number, any>(dialogue.nodes.map((node: any) => [Number(node.id), node]));
+    const speakers = new Map<number, any>((dialogue.speakers || []).map((speaker: any) => [Number(speaker.id), speaker]));
+    const startId = Number(startNodeId) || Number(dialogue.startNodeId) || Number(dialogue.nodes[0].id) || 0;
     this.dialogueStack.push(dialogue.id);
     try {
-      while (nodeId && steps++ < 1000) {
-        const node: any = nodes.get(nodeId);
-        if (!node) break;
-        if (node.condition && !this.testCond(node.condition)) {
-          nodeId = Number(node.nextId) || 0;
-          continue;
-        }
-        if (node.kind === "choice") {
-          const speaker: any = speakers.get(Number(node.speakerId));
-          if (node.voice) await this.exec({ t: "se", name: node.voice });
-          if (node.text) {
-            // Beacon MP3·B: the dialogue path emits through the presentation
-            // port with this run's origin, exactly like the `text`/`choices`
-            // command handlers — no direct UI call. Speaker/portrait values are
-            // passed byte-exact; the renderer reconstructs the same showMessage.
-            await EngineServices.presentation.message(this.origin, {
-              text: node.text,
-              speaker: speaker ? speaker.name : "",
-              portrait: node.portrait || (speaker && speaker.portrait) || "",
-            });
-          }
-          const options = Array.isArray(node.options) ? node.options : [];
-          if (!options.length) {
-            nodeId = Number(node.nextId) || 0;
-            continue;
-          }
-          // The option strings ride the directive; richText runs client-side at
-          // render (same module, same values in loopback). Non-cancelable, so
-          // the reply is always a valid index — never -1.
-          const picked = await EngineServices.presentation.choices(this.origin, {
-            options: options.map((option: any) => option.text || "Choice"),
-          });
-          nodeId = Number((options[picked] || {}).nextId) || Number(node.nextId) || 0;
-        } else if (node.kind === "cutscene") {
-          await this.runList(Array.isArray(node.commands) ? node.commands : []);
-          nodeId = Number(node.nextId) || 0;
-        } else {
-          const speaker: any = speakers.get(Number(node.speakerId));
-          if (node.voice) await this.exec({ t: "se", name: node.voice });
-          await EngineServices.presentation.message(this.origin, {
-            text: node.text || "",
-            speaker: speaker ? speaker.name : "",
-            portrait: node.portrait || (speaker && speaker.portrait) || "",
-          });
-          nodeId = Number(node.nextId) || 0;
-        }
-      }
-      if (steps >= 1000) console.warn("Stopped dialogue after 1000 nodes:", dialogue.id);
+      await this.walkDialogue(dialogue, nodes, speakers, startId);
     } finally {
       this.dialogueStack.pop();
     }
     return true;
   }
-  testCond(cond: any): boolean {
+
+  /** Walks a conversation from `startId` until it runs out of nodes. Split
+   *  out of callDialogue so a topic hub can run a topic's branch and then go
+   *  BACK to its list — the branch is an ordinary walk that simply returns
+   *  when it ends. Body is otherwise the original loop, unchanged. */
+  private async walkDialogue(dialogue: any, nodes: Map<number, any>, speakers: Map<number, any>, startId: number): Promise<void> {
+    let nodeId = startId;
+    let steps = 0;
+    while (nodeId && steps++ < 1000) {
+      const node: any = nodes.get(nodeId);
+      if (!node) break;
+      if (node.condition && !this.testCond(node.condition)) {
+        nodeId = Number(node.nextId) || 0;
+        continue;
+      }
+      if (node.kind === "choice") {
+        const speaker: any = speakers.get(Number(node.speakerId));
+        if (node.voice) await this.exec({ t: "se", name: node.voice });
+        if (node.text) {
+          // Beacon MP3·B: the dialogue path emits through the presentation
+          // port with this run's origin, exactly like the `text`/`choices`
+          // command handlers — no direct UI call. Speaker/portrait values are
+          // passed byte-exact; the renderer reconstructs the same showMessage.
+          await EngineServices.presentation.message(this.origin, {
+            text: node.text,
+            speaker: speaker ? speaker.name : "",
+            portrait: node.portrait || (speaker && speaker.portrait) || "",
+          });
+        }
+        // Per-option conditions (the Dialogue System's answer to Show
+        // Choices' `conditions[]`): an option whose condition is unmet is
+        // left out of the list. Because the surviving options carry their
+        // OWN nextId, filtering can never re-point a branch — no index
+        // mapping is needed. Every option hidden ⇒ nothing to ask, so the
+        // node falls through on its fallback target.
+        const authored = Array.isArray(node.options) ? node.options : [];
+        const options = authored.filter((option: any) => this.testCond(option.condition));
+        if (!options.length) {
+          nodeId = Number(node.nextId) || 0;
+          continue;
+        }
+        // The option strings ride the directive; richText runs client-side at
+        // render (same module, same values in loopback). Non-cancelable, so
+        // the reply is always a valid index — never -1.
+        const picked = await EngineServices.presentation.choices(this.origin, {
+          options: options.map((option: any) => option.text || "Choice"),
+        });
+        nodeId = Number((options[picked] || {}).nextId) || Number(node.nextId) || 0;
+      } else if (node.kind === "hub") {
+        nodeId = await this.runDialogueHub(dialogue, node, nodes, speakers);
+      } else if (node.kind === "cutscene") {
+        await this.runList(Array.isArray(node.commands) ? node.commands : []);
+        nodeId = Number(node.nextId) || 0;
+      } else {
+        const speaker: any = speakers.get(Number(node.speakerId));
+        if (node.voice) await this.exec({ t: "se", name: node.voice });
+        await EngineServices.presentation.message(this.origin, {
+          text: node.text || "",
+          speaker: speaker ? speaker.name : "",
+          portrait: node.portrait || (speaker && speaker.portrait) || "",
+        });
+        nodeId = Number(node.nextId) || 0;
+      }
+    }
+    if (steps >= 1000) console.warn("Stopped dialogue after 1000 nodes:", dialogue.id);
+  }
+
+  /** The topic-pool model: gather every topic whose condition passes, order
+   *  them by priority, and offer them as ONE list — the player keeps picking
+   *  until they leave or nothing is left to ask. Adding a topic never
+   *  re-shapes the branches around it, which is the whole point: authors
+   *  declare when a line is available instead of wiring where it sits.
+   *  Returns the node id the conversation continues with once the hub ends. */
+  private async runDialogueHub(dialogue: any, node: any, nodes: Map<number, any>, speakers: Map<number, any>): Promise<number> {
+    const leave = () => Number(node.nextId) || 0;
+    // Nested hubs (a topic branch that opens another hub) are legal but
+    // bounded, so a pair of hubs pointing at each other can't recurse away.
+    if ((this.hubDepth || 0) >= 8) return leave();
+    const exitText = node.exitText == null ? "Leave" : String(node.exitText);
+    const speaker: any = speakers.get(Number(node.speakerId));
+    this.hubDepth = (this.hubDepth || 0) + 1;
+    try {
+      // Each round re-gathers, so a topic that changes a switch immediately
+      // changes what the rest of the list offers.
+      for (let round = 0; round < 200; round++) {
+        const entries = this.gatherTopics(dialogue, node);
+        if (!entries.length) return leave();
+        if (node.voice) await this.exec({ t: "se", name: node.voice });
+        if (node.text) {
+          await EngineServices.presentation.message(this.origin, {
+            text: node.text,
+            speaker: speaker ? speaker.name : "",
+            portrait: node.portrait || (speaker && speaker.portrait) || "",
+          });
+        }
+        const options = entries.map((entry: any) => entry.topic.text || "Topic");
+        if (exitText) options.push(exitText);
+        const picked = await EngineServices.presentation.choices(this.origin, { options });
+        const chosen = entries[picked];
+        if (!chosen) return leave(); // the exit option (or an out-of-range reply)
+        if (chosen.topic.once) this.topicStore()[this.topicKey(chosen.dialogue.id, chosen.topic.id)] = true;
+        const branch = Number(chosen.topic.nextId) || 0;
+        if (!branch) continue; // a topic with no branch just leaves the list
+        if (chosen.dialogue === dialogue) {
+          await this.walkDialogue(dialogue, nodes, speakers, branch);
+        } else {
+          // A topic borrowed from another asset runs inside that asset, so
+          // its own speakers and nodes resolve; we return here afterwards.
+          await this.callDialogue(chosen.dialogue.id, branch);
+        }
+      }
+      console.warn("Stopped dialogue hub after 200 rounds:", dialogue.id);
+      return leave();
+    } finally {
+      this.hubDepth--;
+    }
+  }
+
+  /** The eligible topics for one hub, highest priority first (ties keep
+   *  authored order — Array.prototype.sort is stable). Draws from the hub's
+   *  own dialogue plus any assets it includes, so a shared "Guild topics"
+   *  asset can hang off every guild member's hub. */
+  private gatherTopics(dialogue: any, node: any): any[] {
+    const pools: any[] = [dialogue];
+    for (const id of Array.isArray(node.includeIds) ? node.includeIds : []) {
+      const extra = RA.byId(ctx.proj.dialogues || [], Number(id));
+      if (extra && extra !== dialogue && !pools.includes(extra)) pools.push(extra);
+    }
+    const entries: any[] = [];
+    for (const pool of pools) {
+      for (const topic of Array.isArray(pool.topics) ? pool.topics : []) {
+        if (!topic || typeof topic !== "object") continue;
+        if (topic.once && this.topicStore()[this.topicKey(pool.id, topic.id)]) continue;
+        if (!this.testCond(topic.condition)) continue;
+        entries.push({ topic, dialogue: pool });
+      }
+    }
+    entries.sort((a, b) => (Number(b.topic.priority) || 0) - (Number(a.topic.priority) || 0));
+    const cap = Number(node.maxTopics) || 0;
+    return cap > 0 ? entries.slice(0, cap) : entries;
+  }
+
+  /** Save key for a "say once" topic — owning asset, not the offering hub,
+   *  so a shared topic stays spent whichever NPC it was asked of. */
+  private topicKey(dialogueId: any, topicId: any): string {
+    return (Number(dialogueId) || 0) + ":" + (Number(topicId) || 0);
+  }
+
+  /** G.topicsUsed, created on first touch — a save written before topics
+   *  existed (or a world built by an older path) simply has no bucket yet. */
+  private topicStore(): any {
+    if (!G.topicsUsed) G.topicsUsed = {};
+    return G.topicsUsed;
+  }
+
+  testCond(cond: any, depth = 0): boolean {
     if (!cond) return true;
     const cmp = (a: any, b: any, op: any) => compareVariable(a, b, op);
     switch (cond.kind) {
+      // ---- Condition groups: several conditions on one gate ----
+      // "all" is AND, "any" is OR, and members may be groups themselves. An
+      // empty group reads as "always" (same as no condition at all) so a
+      // half-built group never silently hides content. The depth cap is a
+      // safety valve against hand-edited/imported project JSON — a group
+      // nested past it reads as "always" instead of blowing the stack.
+      case "all":
+      case "any": {
+        const list = Array.isArray(cond.conds) ? cond.conds : [];
+        if (!list.length || depth >= 16) return true;
+        return cond.kind === "all"
+          ? list.every((sub: any) => this.testCond(sub, depth + 1))
+          : list.some((sub: any) => this.testCond(sub, depth + 1));
+      }
       case "switch":
         if (cond.scope === "player") {
           // MP7·B per-player switch read (origin player's own namespace).

@@ -38,6 +38,9 @@ export function createInitialGameState(): any {
     // Per-player switches (Beacon MP7·B): { [playerId]: { [switchId]: bool } }.
     // Empty ⇒ inert; only the scope:"player" switch command ever writes here.
     pSwitches: {},
+    // Spent "say once" dialogue topics, keyed "<dialogueId>:<topicId>".
+    // Empty ⇒ inert; only a picked once-topic ever writes here.
+    topicsUsed: {},
     quests: {},
     party: [],
     inv: { item: {}, weapon: {}, armor: {} },

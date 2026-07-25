@@ -347,9 +347,40 @@ const RA = {
           portrait: String(speaker.portrait || ""),
         }))
       : [];
+    // The topic pool `hub` nodes draw from. Absent for every dialogue
+    // authored before topics existed, and dropped again when empty so those
+    // projects keep their exact previous shape.
+    next.topics = Array.isArray(next.topics)
+      ? next.topics.filter((topic) => topic && typeof topic === "object").map((topic, topicIndex) => {
+          const normalized = {
+            id: Number(topic.id) || topicIndex + 1,
+            text: String(topic.text || "Topic"),
+            key: String(topic.key || ""),
+            nextId: Math.max(0, Number(topic.nextId) || 0),
+          };
+          const priority = Number(topic.priority) || 0;
+          if (priority) normalized.priority = priority;
+          if (topic.once) normalized.once = true;
+          if (topic.condition && typeof topic.condition === "object") normalized.condition = topic.condition;
+          return normalized;
+        })
+      : [];
+    // Topic ids must be unique: "ask once" is remembered per id, so two
+    // topics sharing one would retire each other. Keep the first claimant of
+    // an id and hand any duplicate the lowest free number.
+    const topicIds = new Set();
+    let freeTopicId = 1;
+    for (const topic of next.topics) {
+      if (topicIds.has(topic.id)) {
+        while (topicIds.has(freeTopicId)) freeTopicId++;
+        topic.id = freeTopicId;
+      }
+      topicIds.add(topic.id);
+    }
+    if (!next.topics.length) delete next.topics;
     next.nodes = Array.isArray(next.nodes)
       ? next.nodes.filter((node) => node && typeof node === "object").map((node, nodeIndex) => {
-          const kind = ["line", "choice", "cutscene"].includes(node.kind) ? node.kind : "line";
+          const kind = ["line", "choice", "cutscene", "hub"].includes(node.kind) ? node.kind : "line";
           const normalized = Object.assign({
             id: nodeIndex + 1,
             kind,
@@ -370,12 +401,25 @@ const RA = {
           if (!normalized.condition || typeof normalized.condition !== "object") delete normalized.condition;
           if (kind === "choice") {
             normalized.options = Array.isArray(normalized.options)
-              ? normalized.options.filter((option) => option && typeof option === "object").map((option) => ({
-                  text: String(option.text || "Choice"),
-                  key: String(option.key || ""),
-                  nextId: Math.max(0, Number(option.nextId) || 0),
-                }))
+              ? normalized.options.filter((option) => option && typeof option === "object").map((option) => {
+                  const opt = {
+                    text: String(option.text || "Choice"),
+                    key: String(option.key || ""),
+                    nextId: Math.max(0, Number(option.nextId) || 0),
+                  };
+                  // Per-option show condition; absent on every pre-upgrade
+                  // option, so those keep their exact three-field shape.
+                  if (option.condition && typeof option.condition === "object") opt.condition = option.condition;
+                  return opt;
+                })
               : [];
+          } else if (kind === "hub") {
+            normalized.exitText = normalized.exitText == null ? "Leave" : String(normalized.exitText);
+            normalized.includeIds = Array.isArray(normalized.includeIds)
+              ? normalized.includeIds.map((id) => Number(id) || 0).filter((id) => id > 0)
+              : [];
+            normalized.maxTopics = Math.max(0, Number(normalized.maxTopics) || 0);
+            delete normalized.options;
           } else if (kind === "cutscene") {
             normalized.label = String(normalized.label || "Cutscene commands");
             normalized.commands = Array.isArray(normalized.commands) ? normalized.commands : [];
