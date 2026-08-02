@@ -81,6 +81,29 @@ anything it can't accept — formulas are read by Atlas's own safe checker, neve
 code. Games imported from RPG Maker MV/MZ bring their formulas (and HP/MP drains, MP damage,
 %-of-max heals, and hit/evade bonuses) across automatically.
 
+### Rolling dice
+
+Formulas speak tabletop dice, so you can build a game that feels like Dungeons & Dragons:
+
+| You write | It means |
+| --- | --- |
+| `2d6` | roll two six-sided dice and add them |
+| `d20` | roll one twenty-sided die |
+| `1d8 + a.atk` | a die plus the attacker's Attack |
+| `2d20kh1` | **advantage** — roll twice, keep the higher |
+| `2d20kl1` | **disadvantage** — roll twice, keep the lower |
+| `4d6kh3` | roll four, drop the lowest (the classic stat roll) |
+| `roll(a.level, 6)` | one six-sided die per level — for a spell that grows |
+
+`kh`/`kl` means "keep highest / keep lowest", and the number after it is how many dice to
+keep. Dice are capped at 100 dice of at most 1000 sides each, and the box tells you if you go
+over. The **Dice** buttons under the Formula field drop a ready-made roll straight in, and
+**🎲 Roll it five times** shows you what the dice actually do — much more useful than a single
+average when a fight's whole feel depends on the spread.
+
+Items can carry a formula too (**Items ▸ Advanced recovery**). There it *adds* to the flat
+Restores HP amount, so a classic potion is simply `2d4 + 2`.
+
 ---
 
 ## Luck and two-weapon fighting

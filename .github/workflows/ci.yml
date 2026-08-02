@@ -19,6 +19,11 @@ jobs:
         run: npm test
       - name: Unit tests (vitest)
         run: npm run test:unit
+      # The real-socket / worker suites live in their own vitest project
+      # (vitest.net.config.mjs) because they can't share a worker pool with the
+      # pure ones. They were a defined gate that CI never ran.
+      - name: Networked suites (vitest, real sockets + workers)
+        run: npm run test:net
       - name: Typecheck
         run: npm run typecheck
       - name: Lint

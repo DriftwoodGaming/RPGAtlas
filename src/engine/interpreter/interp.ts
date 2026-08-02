@@ -53,31 +53,80 @@ export class Interp {
    *  constructor site that predates MP3 (battle common events, script API,
    *  plugins) keeps its player-facing behavior without changes. */
   origin: InterpOrigin;
+  /** The scene generation this run belongs to (ctx.runEpoch when it was
+   *  built). Going back to the title — or starting/loading a game — bumps the
+   *  epoch, and every list this run is inside unwinds at its next command. It
+   *  is why a lost battle can no longer leave the rest of an event painting
+   *  message windows over the title screen. */
+  readonly epoch: number;
+  /** The map this run started on. Self-switch keys are namespaced by it, so a
+   *  "Control Self-Switch" placed AFTER a "Transfer Player" still writes to the
+   *  event that ran it — before this it used the live G.mapId and landed on
+   *  whatever event shared that id on the destination map. */
+  readonly mapId: any;
+  /** Set by the parallel-process runners. A parallel belongs to its map: when
+   *  the player leaves, the event is gone and the run must stop with it (it
+   *  would otherwise keep ticking against the new map, and the re-arm guard it
+   *  owns has already been cleared — so the next tick starts a SECOND copy).
+   *  Blocking runs are deliberately NOT bound: "Transfer Player, then say
+   *  something" is ordinary authoring. */
+  mapBound = false;
+  /** Nesting depth of runList on THIS run: 0 means the whole event is done.
+   *  The deferred game-over (ctx.pendingGameOver) is consumed there, so every
+   *  entry point — action/touch/autorun events, parallels, common events,
+   *  dialogues, the script API — gets it without wiring anything. */
+  private depth = 0;
 
   constructor(evRT: any, commonStack?: any[], dialogueStack?: any[], origin?: InterpOrigin) {
     this.evRT = evRT;
     this.commonStack = commonStack || [];
     this.dialogueStack = dialogueStack || [];
     this.origin = origin || { playerId: 0 };
+    this.epoch = ctx.runEpoch || 0;
+    this.mapId = G.mapId;
+  }
+
+  /** True once this run's world is gone (title/New Game/load), or — for a
+   *  parallel process — once the player has left the map it belongs to.
+   *  Handlers that loop or await can check it; runList enforces it on every
+   *  command. */
+  get stale(): boolean {
+    if ((ctx.runEpoch || 0) !== this.epoch) return true;
+    return this.mapBound && G.mapId !== this.mapId;
   }
   selfKey(key: any): string {
-    return G.mapId + ":" + (this.evRT ? this.evRT.ev.id : 0) + ":" + key;
+    return this.mapId + ":" + (this.evRT ? this.evRT.ev.id : 0) + ":" + key;
   }
 
   async runList(list: any): Promise<void> {
     const arr = list || [];
-    for (let i = 0; i < arr.length; i++) {
-      await this.exec(arr[i]);
-      if (this.breakLoop) return; // unwind to the innermost loop handler
-      if (this.jumpLabel != null) {
-        // Seek the target label in THIS list; found → resume after it, else
-        // unwind so an enclosing list (or the common-event boundary) resolves it.
-        const idx = arr.findIndex(
-          (cmd: any) => cmd && cmd.t === "label" && String(cmd.name) === this.jumpLabel,
-        );
-        if (idx < 0) return;
-        this.jumpLabel = null;
-        i = idx; // for-loop ++ resumes at the command after the label
+    this.depth++;
+    try {
+      for (let i = 0; i < arr.length; i++) {
+        // The world this run belongs to is gone (the player is on the title
+        // screen): stop, and let every enclosing list unwind the same way.
+        if (this.stale) return;
+        await this.exec(arr[i]);
+        if (this.stale) return;
+        if (this.breakLoop) return; // unwind to the innermost loop handler
+        if (this.jumpLabel != null) {
+          // Seek the target label in THIS list; found → resume after it, else
+          // unwind so an enclosing list (or the common-event boundary) resolves it.
+          const idx = arr.findIndex(
+            (cmd: any) => cmd && cmd.t === "label" && String(cmd.name) === this.jumpLabel,
+          );
+          if (idx < 0) return;
+          this.jumpLabel = null;
+          i = idx; // for-loop ++ resumes at the command after the label
+        }
+      }
+    } finally {
+      this.depth--;
+      // Outermost list finished: a defeat that happened mid-event has been
+      // waiting for THIS run to stop talking. Take the game over now.
+      if (this.depth === 0 && ctx.pendingGameOver === this && !this.stale) {
+        ctx.pendingGameOver = null;
+        if (EngineServices && EngineServices.gameOver) await EngineServices.gameOver();
       }
     }
   }
@@ -140,7 +189,10 @@ export class Interp {
   private async walkDialogue(dialogue: any, nodes: Map<number, any>, speakers: Map<number, any>, startId: number): Promise<void> {
     let nodeId = startId;
     let steps = 0;
-    while (nodeId && steps++ < 1000) {
+    // `stale` stops a conversation the same way it stops a command list: a
+    // dialogue interrupted by a game over must not keep speaking over the
+    // title screen (every node here emits a presentation directive).
+    while (nodeId && steps++ < 1000 && !this.stale) {
       const node: any = nodes.get(nodeId);
       if (!node) break;
       if (node.condition && !this.testCond(node.condition)) {
@@ -217,6 +269,7 @@ export class Interp {
       // Each round re-gathers, so a topic that changes a switch immediately
       // changes what the rest of the list offers.
       for (let round = 0; round < 200; round++) {
+        if (this.stale) return leave(); // see walkDialogue
         const entries = this.gatherTopics(dialogue, node);
         if (!entries.length) return leave();
         if (node.voice) await this.exec({ t: "se", name: node.voice });
@@ -359,7 +412,17 @@ export class Interp {
         const actor = G.party.find((a: any) => a.actorId === cond.actorId);
         if (!actor) return false;
         if (cond.check === "inParty") return true;
-        if (cond.check === "weapon") return actor.weaponId === cond.itemId;
+        if (cond.check === "weapon") {
+          // Both hands count (dual wield, post-1.1) — RM's isEquipped checks
+          // every slot too. "(none)" (id 0) still means BOTH hands are empty:
+          // every actor carries weapon2Id = 0, so a plain OR would have made
+          // "has no weapon" true for the whole party.
+          const want = Number(cond.itemId) || 0;
+          const off = Number(actor.weapon2Id) || 0;
+          return want === 0
+            ? !actor.weaponId && !off
+            : actor.weaponId === want || off === want;
+        }
         if (cond.check === "armor") return actor.armorId === cond.itemId;
         return true;
       }

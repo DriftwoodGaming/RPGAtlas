@@ -165,7 +165,10 @@ export function registerPresentationCommands(): void {
   registerCommand("parallax", (c: any, { services }: InterpContext) => {
     if (!services.setMapParallax) return;
     services.setMapParallax(
-      c.key ? { key: c.key, loopX: !!c.loopX, loopY: !!c.loopY, sx: c.sx, sy: c.sy } : null,
+      // `lock` ("Locked to map") was missing here, so a command-set parallax
+      // ignored the checkbox the editor writes — the same image behaved
+      // differently depending on whether the map or the command set it.
+      c.key ? { key: c.key, loopX: !!c.loopX, loopY: !!c.loopY, sx: c.sx, sy: c.sy, lock: !!c.lock } : null,
     );
   });
 

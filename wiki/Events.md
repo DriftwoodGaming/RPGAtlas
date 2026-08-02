@@ -74,17 +74,25 @@ A is ON. A drawbridge lowers once switch `12` is ON. A boss vanishes once `BossD
 ## Combining conditions
 
 Wherever you set a condition — **Conditional Branch**, a **Show Choices** option's *Only if…*, or
-anything in [Dialogue & Cutscenes](Dialogue-and-Cutscenes) — you can set **more than one**. Click
-**+ Add condition** again and a **Match** setting appears:
+anything in [Dialogue & Cutscenes](Dialogue-and-Cutscenes) — you can set **more than one**, and they
+are all built in one place.
 
-- **ALL of these must be true (AND)** — every condition has to pass.
-- **ANY one of these (OR)** — one passing condition is enough.
+Each condition is **one line** you edit right where you see it: pick the type on the left, and that
+type's own settings appear beside it. Press **+ Add condition** for another. Every row is labelled,
+so the list reads as a sentence — *if … and … and …*.
 
-**+ Add group** adds a nested list that matches the other way, so you can write
-`in the guild AND (has the seal OR knows the password)`. An empty list means "always true".
+At the top, **Run this when** decides how the rows combine:
 
-You only ever see the Match setting once there are two or more conditions, and a gate with a single
-condition is saved exactly as it always was — projects made before this behave identically.
+- **ALL of these are true (AND)** — every condition has to pass.
+- **ANY one of these is true (OR)** — one passing condition is enough.
+
+**+ Add group** adds **brackets**. A group is an indented card with its own ALL/ANY choice, so you
+can mix the two in one gate: `in the guild AND (has the seal OR knows the password)`. New groups
+start set to the opposite of the list they're in, because that mix is the whole reason to use one.
+
+Underneath, a plain-language line reads your finished condition back to you as you build it. An
+empty list means "always true", and a gate with a single condition is saved exactly as it always
+was — projects made before this behave identically.
 
 ---
 
@@ -215,7 +223,7 @@ Each of these targets one hero or the **Entire Party**.
 | Command | What it does |
 |---|---|
 | **Transfer Player** | Move the player to a tile on any map (with a facing direction). |
-| **Set Move Route** | Make the player *or* this event walk a scripted path (steps include `jump` — a 2-tile arc hop). |
+| **Set Move Route** | Make the player, this event, **or any other event on the map** play a sequenced pattern — see [Move routes](#move-routes) below. |
 | **Camera Zoom** | Zoom the map camera out or in over a chosen number of frames. `1.0` is normal, lower values zoom out, and higher values zoom in. |
 | **Change Transparency** | Hide or show the player sprite (the player still moves and triggers events). |
 | **Change Followers** | Show or hide the party members trailing behind the leader. |
@@ -321,6 +329,61 @@ different commands under each choice's branch.
 ### Random encounters
 You usually don't need an event — turn on encounters in **Map Properties**. See
 [Maps & Tiles](Maps-and-Tiles#random-encounters).
+
+---
+
+## Move routes
+
+A **move route** is a sequenced pattern a character plays, one step at a time. It is the tool
+you reach for when you want to *stage* something: the guard steps aside, the king turns to
+face you, the ghost fades out and drifts through the wall.
+
+Add **Set Move Route**, choose who moves — **This Event**, **The Player**, or **Another
+Event…** (any event on the map, so one event can direct the whole cast) — then build the list
+of steps.
+
+**Steps you can add**
+
+- **Move** — step in any of the eight directions, forward, backward, somewhere random, toward
+  the player or away from them, or **jump** (straight ahead, or an exact number of tiles
+  across and down).
+- **Turn** — face a direction, turn 90° either way, turn around, turn a random way, or face
+  (or away from) the player. Turning doesn't move the character.
+- **Wait** — a moment, a second, or an exact number of frames. This is how you get a beat of
+  silence in the middle of a scene.
+- **Change** — move speed, how see-through the character is, its graphic, play a sound, flip a
+  switch, become invisible or visible, walking animation on/off, keep stepping while standing
+  still, keep facing (don't turn while walking), and walk through walls.
+
+**The three checkboxes**
+
+- **Wait for it to finish** — the event pauses until the route is done. This is what makes a
+  cutscene play in order rather than everything happening at once.
+- **Repeat forever** — the route loops until something replaces it. Perfect for a guard pacing
+  back and forth. A looping route can't be waited on, so Atlas never uses both at once.
+- **Skip blocked steps** (on by default) — if something is in the way, that step is dropped and
+  the route carries on. Turn it *off* when the character really must arrive: the step then
+  waits for the way to clear. It gives up after five seconds, so a scene can never freeze.
+
+> **Tip:** to stage a scene, give every character its own **Set Move Route** with *Wait for it
+> to finish* **off**, then add one final route (or a **Wait**) with it **on** — everyone moves
+> together and the event resumes once the slowest is done.
+
+Games imported from RPG Maker MV/MZ bring their move routes across whole, including routes
+aimed at another event by number.
+
+---
+
+## Keeping an event close to home
+
+An event set to **Random** movement will wander wherever it can walk — right off to the edge
+of the map, given long enough. The **Max wander** box on the event page is the leash: it's how
+many tiles the event may get from the spot you placed it, in any direction. `0` means no limit
+(and is how every event behaves until you change it).
+
+A wandering shopkeeper with **3** stays in their shop. An Action Combat enemy set to **Chase**
+gives up at the end of its rope instead of following the player across the world. If something
+carries a leashed event out of range, it finds its own way back.
 
 ---
 

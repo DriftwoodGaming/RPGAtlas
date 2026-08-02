@@ -91,6 +91,9 @@ export async function render(): Promise<void> {
   const drawables = [];
   for (const rt of ctx.evRTs) {
     if (rt.erased || !rt.page || rt.charsetIdx < 0) continue;
+    // Transparent, set by a move-route step (the player has always had this
+    // flag; events gained it with move routes). Unset ⇒ drawn as before.
+    if (rt.transparent) continue;
     drawables.push(rt);
   }
   // Phase 5: parked vehicles + party followers (followers hide while riding)
@@ -148,9 +151,13 @@ export async function render(): Promise<void> {
                 : d.vehicleId
                   ? "veh_" + d.vehicleId
                   : "ev_" + d.ev.id,
-        canvas: bushy
-          ? bushFadedFrame(idx, d.dir, frame)
-          : Assets.charFrameCanvas(idx, d.dir, frame),
+        canvas: (() => {
+          const base = bushy
+            ? bushFadedFrame(idx, d.dir, frame)
+            : Assets.charFrameCanvas(idx, d.dir, frame);
+          const alpha = entityAlpha(d);
+          return alpha < 1 ? fadedFrame(base, alpha) : base;
+        })(),
         rx: ip(d.prx, d.rx), ry: ip(d.pry, d.ry),
         pr: pri === "below" ? 0 : pri === "above" ? 2 : 1,
       });
@@ -214,12 +221,17 @@ export async function render(): Promise<void> {
       // Bush tiles (M4·A): the character's feet fade to half alpha (MZ bush
       // depth 12px). bushAt short-circuits on maps without bush tiles.
       const bushy = !d.jumping && ctx.scene === "map" && bushAt(d.x, d.y);
+      // Move-route opacity. 1 for every character until a route changes it, so
+      // the save/restore below is the only difference on the classic path.
+      const alpha = entityAlpha(d);
+      if (alpha < 1) { g.save(); g.globalAlpha = alpha; }
       for (const sy of charYs(Math.round(ip(d.pry, d.ry) * TILE - 8 - camY))) {
         for (const sx of charXs(Math.round(ip(d.prx, d.rx) * TILE - camX))) {
           if (bushy) drawCharBush(g, idx, d.dir, frame, sx, sy);
           else Assets.drawChar(g, idx, d.dir, frame, sx, sy);
         }
       }
+      if (alpha < 1) g.restore();
     }
     drawBuf(ctx.upperBuf);
     g.restore();
@@ -375,5 +387,23 @@ function bushFadedFrame(idx: any, dir: any, frame: any): any {
   g.globalCompositeOperation = "destination-out";
   g.fillStyle = "rgba(0,0,0,0.5)";
   g.fillRect(0, c.height - BUSH_DEPTH, c.width, BUSH_DEPTH);
+  return c;
+}
+/** A character's move-route opacity as an alpha multiplier (255 = opaque,
+ *  which is every character until a route changes it). */
+function entityAlpha(d: any): number {
+  const o = d && d.opacity;
+  if (o == null) return 1;
+  return Math.max(0, Math.min(255, Number(o) || 0)) / 255;
+}
+/** The same frame at a lower opacity, for the HD path — which takes a canvas
+ *  per sprite, so the fade is baked in the way bushFadedFrame bakes its own. */
+function fadedFrame(src: any, alpha: number): any {
+  const c = document.createElement("canvas");
+  c.width = src.width;
+  c.height = src.height;
+  const g = c.getContext("2d")!;
+  g.globalAlpha = alpha;
+  g.drawImage(src, 0, 0);
   return c;
 }

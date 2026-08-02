@@ -33,7 +33,16 @@ export function registerStateCommands(): void {
   registerCommand("var", (c: any, { state, services }: InterpContext) => {
     const cur = state.vars[c.id] || 0;
     let v = c.val;
-    if (c.op === "rnd") v = c.val + services.rnd((c.val2 || c.val) - c.val + 1);
+    if (c.op === "rnd") {
+      // 0 is a real bound — only an ABSENT val2 means "no upper bound" (the
+      // old `||` read "…to 0" as unset, so a −5…0 range always produced −5).
+      // The pair is also normalized: a range typed high-to-low rolls the same
+      // as low-to-high instead of asking rnd() for a negative count.
+      const other = c.val2 == null ? c.val : c.val2;
+      const lo = Math.min(c.val, other);
+      const hi = Math.max(c.val, other);
+      v = lo + services.rnd(hi - lo + 1);
+    }
     state.vars[c.id] = c.op === "add" ? cur + v : c.op === "sub" ? cur - v : v;
     services.refreshAllPages();
     services.evaluateQuestFailures();

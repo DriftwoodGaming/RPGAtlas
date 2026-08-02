@@ -14,7 +14,9 @@ import { el, esc, sysBgm } from "../util.js";
 import { UIStack, removeUI, showList } from "../ui-stack.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G, makeActor } from "../state/game-state.js";
-import { slotInfo, saveLoadMenu } from "../state/save.js";
+import { slotInfo, saveLoadMenu, loadSlots } from "../state/save.js";
+import { defaultWorld } from "../state/default-world.js";
+import { clearTickTimers } from "../../shared/sim/timers.js";
 import { applyWindowTone } from "../state/window-tone.js";
 import { loadMap, initPlayer, syncFollowers } from "./map-runtime.js";
 import { resetPresentation } from "./presentation-runtime.js";
@@ -26,11 +28,17 @@ import { multiplayerEnabled, playTogether } from "../co-op.js";
 /** `start` overrides the System start position — the editor Console's
  *  "playtest <map> <x> <y>" boots straight there (playtest-bridge.ts). */
 export async function newGame(start?: { mapId: number; x: number; y: number }): Promise<void> {
+  // A fresh world: anything still running against the old one stops here (the
+  // same contract as toTitle and loading a save — engine-context.ts runEpoch).
+  ctx.runEpoch = (ctx.runEpoch || 0) + 1;
+  ctx.pendingGameOver = null;
   ctx.commonParallels.clear();
+  clearTickTimers(defaultWorld);
   G.switches = {};
   G.vars = {};
   G.selfSw = {};
   G.pSwitches = {}; // per-player switches (Beacon MP7·B); empty ⇒ inert
+  G.topicsUsed = {}; // spent "ask once" dialogue topics don't survive a New Game
   G.quests = {};
   G.gold = ctx.proj.system.startGold || 0;
   G.wallet = {}; // extra-currency balances all start at zero
@@ -76,10 +84,24 @@ export async function newGame(start?: { mapId: number; x: number; y: number }): 
 export async function toTitle(): Promise<void> {
   await fadeTo(1, 350);
   ctx.scene = "title";
+  // The world these runs were talking to is gone. Bumping the epoch stops
+  // every interpreter mid-list — a lost battle used to hand control back to
+  // the event, which then painted its remaining text boxes over the title
+  // screen — and clears the flags those runs owned so a New Game starts from
+  // a quiet map. (Their own `finally` blocks are epoch-guarded, so a run that
+  // unwinds after this point can't un-block the new scene.)
+  ctx.runEpoch = (ctx.runEpoch || 0) + 1;
+  ctx.pendingGameOver = null;
+  ctx.blockingRun = false;
+  ctx.parallels.clear();
+  ctx.commonParallels.clear();
+  // Waits parked on the old world's clock would otherwise keep counting (the
+  // tick pump runs before the scene gate) and resolve into the new game.
+  clearTickTimers(defaultWorld);
   // clear leftover UI
   while (UIStack.length) removeUI(UIStack[UIStack.length - 1]);
   ctx.uiLayer
-    .querySelectorAll(".battlewin, .menupanel")
+    .querySelectorAll(".battlewin, .menupanel, .msgwin, .gameoverwin")
     .forEach((n: any) => n.remove());
   showTitle();
   await fadeTo(0, 350);
@@ -98,7 +120,10 @@ export async function showTitle(): Promise<void> {
   // decorative title backdrop on the canvas
   drawTitleBackdrop();
   while (true) {
-    const hasSave = [1, 2, 3].some((s) => slotInfo(s));
+    // The same slot list the Load menu builds (save.ts loadSlots) — including
+    // the Autosave slot when the project uses it, so a game that only ever
+    // autosaved can still be continued.
+    const hasSave = loadSlots().some((s) => slotInfo(s));
     // "Play Together" appears only when the project enables multiplayer (MP5·C);
     // absent in the frozen fixtures, so the title menu stays byte-identical
     // there. Built as a label→action list so ordering can't desync (dispatch is

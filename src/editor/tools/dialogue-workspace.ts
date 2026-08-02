@@ -61,10 +61,14 @@ function nodeLabel(dialogue: any, node: any): string {
 function conditionCell(owner: any, redraw: () => void, alwaysLabel: string): any {
   const has = !!owner.condition;
   function open() {
-    const group = conditionGroupWidget(owner.condition, { emptyLabel: "No conditions — " + alwaysLabel + "." });
+    const group = conditionGroupWidget(owner.condition, {
+      matchLabel: "Use this when",
+      emptyLabel: "No conditions yet — " + alwaysLabel + ". Add one below to control it.",
+    });
     modal({
       title: "Only if…",
       content: group.el,
+      wide: true, // the inline condition builder needs the room
       buttons: [
         { label: "OK", primary: true, onClick(close: any) {
           const value = group.value();

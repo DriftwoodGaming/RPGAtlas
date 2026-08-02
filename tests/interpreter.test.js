@@ -29,6 +29,12 @@ async function loadRegistry() {
     export { registerBuiltinCommands } from ${JSON.stringify(
       path.join(root, "src/engine/interpreter/commands/index.ts").replace(/\\/g, "/"),
     )};
+    export { Interp } from ${JSON.stringify(
+      path.join(root, "src/engine/interpreter/interp.ts").replace(/\\/g, "/"),
+    )};
+    export { G } from ${JSON.stringify(
+      path.join(root, "src/engine/state/game-state.ts").replace(/\\/g, "/"),
+    )};
   `;
   const out = (await build({
     stdin: { contents: entry, resolveDir: root, loader: "ts" },
@@ -53,7 +59,7 @@ async function loadRegistry() {
 }
 
 (async () => {
-  const { getCommand, registerBuiltinCommands } = await loadRegistry();
+  const { getCommand, registerBuiltinCommands, Interp, G } = await loadRegistry();
   registerBuiltinCommands();
 
   // The commands the old grep test pinned are registered handlers now — plus
@@ -552,27 +558,88 @@ async function loadRegistry() {
     assert.equal(loopState.vars[2], 7, "execution continues after the loop");
   }
 
-  // ---- actor conditional branch (still in engine.js Interp.testCond) ----
-  function testCond(cond, G) {
-    const actor = G.party.find((a) => a.actorId === cond.actorId);
-    if (!actor) return false;
-    if (cond.check === "inParty") return true;
-    if (cond.check === "weapon") return actor.weaponId === cond.itemId;
-    if (cond.check === "armor") return actor.armorId === cond.itemId;
-    return true;
-  }
-  const G = {
-    party: [
+  // ---- actor conditional branch ----
+  // This used to be a hand-written COPY of Interp.testCond's `actor` case,
+  // which meant the copy could keep passing while the real branch changed
+  // (it did — the dual-wield slot). It drives the REAL interpreter now.
+  {
+    const state = G;
+    state.party = [
       { actorId: 1, weaponId: 10, armorId: 20 },
       { actorId: 2, weaponId: 0, armorId: 0 },
-    ],
-  };
-  assert.equal(testCond({ kind: "actor", actorId: 1, check: "inParty" }, G), true);
-  assert.equal(testCond({ kind: "actor", actorId: 3, check: "inParty" }, G), false);
-  assert.equal(testCond({ kind: "actor", actorId: 1, check: "weapon", itemId: 10 }, G), true);
-  assert.equal(testCond({ kind: "actor", actorId: 1, check: "weapon", itemId: 5 }, G), false);
-  assert.equal(testCond({ kind: "actor", actorId: 1, check: "armor", itemId: 20 }, G), true);
-  assert.equal(testCond({ kind: "actor", actorId: 2, check: "armor", itemId: 20 }, G), false);
+      // A dual wielder: the queried weapon is in the OFF hand.
+      { actorId: 4, weaponId: 10, weapon2Id: 33, armorId: 0 },
+    ];
+    const interp = new Interp(null);
+    const testCond = (cond) => interp.testCond(cond);
+    assert.equal(testCond({ kind: "actor", actorId: 1, check: "inParty" }), true);
+    assert.equal(testCond({ kind: "actor", actorId: 3, check: "inParty" }), false);
+    assert.equal(testCond({ kind: "actor", actorId: 1, check: "weapon", itemId: 10 }), true);
+    assert.equal(testCond({ kind: "actor", actorId: 1, check: "weapon", itemId: 5 }), false);
+    assert.equal(testCond({ kind: "actor", actorId: 1, check: "armor", itemId: 20 }), true);
+    assert.equal(testCond({ kind: "actor", actorId: 2, check: "armor", itemId: 20 }), false);
+    // Dual wield: a weapon in the second hand counts as equipped…
+    assert.equal(testCond({ kind: "actor", actorId: 4, check: "weapon", itemId: 33 }), true,
+      "a weapon in the off hand counts as equipped");
+    assert.equal(testCond({ kind: "actor", actorId: 4, check: "weapon", itemId: 10 }), true,
+      "the main hand still counts");
+    assert.equal(testCond({ kind: "actor", actorId: 4, check: "weapon", itemId: 7 }), false);
+    // …and "(none)" (item id 0) still means BOTH hands are empty.
+    assert.equal(testCond({ kind: "actor", actorId: 2, check: "weapon", itemId: 0 }), true,
+      "an unarmed actor matches the (none) check");
+    assert.equal(testCond({ kind: "actor", actorId: 4, check: "weapon", itemId: 0 }), false,
+      "a dual wielder never matches the (none) check");
+  }
+
+  // ---- Control Variable "Random": 0 is a real bound ----
+  // `(c.val2 || c.val)` treated an authored upper bound of exactly 0 as
+  // "unset", collapsing e.g. −5..0 to the constant −5. The pair is normalized
+  // too, so a range typed high-to-low never asks rnd() for a negative count.
+  {
+    const seen = new Set();
+    // A deterministic rnd that reports the width it was asked for and walks
+    // every value in the range across repeated calls.
+    let widths = [];
+    const rndState = { i: 0 };
+    const rsvc = {
+      rnd: (n) => { widths.push(n); return rndState.i++ % Math.max(1, n); },
+      refreshAllPages() {},
+      evaluateQuestFailures() {},
+    };
+    const rstate = { vars: {} };
+    const runVar = (cmd) => getCommand("var")(cmd, { interp: {}, state: rstate, services: rsvc });
+
+    widths = []; rndState.i = 0;
+    for (let k = 0; k < 6; k++) {
+      runVar({ t: "var", id: 1, op: "rnd", val: -5, val2: 0 });
+      seen.add(rstate.vars[1]);
+    }
+    assert.equal(widths[0], 6, "a -5..0 range rolls six values, not one");
+    assert.ok(seen.has(0) && seen.has(-5), "both ends of a -5..0 range are reachable");
+
+    widths = []; rndState.i = 0;
+    runVar({ t: "var", id: 2, op: "rnd", val: 10, val2: 0 });
+    assert.equal(widths[0], 11, "a range typed high-to-low rolls the same as low-to-high");
+    assert.ok(rstate.vars[2] >= 0 && rstate.vars[2] <= 10, "…and stays inside it");
+
+    widths = []; rndState.i = 0;
+    runVar({ t: "var", id: 3, op: "rnd", val: 4 }); // no val2 at all (legacy shape)
+    assert.equal(widths[0], 1, "an ABSENT upper bound still means the single value");
+    assert.equal(rstate.vars[3], 4);
+  }
+
+  // ---- Change Parallax carries the "Locked to map" flag ----
+  {
+    let captured = "unset";
+    const psvc2 = { setMapParallax: (cfg) => { captured = cfg; } };
+    await getCommand("parallax")(
+      { t: "parallax", key: "asset:pic/cave", lock: true },
+      { interp: {}, state: {}, services: psvc2 },
+    );
+    assert.equal(captured.lock, true, "the Locked-to-map flag reaches the renderer");
+    await getCommand("parallax")({ t: "parallax", key: "" }, { interp: {}, state: {}, services: psvc2 });
+    assert.equal(captured, null, "an empty key still clears the parallax");
+  }
 
   console.log("Interpreter registry and branching logic tests passed.");
 })().catch((e) => {

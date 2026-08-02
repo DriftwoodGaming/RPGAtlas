@@ -268,6 +268,8 @@ function createMessageSystem(deps) {
       }
 
       function finish() {
+        clearInterval(timer);
+        ui.onClose = null; // closing normally — the seam below has nothing to do
         removeUI(ui);
         resolve();
       }
@@ -293,6 +295,13 @@ function createMessageSystem(deps) {
       win.addEventListener("click", advance);
       const ui = {
         el: win,
+        // Torn down from outside (toTitle clearing the UI stack after a game
+        // over): stop the typewriter and settle the promise, or the event that
+        // is awaiting this box would hang on a window that is gone.
+        onClose() {
+          clearInterval(timer);
+          resolve();
+        },
         onKey(key) {
           if (key === "ok" || key === "cancel") advance();
         },

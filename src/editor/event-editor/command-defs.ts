@@ -6,7 +6,8 @@
    Copyright (C) 2026 RPGAtlas contributors — GPL-3.0-or-later (see LICENSE). */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Assets, RA, Sfx, editorState as S } from "../editor-state";
+import { Assets, RA, Sfx, curMap, editorState as S } from "../editor-state";
+import { describeStep } from "../../shared/move-route";
 import {
   h, tIn, nIn, sel, chk, field, row,
   dbOpts, switchOpts, varOpts, cmpOpts, charsetOpts,
@@ -85,6 +86,27 @@ import { openLocationPicker } from "./location-picker";
     return row(field("Red (−255…255)", rIn), field("Green", gIn), field("Blue", bIn), field("Gray (0…255)", grIn), field("", presetSel));
   }
 
+  /** How a Set Move Route target reads in the command list. */
+  const moveTargetName = (id: any) => {
+    const map: any = curMap();
+    const ev = ((map && map.events) || []).find((e: any) => e.id === (Number(id) || 0));
+    return ev ? (ev.name || "Event " + ev.id) : "Event #" + (Number(id) || 0);
+  };
+
+  /** The events on the map being edited, for Set Move Route's "Another
+   *  Event…" target. Named events read by name; the rest by id and position,
+   *  which is how the map editor labels them too. */
+  const eventOpts = () => {
+    const map: any = curMap();
+    const events = (map && map.events) || [];
+    return [{ v: 0, l: "(pick an event)" }].concat(
+      events.map((ev: any) => ({
+        v: ev.id,
+        l: (ev.name ? ev.name : "Event " + ev.id) + " (" + ev.x + "," + ev.y + ")",
+      })),
+    );
+  };
+
   /** One-line human description of a Condition — extracted verbatim from the
    *  Conditional Branch summary so Show Choices per-option rows and the
    *  command list's branch labels can share it. Output is unchanged for
@@ -103,7 +125,8 @@ import { openLocationPicker } from "./location-picker";
     const swName = (id: any) => id + (S.proj.system.switches[id - 1] ? " (" + S.proj.system.switches[id - 1] + ")" : "");
     const varName = (id: any) => id + (S.proj.system.variables[id - 1] ? " (" + S.proj.system.variables[id - 1] + ")" : "");
     const dbName = (arr: any, id: any) => { const e = RA.byId(arr, id); return e ? e.name : "#" + id; };
-    const questName = (id: any) => dbName(S.proj.quests || [], id);
+    // An empty project has no quests to point at, so say so rather than "#0".
+    const questName = (id: any) => (Number(id) ? dbName(S.proj.quests || [], id) : "(no quest chosen)");
     const k = cond.kind;
     return k === "switch" ? "Switch " + swName(cond.id) + (cond.val === false ? " is OFF" : " is ON")
       : k === "var" ? "Var " + varName(cond.id) + " " + (cond.cmp || ">=") + " " + (Number(cond.valVarId) >= 1 ? "Var " + varName(cond.valVarId) : cond.val)
@@ -115,7 +138,20 @@ import { openLocationPicker } from "./location-picker";
       : k === "online" ? "Playing online is " + (cond.val === false ? "OFF" : "ON")
       : k === "playerCount" ? "Player count " + (cond.cmp || ">=") + " " + (cond.val || 0)
       : k === "mzScript" ? "Script: " + (cond.code || "").split("\n")[0].slice(0, 38)
-      : (cond.currencyId > 1 ? currencyLabel(cond.currencyId) : "Gold") + " " + (cond.cmp || ">=") + " " + cond.val;
+      // Actor had no arm here, so every Actor condition fell through to the
+      // Gold template and read "Gold >= true" in the command list, the branch
+      // labels, the choice rows and the whole Dialogue workspace.
+      : k === "actor" ? dbName(S.proj.actors, cond.actorId) + (
+        cond.check === "weapon"
+          ? " has " + (cond.itemId ? dbName(S.proj.weapons, cond.itemId) : "nothing") + " equipped"
+          : cond.check === "armor"
+            ? " wears " + (cond.itemId ? dbName(S.proj.armors, cond.itemId) : "nothing")
+            : " is in the party")
+      // The tail names any kind it doesn't know rather than mislabelling it as
+      // Gold — which is how the Actor case stayed invisible for so long.
+      : (k === "gold" || !k)
+        ? (cond.currencyId > 1 ? currencyLabel(cond.currencyId) : "Gold") + " " + (cond.cmp || ">=") + " " + cond.val
+        : String(k);
   }
 
   // ============================ command definitions ============================
@@ -123,7 +159,8 @@ import { openLocationPicker } from "./location-picker";
     const swName = (id: any) => id + (S.proj.system.switches[id - 1] ? " (" + S.proj.system.switches[id - 1] + ")" : "");
     const varName = (id: any) => id + (S.proj.system.variables[id - 1] ? " (" + S.proj.system.variables[id - 1] + ")" : "");
     const dbName = (arr: any, id: any) => { const e = RA.byId(arr, id); return e ? e.name : "#" + id; };
-    const questName = (id: any) => dbName(S.proj.quests || [], id);
+    // An empty project has no quests to point at, so say so rather than "#0".
+    const questName = (id: any) => (Number(id) ? dbName(S.proj.quests || [], id) : "(no quest chosen)");
     const commonEventName = (id: any) => dbName(S.proj.commonEvents || [], id);
     const dialogueName = (id: any) => dbName(S.proj.dialogues || [], id);
     const questObjName = (questId: any, objIndex: any) => {
@@ -136,7 +173,15 @@ import { openLocationPicker } from "./location-picker";
       case "choices": return "Show Choices: " + c.options.map((o: any, i: any) => o + (c.conditions && c.conditions[i] ? " (if…)" : "")).join(" / ") + (c.cancelable ? " — can cancel" : "");
       case "switch": return "Switch " + swName(c.id) + " = " + (c.val ? "ON" : "OFF") + (c.scope === "player" ? " (per-player)" : "");
       case "selfsw": return "Self-Switch " + c.key + " = " + (c.val ? "ON" : "OFF");
-      case "var": return "Variable " + varName(c.id) + " " + (c.op === "set" ? "=" : c.op === "add" ? "+=" : c.op === "sub" ? "−=" : "= rnd") + " " + c.val + (c.op === "rnd" ? ".." + (c.val2 || c.val) : "");
+      case "var": {
+        const op = c.op === "set" ? "=" : c.op === "add" ? "+=" : c.op === "sub" ? "−=" : "= rnd";
+        if (c.op !== "rnd") return "Variable " + varName(c.id) + " " + op + " " + c.val;
+        // 0 is a real bound (see the `var` handler) and the range reads
+        // low..high whichever way round the author typed it.
+        const other = c.val2 == null ? c.val : c.val2;
+        return "Variable " + varName(c.id) + " " + op + " " +
+          Math.min(c.val, other) + ".." + Math.max(c.val, other);
+      }
       case "if": return "If " + condSummary(c.cond);
       case "loop": return "Loop";
       case "breakLoop": return "Break Loop";
@@ -165,7 +210,16 @@ import { openLocationPicker } from "./location-picker";
       case "resumeBgm": return "Replay Remembered Music";
       case "stopSe": return "Stop All Sounds";
       case "jingle": return "Change " + (c.channel === "defeat" ? "Defeat" : "Victory") + " Jingle" + (c.key ? ": " + String(c.key).replace(/^asset:[^/]*\//, "") : " (silent)");
-      case "move": return "Move " + (c.target === "player" ? "Player" : "This Event") + ": " + c.steps.join(", ").slice(0, 40) + (c.wait ? " (wait)" : "");
+      case "move": {
+        const who = c.target === "player" ? "Player"
+          : c.target === "other" ? moveTargetName(c.eventId)
+            : "This Event";
+        const steps = Array.isArray(c.steps) ? c.steps : [];
+        const shown = steps.slice(0, 4).map(describeStep).join(", ");
+        const more = steps.length > 4 ? " +" + (steps.length - 4) + " more" : "";
+        const tags = (c.wait && !c.repeat ? " (wait)" : "") + (c.repeat ? " (repeat)" : "");
+        return "Move " + who + ": " + (steps.length ? shown + more : "nothing yet") + tags;
+      }
       case "cameraZoom": return "Camera Zoom: " + Math.round((c.zoom || 1) * 100) + "% over " + (c.frames || 0) + " frames";
       case "transparency": return "Player Transparency: " + (c.val ? "hidden" : "visible");
       case "playAnim": return "Play Animation: " + dbName(S.proj.animations || [], c.animationId) + (c.target === "this" ? " (this event)" : c.target === "screen" ? " (screen)" : " (player)");
@@ -268,9 +322,33 @@ import { openLocationPicker } from "./location-picker";
    *  Branch form always did (plus cleanup of the two UI-only scratch fields
    *  the new operands use), mutating `w` in place. */
   export function conditionFields(w: any) {
-    const root = h("div");
-    const sub = h("div");
+    // `condfields` lays the type picker and the kind's own fields out as ONE
+    // line (the sub wrapper is display:contents, so its rows join the same
+    // flex flow); see css/editor.css.
+    const root = h("div", { class: "condfields" });
+    const sub = h("div", { class: "condfields-sub" });
+    /** Fill in whatever the CURRENT kind needs. This used to run once, on the
+     *  kind the condition arrived with, so picking a different type from the
+     *  dropdown left its own fields undefined — a Self-Switch condition
+     *  authored that way silently never matched (its key was the string
+     *  "undefined"), and a Quest one read "#undefined" in every summary.
+     *  Now it runs on every redraw, i.e. every time the type changes. */
+    function fillDefaults() {
+      if (w.kind === "switch" || w.kind === "var") {
+        if (!Number(w.id)) w.id = 1;
+      } else if (w.kind === "selfsw") {
+        if (!w.key) w.key = "A";
+      } else if (w.kind === "quest") {
+        if (w.questId == null) w.questId = S.proj.quests[0] ? S.proj.quests[0].id : 0;
+        if (!w.status) w.status = "active";
+      } else if (w.kind === "item") {
+        if (!w.itemKind) w.itemKind = "item";
+        const arr = w.itemKind === "weapon" ? S.proj.weapons : w.itemKind === "armor" ? S.proj.armors : S.proj.items;
+        if (!RA.byId(arr, w.id)) w.id = arr[0] ? arr[0].id : 0;
+      }
+    }
     function redraw() {
+      fillDefaults();
       sub.innerHTML = "";
       if (w.kind === "switch") {
         // MP7·B: a switch condition can read the shared switch (World) or the
@@ -383,17 +461,19 @@ import { openLocationPicker } from "./location-picker";
       { v: "region", l: "Player Region" }, { v: "time", l: "Time of Day" },
       { v: "online", l: "Playing Online" }, { v: "playerCount", l: "Player Count" }
     ], redraw)));
-    if (w.kind === "item" && !w.itemKind) w.itemKind = "item";
-    if (w.kind === "selfsw" && !w.key) w.key = "A";
-    if (w.kind === "quest") {
-      if (w.questId == null) w.questId = 0;
-      if (!w.status) w.status = "active";
-    }
-    root.appendChild(sub);
+    root.appendChild(sub); // fillDefaults() runs inside redraw(), for every kind
     redraw();
     return {
       el: root,
+      /** Fold the form's scratch fields into the stored shape. Safe to call
+       *  REPEATEDLY on the same object — the inline builder commits on every
+       *  keystroke to keep its plain-language preview live. The two mode
+       *  pickers are re-derived from the stored shape first, because a
+       *  previous commit deleted them; reading `w.src` directly here used to
+       *  drop the variable-vs-variable operand on the second call. */
       commit() {
+        const src = w.src != null ? w.src : (Number(w.valVarId) >= 1 ? "var" : "const");
+        const countMode = w.countMode != null ? w.countMode : (w.count != null ? "cmp" : "any");
         if (w.val === "true") w.val = true;
         if (w.val === "false") w.val = false;
         // Only gold conditions keep a currencyId, and only for wallet ids —
@@ -405,122 +485,184 @@ import { openLocationPicker } from "./location-picker";
         // Variable-vs-variable: keep valVarId only when a real variable is
         // picked; item count-compare: keep `count` only in compare mode. The
         // two mode pickers are UI-only scratch and never saved.
-        if (w.kind !== "var" || w.src !== "var" || Number(w.valVarId) < 1) delete w.valVarId;
-        if (w.kind !== "item" || w.countMode !== "cmp") delete w.count;
+        if (w.kind !== "var" || src !== "var" || Number(w.valVarId) < 1) delete w.valVarId;
+        if (w.kind !== "item" || countMode !== "cmp") delete w.count;
         delete w.src;
         delete w.countMode;
       },
     };
   }
 
-  /** Opens the single-condition fields in their own dialog and hands back the
-   *  committed condition. Shared by every "Only if…" surface. */
-  function editOneCondition(initial: any, title: string, onDone: (cond: any) => void): void {
-    const w = initial ? RA.clone(initial) : { kind: "switch", id: 1, val: true };
-    if (!w.kind || w.kind === "all" || w.kind === "any") w.kind = "switch";
-    const cf = conditionFields(w);
-    modal({
-      title,
-      content: cf.el,
-      buttons: [
-        { label: "OK", primary: true, onClick(close: any) { cf.commit(); close(); onDone(w); } },
-        { label: "Cancel" },
-      ],
-      dialogKeys: true,
-    });
-  }
-
-  /** A LIST of conditions on one gate, with an All (AND) / Any (OR) match
+  /** A LIST of conditions on one gate, with an ALL (AND) / ANY (OR) match
    *  mode — "only if you're in the guild AND have met Ravel". Shared by
    *  Conditional Branch, Show Choices' per-option guards, and every condition
    *  in the Dialogue workspace (nodes, choice options, topics).
    *
-   *  Storage stays minimal on purpose: no conditions saves nothing, ONE
-   *  condition saves the bare pre-upgrade shape (so projects that never touch
-   *  a second condition are byte-identical), and only two or more produce an
-   *  {kind:"all"|"any", conds:[…]} group. A member may itself be a group, so
-   *  "A AND (B OR C)" is authorable by nesting one level down. */
+   *  Everything is edited INLINE. Each condition is ONE row of live controls
+   *  ("Switch · Crystal Found · is ON"), and a group is an indented card with
+   *  its own AND/OR picker sitting right there. The old builder showed
+   *  read-only summary text with an "Edit…" button that opened a second
+   *  dialog, and "+ Add group" opened a THIRD, empty one that never explained
+   *  what a group was for — three windows deep to say "A and B", which is
+   *  where authors got lost.
+   *
+   *  Storage is unchanged and stays minimal on purpose: no conditions saves
+   *  nothing, ONE condition saves the bare pre-upgrade shape (so projects that
+   *  never touch a second condition are byte-identical), and only two or more
+   *  produce an {kind:"all"|"any", conds:[…]} group. A member may itself be a
+   *  group, so "A AND (B OR C)" is authorable by nesting. */
   export function conditionGroupWidget(initial: any, opts?: any) {
     const options = opts || {};
+    /** How deep this card is nested. 0 = the outermost list. */
+    const depth = Number(options.depth) || 0;
+    /** Nesting cap for the UI. The engine tolerates 16; three brackets is
+     *  already past what anyone can read at a glance. */
+    const MAX_DEPTH = 2;
     const isGroup = (c: any) => !!c && (c.kind === "all" || c.kind === "any");
     let mode: string = isGroup(initial) ? initial.kind : "all";
-    const rows: any[] = !initial ? []
-      : isGroup(initial) ? (initial.conds || []).filter(Boolean).map((c: any) => RA.clone(c))
-      : [RA.clone(initial)];
 
-    const el = h("div", { class: "condgroup" });
+    const el = h("div", { class: "condgroup" + (depth ? " condgroup-nested" : "") });
     const modeWrap = h("div", { class: "condgroup-mode" });
-    const list = h("div", { class: "minilist" });
-    const onChange = () => { if (options.onChange) options.onChange(); };
+    const list = h("div", { class: "condgroup-list" });
+    const preview = h("div", { class: "condgroup-preview" });
+
+    function onChange() {
+      refreshPreview();
+      if (options.onChange) options.onChange();
+    }
+
+    /** One member of this list: either a live single-condition form (`cf`) or
+     *  a nested group (`group`). The condition object itself is the storage. */
+    function makeRow(cond: any): any {
+      if (isGroup(cond)) {
+        return {
+          group: conditionGroupWidget(cond, {
+            depth: depth + 1,
+            onChange,
+            emptyLabel: "This group is empty — it will be dropped when you press OK.",
+          }),
+        };
+      }
+      return { cond, cf: conditionFields(cond) };
+    }
+
+    const rows: any[] = (!initial ? []
+      : isGroup(initial) ? (initial.conds || []).filter(Boolean)
+        : [initial]).map((c: any) => makeRow(RA.clone(c)));
+
+    /** The word in front of a row: the first is "if", the rest carry the match
+     *  mode, so the list literally reads "if A / and B / and C". */
+    const joinWord = (i: number) => (i === 0 ? "if" : mode === "all" ? "and" : "or");
 
     function redraw() {
+      // ---- the AND/OR picker, always visible ----------------------------
+      // It used to appear only once a second condition existed, so an author
+      // looking at their first condition had no idea the choice was there.
       modeWrap.innerHTML = "";
-      // The match mode only means something once there are two conditions.
-      if (rows.length > 1) {
-        const modeOpts: any = [{ v: "all", l: "ALL of these must be true (AND)" }, { v: "any", l: "ANY one of these (OR)" }];
-        modeOpts.stringValues = true;
-        const holder = { mode };
-        // Redraw so the "and"/"or" word in front of each row follows the mode.
-        modeWrap.appendChild(field("Match", sel(holder, "mode", modeOpts, (v: any) => { mode = String(v); redraw(); onChange(); })));
-      }
+      const modeOpts: any = [
+        { v: "all", l: "ALL of these are true   (AND)" },
+        { v: "any", l: "ANY one of these is true   (OR)" },
+      ];
+      modeOpts.stringValues = true;
+      const holder = { mode };
+      modeWrap.append(
+        h("span", { class: "condgroup-mode-label" },
+          depth ? "Inside these brackets, match" : (options.matchLabel || "Run this when")),
+        sel(holder, "mode", modeOpts, (v: any) => { mode = String(v); redraw(); onChange(); }),
+      );
+      if (rows.length < 2)
+        modeWrap.appendChild(h("span", { class: "dim" }, "— starts to matter with two or more"));
+
+      // ---- the rows ------------------------------------------------------
       list.innerHTML = "";
-      rows.forEach((cond: any, i: number) => {
-        list.appendChild(h("div", { class: "minirow" },
-          h("span", { class: "condgroup-join" }, i === 0 ? "if" : (mode === "all" ? "and" : "or")),
-          h("span", { class: "condgroup-text" }, condSummary(cond)),
-          h("button", { class: "mini", onclick() {
-            if (isGroup(cond)) editNested(i); else editOneCondition(cond, "Edit condition", (next: any) => { rows[i] = next; redraw(); onChange(); });
-          } }, "Edit…"),
-          h("button", { class: "mini danger", onclick() { rows.splice(i, 1); redraw(); onChange(); } }, "✕")));
+      rows.forEach((r: any, i: number) => {
+        const joinCls = i === 0 ? "" : mode === "all" ? " join-and" : " join-or";
+        list.appendChild(h("div", { class: "condrow" + (r.group ? " condrow-group" : "") },
+          h("span", { class: "condgroup-join" + joinCls }, joinWord(i)),
+          h("div", { class: "condrow-body" }, r.group ? r.group.el : r.cf.el),
+          h("button", {
+            class: "mini danger",
+            title: r.group ? "Remove this whole group" : "Remove this condition",
+            onclick() { rows.splice(i, 1); redraw(); onChange(); },
+          }, "✕")));
       });
-      if (!rows.length) list.appendChild(h("div", { class: "dim" }, options.emptyLabel || "No conditions — always true."));
+      if (!rows.length)
+        list.appendChild(h("div", { class: "dim condgroup-empty" },
+          options.emptyLabel || "No conditions yet — this always runs. Add one below to control it."));
+      refreshPreview();
     }
 
-    // A nested group is edited by the same widget one level down, which is
-    // what makes "A AND (B OR C)" possible without a dedicated tree editor.
-    function editNested(i: number) {
-      const inner = conditionGroupWidget(rows[i]);
-      modal({
-        title: "Condition group",
-        content: inner.el,
-        buttons: [
-          { label: "OK", primary: true, onClick(close: any) {
-            const value = inner.value();
-            if (value) rows[i] = value; else rows.splice(i, 1);
-            close(); redraw(); onChange();
-          } },
-          // Backing out of a group that was created empty (the "+ Add group"
-          // button opens it straight away) leaves no stray row behind.
-          { label: "Cancel", onClick(close: any) {
-            if (isGroup(rows[i]) && !(rows[i].conds || []).length) { rows.splice(i, 1); redraw(); }
-            close();
-          } },
-        ],
-        dialogKeys: true,
-      });
+    /** Commit every live row and fold the list into the stored shape. */
+    function collect(): any {
+      const kept: any[] = [];
+      for (const r of rows) {
+        if (r.group) {
+          const nested = r.group.value();
+          if (nested) kept.push(nested); // an emptied group drops out
+        } else {
+          r.cf.commit();
+          kept.push(r.cond);
+        }
+      }
+      if (!kept.length) return null;
+      if (kept.length === 1) return kept[0];
+      return { kind: mode === "any" ? "any" : "all", conds: kept };
     }
 
-    el.append(modeWrap, list, h("div", { class: "condgroup-actions" },
-      h("button", { class: "mini", onclick() {
-        editOneCondition(null, "Add condition", (next: any) => { rows.push(next); redraw(); onChange(); });
-      } }, "+ Add condition"),
-      h("button", { class: "mini", onclick() {
-        rows.push({ kind: mode === "all" ? "any" : "all", conds: [] });
-        redraw(); onChange();
-        editNested(rows.length - 1);
-      } }, "+ Add group")));
+    /** The whole gate in one plain-language sentence, live as you edit. */
+    function refreshPreview() {
+      if (depth) return; // only the outermost card narrates
+      const value = collect();
+      preview.textContent = value ? "Reads as:   " + condSummary(value) : "";
+      preview.style.display = value ? "" : "none";
+    }
+
+    const actions = h("div", { class: "condgroup-actions" },
+      h("button", {
+        class: "mini",
+        onclick() {
+          rows.push(makeRow({ kind: "switch", id: 1, val: true }));
+          redraw();
+          onChange();
+        },
+      }, "+ Add condition"),
+      depth < MAX_DEPTH
+        ? h("button", {
+          class: "mini",
+          title: "Brackets. “A and (B or C)” — the group gets its own ALL/ANY choice, so you can mix AND and OR in one gate.",
+          onclick() {
+            // A new group starts with ONE condition in it (an empty box tells
+            // the author nothing) and defaults to the OPPOSITE match of its
+            // parent — mixing the two is the only thing a bracket can express
+            // that a flat list cannot.
+            rows.push(makeRow({
+              kind: mode === "all" ? "any" : "all",
+              conds: [{ kind: "switch", id: 1, val: true }],
+            }));
+            redraw();
+            onChange();
+          },
+        }, "+ Add group  ( … or … )")
+        : null,
+    );
+
+    el.append(modeWrap, list, actions);
+    if (!depth) {
+      el.appendChild(preview);
+      // Edits INSIDE a row don't route through onChange (they're the shared
+      // single-condition form's own controls), so the outermost card listens
+      // for their bubbled events to keep the sentence below in step. Nested
+      // cards are descendants, so one listener covers the whole tree.
+      el.addEventListener("change", refreshPreview);
+      el.addEventListener("input", refreshPreview);
+    }
     redraw();
 
     return {
       el,
       /** The condition to store: null when empty, the bare condition when
        *  there is exactly one, a group only when there are several. */
-      value(): any {
-        const kept = rows.filter(Boolean).filter((c: any) => !(isGroup(c) && !(c.conds || []).length));
-        if (!kept.length) return null;
-        if (kept.length === 1) return kept[0];
-        return { kind: mode === "any" ? "any" : "all", conds: kept };
-      },
+      value: collect,
     };
   }
 
@@ -557,7 +699,7 @@ import { openLocationPicker } from "./location-picker";
           if (w.to === "all") c.to = "all"; else delete c.to;
         };
       } },
-    { t: "choices", label: "Show Choices", make: () => ({ t: "choices", options: ["Yes", "No"], branches: [[], []] }),
+    { t: "choices", label: "Show Choices", wide: true, make: () => ({ t: "choices", options: ["Yes", "No"], branches: [[], []] }),
       form(c: any, box: any) {
         const ta = h("textarea", { rows: 4 }, c.options.join("\n"));
         box.appendChild(field("Choices (one per line)", ta));
@@ -582,10 +724,14 @@ import { openLocationPicker } from "./location-picker";
         function editOptionCond(i: number) {
           // A LIST of conditions per option (All/Any) — one condition still
           // stores the bare shape it always did.
-          const group = conditionGroupWidget(conds[i], { emptyLabel: "No conditions — this choice is always shown." });
+          const group = conditionGroupWidget(conds[i], {
+            matchLabel: "Show this choice when",
+            emptyLabel: "No conditions yet — this choice is always shown. Add one below to hide it sometimes.",
+          });
           modal({
             title: "Show this choice only if…",
             content: group.el,
+            wide: true, // the inline condition builder needs the room
             buttons: [
               { label: "OK", primary: true, onClick(close: any) { conds[i] = group.value(); close(); redrawConds(); } },
               { label: "Cancel" },
@@ -612,15 +758,19 @@ import { openLocationPicker } from "./location-picker";
           if (w.cancelable) c.cancelable = true; else delete c.cancelable;
         };
       } },
-    { t: "if", label: "Conditional Branch", make: () => ({ t: "if", cond: { kind: "switch", id: 1, val: true }, then: [], else: [] }),
+    { t: "if", label: "Conditional Branch", wide: true, make: () => ({ t: "if", cond: { kind: "switch", id: 1, val: true }, then: [], else: [] }),
       form(c: any, box: any) {
         // A list of conditions with an All/Any match mode (shared with Show
         // Choices' per-option guards and the Dialogue workspace). A branch
         // that only ever had one condition still stores exactly that.
-        const group = conditionGroupWidget(c.cond, { emptyLabel: "No conditions — the Then branch always runs." });
+        const group = conditionGroupWidget(c.cond, {
+          matchLabel: "Run the Then branch when",
+          emptyLabel: "No conditions yet — the Then branch always runs. Add one below to control it.",
+        });
         box.appendChild(group.el);
         box.appendChild(h("div", { class: "dim" },
-          "Add a second condition to choose between ALL of them (AND) and ANY of them (OR). \"+ Add group\" nests one level, for \"A and (B or C)\"."));
+          "Each condition is edited right here. With two or more, the picker above chooses whether they ALL have to be true (AND) or just ANY one (OR). " +
+          "“+ Add group” adds brackets — “A and (B or C)” — with their own ALL/ANY choice, which is how you mix the two in one gate."));
         return () => {
           const value = group.value();
           if (value) c.cond = value; else delete c.cond;
@@ -1033,25 +1183,141 @@ import { openLocationPicker } from "./location-picker";
         box.appendChild(h("div", { class: "dim" }, "Swaps the battle victory or defeat jingle from here on (saved with the game)."));
         return () => { c.channel = w.channel; c.key = w.key; };
       } },
+    // Set Move Route — the cutscene tool. A route is a sequenced pattern any
+    // character on the map can be told to play, so one event can walk the whole
+    // cast: "the guard steps aside, the king turns to face you, the door fades
+    // out". The step palette below is the engine's full one (shared/move-route.ts
+    // runs it); steps that carry a value are `{k, …}` objects, the rest stay the
+    // plain strings every route saved before this used.
     { t: "move", label: "Set Move Route", make: () => ({ t: "move", target: "this", steps: [], wait: true }),
       form(c: any, box: any) {
-        const w = { target: c.target, wait: !!c.wait };
-        const steps = c.steps.slice();
-        const chipBox = h("div", { class: "minilist" });
-        const STEPS = ["up", "down", "left", "right", "jump", "forward", "turn_up", "turn_down", "turn_left", "turn_right", "wait15", "wait60"];
+        const w = {
+          target: c.target || "this",
+          eventId: Number(c.eventId) || 0,
+          wait: !!c.wait,
+          repeat: !!c.repeat,
+          skippable: c.skippable !== false,
+          gap: Number(c.gap) || 0,
+        };
+        const steps = (Array.isArray(c.steps) ? c.steps : []).slice();
+        // Grouped palette: movement first (what most routes are), then turns,
+        // then the timing/appearance steps that make a cutscene.
+        const GROUPS: { label: string; items: { v: string; l: string }[] }[] = [
+          { label: "Move", items: [
+            { v: "up", l: "Step up" }, { v: "down", l: "Step down" },
+            { v: "left", l: "Step left" }, { v: "right", l: "Step right" },
+            { v: "upleft", l: "Step up-left" }, { v: "upright", l: "Step up-right" },
+            { v: "downleft", l: "Step down-left" }, { v: "downright", l: "Step down-right" },
+            { v: "forward", l: "Step forward" }, { v: "back", l: "Step backward" },
+            { v: "random", l: "Step somewhere random" },
+            { v: "toward", l: "Step toward the player" }, { v: "away", l: "Step away from the player" },
+            { v: "jump", l: "Jump forward" }, { v: "*jump", l: "Jump to… (choose how far)" },
+          ] },
+          { label: "Turn", items: [
+            { v: "turn_up", l: "Face up" }, { v: "turn_down", l: "Face down" },
+            { v: "turn_left", l: "Face left" }, { v: "turn_right", l: "Face right" },
+            { v: "turn_r90", l: "Turn 90° right" }, { v: "turn_l90", l: "Turn 90° left" },
+            { v: "turn_180", l: "Turn around" }, { v: "turn_random", l: "Turn a random way" },
+            { v: "turn_toward", l: "Face the player" }, { v: "turn_away", l: "Face away from the player" },
+          ] },
+          { label: "Wait", items: [
+            { v: "wait15", l: "Wait a moment (15 frames)" },
+            { v: "wait60", l: "Wait a second (60 frames)" },
+            { v: "*wait", l: "Wait… (choose how long)" },
+          ] },
+          { label: "Change", items: [
+            { v: "*speed", l: "Change move speed…" },
+            { v: "*opacity", l: "Change how see-through…" },
+            { v: "*graphic", l: "Change graphic…" },
+            { v: "*se", l: "Play a sound…" },
+            { v: "*switch", l: "Turn a switch on/off…" },
+            { v: "transparent_on", l: "Become invisible" }, { v: "transparent_off", l: "Become visible" },
+            { v: "walk_on", l: "Walking animation on" }, { v: "walk_off", l: "Walking animation off" },
+            { v: "step_on", l: "Keep stepping while still" }, { v: "step_off", l: "Stop stepping while still" },
+            { v: "dirfix_on", l: "Keep facing (don't turn)" }, { v: "dirfix_off", l: "Turn normally again" },
+            { v: "through_on", l: "Walk through walls" }, { v: "through_off", l: "Stop walking through walls" },
+          ] },
+        ];
+        const PALETTE: { v: string; l: string }[] = [];
+        for (const g of GROUPS) for (const it of g.items) PALETTE.push({ v: it.v, l: g.label + ": " + it.l });
+        const listBox = h("div", { class: "minilist" });
+        const pick = { s: "right" };
+        /** The steps that need a value ask for it right here (a "*" palette
+         *  entry), so the author never has to know the payload shape. */
+        function makeStep(kind: string): any {
+          if (kind === "*wait") return { k: "wait", frames: 30 };
+          if (kind === "*speed") return { k: "speed", value: 3 };
+          if (kind === "*opacity") return { k: "opacity", value: 128 };
+          if (kind === "*graphic") return { k: "graphic", charset: "" };
+          if (kind === "*se") return { k: "se", name: "" };
+          if (kind === "*switch") return { k: "switch", id: 1, on: true };
+          if (kind === "*jump") return { k: "jump", dx: 0, dy: -2 };
+          return kind;
+        }
+        /** The inline value editor for a step that carries one. */
+        function stepFields(s: any): any[] {
+          if (s.k === "wait") return [field("Frames", nIn(s, "frames", 1, 600))];
+          if (s.k === "speed") return [field("Speed (1 slow … 6 fast)", nIn(s, "value", 1, 6))];
+          if (s.k === "opacity") return [field("Opacity (0 gone … 255 solid)", nIn(s, "value", 0, 255))];
+          if (s.k === "graphic") return [field("Graphic", sel(s, "charset", charsetOpts()))];
+          if (s.k === "se") return [field("Sound", sel(s, "name", stringSelOpts(SE_OPTS())))];
+          if (s.k === "switch") return [field("Switch", sel(s, "id", switchOpts())),
+            field("Turn it", sel(s, "on", [{ v: true, l: "ON" }, { v: false, l: "OFF" }] as any))];
+          if (s.k === "jump") return [field("Tiles across", nIn(s, "dx", -10, 10)),
+            field("Tiles down", nIn(s, "dy", -10, 10))];
+          return [];
+        }
         function redraw() {
-          chipBox.innerHTML = "";
-          steps.forEach((s: any, i: any) => chipBox.appendChild(h("span", { class: "chip", onclick() { steps.splice(i, 1); redraw(); }, title: "click to remove" }, s)));
-          const pick = { s: "up" };
-          const selEl = sel(pick, "s", STEPS.map((s) => ({ v: s, l: s })));
-          chipBox.appendChild(h("div", { class: "minirow" }, selEl,
-            h("button", { class: "mini", onclick() { steps.push(pick.s); redraw(); } }, "+ add")));
+          listBox.innerHTML = "";
+          steps.forEach((s: any, i: number) => {
+            const norm = typeof s === "object" && s ? s : null;
+            const move = (d: number) => {
+              const j = i + d;
+              if (j < 0 || j >= steps.length) return;
+              const tmp = steps[i]; steps[i] = steps[j]; steps[j] = tmp;
+              redraw();
+            };
+            listBox.appendChild(h("div", { class: "minirow" },
+              h("span", { class: "chip" }, (i + 1) + ". " + describeStep(s)),
+              ...(norm ? stepFields(norm) : []),
+              h("button", { class: "mini", title: "move earlier", onclick: () => move(-1) }, "↑"),
+              h("button", { class: "mini", title: "move later", onclick: () => move(1) }, "↓"),
+              h("button", { class: "mini", title: "remove this step", onclick() { steps.splice(i, 1); redraw(); } }, "✕")));
+          });
+          if (!steps.length)
+            listBox.appendChild(h("div", { class: "dim" }, "No steps yet — pick one below and press “+ add”."));
+          listBox.appendChild(h("div", { class: "minirow" },
+            sel(pick, "s", PALETTE),
+            h("button", { class: "mini", onclick() { steps.push(makeStep(pick.s)); redraw(); } }, "+ add")));
         }
         redraw();
-        box.appendChild(row(field("Target", sel(w, "target", [{ v: "this", l: "This Event" }, { v: "player", l: "Player" }])),
-          field("Wait for finish", chk(w, "wait"))));
-        box.appendChild(h("div", { class: "fld" }, h("span", null, "Steps (click a chip to remove)"), chipBox));
-        return () => { c.target = w.target; c.wait = w.wait; c.steps = steps; };
+        const idField = field("Which event", sel(w, "eventId", eventOpts()));
+        const syncTarget = () => { idField.style.display = w.target === "other" ? "" : "none"; };
+        box.appendChild(row(
+          field("Move", sel(w, "target", [
+            { v: "this", l: "This Event" },
+            { v: "player", l: "The Player" },
+            { v: "other", l: "Another Event…" },
+          ], syncTarget)),
+          idField,
+          field("Wait for it to finish", chk(w, "wait")),
+          field("Repeat forever", chk(w, "repeat")),
+          field("Skip blocked steps", chk(w, "skippable"))));
+        syncTarget();
+        box.appendChild(h("div", { class: "fld" }, h("span", null, "Steps, in order"), listBox));
+        box.appendChild(h("div", { class: "dim" },
+          "“Wait for it to finish” holds the event until the route is done — that's what makes a cutscene play in order. " +
+          "“Repeat forever” loops the route until something else replaces it (a pacing guard); it can't be waited on, so the two are never both used. " +
+          "With “Skip blocked steps” off, a step that's blocked waits for the way to clear (and gives up after five seconds so nothing can freeze)."));
+        return () => {
+          c.target = w.target;
+          if (w.target === "other") c.eventId = Number(w.eventId) || 0;
+          else delete c.eventId;
+          c.wait = w.wait && !w.repeat;
+          if (w.repeat) c.repeat = true; else delete c.repeat;
+          if (!w.skippable) c.skippable = false; else delete c.skippable;
+          c.steps = steps;
+        };
       } },
     { t: "cameraZoom", label: "Camera Zoom", make: () => ({ t: "cameraZoom", zoom: 1, frames: 30 }),
       form(c: any, box: any) {
@@ -1541,6 +1807,10 @@ import { openLocationPicker } from "./location-picker";
     modal({
       title: def.label,
       content: box,
+      // A form carrying the inline condition builder needs room: a condition
+      // is one line of four or five controls, and the default 480-ish column
+      // wrapped it onto three.
+      wide: !!def.wide,
       buttons: [
         { label: "OK", primary: true, onClick(close: any) { if (!skipSnapshot && snapFn) snapFn(); apply(); close(); touch(); onDone(); } },
         { label: "Cancel", onClick(close: any) { close(); (onCancel || onDone)(); } },

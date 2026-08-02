@@ -45,6 +45,19 @@ export const ctx: any = {
   richText: null,
   showMessage: null,
   setMsgSpeed: null,
+  // Scene generation. Bumped every time the world the interpreter was talking
+  // to stops existing (return to title, New Game, load). An Interp captures it
+  // when it is built and stops the moment it no longer matches, so a command
+  // list can never keep running — and paint a message window — over the title
+  // screen it was interrupted by. See interpreter/interp.ts runList().
+  runEpoch: 0,
+  // A defeat has ended the game, but the event that caused it is still
+  // speaking. Holds the Interp that must finish first: its outermost runList
+  // consumes the latch, so the author's "you have fallen…" line plays where
+  // it was written instead of over the title screen afterwards. null = none
+  // pending; a defeat with no event running game-overs immediately, exactly
+  // as before. See scenes/gameover.ts requestGameOver().
+  pendingGameOver: null as any,
   // map runtime
   map: null,
   lowerBuf: null,

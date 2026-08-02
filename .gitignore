@@ -23,6 +23,8 @@ tests/fixtures/scale-project/
 dist/
 .vite/
 *.tsbuildinfo
+
+# Locally generated agent skills (regenerated on demand, not project source)
 .agents/skills/rpgatlas-targeted-testing/SKILL.md
 .agents/skills/rpgatlas-project-workflow/SKILL.md
 

@@ -934,7 +934,12 @@ export const Battle: any = {
           const d = stateDef(st.id);
           const list = statesOf(b);
           if (!d) {
-            list.splice(list.indexOf(st), 1);
+            // Guard the index: this loop awaits (the log lines below), and a
+            // parallel event that cures a state mid-await makes indexOf return
+            // -1 — splice(-1, 1) would delete the LAST state instead, silently
+            // removing an unrelated, still-active one.
+            const gone = list.indexOf(st);
+            if (gone >= 0) list.splice(gone, 1);
             continue;
           }
           if (d.hpTurn && aliveB(b)) {
@@ -980,7 +985,9 @@ export const Battle: any = {
           }
           st.turns--;
           if (st.turns <= 0) {
-            list.splice(list.indexOf(st), 1);
+            const at = list.indexOf(st);
+            if (at < 0) continue; // already cured mid-await: nothing to remove, nothing to announce
+            list.splice(at, 1);
             await say(nameOf(b) + "'s " + d.name + " wore off.", 500);
           }
         }

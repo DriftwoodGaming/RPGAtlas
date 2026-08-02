@@ -27,6 +27,17 @@ export function tickTweenTicks(world: World, n: any, step: any): Promise<void> {
   return new Promise((resolve) => world.tickTimers.push({ left: total, total, step, resolve }));
 }
 
+/** Drop every parked timer, resolving each so whatever awaits it runs on and
+ *  unwinds (an abandoned wait would otherwise hold its interpreter — and the
+ *  whole command list behind it — alive forever). Called when the world those
+ *  waits belong to stops existing: returning to the title, or loading a save.
+ *  The resumed runs are already epoch-stale, so they execute nothing. */
+export function clearTickTimers(world: World): void {
+  const timers = world.tickTimers;
+  world.tickTimers = [];
+  for (const tm of timers) tm.resolve();
+}
+
 /** Advance every timer one tick and resolve the finished ones. Called once
  *  per world tick by the tick body. A timer pushed from a step callback lands
  *  in the fresh list and starts counting NEXT tick — exactly the old map.ts

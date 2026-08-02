@@ -107,6 +107,10 @@ export function registerFlowCommands(): void {
     let spins = 0;
     for (;;) {
       await interp.runList(c.body || []);
+      // The run's world is gone (a Game Over or Return to Title inside the
+      // body): runList now returns instantly forever, so without this the loop
+      // would spin a core at full speed behind the title screen.
+      if (interp.stale) return;
       if (interp.breakLoop) {
         interp.breakLoop = false;
         return;

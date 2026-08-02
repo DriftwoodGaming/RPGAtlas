@@ -465,6 +465,30 @@ the scene (cutscenes); <i>Parallel</i> runs quietly in the background.</li>
 Items</b>, <b>Battle</b>, and much more. Add a command to the sign, playtest, and see what
 happens. <kbd>Ctrl+Z</kbd> undoes anything.</li>
 </ol>
+<h3>Part 5 — Make someone walk (move routes)</h3>
+<p>A <b>move route</b> is a sequenced pattern a character plays, one step at a time. It's how
+you stage a scene instead of just describing one.</p>
+<ol>
+<li>Open any event and add the command <b>Set Move Route</b>.</li>
+<li>Choose who moves: <b>This Event</b>, <b>The Player</b>, or <b>Another Event…</b> — that last
+one means a single event can direct the whole cast.</li>
+<li>Add steps: pick one from the list and press <b>+ add</b>. Try
+<i>Move: Step right</i> ×3, then <i>Turn: Face the player</i>, then <i>Wait: Wait a second</i>.
+Use ↑ and ↓ to reorder, ✕ to remove.</li>
+<li>Leave <b>Wait for it to finish</b> ticked, then add a <b>Show Text</b> after it. Playtest:
+the character walks over, turns to you, pauses — <i>then</i> speaks.</li>
+</ol>
+<div class="tut-tip">💡 <b>Repeat forever</b> loops the route until something replaces it — a
+guard pacing back and forth. <b>Skip blocked steps</b> (on by default) drops a step that's
+blocked; turn it off when the character really must arrive.</div>
+
+<h3>Part 6 — Keep a wanderer close to home</h3>
+<p>An event set to <b>Movement: Random</b> will wander wherever it can walk — eventually right
+off to the edge of the map. Set <b>Max wander</b> on the event page to how many tiles it may
+get from where you placed it. A shopkeeper with <b>3</b> stays in their shop; an Action Combat
+enemy set to Chase gives up at the end of its rope instead of following you across the world.
+<b>0</b> means no limit.</p>
+
 <p class="dim">Keep going: drag events to move them, <kbd>Ctrl+C</kbd>/<kbd>Ctrl+V</kbd> to copy
 between maps, and <b>Tools ▸ Event Searcher…</b> to find any text, switch, or variable across
 your whole game. The wiki's <b>Events</b> page covers every trigger and command.</p>

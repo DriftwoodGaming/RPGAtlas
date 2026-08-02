@@ -4,6 +4,41 @@
 
 export const PATCH_NOTES = [
   {
+    date: "August 2, 2026",
+    version: "2.1.0",
+    title: "Move routes, dice damage, and a condition builder you can read",
+    summary:
+      "Set Move Route grows into a real cutscene tool, damage formulas learn to roll dice, wandering events can be kept on a leash, conditions are built in one place instead of three — and a game over no longer talks over the title screen.",
+    items: [
+      "Conditional Branch is rebuilt. Every condition is edited right where you see it — one line of controls — instead of read-only text with an “Edit…” button that opened a second window. No more windows inside windows.",
+      "The ALL (AND) / ANY (OR) choice is now visible from your very first condition, so you can see what it does before you need it, and each row is labelled “if / and / or” so the list reads like a sentence.",
+      "“+ Add group” adds brackets — “A and (B or C)” — as an indented card with its OWN ALL/ANY picker, already containing a condition. That's how you mix AND and OR in one gate, and it's now something you can see rather than guess at.",
+      "A plain-language line under the builder reads your whole condition back to you as you edit it: “Switch 1 (Crystal Found) is ON AND Has Potion ≥ 3 AND (Quest Rescue is completed OR Self-Switch A is ON)”.",
+      "The same builder is used by Show Choices' “Only if…” and by every condition in Dialogue & Cutscenes, so all three now work the same way.",
+      "Fixed: picking a different condition type left its own settings blank — a Self-Switch condition made that way never matched anything, and a Quest one showed “#undefined”.",
+      "Fixed: after losing a battle, the rest of the event used to keep running once the game-over had already sent you back to the title — so a “you have fallen…” text box appeared on top of the title screen. The event now finishes speaking where it was written, then the game-over screen takes over, and nothing from a finished game can run over the title.",
+      "Set Move Route is a proper cutscene tool. Point it at This Event, The Player, or Another Event on the map — one event can now direct the whole cast.",
+      "Move routes understand every step: the eight directions, forward/backward, random, toward or away from the player, jump (straight ahead or an exact number of tiles), all the turns (90° each way, around, random, face the player), an exact-frame wait, and changes to move speed, opacity, graphic, sound, switches, invisibility, walking animation, direction fix, and walking through walls.",
+      "Move routes can Repeat forever (a guard pacing back and forth) and can wait for the way to clear instead of skipping a blocked step — with a five-second give-up so a scene can never freeze. The step list can be reordered, and each step says in plain words what it does.",
+      "New event-page setting — Max wander: how many tiles an event may get from where you placed it. A wandering shopkeeper with 3 stays in their shop, and an Action Combat enemy set to Chase gives up at the end of its rope instead of following you across the map. 0 means no limit, exactly like before.",
+      "Damage formulas roll dice: 2d6, d20, 4d6kh3 (roll four, drop the lowest), 2d20kh1 for advantage and 2d20kl1 for disadvantage, plus roll(a.level, 6) for a spell that grows. Six ready-made rolls are one click away, and “🎲 Roll it five times” shows you what the dice actually do.",
+      "Items have an Advanced recovery formula now too — a classic potion is simply “2d4 + 2”.",
+      "Games imported from RPG Maker bring their move routes across whole: diagonals, chase steps, relative turns, speed and frequency changes, graphic swaps, in-route sounds and switches, and routes aimed at another event by number.",
+      "Fixed: “Continue” on the title screen was greyed out for a game that only ever autosaved, leaving no way back in.",
+      "Fixed: loading a save while the game was running left the old game's background events running too — one extra copy per load, forever.",
+      "Fixed: a background (Parallel) event kept running after a map change and wrote its self-switch onto the new map, flipping an unrelated event there. Self-switches now always belong to the map the event lives on, even after a Transfer Player.",
+      "Fixed: Control Variable “random” with an upper bound of 0 always produced the lower number; a range typed high-to-low now rolls the same as low-to-high.",
+      "Fixed: Change Parallax ignored the “Locked to map” tick.",
+      "Fixed: “Actor has weapon equipped” missed a weapon in the second hand of a two-weapon fighter.",
+      "Fixed: an Actor condition was described as a Gold condition everywhere in the editor.",
+      "Fixed: resizing a map left extra Advanced-editor tile layers at the old size, shearing their artwork permanently.",
+      "Fixed: dragging a widget in the HUD Designer resized the preview screen instead of moving the widget.",
+      "Fixed: the Starting party dropdowns replaced the wrong hero after you emptied a slot, and a troop's “hidden at start” tick moved to the wrong enemy after you cleared a slot.",
+      "Fixed: a fresh New Game remembered which “ask once” dialogue topics had already been used.",
+      "Fixed: walking into a transfer zone let you keep walking during the fade — long enough to start a battle on the map you were leaving.",
+    ],
+  },
+  {
     date: "July 25, 2026",
     title: "Dialogue topics, and as many conditions as you need",
     summary:

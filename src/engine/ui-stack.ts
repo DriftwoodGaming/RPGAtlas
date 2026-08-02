@@ -30,6 +30,16 @@ export function removeUI(ui: any): void {
   const i = UIStack.indexOf(ui);
   if (i >= 0) UIStack.splice(i, 1);
   if (ui.el && ui.el.parentNode) ui.el.parentNode.removeChild(ui.el);
+  // A window torn down from OUTSIDE (toTitle clearing the stack after a game
+  // over) still owes its caller an answer: onClose settles the promise the
+  // interpreter is awaiting, so the run resumes and unwinds instead of
+  // hanging on a window that is no longer on screen. One-shot — a window that
+  // closes normally clears its own hook first, so its real answer wins.
+  if (typeof ui.onClose === "function") {
+    const close = ui.onClose;
+    ui.onClose = null;
+    close();
+  }
 }
 
 // generic selectable list. items: [{label|html, disabled, help}]
@@ -177,12 +187,17 @@ export function showList(items: any[], opts?: any): Promise<number> {
       finish(-1);
     }
     function finish(v: number) {
+      ui.onClose = null; // this is the real answer — don't let the seam say -1
       removeUI(ui);
       resolve(v);
     }
     const cols = opts.cols || 1;
-    const ui = {
+    const ui: any = {
       el: win,
+      /** Torn down from outside: answer "nothing picked" so the caller runs on. */
+      onClose() {
+        resolve(-1);
+      },
       onKey(k: string, repeat: boolean) {
         const it = items[idx];
         const valueRow = isValueRow(it) && !it.disabled;

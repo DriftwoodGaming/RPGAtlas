@@ -52,6 +52,7 @@ import { initInputSystem } from "./input.js";
 import {
   refreshAllPages,
   setRoute,
+  eventRuntimeById,
   refreshPlayerCharset,
   syncFollowers,
   locationInfo,
@@ -82,7 +83,7 @@ import { Shop, wireShopGoods, applyShopTranscript } from "./scenes/shop.js";
 import { Battle } from "./scenes/battle.js";
 import { toTitle, showTitle, newGame } from "./scenes/title.js";
 import { consumePlaytestStart, initPlaytestBridge } from "./playtest-bridge.js";
-import { gameOver } from "./scenes/gameover.js";
+import { gameOver, requestGameOver } from "./scenes/gameover.js";
 import { playMapAnimation } from "./anim-glue.js";
 import { initPerfHud } from "./perf-hud.js";
 import { Renderer } from "../renderer/index.js";
@@ -151,7 +152,7 @@ const EngineServices: any = {
   // waits / tweens
   waitFrames, frameWait, tickTween,
   // routing / scenes
-  setRoute, transferPlayer, saveLoadMenu, gameOver, toTitle,
+  setRoute, eventRuntimeById, transferPlayer, saveLoadMenu, gameOver, requestGameOver, toTitle,
   // Autosave (post-1.1): event battles call it after a survived fight.
   autosaveNow,
   // battle / shop

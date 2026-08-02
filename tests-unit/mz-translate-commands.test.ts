@@ -510,24 +510,64 @@ describe("real translations carry their fields (matrix §8)", () => {
 // ============================================================================
 // Move routes (§9) — via 205.
 // ============================================================================
+// Atlas move routes carry the whole RM palette since post-2.0 (the shared step
+// machine in src/shared/move-route.ts), so these steps come across intact
+// instead of being decomposed, approximated or dropped.
 describe("move-route steps (matrix §9)", () => {
-  const steps = (route: RmCommand[]): string[] =>
+  const steps = (route: RmCommand[]): unknown[] =>
     (t0([c(205, [0, { list: route, wait: false }])]) as any).steps;
-  it("maps the direct move/turn/jump/wait vocabulary", () => {
-    expect(steps([c(1), c(2), c(3), c(4), c(12), c(16), c(17), c(18), c(19), c(14), c(0)]))
-      .toEqual(["down", "left", "right", "up", "forward", "turn_down", "turn_left", "turn_right", "turn_up", "jump"]);
+  it("maps the direct move/turn vocabulary", () => {
+    expect(steps([c(1), c(2), c(3), c(4), c(12), c(16), c(17), c(18), c(19), c(0)]))
+      .toEqual(["down", "left", "right", "up", "forward", "turn_down", "turn_left", "turn_right", "turn_up"]);
   });
-  it("decomposes diagonals + reports simplification", () => {
+  it("keeps diagonals as diagonals (no decomposition, no report line)", () => {
     const report = new ImportReport();
     const cmd = translateCommands([c(205, [0, { list: [c(5), c(8), c(0)] }])], report)[0] as any;
-    expect(cmd.steps).toEqual(["down", "left", "up", "right"]);
-    expect(report.lines.some((l) => l.what === "some movement details")).toBe(true);
+    expect(cmd.steps).toEqual(["downleft", "upright"]);
+    expect(report.lines.some((l) => l.what === "a couple of movement details")).toBe(false);
   });
-  it("drops non-representable steps (speed/random/script) but keeps the moves", () => {
-    expect(steps([c(1), c(29, [4]), c(9), c(45, ["x()"]), c(4), c(0)])).toEqual(["down", "up"]);
+  it("carries the dynamic moves and the relative turns", () => {
+    expect(steps([c(9), c(10), c(11), c(13), c(20), c(21), c(22), c(23), c(24), c(25), c(26), c(0)]))
+      .toEqual(["random", "toward", "away", "back", "turn_r90", "turn_l90", "turn_180",
+        "turn_random", "turn_random", "turn_toward", "turn_away"]);
   });
-  it("205 aimed at another event (id>0) → mzTodo", () => {
-    expect((t0([c(205, [3, { list: [c(1)] }])]) as any).t).toBe("mzTodo");
+  it("carries the parameterized steps with their values", () => {
+    expect(steps([c(14, [2, -1]), c(15, [45]), c(29, [5]), c(30, [2]), c(42, [128]), c(0)])).toEqual([
+      { k: "jump", dx: 2, dy: -1 },
+      { k: "wait", frames: 45 },
+      { k: "speed", value: 5 },
+      { k: "freq", value: 2 },
+      { k: "opacity", value: 128 },
+    ]);
+    expect(steps([c(27, [7]), c(28, [7]), c(0)])).toEqual([
+      { k: "switch", id: 7, on: true },
+      { k: "switch", id: 7, on: false },
+    ]);
+    expect(steps([c(41, ["Actor1", 3]), c(44, [{ name: "Door" }]), c(0)])).toEqual([
+      { k: "graphic", charset: "actor1-3" },
+      { k: "se", name: "asset:audio/Door" },
+    ]);
+  });
+  it("carries the on/off flags", () => {
+    expect(steps([c(31), c(32), c(33), c(34), c(35), c(36), c(37), c(38), c(39), c(40), c(0)]))
+      .toEqual(["walk_on", "walk_off", "step_on", "step_off", "dirfix_on", "dirfix_off",
+        "through_on", "through_off", "transparent_on", "transparent_off"]);
+  });
+  it("still drops the two steps Atlas has no answer for, and says so", () => {
+    const report = new ImportReport();
+    const cmd = translateCommands([c(205, [0, { list: [c(1), c(43, [1]), c(45, ["x()"]), c(4), c(0)] }])], report)[0] as any;
+    expect(cmd.steps).toEqual(["down", "up"]);
+    expect(report.lines.some((l) => l.what === "a couple of movement details")).toBe(true);
+  });
+  it("205 aimed at another event (id>0) targets that event by id", () => {
+    const cmd = t0([c(205, [3, { list: [c(1)] }])]) as any;
+    expect(cmd).toMatchObject({ t: "move", target: "other", eventId: 3, steps: ["down"] });
+  });
+  it("carries RM's repeat / skippable route flags", () => {
+    const looping = t0([c(205, [0, { list: [c(1), c(0)], repeat: true, wait: true }])]) as any;
+    expect(looping).toMatchObject({ repeat: true, wait: false }); // a loop can't be waited on
+    const strict = t0([c(205, [0, { list: [c(1), c(0)], wait: true }])]) as any;
+    expect(strict).toMatchObject({ skippable: false, wait: true }); // RM's default
   });
 });
 

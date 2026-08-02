@@ -12,7 +12,7 @@ import { h, tIn, nIn, sel, chk, field, row, dbOpts, switchOpts, typeSelOpts } fr
 import { touch } from "../persistence";
 import { cmdListWidget } from "../event-editor/command-list";
 import { PARAM_KEYS, listFormTab, nameRefresher, iconPickerField, subTabs } from "./shared";
-import { extraEffectsEditor } from "./battler-tabs";
+import { damageFormulaEditor, extraEffectsEditor } from "./battler-tabs";
 
 export const itemsTab = () => listFormTab({
   kind: "items",
@@ -41,6 +41,19 @@ export const itemsTab = () => listFormTab({
       field("State", sel(e, "stateId", dbOpts(S.proj.states, "(none)"))),
       field("Chance %", nIn(e, "stateChance", 0, 100)),
       field("TP given", nIn(e, "gainTp", 0, 100))));
+    // Advanced recovery: the engine has always evaluated an item's `formula`
+    // (menus.ts useItemOn — it ADDS to the flat Restores HP, with the item's
+    // variance), but only the MZ importer could ever put one there. Now that
+    // formulas speak tabletop dice a "2d4 + 2" potion is worth authoring, so
+    // the field is here — same sandboxed parser, same live plain-language check.
+    box.appendChild(damageFormulaEditor(e, {
+      ref: { atk: 30, def: 10 },
+      title: "Advanced recovery (optional)",
+      noneText: "No formula — this item restores exactly the amounts above (the classic way).",
+      okText: "✓ The formula's result is ADDED to Restores HP (a and b are both the ally using it, 2d6 = dice).",
+      badTail: "Only the flat amounts above are used until it's fixed.",
+      critical: false,
+    }));
     box.appendChild(h("div", { class: "subhead" }, "Extra effects (optional)"));
     box.appendChild(extraEffectsEditor(e));
   },
@@ -106,7 +119,7 @@ export const troopsTab = () => listFormTab({
       // command). Stored sparsely — no hidden slots, no field.
       const hiddenSet = new Set<number>(e.hiddenSlots || []);
       const syncHidden = () => {
-        const list = [...hiddenSet].filter((i) => i < e.enemies.length).sort();
+        const list = [...hiddenSet].filter((i) => i < e.enemies.length).sort((a, b) => a - b);
         if (list.length) e.hiddenSlots = list;
         else delete e.hiddenSlots;
       };
@@ -115,21 +128,39 @@ export const troopsTab = () => listFormTab({
         for (let i = 0; i < 4; i++) {
           const slot = { v: e.enemies[i] || 0 };
           mbox.appendChild(field("Slot " + (i + 1), sel(slot, "v", dbOpts(S.proj.enemies, "(empty)"), () => {
+            // hiddenSlots indexes the COMPACTED enemies array (that's what the
+            // battle reads), while these are four fixed grid slots. Leaving a
+            // gap used to shift every flag onto the wrong enemy — or drop it
+            // silently while the checkbox stayed ticked. Translate as we
+            // collect, then redraw so grid and array line up again.
             const arr: any[] = [];
-            const slots = mbox.querySelectorAll("select");
-            slots.forEach((s2: any) => { const v = Number(s2.value); if (v) arr.push(v); });
+            const moved = new Set<number>();
+            mbox.querySelectorAll("select").forEach((s2: any, gridIndex: number) => {
+              const v = Number(s2.value);
+              if (!v) return;
+              if (hiddenSet.has(gridIndex)) moved.add(arr.length);
+              arr.push(v);
+            });
             e.enemies = arr;
+            hiddenSet.clear();
+            moved.forEach((x) => hiddenSet.add(x));
             syncHidden();
             touch();
+            redrawM();
           })));
+          // An empty slot can't be hidden — the flag would be thrown away by
+          // syncHidden while the box still looked ticked.
+          const empty = i >= e.enemies.length;
           mbox.appendChild(field("hidden at start", h("input", {
             type: "checkbox",
+            title: empty ? "Pick an enemy for this slot first" : "Start this enemy hidden (reveal it with Enemy Appear)",
             onchange(ev2: any) {
               if (ev2.target.checked) hiddenSet.add(i);
               else hiddenSet.delete(i);
               syncHidden();
               touch();
             },
+            ...(empty ? { disabled: "" } : {}),
             ...(hiddenSet.has(i) ? { checked: "" } : {}),
           })));
         }

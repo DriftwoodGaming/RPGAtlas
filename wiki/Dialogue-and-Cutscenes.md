@@ -32,12 +32,15 @@ same picker Conditional Branch uses, so switches, self-switches, variables (incl
 variable against another), quest states, item counts, party members and equipment, gold and other
 currencies, map region, time of day, and online state all work in conversations.
 
-A condition can be a **list** of conditions. Add a second one and you choose how they combine:
+A condition can be a **list** of conditions, each edited on its own line, with a picker at the top
+deciding how they combine:
 
-- **ALL of these must be true (AND)** — "in the Mage guild *and* has met Ravel".
-- **ANY one of these (OR)** — "is a Mage *or* is carrying the guild seal".
+- **ALL of these are true (AND)** — "in the Mage guild *and* has met Ravel".
+- **ANY one of these is true (OR)** — "is a Mage *or* is carrying the guild seal".
 
-**+ Add group** nests one level, so `A AND (B OR C)` is authorable. Leaving the list empty means
+**+ Add group** adds brackets with their own ALL/ANY choice, so `A AND (B OR C)` is authorable, and
+a plain-language line reads the whole thing back to you as you build it. See
+[Combining conditions](Events#combining-conditions) for the full tour. Leaving the list empty means
 "always". A gate with exactly one condition is stored exactly as it always was, so older projects
 are unchanged.
 

@@ -110,8 +110,18 @@ assert.match(mapScene, /Input\.dir\(!!ctx\.proj\.system\.eightDirectionMovement\
   "the live map input reads the project opt-in");
 assert.match(mapScene, /diagonalStepClear\(p\.x, p\.y, d, playerStepPassable\)/,
   "the live map path blocks diagonal corner cutting");
-assert.match(mapRuntime, /const cardinal = \["down", "left", "right", "up"\]\[ent\.dir\]/,
-  "move-route Forward handles a saved diagonal facing without inserting an invalid step");
+// Move routes moved to the shared step machine (src/shared/move-route.ts) so
+// the map scene and the headless zone driver can't drift apart. Forward now
+// steps in `ent.dir` directly against a table that covers all eight facings,
+// and the corner rule that used to be special-cased inside Forward is part of
+// every step's passability check. tests-unit/move-route.test.ts exercises both.
+const moveRoute = fs.readFileSync("src/shared/move-route.ts", "utf8");
+assert.match(moveRoute, /4: \[-1, 1\], 5: \[1, 1\],\s*6: \[-1, -1\], 7: \[1, -1\]/,
+  "the shared route step table covers all four diagonal facings");
+assert.match(moveRoute, /case "forward": return step\(ent\.dir\);/,
+  "move-route Forward steps in the character's own facing, diagonal included");
+assert.match(mapRuntime, /dx !== 0 && dy !== 0 && !\(stepOk\(x, ent\.y\) && stepOk\(ent\.x, y\)\)/,
+  "a diagonal route step may not squeeze between two blocked neighbours");
 assert.match(assets, /dir === 4 \|\| dir === 6 \? 1 : dir === 5 \|\| dir === 7 \? 2/,
   "four-row character sheets map diagonal facings to side poses");
 

@@ -561,7 +561,12 @@ export function createHeadlessBattle(
           const d = stateDef(st.id);
           const list = statesOf(b);
           if (!d) {
-            list.splice(list.indexOf(st), 1);
+            // Same stale-index guard as the solo battle's tickStates: nothing
+            // in THIS loop awaits today, but splice(-1, 1) deleting an
+            // unrelated state is the kind of defect nobody would look for here
+            // the day someone adds an await.
+            const gone = list.indexOf(st);
+            if (gone >= 0) list.splice(gone, 1);
             continue;
           }
           if (d.hpTurn && aliveB(b)) {
@@ -583,7 +588,9 @@ export function createHeadlessBattle(
           }
           st.turns--;
           if (st.turns <= 0) {
-            list.splice(list.indexOf(st), 1);
+            const at = list.indexOf(st);
+            if (at < 0) continue;
+            list.splice(at, 1);
             log(nameOfB(b) + "'s " + d.name + " wore off.");
           }
         }

@@ -107,7 +107,12 @@ export function openHudDesigner(): void {
     return `${widget.label ? widget.label + ": " : ""}${widget.text || "42"}`;
   }
 
-  function attachDrag(node: any, target: any, kind: "move" | "resize") {
+  /** `node` is what the pointer grabs (the widget for a move, the little grip
+   *  for a resize); `box` is the widget element whose geometry follows the
+   *  drag. They used to be derived as `node.parentElement`, which is right for
+   *  the grip but for a move resolved to the SCREEN preview — so dragging a
+   *  widget resized and displaced the whole game-screen rectangle instead. */
+  function attachDrag(node: any, target: any, kind: "move" | "resize", box: any) {
     node.addEventListener("pointerdown", (event: any) => {
       if (event.button !== 0) return;
       event.preventDefault(); event.stopPropagation();
@@ -128,9 +133,8 @@ export function openHudDesigner(): void {
         }
         target.x = Math.round(target.x * 10) / 10; target.y = Math.round(target.y * 10) / 10;
         target.w = Math.round(target.w * 10) / 10; target.h = Math.round(target.h * 10) / 10;
-        const parent = node.parentElement;
-        parent.style.left = target.x + "%"; parent.style.top = target.y + "%";
-        parent.style.width = target.w + "%"; parent.style.height = target.h + "%";
+        box.style.left = target.x + "%"; box.style.top = target.y + "%";
+        box.style.width = target.w + "%"; box.style.height = target.h + "%";
       };
       const up = () => {
         node.removeEventListener("pointermove", move);
@@ -142,6 +146,9 @@ export function openHudDesigner(): void {
       renderInspector();
     });
   }
+
+  /** Clicking the empty preview deselects back to the message window. */
+  const clearSelection = () => { selected = { kind: "message" }; renderAll(); };
 
   function renderScreen() {
     screen.innerHTML = "";
@@ -159,8 +166,8 @@ export function openHudDesigner(): void {
       const handle = h("span", { class: "hud-design-resize", title: "Drag to resize" });
       node.appendChild(handle);
       node.addEventListener("click", (event: any) => { event.stopPropagation(); selected = { kind: "widget", id: widget.id }; renderAll(); });
-      attachDrag(node, widget, "move");
-      attachDrag(handle, widget, "resize");
+      attachDrag(node, widget, "move", node);
+      attachDrag(handle, widget, "resize", node);
       screen.appendChild(node);
     }
     const msg = design.messageWindow;
@@ -171,9 +178,13 @@ export function openHudDesigner(): void {
     const msgHandle = h("span", { class: "hud-design-resize", title: "Drag to resize" });
     msgNode.appendChild(msgHandle);
     msgNode.addEventListener("click", (event: any) => { event.stopPropagation(); selected = { kind: "message" }; renderAll(); });
-    attachDrag(msgNode, msg, "move"); attachDrag(msgHandle, msg, "resize");
+    attachDrag(msgNode, msg, "move", msgNode); attachDrag(msgHandle, msg, "resize", msgNode);
     screen.appendChild(msgNode);
-    screen.addEventListener("click", () => { selected = { kind: "message" }; renderAll(); }, { once: true });
+    // renderScreen runs on every drag, but `screen` is created once per
+    // designer session — a fresh once-listener per render piled up on the same
+    // element. One handler, replaced each time, is all this needs.
+    screen.removeEventListener("click", clearSelection);
+    screen.addEventListener("click", clearSelection);
   }
 
   function positionFields(target: any) {

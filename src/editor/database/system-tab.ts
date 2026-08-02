@@ -40,12 +40,17 @@ export function systemTab() {
       field("Facing", sel(s, "startDir", DIR_OPTS)),
       field("Start transparent", chk(s, "startTransparent"))));
     p.appendChild(h("div", { class: "dim" }, "Tip: use the “Start” mode button and click the map to set this visually. A transparent player is invisible until an event runs “Change Transparency” — handy for intro cutscenes."));
+    // The four visible slots ARE the model; the saved (compacted) party is
+    // derived from all four every time one changes. Writing `s.party[i]` and
+    // then compacting used to leave the on-screen slot index and the array
+    // index out of step, so after the first "(empty)" every later edit
+    // replaced the wrong hero.
     const partyRow = h("div");
+    const partySlots = Array.from({ length: 4 }, (_, i) => ({ v: s.party[i] || 0 }));
+    const partyTail = s.party.slice(4); // ids past slot 4 aren't editable here — don't drop them
     for (let i = 0; i < 4; i++) {
-      const slot = { v: s.party[i] || 0 };
-      partyRow.appendChild(field("Member " + (i + 1), sel(slot, "v", dbOpts(S.proj.actors, "(empty)"), () => {
-        s.party[i] = slot.v || undefined;
-        s.party = s.party.filter(Boolean);
+      partyRow.appendChild(field("Member " + (i + 1), sel(partySlots[i], "v", dbOpts(S.proj.actors, "(empty)"), () => {
+        s.party = partySlots.map((slot) => slot.v).filter(Boolean).concat(partyTail);
         touch();
       })));
     }

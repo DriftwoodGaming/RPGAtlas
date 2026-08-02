@@ -13,6 +13,8 @@ import { clamp, esc, sysSe } from "../util.js";
 import { showList } from "../ui-stack.js";
 import { ctx } from "./engine-context.js";
 import { G, sanitizeEquipment, param } from "./game-state.js";
+import { defaultWorld } from "./default-world.js";
+import { clearTickTimers } from "../../shared/sim/timers.js";
 import { loadMap, initPlayer, syncFollowers } from "../scenes/map-runtime.js";
 import { serializePresentation, restorePresentation } from "../scenes/presentation-runtime.js";
 import { applyWindowTone } from "./window-tone.js";
@@ -28,6 +30,16 @@ export function slotInfo(slot: any): any {
 // player can't overwrite it by hand), and only when the setting is on.
 export const AUTOSAVE_SLOT = 0;
 
+/** The slots the Load menu offers — the Autosave slot only when the project
+ *  turns it on. The title screen's Continue gate reads the SAME list, so the
+ *  two can't drift: a player whose only save is the autosave used to find
+ *  Continue greyed out with no way back into their game. Must stay a function:
+ *  ctx.proj is assigned at boot and swapped by the playtest bridge, so a
+ *  captured array would freeze the wrong project's setting. */
+export function loadSlots(): number[] {
+  return ctx.proj.system.autosave ? [AUTOSAVE_SLOT, 1, 2, 3] : [1, 2, 3];
+}
+
 /** Write the autosave slot, silently. No-op unless system.autosave is on,
  *  saving isn't event-locked (M2·C Save Access), and a map is loaded. A full
  *  storage is swallowed — an autosave must never interrupt play. */
@@ -37,8 +49,9 @@ export function autosaveNow(): void {
 }
 
 export async function saveLoadMenu(mode: any): Promise<boolean> {
-  const slots =
-    mode === "load" && ctx.proj.system.autosave ? [AUTOSAVE_SLOT, 1, 2, 3] : [1, 2, 3];
+  // Save mode keeps the three manual slots — a player can't hand-overwrite
+  // the autosave (see the AUTOSAVE_SLOT note above).
+  const slots = mode === "load" ? loadSlots() : [1, 2, 3];
   const i = await showList(
     slots.map((s) => {
       const info = slotInfo(s);
@@ -143,7 +156,17 @@ function buildSavePayload(): any {
 }
 
 async function applySave(d: any): Promise<void> {
+  // Loading replaces the whole world, so every interpreter still running
+  // against the OLD one has to stop (engine-context.ts runEpoch). Without this
+  // the parallel guards cleared just below were the only thing holding those
+  // runs' duplicates back — and the next tick started a second copy of every
+  // parallel, permanently, once per load.
+  ctx.runEpoch = (ctx.runEpoch || 0) + 1;
+  ctx.pendingGameOver = null;
   ctx.commonParallels.clear();
+  // Waits parked on the abandoned world's clock keep counting otherwise (the
+  // tick pump runs before the scene gate) and resolve into the loaded game.
+  clearTickTimers(defaultWorld);
   G.switches = d.switches || {};
   G.vars = d.vars || {};
   G.selfSw = d.selfSw || {};

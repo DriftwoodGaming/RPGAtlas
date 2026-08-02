@@ -13,11 +13,12 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Assets, Music, RA } from "../../shared/deps.js";
+import { Assets, Music, RA, Sfx } from "../../shared/deps.js";
 import { Renderer } from "../../renderer/index.js";
 import { drawLayerCell } from "../../shared/autotile-draw.js";
 import { composeAdvBuffers, recomposeLowerCell } from "../../shared/layer-composite.js";
 import { tileId } from "../../shared/tile-flags.js";
+import { advanceRoute, eventMayStep, type RouteOps } from "../../shared/move-route.js";
 import { syncAutotileRegistry } from "../../shared/autotile-load.js";
 import { scanAnimatedCells, redrawAnimatedCells, frameAtTick } from "../../shared/autotile-anim.js";
 import { anyAutotileAnimated, isAutotileId, autotilePassable } from "../../shared/autotile-registry.js";
@@ -397,6 +398,9 @@ export function blockingEventAt(x: any, y: any): any {
 }
 export function canEntityPass(rt: any, nx: any, ny: any): boolean {
   nx = wrapX(nx); ny = wrapY(ny); // looping maps: compare wrapped targets
+  // Through, turned on for this character by a move-route step (the page flag
+  // below is the authored, permanent one).
+  if (rt.routeThrough) return true;
   if (rt.page && rt.page.through) return true;
   if (!tilePassable(nx, ny)) return false;
   if (blockingEventAt(nx, ny)) return false;
@@ -423,7 +427,10 @@ function canCombatChasePass(rt: any, nx: any, ny: any): boolean {
 export function startMove(ent: any, dir: any): void {
   // followers trail the tile the player just left (Phase 5 Stage C)
   if (ent === G.player) noteFollowerCrumb(ent.x, ent.y, dir);
-  ent.dir = dir;
+  // Direction Fix (a move-route step): the character walks without turning,
+  // so a guard can sidestep while still watching the player. Unset on every
+  // entity until a route sets it, so ordinary movement is unchanged.
+  if (!ent.dirFix) ent.dir = dir;
   const [dx, dy] = DIRD[dir] || [0, 0];
   ent.tx = ent.x + dx;
   ent.ty = ent.y + dy;
@@ -604,9 +611,10 @@ function damagePlayerFromEnemy(rt: any): void {
   ctx.shakeSpeed = 6;
   ctx.shakeTimer = 12;
   ctx.shakeDuration = 12;
-  if (a.hp <= 0) {
-    (async () => { await fns.gameOver(); })();
-  }
+  // A hazard that kills goes through requestGameOver, which is re-entrant-safe:
+  // this check runs every frame and the enemy keeps touching an already-dead
+  // party, which used to stack a second GAME OVER panel behind the first.
+  if (a.hp <= 0) fns.requestGameOver();
 }
 export function updateMapCombat(): void {
   const p = G.player;
@@ -655,7 +663,11 @@ export function combatChaseDir(rt: any): number {
   for (const dir of dirs) {
     if (dir < 0) continue;
     const [mx, my] = DIRD[dir];
-    if (canCombatChasePass(rt, rt.x + mx, rt.y + my)) return dir;
+    // The page's wander leash applies to the chase too: a guard with
+    // maxDistance set gives up at the end of its rope instead of following the
+    // player across the map. Absent ⇒ always true (unchanged chasing).
+    if (canCombatChasePass(rt, rt.x + mx, rt.y + my) && eventMayStep(rt, rt.x + mx, rt.y + my))
+      return dir;
   }
   return -1;
 }
@@ -761,66 +773,87 @@ function normalizeLoopArrival(ent: any): void {
   }
 }
 export function walkFrame(ent: any): number {
-  if (!ent.moving && ent.kind !== "object") return 1;
+  // Walking Animation off (a move-route step): the sprite slides without its
+  // legs moving — how a ghost drifts, or a statue is pushed. Stepping
+  // Animation on is the opposite: it keeps cycling while standing still.
+  if (ent.walkAnim === false && !ent.stepAnim) return 1;
+  if (!ent.moving && ent.kind !== "object" && !ent.stepAnim) return 1;
   const seq = [0, 1, 2, 1];
   const speed = ent.kind === "object" ? 24 : 8;
-  return seq[Math.floor((ent.animT || ctx.globalT) / speed) % 4];
+  // animT only advances while a character is moving, so a standing character
+  // with Stepping Animation on reads the world clock instead (otherwise it
+  // would freeze on whatever frame it stopped at).
+  const clock = ent.stepAnim && !ent.moving ? ctx.globalT : ent.animT || ctx.globalT;
+  return seq[Math.floor(clock / speed) % 4];
 }
 
 // ---- routes ----
-export function setRoute(ent: any, steps: any, onDone: any): void {
-  ent.route = { steps, idx: 0, wait: 0, onDone };
+// The step machine itself is shared with the headless zone driver
+// (src/shared/move-route.ts) — the two runtimes used to carry diverging copies,
+// and the zone's understood barely half the steps. This file supplies only the
+// map scene's capabilities: its passability rules, its hop arc, its sound.
+export function setRoute(ent: any, steps: any, onDone: any, opts?: any): void {
+  ent.route = {
+    steps, idx: 0, wait: 0, onDone,
+    repeat: !!(opts && opts.repeat),
+    skippable: !opts || opts.skippable !== false,
+    gap: (opts && Number(opts.gap)) || 0,
+    touch: !!(opts && opts.touch),
+    blocked: 0,
+  };
 }
+
+/** The map scene's RouteOps. `stepOk` keeps the historic split — the player
+ *  walks by playerStepPassable, everything else by canEntityPass — and adds
+ *  the corner rule for diagonal steps (a character may not squeeze between two
+ *  blocked neighbours), which "forward" used to special-case on its own. */
+const MAP_ROUTE_OPS: RouteOps = {
+  canStep(ent: any, x: number, y: number): boolean {
+    const stepOk = (px: number, py: number) =>
+      ent === G.player ? playerStepPassable(px, py) : canEntityPass(ent, px, py);
+    if (!stepOk(x, y)) return false;
+    const dx = x - ent.x;
+    const dy = y - ent.y;
+    if (dx !== 0 && dy !== 0 && !(stepOk(x, ent.y) && stepOk(ent.x, y))) return false;
+    return true;
+  },
+  startMove,
+  startJump(ent: any, dx: number, dy: number): void {
+    // The shared machine speaks in tile offsets; this runtime's hop takes a
+    // direction and a distance, so translate (they only ever differ for the
+    // parameterized jump, which is straight or diagonal by construction).
+    const tiles = Math.max(Math.abs(dx), Math.abs(dy));
+    if (tiles === 0) { startJump(ent, ent.dir, 0); return; }
+    const dir = dx === 0 ? (dy > 0 ? 0 : 3)
+      : dy === 0 ? (dx > 0 ? 2 : 1)
+        : dx < 0 ? (dy > 0 ? 4 : 6) : (dy > 0 ? 5 : 7);
+    startJump(ent, dir, tiles);
+  },
+  playerTile: () => (G.player ? { x: G.player.x, y: G.player.y } : null),
+  rnd,
+  playSe: (name: string) => { if (name) Sfx.play(name); },
+  setSwitch: (id: number, on: boolean) => {
+    if (id > 0) G.switches[id] = on;
+    refreshAllPages();
+  },
+  setGraphic(ent: any, charset: string): void {
+    ent.charsetIdx = charset ? Assets.charsetIndex(charset) : -1;
+    ent.kind = ent.charsetIdx >= 0 ? Assets.charsets[ent.charsetIdx].kind : "";
+  },
+};
+
 export function updateRoute(ent: any): void {
-  const r = ent.route;
-  if (!r || ent.moving || ent.jumping) return;
-  if (r.wait > 0) {
-    r.wait--;
-    return;
-  }
-  if (r.idx >= r.steps.length) {
-    ent.route = null;
-    if (r.onDone) r.onDone();
-    return;
-  }
-  const s = r.steps[r.idx++];
-  const dirs: any = { up: 3, down: 0, left: 1, right: 2 };
-  const stepOk = (x: any, y: any) =>
-    ent === G.player ? playerStepPassable(x, y) : canEntityPass(ent, x, y);
-  if (s in dirs) {
-    const d = dirs[s];
-    ent.dir = d;
-    const [dx, dy] = DIRD[d];
-    const ok2 = stepOk(ent.x + dx, ent.y + dy);
-    if (ok2) startMove(ent, d);
-    else if (r.touch) ent.route = null; // touch-to-move: obstruction cancels
-  } else if (s === "jump") {
-    // hop 2 tiles in the facing direction; blocked → 1; both → in-place hop
-    const [dx, dy] = DIRD[ent.dir] || [0, 0];
-    if (stepOk(ent.x + dx * 2, ent.y + dy * 2)) startJump(ent, ent.dir, 2);
-    else if (stepOk(ent.x + dx, ent.y + dy)) startJump(ent, ent.dir, 1);
-    else startJump(ent, ent.dir, 0);
-  } else if (s === "forward") {
-    const cardinal = ["down", "left", "right", "up"][ent.dir];
-    if (cardinal) {
-      r.steps.splice(r.idx, 0, cardinal);
-    } else {
-      // A player can finish normal input facing diagonally before an event move
-      // route says "forward". Move on that diagonal directly instead of
-      // inserting an undefined route step (which would fail on the next tick).
-      const [dx, dy] = DIRD[ent.dir] || [0, 0];
-      if (
-        diagonalStepClear(ent.x, ent.y, ent.dir, stepOk) &&
-        stepOk(ent.x + dx, ent.y + dy)
-      ) startMove(ent, ent.dir);
-    }
-  } else if (s.startsWith("turn_")) {
-    ent.dir = dirs[s.slice(5)];
-  } else if (s === "wait15") {
-    r.wait = 15;
-  } else if (s === "wait60") {
-    r.wait = 60;
-  }
+  if (!ent.route || ent.moving || ent.jumping) return;
+  advanceRoute(ent, MAP_ROUTE_OPS);
+}
+
+/** The live runtime for an event id on THIS map, or null. Set Move Route's
+ *  "another event" target resolves through here; an id that isn't on the map
+ *  (wrong map, erased) is a quiet no-op rather than an error. */
+export function eventRuntimeById(id: any): any {
+  const wanted = Number(id) || 0;
+  if (!wanted) return null;
+  return ctx.evRTs.find((rt: any) => rt.ev && rt.ev.id === wanted && !rt.erased) || null;
 }
 
 // ---- player entity ----
@@ -904,6 +937,9 @@ function vehicleCanPass(type: any, nx: any, ny: any): boolean {
 export function playerStepPassable(nx: any, ny: any): boolean {
   nx = wrapX(nx); ny = wrapY(ny);
   if (nx < 0 || ny < 0 || nx >= ctx.map.width || ny >= ctx.map.height) return false;
+  // A move route can turn Through on for the player too (a cutscene walking
+  // them over a table). Map bounds still hold — off-map is never a tile.
+  if (G.player && G.player.routeThrough) return true;
   if (developerThroughActive()) return true;
   if (G.vehicle) return vehicleCanPass(G.vehicle, nx, ny);
   return tilePassable(nx, ny) && !blockingEventAt(nx, ny);

@@ -880,7 +880,13 @@ import { subTabs } from "../database/shared";
     const remap = (old: any, fill: any) => {
       const arr = new Array(w * h2).fill(fill);
       for (let y = 0; y < Math.min(m.height, h2); y++) {
-        for (let x = 0; x < Math.min(m.width, w); x++) arr[y * w + x] = old[y * m.width + x];
+        // A short or hand-edited source reads undefined past its end; keep the
+        // fill instead, or the hole JSON round-trips to null in the history
+        // snapshot and the saved project.
+        for (let x = 0; x < Math.min(m.width, w); x++) {
+          const cell = old ? old[y * m.width + x] : undefined;
+          arr[y * w + x] = cell == null ? fill : cell;
+        }
       }
       return arr;
     };
@@ -889,6 +895,19 @@ import { subTabs } from "../database/shared";
     m.passOv = remap(passOvOf(m), 0);
     m.heights = remap(heightsOf(m), 0);
     m.regions = remap(regionsOf(m), 0);
+    // Advanced Map Editor tile layers own their OWN width×height array, and
+    // every draw path indexes it with the map's CURRENT width. Resizing without
+    // remapping them left the stride mismatched, so the layer's art rendered
+    // sheared and never recovered (nothing normalizes layersAdv on load).
+    // "core" entries reference m.layers, already remapped above; groups nest.
+    const remapAdvLayers = (layers: any) => {
+      for (const l of Array.isArray(layers) ? layers : []) {
+        if (!l) continue;
+        if (l.type === "group") remapAdvLayers(l.children);
+        else if (l.type === "tile") l.data = remap(Array.isArray(l.data) ? l.data : [], 0);
+      }
+    };
+    remapAdvLayers(m.layersAdv); // must run BEFORE m.width/m.height change
     m.width = w; m.height = h2;
     m.events = m.events.filter((e: any) => e.x < w && e.y < h2);
   }

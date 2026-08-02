@@ -111,6 +111,72 @@ describe("formula grammar (D1 whitelist)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Tabletop dice (post-2.0) — `2d6`, `4d6kh3`, `roll(n, sides)`
+// ---------------------------------------------------------------------------
+
+describe("dice notation", () => {
+  it("sums NdM, one injected draw per die, faces 1..M", () => {
+    // randomInt(6) returns 0..5 → face = draw + 1.
+    const e = env([0, 5, 2]);
+    expect(evalSrc("3d6", e)).toBe(1 + 6 + 3);
+    expect(e.draws()).toBe(3);
+  });
+
+  it("defaults a bare dN to one die and mixes with the rest of the grammar", () => {
+    expect(evalSrc("d20", env([19]))).toBe(20);
+    expect(evalSrc("1d8 + a.atk", env([3]))).toBe(4 + 52);
+    expect(evalSrc("2d6 * 2", env([0, 0]))).toBe(4);
+    expect(evalSrc("-2d6 + 20", env([5, 5]))).toBe(8); // unary minus binds the whole roll
+    expect(evalSrc("2D6", env([1, 1]))).toBe(4); // uppercase D reads the same
+  });
+
+  it("keeps the highest/lowest dice (advantage, disadvantage, 4d6kh3)", () => {
+    // Draws happen in roll order regardless of what is kept, so the RNG
+    // stream is identical for kh and kl — only the sum differs.
+    expect(evalSrc("2d20kh1", env([4, 17]))).toBe(18); // max(5, 18)
+    expect(evalSrc("2d20kl1", env([4, 17]))).toBe(5); // min(5, 18)
+    expect(evalSrc("4d6kh3", env([0, 5, 2, 3]))).toBe(6 + 4 + 3); // drops the 1
+    expect(evalSrc("4d6kl3", env([0, 5, 2, 3]))).toBe(1 + 3 + 4); // drops the 6
+    const e = env([0, 0]);
+    evalSrc("2d20kh1", e);
+    expect(e.draws()).toBe(2); // kept-or-not, every die is rolled
+  });
+
+  it("rolls a computed count with roll(count, sides)", () => {
+    expect(evalSrc("roll(3, 6)", env([0, 1, 2]))).toBe(1 + 2 + 3);
+    expect(evalSrc("roll(a.level, 4)", env([0, 0, 0, 0, 0, 0, 0]))).toBe(7); // level 7
+    expect(evalSrc("roll(v[3], 1)", env([0, 0, 0, 0, 0, 0, 0]))).toBe(7);
+  });
+
+  it("roll() clamps hostile operands instead of hanging (0 dice = 0 draws)", () => {
+    const e = env([]);
+    expect(evalSrc("roll(0, 6)", e)).toBe(0);
+    expect(evalSrc("roll(-5, 6)", e)).toBe(0);
+    expect(e.draws()).toBe(0);
+    const big = env(new Array(200).fill(0));
+    expect(evalSrc("roll(9999, 6)", big)).toBe(100); // count clamped to 100 dice
+    expect(big.draws()).toBe(100);
+  });
+
+  it("consumes NO draws when the formula has no dice (draw conservation)", () => {
+    const e = env([]);
+    expect(evalSrc("a.atk * 4 - b.def * 2", e)).toBe(176);
+    expect(e.draws()).toBe(0);
+  });
+
+  it("still reads stats and variables whose names begin with d", () => {
+    expect(evalSrc("a.def")).toBe(30); // not a dice literal
+    expect(evalSrc("b.def * 2")).toBe(32);
+  });
+
+  it("re-rolls on every eval (a compiled formula is not a frozen number)", () => {
+    const f = getFormula("1d6")!;
+    expect(f.eval(env([0]))).toBe(1);
+    expect(f.eval(env([5]))).toBe(6);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Rejects — the sandbox stays shut
 // ---------------------------------------------------------------------------
 
@@ -142,6 +208,17 @@ describe("formula rejects (parsed, never executed)", () => {
     ["a.atk,", "trailing token"],
     ["", "empty formula"],
     ["b", "facade without a stat"],
+    // Dice: the safety caps and the typo shapes (post-2.0)
+    ["101d6", "more dice than the cap allows"],
+    ["1d1001", "a die with more sides than the cap allows"],
+    ["0d6", "zero dice"],
+    ["2d6kh3", "keeping more dice than are rolled"],
+    ["2d6kh0", "keeping none of the dice"],
+    ["2d6x", "a dice literal glued to a stray word"],
+    ["10d", "a dice literal with no sides"],
+    ["2 d6", "a space between the count and the die"],
+    ["roll(6)", "roll with one operand"],
+    ["roll 3, 6", "roll without parentheses"],
   ] as const;
   for (const [src, why] of rejects) {
     it(`rejects ${why}: ${JSON.stringify(src)}`, () => {

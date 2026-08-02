@@ -71,6 +71,7 @@ import { withdrawParticipant } from "../../shared/sim/coop-battle.js";
 import { createHeadlessBattle } from "./battle-runtime.js";
 import { pumpTickTimers, waitTicks, tickTweenTicks } from "../../shared/sim/timers.js";
 import { DIR_OFFSET, isPassable, type MapCollision } from "../../shared/sim/collision.js";
+import { advanceRoute, eventMayStep, type RouteOps } from "../../shared/move-route.js";
 import type { JsonValue, PlayerId } from "../../shared/net/protocol.js";
 import type { World } from "../../shared/sim/world.js";
 import type {
@@ -248,38 +249,67 @@ export function createZoneEventRuntime(rtx: ZoneRuntimeContext): ZoneRuntime {
     ent.animT++;
     return false;
   }
-  function setRoute(ent: any, steps: any, onDone: any): void {
-    ent.route = { steps, idx: 0, wait: 0, onDone };
+  function setRoute(ent: any, steps: any, onDone: any, opts?: any): void {
+    ent.route = {
+      steps, idx: 0, wait: 0, onDone,
+      repeat: !!(opts && opts.repeat),
+      skippable: !opts || opts.skippable !== false,
+      gap: (opts && Number(opts.gap)) || 0,
+      touch: !!(opts && opts.touch),
+      blocked: 0,
+    };
   }
-  /** Advance an authored move route one tick (map-runtime.updateRoute — the
-   *  NPC-relevant steps; player-targeted routes are the deferred slice D-8-6). */
+  /** This zone's RouteOps. Move routes run through the SAME step machine the
+   *  map scene uses (src/shared/move-route.ts) — this driver used to carry its
+   *  own cut-down copy that understood four of the twelve steps that existed,
+   *  which is exactly the drift the shared module exists to stop. What is
+   *  genuinely different here is listed on each capability: a server has no
+   *  hop arc, no speakers, and many players rather than one.  */
+  const ZONE_ROUTE_OPS: RouteOps = {
+    canStep(ent: any, x: number, y: number): boolean {
+      if (!canEntityPass(ent, x, y)) return false;
+      const dx = x - ent.x, dy = y - ent.y;
+      if (dx !== 0 && dy !== 0 && !(canEntityPass(ent, x, ent.y) && canEntityPass(ent, ent.x, y)))
+        return false;
+      return true;
+    },
+    startMove,
+    // No startJump: the zone has no hop arc (updateJumpMotion is render-side),
+    // so the shared machine walks the first tile instead — the character still
+    // ends up where the route sends it.
+    /** "The player" in a shared world is whoever is NEAREST the character, so
+     *  toward/away and face-player still mean something with a crowd on the
+     *  map. No one here (an empty zone) ⇒ those steps are skipped. */
+    playerTile(): { x: number; y: number } | null {
+      let best: { x: number; y: number } | null = null;
+      let bestD = Infinity;
+      for (const p of world.roster.players.values()) {
+        const d = Math.abs(p.x - routeAsker.x) + Math.abs(p.y - routeAsker.y);
+        if (d < bestD) { bestD = d; best = { x: p.x, y: p.y }; }
+      }
+      return best;
+    },
+    rnd: (n: number) => world.rnd(n),
+    // No playSe: a server has no speakers (route sounds are a client flourish).
+    setSwitch: (id: number, on: boolean) => {
+      // The per-tick world diff (diffAndPropagate) fans the write out to every
+      // player; writing G is the whole job here.
+      if (id > 0) G.switches[id] = on;
+      refreshAllPages();
+    },
+    setGraphic(ent: any, charset: string): void {
+      // The zone has no sprite sheets; record the key so the snapshot carries
+      // it and each client resolves its own index.
+      ent.charset = charset;
+    },
+  };
+  /** Whose route is being advanced right now (playerTile needs the asker to
+   *  pick the nearest player). Set immediately before each advanceRoute. */
+  let routeAsker: any = { x: 0, y: 0 };
   function updateRoute(ent: any): void {
-    const r = ent.route;
-    if (!r || ent.moving) return;
-    if (r.wait > 0) { r.wait--; return; }
-    if (r.idx >= r.steps.length) {
-      ent.route = null;
-      if (r.onDone) r.onDone();
-      return;
-    }
-    const s = r.steps[r.idx++];
-    const dirs: any = { up: 3, down: 0, left: 1, right: 2 };
-    if (s in dirs) {
-      const d = dirs[s];
-      ent.dir = d;
-      const [dx, dy] = DIR_OFFSET[d];
-      if (canEntityPass(ent, ent.x + dx, ent.y + dy)) startMove(ent, d);
-      else if (r.touch) ent.route = null;
-    } else if (s === "forward") {
-      const cardinal = ["down", "left", "right", "up"][ent.dir];
-      if (cardinal) r.steps.splice(r.idx, 0, cardinal);
-    } else if (typeof s === "string" && s.startsWith("turn_")) {
-      ent.dir = dirs[s.slice(5)];
-    } else if (s === "wait15") {
-      r.wait = 15;
-    } else if (s === "wait60") {
-      r.wait = 60;
-    }
+    if (!ent.route || ent.moving) return;
+    routeAsker = ent;
+    advanceRoute(ent, ZONE_ROUTE_OPS);
   }
 
   function refreshAllPages(): void {
@@ -442,6 +472,8 @@ export function createZoneEventRuntime(rtx: ZoneRuntimeContext): ZoneRuntime {
       if (pid != null) outbox.transferOut(pid as PlayerId, toMapId, x ?? -1, y ?? -1, dir ?? -1);
     },
     setRoute,
+    eventRuntimeById: (id: any) =>
+      world.evRTs.find((rt: any) => rt.ev && rt.ev.id === (Number(id) || 0) && !rt.erased) || null,
     // waits / tweens (world-tick clock)
     waitFrames: (n: any) => waitTicks(world, n),
     frameWait: () => waitTicks(world, 1),
@@ -522,8 +554,12 @@ export function createZoneEventRuntime(rtx: ZoneRuntimeContext): ZoneRuntime {
             if (--rt.moveT <= 0) {
               rt.moveT = 40 + world.rnd(100);
               const d = world.rnd(4);
+              const nx = rt.x + DIR_OFFSET[d][0];
+              const ny = rt.y + DIR_OFFSET[d][1];
               if (world.rnd(4) === 0) rt.dir = d;
-              else if (canEntityPass(rt, rt.x + DIR_OFFSET[d][0], rt.y + DIR_OFFSET[d][1])) startMove(rt, d);
+              // Wander leash (page.maxDistance) — the same rule the map scene
+              // applies, from the same shared module (see shared/move-route.ts).
+              else if (canEntityPass(rt, nx, ny) && eventMayStep(rt, nx, ny)) startMove(rt, d);
             }
           }
         }

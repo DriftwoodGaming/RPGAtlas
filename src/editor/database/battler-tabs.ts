@@ -12,7 +12,7 @@ import {
   elementSelOpts, skillTypeSelOpts, switchOpts, typeSelOpts,
 } from "../dom";
 import { touch } from "../persistence";
-import { parseFormula } from "../../shared/formula";
+import { getFormula, parseFormula } from "../../shared/formula";
 import {
   STAT_KEYS, listFormTab, nameRefresher, iconPickerField,
   traitsEditor, subTabs,
@@ -217,43 +217,14 @@ export const skillsTab = () => listFormTab({
         h("label", { class: "dmg-fld" }, atkLbl, previewNum(ref, "atk")),
         defWrap, out));
       p.addEventListener("input", () => { relabel(); recomputeDmg(); });
-      // Advanced damage (Project Compass M3·A): an optional MZ-style formula
-      // that replaces Power when set, plus the variance/critical companions.
-      // The sandboxed parser (decision D1) validates live, in plain language.
-      p.appendChild(h("div", { class: "subhead" }, "Advanced damage (optional)"));
-      const verdict = h("div", { class: "dim" });
-      function checkFormula() {
-        const src = String(e.formula || "").trim();
-        if (!src) {
-          verdict.textContent =
-            "No formula — this skill uses Power above (the classic way).";
-          return;
-        }
-        const res = parseFormula(src);
-        verdict.textContent = res.ok
-          ? "✓ The formula replaces Power (a = user, b = target, v[n] = game variables)."
-          : "This formula can't run yet — " + res.error + ". The skill uses Power until it's fixed.";
-      }
-      const fIn = h("input", {
-        type: "text",
-        value: e.formula == null ? "" : e.formula,
-        placeholder: "a.atk * 4 - b.def * 2",
-        oninput(ev: any) {
-          const v = String(ev.target.value);
-          if (v.trim()) e.formula = v;
-          else delete e.formula;
-          touch();
-          checkFormula();
-        },
-      });
-      checkFormula();
-      if (e.variance == null) e.variance = 0;
-      p.appendChild(row(
-        field("Formula", fIn),
-        field("Variance %", nIn(e, "variance", 0, 100)),
-        field("Can critical", chk(e, "critical")),
-      ));
-      p.appendChild(verdict);
+      p.appendChild(damageFormulaEditor(e, {
+        ref,
+        title: "Advanced damage (optional)",
+        noneText: "No formula — this skill uses Power above (the classic way).",
+        okText: "✓ The formula replaces Power (a = user, b = target, v[n] = game variables, 2d6 = dice).",
+        badTail: "The skill uses Power until it's fixed.",
+        critical: true,
+      }));
       // M3·B: buffs/debuffs, permanent growth, and taught skills.
       p.appendChild(h("div", { class: "subhead" }, "Extra effects (optional)"));
       p.appendChild(extraEffectsEditor(e));
@@ -261,6 +232,122 @@ export const skillsTab = () => listFormTab({
     }
   },
 });
+
+/** Advanced damage (Project Compass M3·A): an optional MZ-style formula that
+ *  replaces the structured power when set, plus — for skills — the
+ *  variance/critical companions. The sandboxed parser (decision D1) validates
+ *  live, in plain language.
+ *
+ *  Post-2.0 it also fronts tabletop DICE: the grammar understands `2d6`,
+ *  `d20`, `4d6kh3` and `roll(count, sides)`, so the ready-made rolls are one
+ *  click away and "Roll it five times" shows what the dice actually do —
+ *  something the static "Deals ≈" preview can't. Shared by the Skills and
+ *  Items forms (the engine has always read `formula` off items too; before
+ *  this only the MZ importer could put one there). */
+export function damageFormulaEditor(
+  e: any,
+  opts: {
+    ref: { atk: number; def: number };
+    /** Section heading. */
+    title: string;
+    /** Read with no formula set. */
+    noneText: string;
+    /** Read when the formula compiles. */
+    okText: string;
+    /** Tail after the parse error ("… <this> is used until it's fixed."). */
+    badTail: string;
+    /** Skills carry variance + a crit flag; items only variance. */
+    critical: boolean;
+  },
+) {
+  const p = h("div");
+  p.appendChild(h("div", { class: "subhead" }, opts.title));
+  const verdict = h("div", { class: "dim" });
+  const rollOut = h("div", { class: "dim" });
+  function checkFormula() {
+    const src = String(e.formula || "").trim();
+    rollOut.textContent = "";
+    if (!src) {
+      verdict.textContent = opts.noneText;
+      return;
+    }
+    const res = parseFormula(src);
+    verdict.textContent = res.ok
+      ? opts.okText
+      : "This formula can't run yet — " + res.error + ". " + opts.badTail;
+  }
+  const fIn = h("input", {
+    type: "text",
+    value: e.formula == null ? "" : e.formula,
+    placeholder: "a.atk * 4 - b.def * 2   ·   or dice: 2d6 + a.atk",
+    oninput(ev: any) {
+      const v = String(ev.target.value);
+      if (v.trim()) e.formula = v;
+      else delete e.formula;
+      touch();
+      checkFormula();
+    },
+  });
+  /** Put `src` in the box exactly as a keystroke would (commit + revalidate). */
+  const setFormula = (src: string) => {
+    fIn.value = src;
+    e.formula = src;
+    touch();
+    checkFormula();
+  };
+  checkFormula();
+  if (e.variance == null) e.variance = 0;
+  p.appendChild(opts.critical
+    ? row(
+      field("Formula", fIn),
+      field("Variance %", nIn(e, "variance", 0, 100)),
+      field("Can critical", chk(e, "critical")),
+    )
+    : row(field("Formula", fIn), field("Variance %", nIn(e, "variance", 0, 100))));
+  p.appendChild(verdict);
+  const DICE_PRESETS: [string, string][] = [
+    ["1d6", "a small die"],
+    ["2d6 + a.atk", "two dice plus Attack"],
+    ["1d8 + Math.floor(a.level / 2)", "a die that grows with level"],
+    ["2d20kh1", "advantage — roll twice, keep the best"],
+    ["2d20kl1", "disadvantage — roll twice, keep the worst"],
+    ["4d6kh3", "roll four, drop the lowest"],
+  ];
+  p.appendChild(h("div", { class: "minirow" },
+    h("span", { class: "dim" }, "Dice:"),
+    ...DICE_PRESETS.map(([src, why]) =>
+      h("button", { class: "mini", title: why, onclick() { setFormula(src); } }, src)),
+    h("button", {
+      class: "mini",
+      title: "Evaluate the formula five times with sample stats",
+      onclick() {
+        const f = getFormula(e.formula);
+        if (!f) { rollOut.textContent = "Nothing to roll — fix the formula first."; return; }
+        const facade = (atk: number, def: number) => ({
+          atk, def, mat: atk, mdf: def, agi: 10, mhp: 100, mmp: 20,
+          hp: 100, mp: 20, level: 1, luk: 10,
+        });
+        const rolls: number[] = [];
+        for (let i = 0; i < 5; i++) {
+          rolls.push(Math.round(f.eval({
+            a: facade(opts.ref.atk, opts.ref.def),
+            b: facade(opts.ref.atk, opts.ref.def),
+            v: () => 0,
+            randomInt: (n: number) => Math.floor(Math.random() * Math.max(1, n)),
+          })));
+        }
+        rollOut.textContent =
+          "Five rolls with sample stats: " + rolls.join(", ") +
+          "  (lowest " + Math.min(...rolls) + ", highest " + Math.max(...rolls) + ")";
+      },
+    }, "🎲 Roll it five times")));
+  p.appendChild(rollOut);
+  p.appendChild(h("div", { class: "dim" },
+    "Dice work like a tabletop game: 2d6 rolls two six-sided dice and adds them, d20 rolls one twenty-sided die. " +
+    "Add kh1 to keep the highest (advantage) or kl1 the lowest (disadvantage) — 4d6kh3 rolls four and drops the worst. " +
+    "roll(a.level, 6) rolls one die per level."));
+  return p;
+}
 
 /** M3·B: the buff/debuff + grow + learn effect lists, shared by the Skills
  *  and Items forms. Buffs raise/lower a stat ±25% per step for a few rounds;

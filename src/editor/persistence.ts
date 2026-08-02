@@ -179,20 +179,30 @@ const projectRepo = new BrowserProjectRepository(
     if (!root) return;
     const json = JSON.stringify(S.proj);
     if (!folderDirty || json === lastSavedJson) {
-      // The folder already holds this content — confirm the mirror and tick saved.
+      // The folder already holds this content — confirm the mirror and tick
+      // saved. "Confirmed" must mean the write queue is DRAINED: with a write
+      // still in flight the disk is one revision behind, and a crash-recovery
+      // that trusts the flag boots the older folder copy and throws the
+      // mirror's newer edits away.
       folderDirty = false;
-      writeMirrorMeta(root, true);
+      if (!folderSaveInFlight && !folderSaveQueued) writeMirrorMeta(root, true);
       $("save-ind").textContent = "✓ " + t("saved");
       return;
     }
     if (folderSaveInFlight) { folderSaveQueued = true; return; }
     folderSaveInFlight = true;
     folderDirty = false;
+    // Disarm before the write, not just in the caller: this keeps the
+    // invariant local (the retry path below re-arms folderDirty without going
+    // back through saveNow, which is what used to write the false).
+    writeMirrorMeta(root, false);
     activeManagerHost()
       .save(root, json)
       .then(() => {
         lastSavedJson = json;
-        writeMirrorMeta(root, true);
+        // Newer content already queued (or dirtied again mid-write) ⇒ the
+        // folder is behind the mirror; the queued write confirms it.
+        if (!folderSaveQueued && !folderDirty) writeMirrorMeta(root, true);
         $("save-ind").textContent = "✓ " + t("saved");
       })
       .catch((e: any) => {

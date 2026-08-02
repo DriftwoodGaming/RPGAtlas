@@ -13,6 +13,7 @@
 import { Assets, RA } from "../../shared/deps.js";
 import { clamp, rnd, rndf, sysSe } from "../util.js";
 import { findPath } from "../../shared/pathfind.js";
+import { eventMayStep } from "../../shared/move-route.js";
 import { ctx, fns } from "../state/engine-context.js";
 import { G, actorEffCarrier, param } from "../state/game-state.js";
 import { defaultWorld } from "../state/default-world.js";
@@ -114,13 +115,20 @@ export async function runEventBlocking(rt: any, origin: InterpOrigin = PLAYER_CT
   // If the commands turn the NPC (a "turn_*" route step), that facing sticks
   // after the event; otherwise snap back to the page's authored facing.
   const facedDir = rt.dir;
+  // The run's scene generation. If the event took us to the title (a lost
+  // battle, "Return to Title"), this teardown belongs to a world that no
+  // longer exists — releasing the blocking latch here could un-block whatever
+  // the new game has already started.
+  const epoch = ctx.runEpoch;
   try {
     await new Interp(rt, undefined, undefined, origin).runList(rt.page.commands);
   } finally {
-    rt.locked = false;
-    if (rt.kind === "human" && rt.dir === facedDir) rt.dir = rt.page.dir || 0;
-    refreshAllPages();
-    endBlocking(defaultWorld, participants);
+    if (ctx.runEpoch === epoch) {
+      rt.locked = false;
+      if (rt.kind === "human" && rt.dir === facedDir) rt.dir = rt.page.dir || 0;
+      refreshAllPages();
+      endBlocking(defaultWorld, participants);
+    }
   }
 }
 
@@ -128,11 +136,14 @@ async function runCommonEventBlocking(commonEvent: any, origin: InterpOrigin = P
   if (ctx.blockingRun) return;
   const participants = participantsOf(defaultWorld, origin);
   beginBlocking(defaultWorld, participants);
+  const epoch = ctx.runEpoch; // see runEventBlocking
   try {
     await new Interp(null, undefined, undefined, origin).callCommonEvent(commonEvent.id);
   } finally {
-    refreshAllPages();
-    endBlocking(defaultWorld, participants);
+    if (ctx.runEpoch === epoch) {
+      refreshAllPages();
+      endBlocking(defaultWorld, participants);
+    }
   }
 }
 
@@ -329,8 +340,14 @@ export function update(): void {
         if (--rt.moveT <= 0) {
           rt.moveT = 40 + rnd(100);
           const d = rnd(4);
+          const nx = rt.x + DIRD[d][0];
+          const ny = rt.y + DIRD[d][1];
           if (rnd(4) === 0) rt.dir = d;
-          else if (canEntityPass(rt, rt.x + DIRD[d][0], rt.y + DIRD[d][1]))
+          // The page's wander leash (maxDistance): a step that would take the
+          // event further than it may stray from its spawn is skipped, exactly
+          // like a blocked tile. Absent ⇒ eventMayStep is always true, so the
+          // draws and the motion are byte-identical to before.
+          else if (canEntityPass(rt, nx, ny) && eventMayStep(rt, nx, ny))
             startMove(rt, d);
         }
       }
@@ -350,10 +367,20 @@ export function update(): void {
       !ctx.parallels.get(rt)
     ) {
       ctx.parallels.set(rt, true);
-      new Interp(rt, undefined, undefined, WORLD_CTX).runList(rt.page.commands).finally(async () => {
+      const parallel = new Interp(rt, undefined, undefined, WORLD_CTX);
+      // A map parallel dies with its map (see Interp.mapBound): without this
+      // it kept running after a transfer, wrote its self-switches into the
+      // destination map's namespace, and — because loadMap clears the re-arm
+      // guard — was joined by a second copy of itself on the next tick.
+      parallel.mapBound = true;
+      parallel.runList(rt.page.commands).finally(async () => {
         // MP3·A: world-tick re-arm beat (3 ≈ the old 50 ms) — see the common-
-        // parallel note above.
+        // parallel note above. A run that ended because its map went away must
+        // NOT re-arm: loadMap already cleared the registry, and putting the
+        // dead runtime back would leak one entry per transfer.
+        if (parallel.stale) return;
         await waitFrames(3);
+        if (parallel.stale) return;
         ctx.parallels.set(rt, false);
       });
     }
@@ -545,7 +572,12 @@ function onPlayerStep(): void {
       if (!d || !d.stepsToRemove) continue;
       if (typeof st === "number") continue; // legacy entry; battle normalizes
       st.steps = (st.steps == null ? d.stepsToRemove : st.steps) - 1;
-      if (st.steps <= 0) a.states.splice(a.states.indexOf(st), 1);
+      if (st.steps <= 0) {
+        // Guarded index (see battle.ts tickStates): -1 would splice the last
+        // state off instead of this one.
+        const at = a.states.indexOf(st);
+        if (at >= 0) a.states.splice(at, 1);
+      }
     }
   }
   const p = G.player;
@@ -574,7 +606,22 @@ function onPlayerStep(): void {
   if (mapHasZones() && !ctx.blockingRun && !G.vehicle) {
     const tr = updateZonePresence(ctx.map, p.x, p.y);
     if (tr) {
-      transferPlayer(tr.mapId, tr.x, tr.y, tr.dir);
+      // Hold the blocking latch for the whole transfer, the way every other
+      // transfer path gets it for free from runEventBlocking. Without it the
+      // player kept walking through the 250 ms fade on the OLD map — long
+      // enough to roll a random encounter, so a battle would start underneath
+      // the fader and loadMap would swap the map out from under it.
+      p.route = null; // a click-to-move path isn't gated by blockingRun
+      const participants = participantsOf(defaultWorld, PLAYER_CTX);
+      beginBlocking(defaultWorld, participants);
+      const epoch = ctx.runEpoch; // see runEventBlocking: don't un-block a new game
+      const release = () => { if (ctx.runEpoch === epoch) endBlocking(defaultWorld, participants); };
+      // Two arms rather than .finally(): loadMap can reject ("Map N not
+      // found") and .finally() would re-throw it as an unhandled rejection.
+      transferPlayer(tr.mapId, tr.x, tr.y, tr.dir).then(release, (err: any) => {
+        release();
+        console.error(err);
+      });
       return;
     }
   }
@@ -640,7 +687,7 @@ function onPlayerStep(): void {
         const result = await fns.Battle.run(troopId, true, opts);
         // Beacon MP6·A (A-7): a shared battle's defeat revived everyone at
         // 1 HP — no game-over in co-op. Solo keeps the classic flow.
-        if (result === "lose" && !fns.Battle.lastShared) await fns.gameOver();
+        if (result === "lose" && !fns.Battle.lastShared) fns.requestGameOver();
         // Autosave (post-1.1): a survived random battle autosaves like MZ.
         else autosaveNow();
       })();
@@ -700,7 +747,7 @@ function applyStepTileEffects(): boolean {
   ctx.flashTimer = 10;
   ctx.flashDuration = 10;
   if (G.party.every((a: any) => a.hp <= 0)) {
-    (async () => { await fns.gameOver(); })();
+    fns.requestGameOver();
     return true;
   }
   return false;

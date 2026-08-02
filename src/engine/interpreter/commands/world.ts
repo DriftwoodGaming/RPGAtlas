@@ -16,15 +16,34 @@ export function registerWorldCommands(): void {
     await services.transferPlayer(c.mapId, c.x, c.y, c.dir);
   });
 
+  // Set Move Route. `target` is "player", "this" (the running event) or
+  // "other" with an `eventId` — the third is new, and is what makes a route a
+  // cutscene tool: one event can walk the whole cast. Options ride alongside:
+  // repeat (loop until something replaces it), skippable (a blocked step is
+  // dropped rather than waited on), and gap (the pause between steps).
   registerCommand("move", async (c: any, { interp, state, services }: InterpContext) => {
-    const target = c.target === "player" ? state.player : interp.evRT;
-    if (!target) return;
-    if (c.wait) {
-      await new Promise<void>((res) =>
-        services.setRoute(target, c.steps.slice(), res),
-      );
+    // Anything that isn't "player" and doesn't name another event is the
+    // running event, which is what every route saved before this was.
+    const otherId = c.target === "other" || Number(c.eventId) > 0 ? Number(c.eventId) || 0 : 0;
+    const target =
+      c.target === "player"
+        ? state.player
+        : c.target === "other" || otherId > 0
+          ? services.eventRuntimeById && services.eventRuntimeById(otherId)
+          : interp.evRT;
+    if (!target) return; // an event that isn't on this map — an honest no-op
+    const steps = Array.isArray(c.steps) ? c.steps.slice() : [];
+    const opts = {
+      repeat: !!c.repeat,
+      skippable: c.skippable !== false,
+      gap: Number(c.gap) || 0,
+    };
+    // A repeating route never ends, so waiting on it would freeze the game —
+    // the editor hides the pairing, and this is the belt to that braces.
+    if (c.wait && !c.repeat) {
+      await new Promise<void>((res) => services.setRoute(target, steps, res, opts));
     } else {
-      services.setRoute(target, c.steps.slice(), null);
+      services.setRoute(target, steps, null, opts);
     }
   });
 

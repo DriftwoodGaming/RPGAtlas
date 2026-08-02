@@ -60,14 +60,20 @@ const SKIP: Record<number, TodoInfo> = {
 const CMP = ["==", ">=", "<=", ">", "<", "!="];
 /** RM facing (0 retain · 2 down · 4 left · 6 right · 8 up) → Atlas Dir (0 d/1 l/2 r/3 u). */
 const RM_DIR: Record<number, 0 | 1 | 2 | 3> = { 0: 0, 2: 0, 4: 1, 6: 2, 8: 3 };
-/** RM move-route step code → Atlas `CmdMove.steps` token (matrix §9, the `=`
- *  rows). Diagonals decompose (§9 5–8); everything else drops + reports. */
+/** RM move-route step code → Atlas `CmdMove.steps` token (matrix §9). Atlas
+ *  move routes carry the whole RM palette since post-2.0, so the diagonals
+ *  (5–8), the dynamic moves (9–11, 13) and the relative turns (20–26) are real
+ *  steps now instead of dropped-and-reported approximations. */
 const MOVE_STEP: Record<number, string> = {
-  1: "down", 2: "left", 3: "right", 4: "up", 12: "forward",
+  1: "down", 2: "left", 3: "right", 4: "up",
+  5: "downleft", 6: "downright", 7: "upleft", 8: "upright",
+  9: "random", 10: "toward", 11: "away", 12: "forward", 13: "back",
   16: "turn_down", 17: "turn_left", 18: "turn_right", 19: "turn_up",
-};
-const MOVE_DIAG: Record<number, [string, string]> = {
-  5: ["down", "left"], 6: ["down", "right"], 7: ["up", "left"], 8: ["up", "right"],
+  20: "turn_r90", 21: "turn_l90", 22: "turn_180", 24: "turn_random",
+  25: "turn_toward", 26: "turn_away",
+  31: "walk_on", 32: "walk_off", 33: "step_on", 34: "step_off",
+  35: "dirfix_on", 36: "dirfix_off", 37: "through_on", 38: "through_off",
+  39: "transparent_on", 40: "transparent_off",
 };
 
 /** RM Scroll Map direction (2 down · 4 left · 6 right · 8 up) → Atlas dir. */
@@ -444,23 +450,64 @@ class Translator {
   private moveRoute(c: RmCommand, out: AnyCommand[]): void {
     const p = (c.parameters as any[]) || [];
     const charId = num(p[0]);
-    if (charId > 0) { this.bump("cmd-move-other", "todo", "moving another event by number", "move routes aimed at a specific event by number arrive in a later update", 205); out.push({ t: "mzTodo", code: 205, params: p, label: "Move another event — coming in a later update" }); return; }
     const route = p[1] as RmMoveRoute;
-    out.push({ t: "move", target: charId === -1 ? "player" : "this", steps: this.routeSteps(route), wait: !!(route && route.wait) });
+    // Atlas move routes can aim at another event by id since post-2.0, so an
+    // RM route targeting event N comes across whole instead of becoming a todo.
+    const target = charId === -1 ? "player" : charId > 0 ? "other" : "this";
+    const cmd: any = { t: "move", target, steps: this.routeSteps(route), wait: !!(route && route.wait) };
+    if (target === "other") cmd.eventId = charId;
+    if (route && route.repeat) { cmd.repeat = true; cmd.wait = false; }
+    if (route && route.skippable) cmd.skippable = true;
+    else if (route) cmd.skippable = false; // RM's default is "wait for the way to clear"
+    out.push(cmd);
   }
-  /** Move-route step list → Atlas `CmdMove.steps` (matrix §9). */
-  private routeSteps(route: RmMoveRoute | undefined): string[] {
-    const steps: string[] = [];
+  /** Move-route step list → Atlas `CmdMove.steps` (matrix §9). Atlas carries
+   *  the whole RM palette now; only Change Blend Mode (43) and Script (45) are
+   *  still dropped, and they are reported as they always were. */
+  private routeSteps(route: RmMoveRoute | undefined): (string | Record<string, unknown>)[] {
+    const steps: (string | Record<string, unknown>)[] = [];
     let simplified = false;
     for (const mc of (route && route.list) || []) {
+      const mp = (mc.parameters as any[]) || [];
       if (MOVE_STEP[mc.code]) { steps.push(MOVE_STEP[mc.code]); continue; }
-      if (MOVE_DIAG[mc.code]) { steps.push(...MOVE_DIAG[mc.code]); simplified = true; continue; }
-      if (mc.code === 14) { steps.push("jump"); if (((mc.parameters as any[]) || []).some((v) => v)) simplified = true; continue; }
-      if (mc.code === 15) { const f = num(((mc.parameters as any[]) || [])[0]) || 15; steps.push(f > 30 ? "wait60" : "wait15"); continue; }
-      if (mc.code === 0) continue; // route terminator
-      simplified = true; // 9–13 dynamic, 20–26 relative turns, 27–45 extras → dropped
+      switch (mc.code) {
+        case 0: continue; // route terminator
+        case 14: // Jump (dx, dy) — a bare 0,0 is RM's hop in place
+          steps.push({ k: "jump", dx: num(mp[0]), dy: num(mp[1]) });
+          continue;
+        case 15:
+          steps.push({ k: "wait", frames: num(mp[0]) || 15 });
+          continue;
+        case 23: // turn 90° right OR left at random — Atlas rolls it at author time
+          steps.push("turn_random");
+          continue;
+        case 27:
+        case 28:
+          steps.push({ k: "switch", id: num(mp[0]), on: mc.code === 27 });
+          continue;
+        case 29:
+          steps.push({ k: "speed", value: num(mp[0]) || 3 });
+          continue;
+        case 30:
+          steps.push({ k: "freq", value: num(mp[0]) || 3 });
+          continue;
+        case 41: { // Change Image (name, index) — same slug rule as 322/323
+          const name = String(mp[0] || "");
+          steps.push({ k: "graphic", charset: name ? slugKey(name) + (num(mp[1]) ? "-" + num(mp[1]) : "") : "" });
+          continue;
+        }
+        case 42:
+          steps.push({ k: "opacity", value: num(mp[0]) });
+          continue;
+        case 44:
+          steps.push({ k: "se", name: audioKey(mp[0]) });
+          continue;
+        default:
+          simplified = true; // 43 blend mode, 45 script
+          continue;
+      }
     }
-    if (simplified) this.bump("route-steps", "partial", "some movement details", "fancy movement steps (diagonals, chase, speed, in-route sounds…) were simplified to the basic moves");
+    if (simplified) this.bump("route-steps", "partial", "a couple of movement details", "blend-mode changes and in-route script steps were left out; every other movement step came across");
     return steps;
   }
 

@@ -15,7 +15,31 @@ import { ctx, fns } from "../state/engine-context.js";
 import { playMe } from "../../shared/audio-deck.js";
 import { toTitle } from "./title.js";
 
+/** Ask for a game over from a defeat (a lost battle, a killing touch on the
+ *  map). `owner` is the Interp whose event caused it, if any: that run keeps
+ *  its turn and the latch is consumed when its command list finishes, so an
+ *  authored "you have fallen…" text box plays where it was written instead of
+ *  surfacing over the title screen afterwards. With nothing running — a
+ *  random encounter, a map hazard — this is the immediate flow it always was.
+ *
+ *  The explicit "Game Over" event command is deliberately NOT routed here:
+ *  there the author has said "end it right now", and the run epoch (bumped by
+ *  toTitle) stops the rest of their list instead. */
+export function requestGameOver(owner?: any): void {
+  if (ctx.scene === "gameover" || ctx.pendingGameOver) return; // already going
+  if (owner) {
+    ctx.pendingGameOver = owner;
+    return;
+  }
+  void gameOver();
+}
+fns.requestGameOver = requestGameOver;
+
 export async function gameOver(): Promise<void> {
+  // Re-entry guard: the map's touch-damage check runs every frame and a
+  // hazard can "kill" an already-dead party again while the panel is up.
+  if (ctx.scene === "gameover") return;
+  ctx.pendingGameOver = null;
   ctx.scene = "gameover";
   Music.stop();
   // An imported game-over jingle (M4·B, system.music.gameover) plays instead

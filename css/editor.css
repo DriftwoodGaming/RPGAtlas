@@ -402,12 +402,34 @@ button.danger:hover { background: #6a3636; }
 .dialogue-cond-cell { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .dialogue-cond-text { color: #8fd3b8; }
 /* The shared multi-condition builder (Conditional Branch, Show Choices,
-   dialogue nodes/options/topics). */
-.condgroup { display: flex; flex-direction: column; gap: 6px; }
-.condgroup .minirow { background: var(--panel); border: 1px solid var(--line-2); border-radius: 6px; padding: 5px 7px; }
-.condgroup-join { min-width: 28px; color: var(--text-dim); font-weight: 700; text-transform: uppercase; font-size: var(--fs-tiny); }
-.condgroup-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.condgroup-actions { display: flex; gap: 6px; }
+   dialogue nodes/options/topics). Every condition is edited INLINE — one row
+   of live controls — and a group is an indented card carrying its own AND/OR
+   picker, so "A and (B or C)" is visible rather than buried in nested dialogs. */
+.condgroup { display: flex; flex-direction: column; gap: 7px; }
+.condgroup-mode { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.condgroup-mode-label { color: var(--text-mid); font-size: var(--fs-tiny); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; }
+.condgroup-list { display: flex; flex-direction: column; gap: 6px; }
+/* One condition: [join word] [its controls, all on one line] [remove] */
+.condrow { display: flex; gap: 8px; align-items: flex-start; background: var(--panel); border: 1px solid var(--line-2); border-radius: 6px; padding: 4px 7px; }
+.condrow-body { flex: 1; min-width: 0; display: flex; }
+/* One condition's controls share a single flex line: the type picker, then
+   whatever that type needs. `display: contents` on the sub-wrapper lets the
+   kind's own rows join the same flow instead of stacking beneath. */
+.condfields { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: flex-end; column-gap: 2px; }
+.condfields-sub { display: contents; }
+.condfields .frow { display: contents; }
+.condfields .dim { flex-basis: 100%; margin: 2px 0 0; }
+.condrow > .mini { margin-top: 9px; }
+/* A group row is a bracket, not a control — let the card inside carry the box. */
+.condrow-group { background: transparent; border-style: dashed; padding: 4px; }
+.condgroup-nested { background: var(--panel-2); border: 1px solid var(--line-2); border-left: 3px solid var(--accent-edge); border-radius: 6px; padding: 7px 9px; }
+.condgroup-join { min-width: 30px; margin-top: 11px; color: var(--text-dim); font-weight: 700; text-transform: uppercase; font-size: var(--fs-tiny); letter-spacing: 0.04em; }
+.condgroup-join.join-and { color: #8fd3b8; }
+.condgroup-join.join-or { color: var(--gold); }
+.condgroup-empty { padding: 5px 2px; }
+.condgroup-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+/* The whole gate as one sentence, live while you edit it. */
+.condgroup-preview { font-size: var(--fs-small); color: var(--accent-text); background: var(--bg-deep); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; overflow-wrap: anywhere; }
 .dialogue-speakers { display: flex; flex-direction: column; gap: 8px; }
 .dialogue-preview { display: flex; flex-direction: column; gap: 9px; min-height: 240px; }
 .dialogue-preview-bubble { display: flex; gap: 12px; align-items: flex-start; padding: 14px; background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 8px; }
@@ -760,6 +782,8 @@ button.danger:hover { background: #6a3636; }
 .patch-notes { display: flex; flex-direction: column; gap: 12px; }
 .patch-note { background: var(--panel-2); border: 1px solid var(--line-2); border-radius: 7px; padding: 10px 12px; }
 .patch-note-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.patch-note-head h3 { flex: 1; }
+.patch-note-version { color: var(--gold); font-weight: 700; font-size: var(--fs-small); white-space: nowrap; }
 .patch-note h3 { color: var(--heading); margin: 0; }
 .patch-note time { color: var(--text-dim); font-size: var(--fs-tiny); white-space: nowrap; }
 .patch-note p { margin: 7px 0; }

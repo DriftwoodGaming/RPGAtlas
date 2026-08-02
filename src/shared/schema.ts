@@ -1577,6 +1577,12 @@ export interface EventPage {
   charset?: string;
   dir?: Dir;
   moveType?: "fixed" | "random" | string;
+  /** Wander leash (post-2.0): how many tiles this event may stray from the
+   *  spot it was placed on, in any direction. Bounds both the random walk and
+   *  a chasing Action-Combat enemy, so a guard stays at its post instead of
+   *  following the player to the edge of the map. 0 / absent = unlimited,
+   *  which is how every event authored before this behaves. */
+  maxDistance?: number;
   trigger?: "action" | "touch" | "auto" | "parallel" | string;
   priority?: "below" | "same" | "above" | string;
   through?: boolean;

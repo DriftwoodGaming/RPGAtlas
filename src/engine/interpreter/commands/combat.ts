@@ -20,7 +20,13 @@ export function registerCombatCommands(): void {
     // and must not game-over a friend's world — lastShared suppresses it
     // (false/undefined in solo and in stubbed node-test services).
     if (result === "lose" && !c.lose && !services.Battle.lastShared) {
-      await services.gameOver();
+      // The game is over — but this event may still have something to say.
+      // requestGameOver hands the latch to THIS run: the rest of the list
+      // plays (a "you have fallen…" text box lands on the map, where it was
+      // written) and the game-over screen follows when the run ends. Before
+      // this the transition happened here and the remaining commands painted
+      // themselves over the title screen afterwards.
+      services.requestGameOver(interp);
       return;
     }
     // Autosave (post-1.1): a survived event battle autosaves like MZ. The

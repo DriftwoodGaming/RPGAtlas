@@ -5,8 +5,9 @@
    are parsed into a restricted AST and walked — never executed as code. The
    grammar is a closed whitelist: numbers, parens, + - * / %, unary minus,
    comparisons, ternary, `a.<stat>`/`b.<stat>` facade reads, `v[n]` variable
-   reads, and nine Math functions. Everything else (assignment, strings,
-   `&&`/`||`, unknown identifiers/properties) is a parse REJECT:
+   reads, nine Math functions, and (post-2.0) tabletop dice — the `2d6` /
+   `4d6kh3` literal plus `roll(count, sides)`. Everything else (assignment,
+   strings, `&&`/`||`, unknown identifiers/properties) is a parse REJECT:
    the importer reports it and the engine falls back to structured power, never
    silently zero. Amendment (a): all randomness flows through an INJECTED
    `randomInt` (the engine passes the seedable `rnd`), so `?rngseed=` replays
@@ -35,6 +36,68 @@ const MATH_FNS: Record<string, [number, number]> = {
   abs: [1, 1], pow: [2, 2], sqrt: [1, 1], randomInt: [1, 1],
 };
 
+// ---- Tabletop dice (post-2.0) ----------------------------------------------
+// D&D notation is the one bit of "formula" most newcomers already know, so it
+// is grammar, not a Math function: `2d6`, `d20`, `4d6kh3` (keep the highest
+// three — the classic stat roll), `2d20kh1` (advantage), `2d20kl1`
+// (disadvantage). Every die is ONE draw from the injected randomInt, so seeded
+// runs replay exactly and a formula WITHOUT dice consumes no draws at all
+// (the draw-conservation contract — pre-dice projects stay byte-identical).
+// `roll(count, sides)` is the same roll with computed operands, for the
+// level-scaling case (`roll(a.level, 6)`) a literal can't express.
+
+/** Sanity caps. A kid typing 99999d99999 gets a plain-language reject, not a
+ *  frozen tab; the function form clamps instead (its operands aren't known
+ *  until run time). */
+export const DICE_MAX_COUNT = 100;
+export const DICE_MAX_SIDES = 1000;
+
+/** A dice literal at `src[i]`, or null. Count defaults to 1 (`d20`); the
+ *  optional `kh`/`kl` tail keeps the highest/lowest N of the roll. */
+function matchDice(src: string, i: number): { count: number; sides: number; keep: number; keepHigh: boolean; len: number } | string | null {
+  const m = /^(\d+)?[dD](\d+)(?:[kK]([hHlL])(\d+))?/.exec(src.slice(i));
+  if (!m) return null;
+  // `d6x` / `2d6foo` is a typo, not a roll — say so instead of silently
+  // tokenizing a stray identifier next to it.
+  const after = src[i + m[0].length];
+  if (after && /[A-Za-z0-9_$]/.test(after))
+    return `"${m[0]}${after}" isn't a dice roll — write it like 2d6, d20 or 4d6kh3`;
+  const count = m[1] == null ? 1 : parseInt(m[1], 10);
+  const sides = parseInt(m[2], 10);
+  const keepHigh = !m[3] || m[3].toLowerCase() === "h";
+  const keep = m[4] == null ? 0 : parseInt(m[4], 10);
+  if (count < 1 || count > DICE_MAX_COUNT)
+    return `"${m[0]}" rolls too many dice (1–${DICE_MAX_COUNT} please)`;
+  if (sides < 1 || sides > DICE_MAX_SIDES)
+    return `"${m[0]}" uses a die with too many sides (1–${DICE_MAX_SIDES} please)`;
+  if (m[4] != null && (keep < 1 || keep > count))
+    return `"${m[0]}" can only keep 1–${count} of the ${count} dice it rolls`;
+  return { count, sides, keep, keepHigh, len: m[0].length };
+}
+
+/** Roll `count` dice with `sides` faces, optionally keeping the highest or
+ *  lowest `keep` of them, and sum. One randomInt draw per die, always in
+ *  roll order, so the stream is identical however the dice are kept. */
+function rollDice(
+  count: number,
+  sides: number,
+  keep: number,
+  keepHigh: boolean,
+  randomInt: (n: number) => number,
+): number {
+  const n = Math.min(DICE_MAX_COUNT, Math.floor(count) || 0);
+  const faces = Math.min(DICE_MAX_SIDES, Math.max(1, Math.floor(sides) || 1));
+  if (n < 1) return 0;
+  const rolls: number[] = [];
+  for (let i = 0; i < n; i++) rolls.push(randomInt(faces) + 1);
+  const k = Math.min(n, Math.floor(keep) || 0);
+  if (k > 0 && k < n) {
+    rolls.sort((x, y) => (keepHigh ? y - x : x - y));
+    rolls.length = k;
+  }
+  return rolls.reduce((s, r) => s + r, 0);
+}
+
 /** Gate amendment (b): input limits — over-limit takes the reject path. */
 export const FORMULA_MAX_LENGTH = 512;
 export const FORMULA_MAX_DEPTH = 32;
@@ -60,6 +123,9 @@ type Node =
   | { k: "stat"; who: "a" | "b"; stat: string }
   | { k: "var"; index: Node }
   | { k: "math"; fn: string; args: Node[] }
+  /** `2d6` / `4d6kh3` / `roll(n, sides)` — count and sides are nodes so the
+   *  function form can compute them; the literal form fills them with nums. */
+  | { k: "dice"; count: Node; sides: Node; keep: Node | null; keepHigh: boolean }
   | { k: "un"; node: Node } // unary minus
   | { k: "bin"; op: string; l: Node; r: Node }
   | { k: "tern"; c: Node; t: Node; f: Node };
@@ -78,7 +144,12 @@ export type ParseResult =
 // Tokenizer
 // ---------------------------------------------------------------------------
 
-interface Tok { t: string; v?: string | number }
+interface Tok {
+  t: string;
+  v?: string | number;
+  /** t === "dice": the decoded literal (see matchDice). */
+  dice?: { count: number; sides: number; keep: number; keepHigh: boolean };
+}
 
 const PUNCT = ["===", "!==", "<=", ">=", "==", "!=", "<", ">",
   "+", "-", "*", "/", "%", "(", ")", "[", "]", ".", ",", "?", ":"];
@@ -89,6 +160,16 @@ function tokenize(src: string): Tok[] | string {
   while (i < src.length) {
     const c = src[i];
     if (c === " " || c === "\t" || c === "\r" || c === "\n") { i++; continue; }
+    // Dice come first: `2d6` must not tokenize as the number 2 followed by an
+    // identifier `d6`, and `d20` must not become a bare identifier. A stat
+    // read like `a.def` is untouched — the letter after `d` isn't a digit.
+    const dice = matchDice(src, i);
+    if (typeof dice === "string") return dice;
+    if (dice) {
+      out.push({ t: "dice", dice: { count: dice.count, sides: dice.sides, keep: dice.keep, keepHigh: dice.keepHigh } });
+      i += dice.len;
+      continue;
+    }
     if (c >= "0" && c <= "9" || (c === "." && src[i + 1] >= "0" && src[i + 1] <= "9")) {
       const m = /^\d*\.?\d+(?:[eE][+-]?\d+)?/.exec(src.slice(i));
       if (!m) return "that number doesn't look right";
@@ -128,6 +209,13 @@ function parse(src: string): Node | string {
   const next = () => toks[pos++];
   const expect = (t: string): string | null =>
     next().t === t ? null : `expected "${t}" in the formula`;
+  /** How a token reads in an error message (a dice token has no literal text). */
+  const label = (tok: Tok): string =>
+    tok.t === "dice"
+      ? `${tok.dice!.count}d${tok.dice!.sides}`
+      : tok.t === "num" || tok.t === "id"
+        ? String(tok.v)
+        : tok.t;
 
   function enter(): string | null {
     if (++depth > FORMULA_MAX_DEPTH)
@@ -191,6 +279,16 @@ function parse(src: string): Node | string {
     try {
       const tok = next();
       if (tok.t === "num") return { k: "num", n: tok.v as number };
+      if (tok.t === "dice") {
+        const d = tok.dice!;
+        return {
+          k: "dice",
+          count: { k: "num", n: d.count },
+          sides: { k: "num", n: d.sides },
+          keep: d.keep > 0 ? { k: "num", n: d.keep } : null,
+          keepHigh: d.keepHigh,
+        };
+      }
       if (tok.t === "(") {
         const inner = ternary();
         if (typeof inner === "string") return inner;
@@ -201,7 +299,7 @@ function parse(src: string): Node | string {
       if (tok.t !== "id")
         return tok.t === "end"
           ? "the formula ends too soon"
-          : `unexpected "${tok.t}" in the formula`;
+          : `unexpected "${label(tok)}" in the formula`;
       const name = tok.v as string;
       if (name === "a" || name === "b") {
         const e = expect(".");
@@ -219,6 +317,23 @@ function parse(src: string): Node | string {
         const e2 = expect("]");
         if (e2) return e2;
         return { k: "var", index: idx };
+      }
+      // `roll(count, sides)` — the dice literal with computed operands, for
+      // rolls that scale ("roll(a.level, 6)"). Out-of-range operands clamp at
+      // run time rather than rejecting: the author can't be asked to prove a
+      // variable stays under 100.
+      if (name === "roll") {
+        const e = expect("(");
+        if (e) return 'roll needs two values, like roll(3, 6) for "three six-sided dice"';
+        const count = ternary();
+        if (typeof count === "string") return count;
+        const e2 = expect(",");
+        if (e2) return 'roll needs the number of dice AND their sides, like roll(3, 6)';
+        const sides = ternary();
+        if (typeof sides === "string") return sides;
+        const e3 = expect(")");
+        if (e3) return e3;
+        return { k: "dice", count, sides, keep: null, keepHigh: true };
       }
       if (name === "Math") {
         const e = expect(".");
@@ -245,13 +360,13 @@ function parse(src: string): Node | string {
           return `Math.${fn.v} takes ${lo === hi ? lo : lo + "–" + hi} value${hi > 1 ? "s" : ""}`;
         return { k: "math", fn: fn.v as string, args };
       }
-      return `"${name}" isn't something a damage formula can use (only a, b, v and Math)`;
+      return `"${name}" isn't something a damage formula can use (only a, b, v, Math, roll and dice like 2d6)`;
     } finally { leave(); }
   }
 
   const root = ternary();
   if (typeof root === "string") return root;
-  if (peek().t !== "end") return `the formula has extra "${peek().t}" at the end`;
+  if (peek().t !== "end") return `the formula has extra "${label(peek())}" at the end`;
   return root;
 }
 
@@ -264,6 +379,14 @@ function run(n: Node, env: FormulaEnv): number {
     case "num": return n.n;
     case "stat": return Number(env[n.who][n.stat as (typeof FORMULA_STATS)[number]]) || 0;
     case "var": return Number(env.v(run(n.index, env))) || 0;
+    case "dice":
+      return rollDice(
+        run(n.count, env),
+        run(n.sides, env),
+        n.keep ? run(n.keep, env) : 0,
+        n.keepHigh,
+        env.randomInt,
+      );
     case "un": return -run(n.node, env);
     case "tern": return run(n.c, env) ? run(n.t, env) : run(n.f, env);
     case "math": {

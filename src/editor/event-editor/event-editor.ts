@@ -333,6 +333,12 @@ import { compileGraph, decompileCommands } from "../../shared/event-graph";
             { v: "action", l: "Action button" }, { v: "touch", l: "Player touch" },
             { v: "auto", l: "Autorun" }, { v: "parallel", l: "Parallel" }])),
           propRow("Movement", sel(pg, "moveType", [{ v: "fixed", l: "Fixed" }, { v: "random", l: "Random" }])),
+          // Wander leash (post-2.0). 0 keeps the old "wander anywhere"
+          // behaviour, so every existing page reads exactly as it did.
+          propRow("Max wander", nIn(pg, "maxDistance", 0, 99)),
+          h("div", { class: "dim" },
+            "Max wander: how many tiles this event may get from where you placed it — 0 means no limit. " +
+            "A wandering shopkeeper with 3 stays in their shop, and an Action Combat enemy set to Chase gives up at the end of its rope instead of following the player across the map."),
           propRow("Priority", sel(pg, "priority", [{ v: "below", l: "Below player" }, { v: "same", l: "Same as player" }, { v: "above", l: "Above player" }])),
           propRow("Through", chk(pg, "through"))),
       ]);
